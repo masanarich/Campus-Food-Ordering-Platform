@@ -1,0 +1,1 @@
+console.log("Campus Food Ordering Platform loaded.");
