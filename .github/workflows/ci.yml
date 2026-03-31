@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          test -f README.md
+          test -f public/index.html
+          test -f public/index.css
+          test -f public/index.js
+
+      - name: Check HTML files
+        run: |
+          find public -name "*.html" | while read file; do
+            echo "Checking $file"
+            grep -q "<!DOCTYPE html>" "$file"
+          done
+
+      - name: Check CSS files
+        run: |
+          find public/css -name "*.css" | while read file; do
+            echo "Checking $file"
+            test -s "$file"
+          done
+
+      - name: Check JS files
+        run: |
+          find public/js -name "*.js" | while read file; do
+            echo "Checking $file"
+            test -s "$file"
+          done

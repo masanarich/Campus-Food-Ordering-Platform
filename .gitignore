@@ -70,3 +70,11 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+
+.firebase/
+.env
+firebase-debug.log
+.DS_Store
+Thumbs.db
+node_modules/
