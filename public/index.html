@@ -9,17 +9,170 @@
 </head>
 
 <body>
-    <header>
-        <h1>Campus Food Ordering Platform</h1>
-        <p>Built by 404 Team Not Found</p>
+    <header class="site-header">
+        <nav class="site-nav" aria-label="Main navigation">
+            <a class="brand" href="index.html">Campus Food Ordering Platform</a>
+
+            <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="menuList"
+                aria-label="Toggle menu">
+                Menu
+            </button>
+
+            <ul class="nav-list" id="menuList">
+                <li><a href="#about">About</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#get-started">Get Started</a></li>
+                <li><a href="#contact">Contact</a></li>
+                <li><a class="nav-button" href="authentication/login.html">Sign In</a></li>
+            </ul>
+        </nav>
     </header>
 
     <main>
-        <section>
-            <h2>Welcome</h2>
-            <p>Students can browse menus, place orders, and track order status.</p>
+        <section class="hero" aria-labelledby="hero-title">
+            <article class="hero-text">
+                <p class="eyebrow">404 Team Not Found</p>
+                <h1 id="hero-title">Order campus food faster, smarter, and with less queue time.</h1>
+                <p class="hero-description">
+                    Browse menus from multiple campus vendors, place your order online,
+                    and collect it when it is ready - all in one place.
+                </p>
+
+                <nav class="hero-actions" aria-label="Quick actions">
+                    <a class="button primary" href="authentication/login.html">Sign In</a>
+                    <a class="button secondary" href="authentication/register.html">Register</a>
+                    <a class="text-link" href="authentication/reset.html">Forgot Password?</a>
+                </nav>
+            </article>
+
+            <aside class="hero-panel" aria-label="Platform summary">
+                <p class="status-badge">Live Campus Ordering Experience</p>
+                <h2>Designed for students, vendors, and admins</h2>
+                <ul class="feature-list">
+                    <li>Browse menus from multiple vendors</li>
+                    <li>Track orders in real time</li>
+                    <li>Manage food items and availability</li>
+                    <li>View reports and ordering analytics</li>
+                </ul>
+            </aside>
+        </section>
+
+        <section class="section" id="about" aria-labelledby="about-title">
+            <article class="content-block">
+                <p class="section-label">About the Platform</p>
+                <h2 id="about-title">Built to reduce queues and improve the campus food experience</h2>
+                <p class="section-text">
+                    The Campus Food Ordering Platform is a web-based system that allows
+                    students to order food online, vendors to manage menus and incoming
+                    orders, and administrators to monitor platform activity across the system.
+                </p>
+            </article>
+        </section>
+
+        <section class="section alt-section" id="features" aria-labelledby="features-title">
+            <header class="section-header">
+                <p class="section-label">Core Features</p>
+                <h2 id="features-title">What the platform offers</h2>
+            </header>
+
+            <section class="card-grid" aria-label="Platform features">
+                <article class="info-card">
+                    <h3>Multi-vendor Ordering</h3>
+                    <p>Students can browse different vendors and place orders easily from one platform.</p>
+                </article>
+
+                <article class="info-card">
+                    <h3>Real-Time Tracking</h3>
+                    <p>Follow order progress from received to preparing to ready for pickup.</p>
+                </article>
+
+                <article class="info-card">
+                    <h3>Menu Management</h3>
+                    <p>Vendors can add items, update prices, and mark items as sold out.</p>
+                </article>
+
+                <article class="info-card">
+                    <h3>Analytics</h3>
+                    <p>Admins and vendors can view reports and useful ordering trends.</p>
+                </article>
+            </section>
+        </section>
+
+        <section class="section" id="get-started" aria-labelledby="start-title">
+            <header class="section-header">
+                <p class="section-label">Get Started</p>
+                <h2 id="start-title">Choose where you want to go</h2>
+            </header>
+
+            <section class="card-grid" aria-label="Authentication links">
+                <article class="portal-card">
+                    <h3>Sign In</h3>
+                    <p>Access your existing account to continue using the platform.</p>
+                    <a class="text-link" href="authentication/login.html">Go to Sign In</a>
+                </article>
+
+                <article class="portal-card">
+                    <h3>Register</h3>
+                    <p>Create a new account to start placing or managing orders.</p>
+                    <a class="text-link" href="authentication/register.html">Go to Register</a>
+                </article>
+
+                <article class="portal-card">
+                    <h3>Reset Password</h3>
+                    <p>Recover access to your account if you forgot your password.</p>
+                    <a class="text-link" href="authentication/reset.html">Go to Reset Password</a>
+                </article>
+            </section>
+        </section>
+
+        <section class="section alt-section" id="contact" aria-labelledby="contact-title">
+            <article class="content-block">
+                <p class="section-label">Contact Us</p>
+                <h2 id="contact-title">Need help or want to reach the team?</h2>
+                <p class="section-text">
+                    For queries, feedback, or support regarding the Campus Food Ordering
+                    Platform, please contact the team by email.
+                </p>
+                <p>
+                    <a class="contact-link"
+                        href="mailto:maduwarich@gmail.com?subject=Campus%20Food%20Ordering%20Platform%20Query">
+                        maduwarich@gmail.com
+                    </a>
+                </p>
+            </article>
         </section>
     </main>
+
+    <footer class="site-footer">
+        <section class="footer-layout" aria-label="Footer links">
+            <article>
+                <h3 class="footer-title">Campus Food Ordering Platform</h3>
+                <p class="footer-text">A Software Design project by 404 Team Not Found.</p>
+            </article>
+
+            <nav aria-label="Authentication footer links">
+                <h4 class="footer-heading">Authentication</h4>
+                <ul class="footer-links">
+                    <li><a href="authentication/login.html">Sign In</a></li>
+                    <li><a href="authentication/register.html">Register</a></li>
+                    <li><a href="authentication/reset.html">Forgot Password</a></li>
+                </ul>
+            </nav>
+
+            <nav aria-label="Legal footer links">
+                <h4 class="footer-heading">Legal</h4>
+                <ul class="footer-links">
+                    <li><a href="legal/privacy.html">Privacy Policy</a></li>
+                    <li><a href="legal/terms.html">Terms and Conditions</a></li>
+                    <li><a href="legal/cookies.html">Cookies Policy</a></li>
+                </ul>
+            </nav>
+        </section>
+
+        <section class="footer-bottom">
+            <p>&copy; <time id="currentYear"></time> Campus Food Ordering Platform. All rights reserved.</p>
+        </section>
+    </footer>
 
     <script src="index.js"></script>
 </body>
