@@ -1,5 +1,26 @@
 {
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
   "dependencies": {
     "firebase": "^12.11.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "collectCoverageFrom": [
+      "public/**/*.js",
+      "!public/authentication/config.js"
+    ],
+    "coverageDirectory": "coverage",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
   }
 }
