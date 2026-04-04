@@ -1,4 +1,4 @@
-const express = require('express');
+/*const express = require('express');
 const app=express();
 
 app.use(express.json());
@@ -52,4 +52,16 @@ app.put('/vendors/:id/suspend',(req,res)=>{
     }
 });
 
-app.listen(3000,()=>console.log("Server running on port 3000"));
+app.listen(3000,()=>console.log("Server running on port 3000"));*/
+const express = require('express');
+const app = express();
+
+const menuRoutes = require('./routes/menu');
+const vendorRoutes = require('./routes/vendor');
+
+app.use(express.json());
+
+app.use('/menu', menuRoutes);
+app.use('/vendors', vendorRoutes);
+
+app.listen(3000, () => console.log("Server running on port 3000"));
