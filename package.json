@@ -1,0 +1,15 @@
+{
+  "name": "campus-food-app",
+  "version": "1.0.0",
+  "description": "Campus Food Ordering Platform",
+  "main": "backend/server.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
+}
