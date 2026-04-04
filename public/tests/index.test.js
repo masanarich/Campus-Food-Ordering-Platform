@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-const { initializeMenu, setCurrentYear } = require("./index.js");
+const { initializeMenu, setCurrentYear } = require("../index.js");
 
 describe("Landing Page Behaviour", () => {
 
