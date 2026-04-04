@@ -1,4 +1,4 @@
-const API = 'http://localhost:3000';
+/*const API = 'http://localhost:3000';
 
 document.getElementById("menuForm").addEventListener("submit",async(e)=>{
     e.preventDefault();
@@ -37,4 +37,9 @@ async function loadMenu() {
     }
     loadMenu();
     
+}*/
+function formatItem(item) {
+  return `${item.name} - R${item.price}`;
 }
+
+module.exports = { formatItem };
