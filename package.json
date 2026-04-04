@@ -6,10 +6,8 @@
   "scripts": {
     "test": "jest"
   },
-  "dependencies": {
-    "express": "^5.2.1"
-  },
   "devDependencies": {
+    "express": "^5.2.1",
     "jest": "^30.3.0"
   }
 }

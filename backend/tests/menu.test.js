@@ -1,4 +1,4 @@
-const { formatItem } = require('../frontend/js/vendor');
+const { formatItem } = require('../../frontend/js/vendor');
 
 test("formats item", () => {
   const result = formatItem({ name: "Burger", price: 50 });

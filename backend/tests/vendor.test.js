@@ -1,4 +1,4 @@
-const { approveVendor, suspendVendor } = require('../backend/models/vendorModel');
+const { approveVendor, suspendVendor } = require('../models/vendorModel');
 
 test("approve vendor", () => {
   const v = approveVendor(1);

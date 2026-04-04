@@ -1,4 +1,4 @@
-const { addItem, getItems, markSoldOut } = require('../backend/models/menuModel');
+const { addItem, getItems, markSoldOut } = require('../models/menuModel');
 
 test("adds item", () => {
   const item = addItem({ name: "Burger", price: 50 });
