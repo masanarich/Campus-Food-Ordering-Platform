@@ -1,4 +1,4 @@
-const API = "http://localhost:3000";
+/*const API = "http://localhost:3000";
 
 async function loadVendors() {
   const res = await fetch(`${API}/vendors`);
@@ -25,4 +25,9 @@ function suspend(id) {
   fetch(`${API}/vendor/${id}/suspend`, { method: "PUT" });
 }
 
-loadVendors();
+loadVendors();*/
+function formatVendor(v) {
+  return `${v.name} (${v.status})`;
+}
+
+module.exports = { formatVendor };
