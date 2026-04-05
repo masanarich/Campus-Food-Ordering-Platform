@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { addItem, getItems, markSoldOut } = require('../models/menuModel');
+const { addItem, getItems, markSoldOut ,updateItem} = require('../models/menuModel');
 
 router.post('/', (req, res) => {
   res.json(addItem(req.body));
