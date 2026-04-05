@@ -37,8 +37,12 @@ function createLoginFormDom() {
     <p id="login-status"></p>
   `;
 
+    const form = document.querySelector("#login-form");
+
     return {
-        form: document.querySelector("#login-form"),
+        form,
+        emailInput: form.querySelector('[name="email"]'),
+        passwordInput: form.querySelector('[name="password"]'),
         statusElement: document.querySelector("#login-status"),
         googleButton: document.querySelector("#google-signin"),
         appleButton: document.querySelector("#apple-signin")
@@ -55,10 +59,10 @@ describe("login.js helpers", () => {
     });
 
     test("extractLoginFormValues reads values from form", () => {
-        const { form } = createLoginFormDom();
+        const { form, emailInput, passwordInput } = createLoginFormDom();
 
-        form.email.value = "user@example.com";
-        form.password.value = "password123";
+        emailInput.value = "user@example.com";
+        passwordInput.value = "password123";
 
         const result = extractLoginFormValues(form);
 
@@ -277,10 +281,10 @@ describe("login.js auth result handlers", () => {
 
 describe("login.js form submission flow", () => {
     test("attachLoginHandler shows validation errors for invalid input", async () => {
-        const { form, statusElement } = createLoginFormDom();
+        const { form, statusElement, emailInput, passwordInput } = createLoginFormDom();
 
-        form.email.value = "bad-email";
-        form.password.value = "";
+        emailInput.value = "bad-email";
+        passwordInput.value = "";
 
         const authService = {
             loginWithEmail: jest.fn()
@@ -310,10 +314,10 @@ describe("login.js form submission flow", () => {
     });
 
     test("attachLoginHandler logs in successfully", async () => {
-        const { form, statusElement } = createLoginFormDom();
+        const { form, statusElement, emailInput, passwordInput } = createLoginFormDom();
 
-        form.email.value = "user@example.com";
-        form.password.value = "password123";
+        emailInput.value = "user@example.com";
+        passwordInput.value = "password123";
 
         const authService = {
             loginWithEmail: jest.fn().mockResolvedValue({
@@ -347,10 +351,10 @@ describe("login.js form submission flow", () => {
     });
 
     test("attachLoginHandler shows service error message on failed login", async () => {
-        const { form, statusElement } = createLoginFormDom();
+        const { form, statusElement, emailInput, passwordInput } = createLoginFormDom();
 
-        form.email.value = "user@example.com";
-        form.password.value = "wrongpass";
+        emailInput.value = "user@example.com";
+        passwordInput.value = "wrongpass";
 
         const authService = {
             loginWithEmail: jest.fn().mockResolvedValue({
@@ -380,10 +384,10 @@ describe("login.js form submission flow", () => {
     });
 
     test("attachLoginHandler handles thrown errors", async () => {
-        const { form, statusElement } = createLoginFormDom();
+        const { form, statusElement, emailInput, passwordInput } = createLoginFormDom();
 
-        form.email.value = "user@example.com";
-        form.password.value = "password123";
+        emailInput.value = "user@example.com";
+        passwordInput.value = "password123";
 
         const authService = {
             loginWithEmail: jest.fn().mockRejectedValue(new Error("Unexpected failure"))

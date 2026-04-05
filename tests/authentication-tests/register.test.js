@@ -16,6 +16,16 @@ const {
 
 const authUtils = require("../../public/authentication/auth-utils.js");
 
+function getRegisterFields(form) {
+    return {
+        fullName: form.elements.namedItem("fullName"),
+        email: form.elements.namedItem("email"),
+        password: form.elements.namedItem("password"),
+        confirmPassword: form.elements.namedItem("confirmPassword"),
+        accountType: form.elements.namedItem("accountType")
+    };
+}
+
 function createRegisterFormDom() {
     document.body.innerHTML = `
     <form id="register-form">
@@ -60,12 +70,13 @@ describe("register.js helpers", () => {
 
     test("extractRegisterFormValues reads values from form", () => {
         const { form } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
 
-        form.fullName.value = "Faranani Maduwa";
-        form.email.value = "faranani@example.com";
-        form.password.value = "password123";
-        form.confirmPassword.value = "password123";
-        form.accountType.value = "vendor";
+        fields.fullName.value = "Faranani Maduwa";
+        fields.email.value = "faranani@example.com";
+        fields.password.value = "password123";
+        fields.confirmPassword.value = "password123";
+        fields.accountType.value = "vendor";
 
         const result = extractRegisterFormValues(form);
 
@@ -257,12 +268,13 @@ describe("register.js service submission", () => {
 describe("register.js form submission flow", () => {
     test("attachRegisterHandler shows validation errors for invalid input", async () => {
         const { form, statusElement } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
 
-        form.fullName.value = "";
-        form.email.value = "bad-email";
-        form.password.value = "123";
-        form.confirmPassword.value = "456";
-        form.accountType.value = "admin";
+        fields.fullName.value = "";
+        fields.email.value = "bad-email";
+        fields.password.value = "123";
+        fields.confirmPassword.value = "456";
+        fields.accountType.value = "admin";
 
         const authService = {
             registerWithEmail: jest.fn()
@@ -290,12 +302,13 @@ describe("register.js form submission flow", () => {
 
     test("attachRegisterHandler registers a customer successfully", async () => {
         const { form, statusElement } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
 
-        form.fullName.value = "Faranani Maduwa";
-        form.email.value = "faranani@example.com";
-        form.password.value = "password123";
-        form.confirmPassword.value = "password123";
-        form.accountType.value = "customer";
+        fields.fullName.value = "Faranani Maduwa";
+        fields.email.value = "faranani@example.com";
+        fields.password.value = "password123";
+        fields.confirmPassword.value = "password123";
+        fields.accountType.value = "customer";
 
         const authService = {
             registerWithEmail: jest.fn().mockResolvedValue({
@@ -333,12 +346,13 @@ describe("register.js form submission flow", () => {
 
     test("attachRegisterHandler registers a vendor and shows pending message", async () => {
         const { form, statusElement } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
 
-        form.fullName.value = "Vendor User";
-        form.email.value = "vendor@example.com";
-        form.password.value = "password123";
-        form.confirmPassword.value = "password123";
-        form.accountType.value = "vendor";
+        fields.fullName.value = "Vendor User";
+        fields.email.value = "vendor@example.com";
+        fields.password.value = "password123";
+        fields.confirmPassword.value = "password123";
+        fields.accountType.value = "vendor";
 
         const authService = {
             registerWithEmail: jest.fn().mockResolvedValue({
@@ -374,12 +388,13 @@ describe("register.js form submission flow", () => {
 
     test("attachRegisterHandler shows service error message on failed registration", async () => {
         const { form, statusElement } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
 
-        form.fullName.value = "Taken User";
-        form.email.value = "taken@example.com";
-        form.password.value = "password123";
-        form.confirmPassword.value = "password123";
-        form.accountType.value = "customer";
+        fields.fullName.value = "Taken User";
+        fields.email.value = "taken@example.com";
+        fields.password.value = "password123";
+        fields.confirmPassword.value = "password123";
+        fields.accountType.value = "customer";
 
         const authService = {
             registerWithEmail: jest.fn().mockResolvedValue({
@@ -410,12 +425,13 @@ describe("register.js form submission flow", () => {
 
     test("attachRegisterHandler handles unexpected thrown errors", async () => {
         const { form, statusElement } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
 
-        form.fullName.value = "Faranani Maduwa";
-        form.email.value = "faranani@example.com";
-        form.password.value = "password123";
-        form.confirmPassword.value = "password123";
-        form.accountType.value = "customer";
+        fields.fullName.value = "Faranani Maduwa";
+        fields.email.value = "faranani@example.com";
+        fields.password.value = "password123";
+        fields.confirmPassword.value = "password123";
+        fields.accountType.value = "customer";
 
         const authService = {
             registerWithEmail: jest.fn().mockRejectedValue(new Error("Unexpected failure"))

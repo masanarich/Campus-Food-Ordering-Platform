@@ -17,13 +17,27 @@ function normalizeEmail(email) {
     return normalizeText(email).toLowerCase();
 }
 
+function getFormField(form, fieldName) {
+    if (!form || !form.elements || typeof form.elements.namedItem !== "function") {
+        return null;
+    }
+
+    return form.elements.namedItem(fieldName);
+}
+
 function extractRegisterFormValues(form) {
+    const fullNameField = getFormField(form, "fullName");
+    const emailField = getFormField(form, "email");
+    const passwordField = getFormField(form, "password");
+    const confirmPasswordField = getFormField(form, "confirmPassword");
+    const accountTypeField = getFormField(form, "accountType");
+
     return {
-        fullName: form.fullName ? form.fullName.value : "",
-        email: form.email ? form.email.value : "",
-        password: form.password ? form.password.value : "",
-        confirmPassword: form.confirmPassword ? form.confirmPassword.value : "",
-        accountType: form.accountType ? form.accountType.value : "customer"
+        fullName: fullNameField ? fullNameField.value : "",
+        email: emailField ? emailField.value : "",
+        password: passwordField ? passwordField.value : "",
+        confirmPassword: confirmPasswordField ? confirmPasswordField.value : "",
+        accountType: accountTypeField ? accountTypeField.value : "customer"
     };
 }
 
@@ -269,6 +283,7 @@ function initializeRegisterPage(options = {}) {
 const registerPage = {
     normalizeText,
     normalizeEmail,
+    getFormField,
     extractRegisterFormValues,
     buildRegisterPayload,
     isValidAccountType,
