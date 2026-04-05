@@ -17,10 +17,21 @@ function normalizeEmail(email) {
     return normalizeText(email).toLowerCase();
 }
 
+function getFormField(form, fieldName) {
+    if (!form || !form.elements || typeof form.elements.namedItem !== "function") {
+        return null;
+    }
+
+    return form.elements.namedItem(fieldName);
+}
+
 function extractLoginFormValues(form) {
+    const emailField = getFormField(form, "email");
+    const passwordField = getFormField(form, "password");
+
     return {
-        email: form.email ? form.email.value : "",
-        password: form.password ? form.password.value : ""
+        email: emailField ? emailField.value : "",
+        password: passwordField ? passwordField.value : ""
     };
 }
 
@@ -385,6 +396,7 @@ function initializeLoginPage(options = {}) {
 const loginPage = {
     normalizeText,
     normalizeEmail,
+    getFormField,
     extractLoginFormValues,
     buildLoginPayload,
     validateLoginPayload,
