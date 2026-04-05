@@ -17,7 +17,8 @@ function createMockDependencies() {
             signInWithPopup: jest.fn(),
             signOut: jest.fn(),
             onAuthStateChanged: jest.fn(),
-            updateProfile: jest.fn()
+            updateProfile: jest.fn(),
+            sendPasswordResetEmail: jest.fn()
         },
         firestoreFns: {
             doc: jest.fn((database, collectionName, uid) => ({
@@ -136,6 +137,31 @@ describe("auth-core service", () => {
         expect(result).toBe(true);
     });
 
+    test("sendPasswordReset calls Firebase reset function", async () => {
+        const deps = createMockDependencies();
+        deps.authFns.sendPasswordResetEmail.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.sendPasswordReset("user@example.com");
+
+        expect(deps.authFns.sendPasswordResetEmail).toHaveBeenCalledWith(
+            deps.auth,
+            "user@example.com"
+        );
+        expect(result).toBe(true);
+    });
+
+    test("sendPasswordReset throws if reset function is missing", async () => {
+        const deps = createMockDependencies();
+        delete deps.authFns.sendPasswordResetEmail;
+
+        const service = createAuthService(deps);
+
+        await expect(service.sendPasswordReset("user@example.com")).rejects.toThrow(
+            "authFns.sendPasswordResetEmail is required."
+        );
+    });
+
     test("setDisplayName updates profile when data is present", async () => {
         const deps = createMockDependencies();
         deps.authFns.updateProfile.mockResolvedValue(undefined);
@@ -155,6 +181,15 @@ describe("auth-core service", () => {
 
         const service = createAuthService(deps);
         await service.setDisplayName(null, "Name");
+
+        expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
+    });
+
+    test("setDisplayName does nothing if displayName is missing", async () => {
+        const deps = createMockDependencies();
+
+        const service = createAuthService(deps);
+        await service.setDisplayName({ uid: "u1" }, "");
 
         expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
@@ -222,6 +257,18 @@ describe("auth-core service", () => {
         const result = await service.saveUserProfile(profile);
 
         expect(deps.firestoreFns.setDoc).toHaveBeenCalledTimes(1);
+        expect(deps.firestoreFns.setDoc).toHaveBeenCalledWith(
+            {
+                database: deps.db,
+                collectionName: "users",
+                uid: "user-4"
+            },
+            {
+                ...profile,
+                createdAt: "SERVER_TIMESTAMP",
+                updatedAt: "SERVER_TIMESTAMP"
+            }
+        );
         expect(result).toEqual(profile);
     });
 
@@ -236,6 +283,17 @@ describe("auth-core service", () => {
         });
 
         expect(deps.firestoreFns.updateDoc).toHaveBeenCalledTimes(1);
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            {
+                database: deps.db,
+                collectionName: "users",
+                uid: "user-5"
+            },
+            {
+                vendorStatus: "approved",
+                updatedAt: "SERVER_TIMESTAMP"
+            }
+        );
         expect(result).toEqual({
             uid: "user-5",
             vendorStatus: "approved"
@@ -388,6 +446,23 @@ describe("auth-core service", () => {
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
+    test("loginWithEmail returns mapped error on failure", async () => {
+        const deps = createMockDependencies();
+
+        deps.authFns.signInWithEmailAndPassword.mockRejectedValue({
+            code: "auth/invalid-credential"
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.loginWithEmail({
+            email: "user@example.com",
+            password: "wrongpass"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.message).toBe("Incorrect email or password.");
+    });
+
     test("loginWithGoogle creates default customer profile for first-time user", async () => {
         const deps = createMockDependencies();
         const mockUser = {
@@ -410,6 +485,22 @@ describe("auth-core service", () => {
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
+    test("loginWithGoogle returns mapped error on failure", async () => {
+        const deps = createMockDependencies();
+
+        deps.authFns.signInWithPopup.mockRejectedValue({
+            code: "auth/popup-closed-by-user"
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.loginWithGoogle();
+
+        expect(result.success).toBe(false);
+        expect(result.message).toBe(
+            "The sign-in popup was closed before completing sign-in."
+        );
+    });
+
     test("loginWithApple returns mapped error on failure", async () => {
         const deps = createMockDependencies();
 
@@ -424,6 +515,36 @@ describe("auth-core service", () => {
         expect(result.message).toBe(
             "The sign-in popup was closed before completing sign-in."
         );
+    });
+
+    test("sendPasswordResetEmail returns success", async () => {
+        const deps = createMockDependencies();
+        deps.authFns.sendPasswordResetEmail.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.sendPasswordResetEmail({
+            email: "user@example.com"
+        });
+
+        expect(result).toEqual({
+            success: true
+        });
+    });
+
+    test("sendPasswordResetEmail returns mapped error on failure", async () => {
+        const deps = createMockDependencies();
+
+        deps.authFns.sendPasswordResetEmail.mockRejectedValue({
+            code: "auth/user-not-found"
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.sendPasswordResetEmail({
+            email: "missing@example.com"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.message).toBe("No account was found with that email address.");
     });
 
     test("observeAuthState registers an auth state listener", () => {
