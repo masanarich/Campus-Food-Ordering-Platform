@@ -73,6 +73,15 @@ function createAuthService(dependencies = {}) {
         return true;
     }
 
+    async function sendPasswordReset(email) {
+        if (typeof authFns.sendPasswordResetEmail !== "function") {
+            throw new Error("authFns.sendPasswordResetEmail is required.");
+        }
+
+        await authFns.sendPasswordResetEmail(injectedAuth, email);
+        return true;
+    }
+
     async function setDisplayName(user, displayName) {
         if (!user || !displayName) {
             return;
@@ -256,6 +265,22 @@ function createAuthService(dependencies = {}) {
         }
     }
 
+    async function sendPasswordResetEmail({ email }) {
+        try {
+            await sendPasswordReset(email);
+
+            return {
+                success: true
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error,
+                message: utils.mapAuthErrorCode(error.code)
+            };
+        }
+    }
+
     function observeAuthState(callback) {
         return authFns.onAuthStateChanged(injectedAuth, callback);
     }
@@ -266,6 +291,8 @@ function createAuthService(dependencies = {}) {
         signInWithGoogle,
         signInWithApple,
         signOutUser,
+        sendPasswordReset,
+        sendPasswordResetEmail,
         setDisplayName,
         getUserDocRef,
         getUserProfile,
