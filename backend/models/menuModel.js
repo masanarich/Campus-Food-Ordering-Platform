@@ -20,4 +20,15 @@ function markSoldOut(id) {
   return item;
 }
 
-module.exports = { addItem, getItems, markSoldOut };
+function updateItem(id, data) {
+  const item = menu.find(i => i.id == id);
+
+  if (!item) {
+    throw new Error("Item not found");
+  }
+
+  Object.assign(item, data);
+  return item;
+}
+
+module.exports = { addItem, getItems, markSoldOut, updateItem };
