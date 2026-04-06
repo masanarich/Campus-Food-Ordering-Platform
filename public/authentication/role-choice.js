@@ -75,10 +75,7 @@ async function submitRoleChoice(role, dependencies) {
         throw new Error("authService.updateUserProfile is required.");
     }
 
-    if (
-        !authService ||
-        typeof authService.getCurrentUserProfile !== "function"
-    ) {
+    if (!authService || typeof authService.getCurrentUserProfile !== "function") {
         throw new Error("authService.getCurrentUserProfile is required.");
     }
 
@@ -89,7 +86,7 @@ async function submitRoleChoice(role, dependencies) {
         };
     }
 
-    const user = await authService.getCurrentUser();
+    const user = authService.getCurrentUser();
 
     if (!user) {
         return {
@@ -127,6 +124,10 @@ function attachRoleChoiceHandler(options) {
 
     if (!isValidRole(role)) {
         throw new Error("A valid role is required.");
+    }
+
+    if (!authService) {
+        throw new Error("authService is required.");
     }
 
     async function handleClick(event) {
@@ -198,7 +199,7 @@ function attachRoleChoiceHandler(options) {
 
 function initializeRoleChoicePage(options = {}) {
     const {
-        authService,
+        authService = typeof window !== "undefined" ? window.authService : undefined,
         statusSelector = "#role-choice-status",
         customerButtonSelector = "#choose-customer",
         vendorButtonSelector = "#choose-vendor",
@@ -208,6 +209,10 @@ function initializeRoleChoicePage(options = {}) {
     const statusElement = document.querySelector(statusSelector);
     const customerButton = document.querySelector(customerButtonSelector);
     const vendorButton = document.querySelector(vendorButtonSelector);
+
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
 
     const resolvedNavigate =
         typeof navigate === "function"
@@ -253,6 +258,20 @@ const roleChoicePage = {
     submitRoleChoice,
     attachRoleChoiceHandler,
     initializeRoleChoicePage
+};
+
+export {
+    normalizeText,
+    normalizeRole,
+    isValidRole,
+    setStatusMessage,
+    setButtonState,
+    getNextRouteForRole,
+    buildRoleUpdates,
+    submitRoleChoice,
+    attachRoleChoiceHandler,
+    initializeRoleChoicePage,
+    roleChoicePage
 };
 
 if (typeof module !== "undefined" && module.exports) {
