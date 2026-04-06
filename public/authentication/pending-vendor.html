@@ -3,9 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vendor Application Status | Campus Food Ordering Platform</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
     <link rel="stylesheet" href="./styles.css">
 </head>
 
@@ -27,8 +26,7 @@
         <section>
             <h2>Vendor Application Status</h2>
             <p>Your vendor application details are shown below.</p>
-
-            <p id="pending-vendor-status" aria-live="polite"></p>
+            <p id="pending-vendor-status" aria-live="polite">Loading application status...</p>
         </section>
 
         <section>
@@ -36,20 +34,20 @@
 
             <p>
                 <strong>Name:</strong>
-                <span id="pending-vendor-name"></span>
+                <span id="pending-vendor-name">-</span>
             </p>
 
             <p>
                 <strong>Business Name:</strong>
-                <span id="pending-vendor-business-name"></span>
+                <span id="pending-vendor-business-name">-</span>
             </p>
 
             <p>
                 <strong>Application Status:</strong>
-                <span id="pending-vendor-role-status"></span>
+                <span id="pending-vendor-role-status">-</span>
             </p>
 
-            <p id="pending-vendor-message"></p>
+            <p id="pending-vendor-message" aria-live="polite"></p>
         </section>
 
         <section>
@@ -81,7 +79,7 @@
     </main>
 
     <footer>
-        <p>Campus Food Ordering Platform © 2026</p>
+        <p>© 2026 Campus Food Ordering Platform</p>
     </footer>
 
     <script type="module">

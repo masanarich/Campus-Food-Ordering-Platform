@@ -3,9 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vendor Application | Campus Food Ordering Platform</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
     <link rel="stylesheet" href="./styles.css">
 </head>
 
@@ -35,25 +34,24 @@
                 <label for="businessName">Business Name</label>
                 <input type="text" id="businessName" name="businessName" placeholder="Enter your business name"
                     required>
-                <p data-error-for="businessName"></p>
+                <p data-error-for="businessName" aria-live="polite"></p>
 
                 <label for="contactNumber">Contact Number</label>
                 <input type="tel" id="contactNumber" name="contactNumber" placeholder="Enter your contact number"
                     required>
-                <p data-error-for="contactNumber"></p>
+                <p data-error-for="contactNumber" aria-live="polite"></p>
 
                 <label for="description">Business Description</label>
                 <textarea id="description" name="description" placeholder="Describe your food business" rows="5"
                     required></textarea>
-                <p data-error-for="description"></p>
+                <p data-error-for="description" aria-live="polite"></p>
 
                 <label for="campusLocation">Campus Location</label>
                 <input type="text" id="campusLocation" name="campusLocation"
                     placeholder="Enter your campus trading location" required>
-                <p data-error-for="campusLocation"></p>
+                <p data-error-for="campusLocation" aria-live="polite"></p>
 
                 <button type="submit">Submit Vendor Application</button>
-
             </form>
 
             <p id="vendor-application-status" aria-live="polite"></p>
@@ -74,7 +72,7 @@
     </main>
 
     <footer>
-        <p>Campus Food Ordering Platform © 2026</p>
+        <p>© 2026 Campus Food Ordering Platform</p>
     </footer>
 
     <script type="module">

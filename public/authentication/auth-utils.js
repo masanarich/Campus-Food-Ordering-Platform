@@ -52,6 +52,17 @@ function normalizeRoles(roles) {
     };
 }
 
+function getVendorStatus(userData) {
+    const allowedStatuses = ["none", "pending", "approved", "suspended", "rejected"];
+    const status = normalizeText(userData && userData.vendorStatus).toLowerCase();
+
+    if (allowedStatuses.includes(status)) {
+        return status;
+    }
+
+    return "none";
+}
+
 function normaliseUserData(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
     const roles = normalizeRoles(safeUser.roles);
@@ -63,7 +74,9 @@ function normaliseUserData(userData) {
         roles,
         vendorStatus: getVendorStatus(safeUser),
         accountStatus: normalizeText(safeUser.accountStatus) || "active",
-        isOwner: safeUser.isOwner === true
+        isOwner: safeUser.isOwner === true,
+        createdAt: safeUser.createdAt || null,
+        updatedAt: safeUser.updatedAt || null
     };
 }
 
@@ -82,17 +95,6 @@ function isVendor(userData) {
 
 function isAdmin(userData) {
     return hasRole(userData, "admin");
-}
-
-function getVendorStatus(userData) {
-    const allowedStatuses = ["none", "pending", "approved", "suspended", "rejected"];
-    const status = normalizeText(userData && userData.vendorStatus).toLowerCase();
-
-    if (allowedStatuses.includes(status)) {
-        return status;
-    }
-
-    return "none";
 }
 
 function isVendorPending(userData) {
@@ -165,7 +167,7 @@ function getDefaultPortalRoute(userData) {
     return "../authentication/login.html";
 }
 
-function createBaseUserProfile(authUser, overrides) {
+function createBaseUserProfile(authUser, overrides = {}) {
     const safeOverrides = overrides && typeof overrides === "object" ? overrides : {};
     const now = new Date().toISOString();
 
@@ -293,6 +295,40 @@ const authUtils = {
     suspendVendorProfile,
     rejectVendorProfile,
     mapAuthErrorCode
+};
+
+export {
+    normalizeText,
+    normalizeEmail,
+    isNonEmptyString,
+    isValidEmail,
+    isStrongPassword,
+    isValidPhoneNumber,
+    createEmptyRoles,
+    normalizeRoles,
+    normaliseUserData,
+    hasRole,
+    isCustomer,
+    isVendor,
+    isAdmin,
+    getVendorStatus,
+    isVendorPending,
+    isVendorApproved,
+    isVendorSuspended,
+    isVendorRejected,
+    canAccessCustomerPortal,
+    canAccessVendorPortal,
+    canAccessAdminPortal,
+    shouldGoToRoleChoice,
+    getAvailablePortals,
+    getDefaultPortalRoute,
+    createBaseUserProfile,
+    applyVendorApplicationToProfile,
+    approveVendorProfile,
+    suspendVendorProfile,
+    rejectVendorProfile,
+    mapAuthErrorCode,
+    authUtils
 };
 
 if (typeof module !== "undefined" && module.exports) {

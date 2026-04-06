@@ -69,6 +69,8 @@ const authService = createAuthService({
   }
 });
 
-export {
-  authService
-};
+export { authService };
+
+if (typeof window !== "undefined") {
+  window.authService = authService;
+}

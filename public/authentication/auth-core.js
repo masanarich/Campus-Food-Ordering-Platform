@@ -87,9 +87,7 @@ function createAuthService(dependencies = {}) {
             return;
         }
 
-        await authFns.updateProfile(user, {
-            displayName
-        });
+        await authFns.updateProfile(user, { displayName });
     }
 
     function getCurrentUser() {
@@ -317,16 +315,21 @@ function createAuthService(dependencies = {}) {
     };
 }
 
+const authCore = {
+    ensureDependency,
+    createAuthService
+};
+
+export {
+    ensureDependency,
+    createAuthService,
+    authCore
+};
+
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = {
-        ensureDependency,
-        createAuthService
-    };
+    module.exports = authCore;
 }
 
 if (typeof window !== "undefined") {
-    window.authCore = {
-        ensureDependency,
-        createAuthService
-    };
+    window.authCore = authCore;
 }
