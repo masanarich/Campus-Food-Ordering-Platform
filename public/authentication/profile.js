@@ -14,12 +14,13 @@ function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
 
-function setTextContent(element, value) {
+function setTextContent(element, value, fallback = "-") {
     if (!element) {
         return;
     }
 
-    element.textContent = normalizeText(value);
+    const normalized = normalizeText(value);
+    element.textContent = normalized || fallback;
 }
 
 function setStatusMessage(statusElement, message, state) {
@@ -66,6 +67,10 @@ function getVendorStatusLabel(profile) {
         return "Rejected";
     }
 
+    if (status === "suspended") {
+        return "Suspended";
+    }
+
     return "None";
 }
 
@@ -102,6 +107,31 @@ function renderProfile(profileElements, profile, user) {
     setTextContent(elements.vendorStatusElement, getVendorStatusLabel(profile));
 }
 
+function waitForAuthenticatedUser(authService) {
+    if (!authService || typeof authService.getCurrentUser !== "function") {
+        throw new Error("authService.getCurrentUser is required.");
+    }
+
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+        return Promise.resolve(currentUser);
+    }
+
+    if (typeof authService.observeAuthState !== "function") {
+        return Promise.resolve(null);
+    }
+
+    return new Promise((resolve) => {
+        const unsubscribe = authService.observeAuthState((user) => {
+            if (typeof unsubscribe === "function") {
+                unsubscribe();
+            }
+
+            resolve(user || null);
+        });
+    });
+}
+
 async function loadCurrentUserProfile(dependencies) {
     const authService = dependencies && dependencies.authService;
 
@@ -113,7 +143,7 @@ async function loadCurrentUserProfile(dependencies) {
         throw new Error("authService.getCurrentUserProfile is required.");
     }
 
-    const user = await authService.getCurrentUser();
+    const user = await waitForAuthenticatedUser(authService);
 
     if (!user) {
         return {
@@ -152,7 +182,7 @@ async function initializeProfileView(options) {
         profileElements
     } = options || {};
 
-    setStatusMessage(statusElement, "", "");
+    setStatusMessage(statusElement, "Loading profile...", "loading");
 
     try {
         const result = await loadCurrentUserProfile({
@@ -161,7 +191,6 @@ async function initializeProfileView(options) {
 
         if (!result.success) {
             setStatusMessage(statusElement, result.message, "error");
-
             return result;
         }
 
@@ -196,6 +225,10 @@ function attachSignOutHandler(options) {
 
     if (!button) {
         throw new Error("A sign out button is required.");
+    }
+
+    if (!authService) {
+        throw new Error("authService is required.");
     }
 
     async function handleClick(event) {
@@ -252,7 +285,7 @@ function attachSignOutHandler(options) {
 
 function initializeProfilePage(options = {}) {
     const {
-        authService,
+        authService = typeof window !== "undefined" ? window.authService : undefined,
         statusSelector = "#profile-status",
         nameSelector = "#profile-name",
         emailSelector = "#profile-email",
@@ -270,6 +303,10 @@ function initializeProfilePage(options = {}) {
         vendorStatusElement: document.querySelector(vendorStatusSelector)
     };
     const signOutButton = document.querySelector(signOutButtonSelector);
+
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
 
     const resolvedNavigate =
         typeof navigate === "function"
@@ -308,11 +345,30 @@ const profilePage = {
     getDisplayName,
     getEmail,
     renderProfile,
+    waitForAuthenticatedUser,
     loadCurrentUserProfile,
     signOutCurrentUser,
     initializeProfileView,
     attachSignOutHandler,
     initializeProfilePage
+};
+
+export {
+    normalizeText,
+    setTextContent,
+    setStatusMessage,
+    getRoleLabel,
+    getVendorStatusLabel,
+    getDisplayName,
+    getEmail,
+    renderProfile,
+    waitForAuthenticatedUser,
+    loadCurrentUserProfile,
+    signOutCurrentUser,
+    initializeProfileView,
+    attachSignOutHandler,
+    initializeProfilePage,
+    profilePage
 };
 
 if (typeof module !== "undefined" && module.exports) {
