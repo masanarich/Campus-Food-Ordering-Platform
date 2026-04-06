@@ -4,13 +4,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>admin home page</title>
+
+  <title>User Profile | Campus Food Ordering Platform</title>
+
+  <link rel="stylesheet" href="./styles.css">
 </head>
 
 <body>
-  <h1>404 Group Not Found</h1>
 
-  <a href="../index.html">Back to home page</a>
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Your Profile</h2>
+
+      <p id="profile-status">Loading profile...</p>
+
+      <p>
+        <strong>Name:</strong>
+        <span id="profile-name">-</span>
+      </p>
+
+      <p>
+        <strong>Email:</strong>
+        <span id="profile-email">-</span>
+      </p>
+
+    </section>
+
+    <section>
+
+      <h3>Account Actions</h3>
+
+      <button id="signout-btn">Sign Out</button>
+
+    </section>
+
+    <section>
+
+      <h3>Navigation</h3>
+
+      <p>
+        <a href="../index.html">Home</a>
+      </p>
+
+      <p>
+        <a href="./login.html">Login</a>
+      </p>
+
+      <p>
+        <a href="./register.html">Register</a>
+      </p>
+
+      <p>
+        <a href="./reset.html">Reset Password</a>
+      </p>
+
+    </section>
+
+  </main>
+
+  <footer>
+    <p>© 2026 Campus Food Ordering Platform</p>
+  </footer>
+
+  <script type="module" src="./profile.js"></script>
+
 </body>
 
 </html>
