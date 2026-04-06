@@ -42,6 +42,10 @@ function buildResetPayload(rawValues) {
 function validateResetPayload(payload, authUtils) {
     const errors = {};
 
+    if (!authUtils || typeof authUtils !== "object") {
+        throw new Error("authUtils is required.");
+    }
+
     if (!authUtils.isValidEmail(payload.email)) {
         errors.email = "Please enter a valid email address.";
     }
@@ -53,6 +57,10 @@ function validateResetPayload(payload, authUtils) {
 }
 
 function clearFieldErrors(form) {
+    if (!form) {
+        return;
+    }
+
     const errorElements = form.querySelectorAll("[data-error-for]");
     errorElements.forEach((element) => {
         element.textContent = "";
@@ -60,6 +68,10 @@ function clearFieldErrors(form) {
 }
 
 function showFieldErrors(form, errors) {
+    if (!form || !errors) {
+        return;
+    }
+
     Object.keys(errors).forEach((fieldName) => {
         const errorElement = form.querySelector(`[data-error-for="${fieldName}"]`);
         if (errorElement) {
@@ -213,8 +225,8 @@ function initializeResetPage(options = {}) {
     const {
         formSelector = "#reset-form",
         statusSelector = "#reset-status",
-        authService,
-        authUtils,
+        authService = typeof window !== "undefined" ? window.authService : undefined,
+        authUtils = typeof window !== "undefined" ? window.authUtils : undefined,
         navigate
     } = options;
 
@@ -225,16 +237,25 @@ function initializeResetPage(options = {}) {
         throw new Error("Reset form not found.");
     }
 
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
+
+    if (!authUtils) {
+        throw new Error("authUtils is required.");
+    }
+
     return attachResetHandler({
         form,
         statusElement,
         authService,
         authUtils,
-        navigate: typeof navigate === "function"
-            ? navigate
-            : (nextRoute) => {
-                window.location.href = nextRoute;
-            }
+        navigate:
+            typeof navigate === "function"
+                ? navigate
+                : (nextRoute) => {
+                    window.location.href = nextRoute;
+                }
     });
 }
 
@@ -253,6 +274,24 @@ const resetPage = {
     submitPasswordReset,
     attachResetHandler,
     initializeResetPage
+};
+
+export {
+    normalizeText,
+    normalizeEmail,
+    getFormField,
+    extractResetFormValues,
+    buildResetPayload,
+    validateResetPayload,
+    clearFieldErrors,
+    showFieldErrors,
+    setStatusMessage,
+    setSubmittingState,
+    getSuccessMessage,
+    submitPasswordReset,
+    attachResetHandler,
+    initializeResetPage,
+    resetPage
 };
 
 if (typeof module !== "undefined" && module.exports) {
