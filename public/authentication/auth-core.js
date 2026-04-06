@@ -92,6 +92,10 @@ function createAuthService(dependencies = {}) {
         });
     }
 
+    function getCurrentUser() {
+        return injectedAuth.currentUser || null;
+    }
+
     function getUserDocRef(uid) {
         return firestoreFns.doc(injectedDb, "users", uid);
     }
@@ -105,6 +109,10 @@ function createAuthService(dependencies = {}) {
         }
 
         return snapshot.data();
+    }
+
+    async function getCurrentUserProfile(uid) {
+        return getUserProfile(uid);
     }
 
     async function saveUserProfile(profile) {
@@ -294,8 +302,10 @@ function createAuthService(dependencies = {}) {
         sendPasswordReset,
         sendPasswordResetEmail,
         setDisplayName,
+        getCurrentUser,
         getUserDocRef,
         getUserProfile,
+        getCurrentUserProfile,
         saveUserProfile,
         updateUserProfile,
         ensureUserProfile,

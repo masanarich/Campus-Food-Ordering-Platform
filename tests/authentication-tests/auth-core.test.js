@@ -7,7 +7,10 @@ const {
 
 function createMockDependencies() {
     return {
-        auth: { name: "mock-auth" },
+        auth: {
+            name: "mock-auth",
+            currentUser: null
+        },
         db: { name: "mock-db" },
         googleProvider: { providerId: "google.com" },
         appleProvider: { providerId: "apple.com" },
@@ -194,6 +197,32 @@ describe("auth-core service", () => {
         expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
 
+    test("getCurrentUser returns the current signed-in user", () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = {
+            uid: "current-1",
+            email: "current@example.com"
+        };
+
+        const service = createAuthService(deps);
+        const result = service.getCurrentUser();
+
+        expect(result).toEqual({
+            uid: "current-1",
+            email: "current@example.com"
+        });
+    });
+
+    test("getCurrentUser returns null when no user is signed in", () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = null;
+
+        const service = createAuthService(deps);
+        const result = service.getCurrentUser();
+
+        expect(result).toBeNull();
+    });
+
     test("getUserDocRef creates reference in users collection", () => {
         const deps = createMockDependencies();
         const service = createAuthService(deps);
@@ -238,6 +267,27 @@ describe("auth-core service", () => {
         const result = await service.getUserProfile("user-3");
 
         expect(result).toEqual(profile);
+    });
+
+    test("getCurrentUserProfile returns profile data for the supplied uid", async () => {
+        const deps = createMockDependencies();
+        const profile = {
+            uid: "user-3",
+            email: "user3@example.com",
+            roles: { customer: true, vendor: false, admin: false },
+            vendorStatus: "none"
+        };
+
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => profile
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.getCurrentUserProfile("user-3");
+
+        expect(result).toEqual(profile);
+        expect(deps.firestoreFns.doc).toHaveBeenCalledWith(deps.db, "users", "user-3");
     });
 
     test("saveUserProfile writes profile to users collection", async () => {
