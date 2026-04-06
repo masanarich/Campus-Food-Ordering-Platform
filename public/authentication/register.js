@@ -61,6 +61,10 @@ function isValidAccountType(accountType) {
 function validateRegisterPayload(payload, authUtils) {
     const errors = {};
 
+    if (!authUtils || typeof authUtils !== "object") {
+        throw new Error("authUtils is required.");
+    }
+
     if (!authUtils.isNonEmptyString(payload.fullName)) {
         errors.fullName = "Full name is required.";
     }
@@ -88,6 +92,10 @@ function validateRegisterPayload(payload, authUtils) {
 }
 
 function clearFieldErrors(form) {
+    if (!form) {
+        return;
+    }
+
     const errorElements = form.querySelectorAll("[data-error-for]");
     errorElements.forEach((element) => {
         element.textContent = "";
@@ -95,6 +103,10 @@ function clearFieldErrors(form) {
 }
 
 function showFieldErrors(form, errors) {
+    if (!form || !errors) {
+        return;
+    }
+
     Object.keys(errors).forEach((fieldName) => {
         const errorElement = form.querySelector(`[data-error-for="${fieldName}"]`);
         if (errorElement) {
@@ -255,8 +267,8 @@ function initializeRegisterPage(options = {}) {
     const {
         formSelector = "#register-form",
         statusSelector = "#register-status",
-        authService,
-        authUtils,
+        authService = typeof window !== "undefined" ? window.authService : undefined,
+        authUtils = typeof window !== "undefined" ? window.authUtils : undefined,
         navigate
     } = options;
 
@@ -267,16 +279,25 @@ function initializeRegisterPage(options = {}) {
         throw new Error("Register form not found.");
     }
 
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
+
+    if (!authUtils) {
+        throw new Error("authUtils is required.");
+    }
+
     return attachRegisterHandler({
         form,
         statusElement,
         authService,
         authUtils,
-        navigate: typeof navigate === "function"
-            ? navigate
-            : (nextRoute) => {
-                window.location.href = nextRoute;
-            }
+        navigate:
+            typeof navigate === "function"
+                ? navigate
+                : (nextRoute) => {
+                    window.location.href = nextRoute;
+                }
     });
 }
 
@@ -296,6 +317,25 @@ const registerPage = {
     submitRegistration,
     attachRegisterHandler,
     initializeRegisterPage
+};
+
+export {
+    normalizeText,
+    normalizeEmail,
+    getFormField,
+    extractRegisterFormValues,
+    buildRegisterPayload,
+    isValidAccountType,
+    validateRegisterPayload,
+    clearFieldErrors,
+    showFieldErrors,
+    setStatusMessage,
+    setSubmittingState,
+    getSuccessMessage,
+    submitRegistration,
+    attachRegisterHandler,
+    initializeRegisterPage,
+    registerPage
 };
 
 if (typeof module !== "undefined" && module.exports) {
