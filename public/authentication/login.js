@@ -45,6 +45,10 @@ function buildLoginPayload(rawValues) {
 function validateLoginPayload(payload, authUtils) {
     const errors = {};
 
+    if (!authUtils || typeof authUtils !== "object") {
+        throw new Error("authUtils is required.");
+    }
+
     if (!authUtils.isValidEmail(payload.email)) {
         errors.email = "Please enter a valid email address.";
     }
@@ -60,6 +64,10 @@ function validateLoginPayload(payload, authUtils) {
 }
 
 function clearFieldErrors(form) {
+    if (!form) {
+        return;
+    }
+
     const errorElements = form.querySelectorAll("[data-error-for]");
     errorElements.forEach((element) => {
         element.textContent = "";
@@ -67,6 +75,10 @@ function clearFieldErrors(form) {
 }
 
 function showFieldErrors(form, errors) {
+    if (!form || !errors) {
+        return;
+    }
+
     Object.keys(errors).forEach((fieldName) => {
         const errorElement = form.querySelector(`[data-error-for="${fieldName}"]`);
         if (errorElement) {
@@ -336,8 +348,8 @@ function initializeLoginPage(options = {}) {
         statusSelector = "#login-status",
         googleButtonSelector = "#google-signin",
         appleButtonSelector = "#apple-signin",
-        authService,
-        authUtils,
+        authService = typeof window !== "undefined" ? window.authService : undefined,
+        authUtils = typeof window !== "undefined" ? window.authUtils : undefined,
         navigate
     } = options;
 
@@ -348,6 +360,14 @@ function initializeLoginPage(options = {}) {
 
     if (!form) {
         throw new Error("Login form not found.");
+    }
+
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
+
+    if (!authUtils) {
+        throw new Error("authUtils is required.");
     }
 
     const resolvedNavigate =
@@ -412,6 +432,28 @@ const loginPage = {
     attachLoginHandler,
     attachOAuthHandler,
     initializeLoginPage
+};
+
+export {
+    normalizeText,
+    normalizeEmail,
+    getFormField,
+    extractLoginFormValues,
+    buildLoginPayload,
+    validateLoginPayload,
+    clearFieldErrors,
+    showFieldErrors,
+    setStatusMessage,
+    setSubmittingState,
+    submitEmailLogin,
+    submitGoogleLogin,
+    submitAppleLogin,
+    handleAuthSuccess,
+    handleAuthFailure,
+    attachLoginHandler,
+    attachOAuthHandler,
+    initializeLoginPage,
+    loginPage
 };
 
 if (typeof module !== "undefined" && module.exports) {
