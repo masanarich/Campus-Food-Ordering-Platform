@@ -1,25 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const { getVendors, approveVendor, suspendVendor } = require('../models/vendorModel');
+
+const {
+  getVendors,
+  approveVendor,
+  suspendVendor
+} = require('../models/vendorModel');
 
 router.get('/', (req, res) => {
   res.json(getVendors());
 });
 
 router.put('/:id/approve', (req, res) => {
-  try{
+  try {
     res.json(approveVendor(req.params.id));
-  } catch (error) {
-    res.status(404).json({ error: error.message });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
   }
-  
 });
 
 router.put('/:id/suspend', (req, res) => {
-  try{
+  try {
     res.json(suspendVendor(req.params.id));
-  } catch (error) {
-    res.status(404).json({ error: error.message });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
   }
 });
 

@@ -1,16 +1,8 @@
-let menu = [
-  {
-    id: "1",
-    name: "Sample Burger",
-    price: 50,
-    description: "Default item",
-    available: true
-  }
-];
+let menu = [];
 
-// --------------------
-// ADD ITEM
-// --------------------
+/**
+ * CREATE ITEM
+ */
 function addItem(item) {
   if (!item.name || !item.price) {
     throw new Error("Invalid item");
@@ -20,8 +12,8 @@ function addItem(item) {
     id: Date.now().toString(),
     name: item.name,
     description: item.description || "",
-    price: item.price,
-    photo: item.photo || "",
+    price: Number(item.price),
+    photo: item.photo || null,
     available: true
   };
 
@@ -29,62 +21,40 @@ function addItem(item) {
   return newItem;
 }
 
-// --------------------
-// GET ITEMS
-// --------------------
+/**
+ * READ ALL
+ */
 function getItems() {
   return menu;
 }
 
-// --------------------
-// MARK SOLD OUT
-// --------------------
+/**
+ * MARK SOLD OUT
+ */
 function markSoldOut(id) {
   const item = menu.find(i => i.id === id);
-
-  if (!item) {
-    throw new Error("Item not found");
-  }
+  if (!item) throw new Error("Item not found");
 
   item.available = false;
   return item;
 }
 
-// --------------------
-// UPDATE ITEM
-// --------------------
+/**
+ * UPDATE ITEM
+ */
 function updateItem(id, data) {
   const item = menu.find(i => i.id === id);
+  if (!item) throw new Error("Item not found");
 
-  if (!item) {
-    throw new Error("Item not found");
-  }
-
-  // only update allowed fields (prevents breaking structure)
-  const allowedFields = ["name", "description", "price", "photo", "available"];
-
-  allowedFields.forEach(field => {
-    if (data[field] !== undefined) {
-      item[field] = data[field];
-    }
-  });
-
+  Object.assign(item, data);
   return item;
 }
 
-// --------------------
-// RESET (FOR TESTING ONLY)
-// --------------------
+/**
+ * RESET (TEST ONLY)
+ */
 function __resetMenu() {
-  menu = [
-    {
-      id: "1",
-      name: "Sample Burger",
-      price: 50,
-      description: "Default item",
-      available: true
-    }
-  ];
+  menu = [];
 }
 
 module.exports = {

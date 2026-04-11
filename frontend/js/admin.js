@@ -1,61 +1,31 @@
-let vendors = [];
+async function loadVendors() {
+  const res = await fetch('/vendors');
+  const vendors = await res.json();
 
-// --------------------
-// CREATE VENDOR (MOCK)
-// --------------------
-function addVendor(vendor) {
-  const newVendor = {
-    id: Date.now().toString(),
-    name: vendor.name,
-    status: "pending"
-  };
+  const list = document.getElementById('vendorList');
+  list.innerHTML = '';
 
-  vendors.push(newVendor);
-  return newVendor;
+  vendors.forEach(v => {
+    const div = document.createElement('div');
+
+    div.innerHTML = `
+      <p>${v.name} (${v.status})</p>
+      <button onclick="approveVendor('${v.id}')">Approve</button>
+      <button onclick="suspendVendor('${v.id}')">Suspend</button>
+    `;
+
+    list.appendChild(div);
+  });
 }
 
-// --------------------
-// GET VENDORS
-// --------------------
-function getVendors() {
-  return vendors;
+async function approveVendor(id) {
+  await fetch(`/vendors/${id}/approve`, { method: 'PUT' });
+  loadVendors();
 }
 
-// --------------------
-// APPROVE VENDOR
-// --------------------
-function approveVendor(id) {
-  const vendor = vendors.find(v => v.id === id);
-
-  if (!vendor) throw new Error("Vendor not found");
-
-  vendor.status = "approved";
-  return vendor;
+async function suspendVendor(id) {
+  await fetch(`/vendors/${id}/suspend`, { method: 'PUT' });
+  loadVendors();
 }
 
-// --------------------
-// SUSPEND VENDOR
-// --------------------
-function suspendVendor(id) {
-  const vendor = vendors.find(v => v.id === id);
-
-  if (!vendor) throw new Error("Vendor not found");
-
-  vendor.status = "suspended";
-  return vendor;
-}
-
-// --------------------
-// FORMAT (UI helper)
-// --------------------
-function formatVendor(v) {
-  return `${v.name} (${v.status})`;
-}
-
-module.exports = {
-  addVendor,
-  getVendors,
-  approveVendor,
-  suspendVendor,
-  formatVendor
-};
+loadVendors();

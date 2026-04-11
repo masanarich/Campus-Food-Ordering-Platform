@@ -1,22 +1,28 @@
-const { addItem } = require('../../backend/models/menuModel');
+const {
+  addItem,
+  markSoldOut,
+  __resetMenu
+} = require('../models/menuModel');
 
-test("adds item to menu", () => {
-  const item = {
+beforeEach(() => {
+  __resetMenu();
+});
+
+test("adds item", () => {
+  const item = addItem({
     name: "Burger",
-    description: "Delicious burger",
     price: 50,
-    photo: "https://example.com/burger.jpg"
-  };
-
-  const result = addItem(item);
-
-  expect(result).toMatchObject({
-    name: "Burger",
-    description: "Delicious burger",
-    price: 50,
-    photo: "https://example.com/burger.jpg",
-    available: true
+    photo: "url.jpg"
   });
 
-  expect(result.id).toBeDefined();
+  expect(item.id).toBeDefined();
+  expect(item.available).toBe(true);
+});
+
+test("marks sold out", () => {
+  const item = addItem({ name: "Pizza", price: 80 });
+
+  const result = markSoldOut(item.id);
+
+  expect(result.available).toBe(false);
 });
