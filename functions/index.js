@@ -31,7 +31,7 @@ const logger = require("firebase-functions/logger");*/
 //   response.send("Hello from Firebase!");
 // });
 
-const functions = require("firebase-functions");
+/*const functions = require("firebase-functions");
 const express = require("express");
 
 const app = express();
@@ -49,6 +49,37 @@ app.use("/vendors", vendorRoutes);
 // Debug route
 app.get("/", (req, res) => {
   res.send("API is running...");
+});
+
+exports.api = functions.https.onRequest(app);*/
+const functions = require("firebase-functions");
+const express = require("express");
+
+console.log("STEP 1: Starting");
+
+const app = express();
+app.use(express.json());
+
+console.log("STEP 2: Express ready");
+
+try {
+  console.log("STEP 3: Loading menu routes");
+  const menuRoutes = require("./backend/routes/menu");
+
+  console.log("STEP 4: Loading vendor routes");
+  const vendorRoutes = require("./backend/routes/vendor");
+
+  app.use("/menu", menuRoutes);
+  app.use("/vendors", vendorRoutes);
+
+  console.log("STEP 5: Routes loaded");
+
+} catch (err) {
+  console.error("❌ ERROR DURING LOAD:", err);
+}
+
+app.get("/", (req, res) => {
+  res.send("API running");
 });
 
 exports.api = functions.https.onRequest(app);
