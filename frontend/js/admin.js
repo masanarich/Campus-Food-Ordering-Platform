@@ -1,5 +1,5 @@
 async function loadVendors() {
-  const res = await fetch('/vendors');
+  const res = await fetch('/api/vendors');
   const vendors = await res.json();
 
   const list = document.getElementById('vendorList');
@@ -19,12 +19,12 @@ async function loadVendors() {
 }
 
 async function approveVendor(id) {
-  await fetch(`/vendors/${id}/approve`, { method: 'PUT' });
+  await fetch(`/api/vendors/${id}/approve`, { method: 'PUT' });
   loadVendors();
 }
 
 async function suspendVendor(id) {
-  await fetch(`/vendors/${id}/suspend`, { method: 'PUT' });
+  await fetch(`/api/vendors/${id}/suspend`, { method: 'PUT' });
   loadVendors();
 }
 
