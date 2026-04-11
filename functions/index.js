@@ -30,18 +30,25 @@ const logger = require("firebase-functions/logger");*/
 //   logger.info("Hello logs!", {structuredData: true});
 //   response.send("Hello from Firebase!");
 // });
+
 const functions = require("firebase-functions");
 const express = require("express");
 
 const app = express();
 app.use(express.json());
 
-// IMPORT YOUR MENU ROUTES
-const menuRoutes = require("../backend/routes/menu");
-const vendorRoutes = require("../backend/routes/vendor");
+console.log("Firebase function starting...");
+
+// ✅ FIXED PATHS
+const menuRoutes = require("./backend/routes/menu");
+const vendorRoutes = require("./backend/routes/vendor");
 
 app.use("/menu", menuRoutes);
 app.use("/vendors", vendorRoutes);
 
-// EXPORT API
+// Debug route
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
+
 exports.api = functions.https.onRequest(app);
