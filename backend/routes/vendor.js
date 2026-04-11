@@ -7,11 +7,20 @@ router.get('/', (req, res) => {
 });
 
 router.put('/:id/approve', (req, res) => {
-  res.json(approveVendor(req.params.id));
+  try{
+    res.json(approveVendor(req.params.id));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+  
 });
 
 router.put('/:id/suspend', (req, res) => {
-  res.json(suspendVendor(req.params.id));
+  try{
+    res.json(suspendVendor(req.params.id));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
 });
 
 module.exports = router;

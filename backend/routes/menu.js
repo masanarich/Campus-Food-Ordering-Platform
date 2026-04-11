@@ -3,7 +3,12 @@ const router = express.Router();
 const { addItem, getItems, markSoldOut ,updateItem} = require('../models/menuModel');
 
 router.post('/', (req, res) => {
-  res.json(addItem(req.body));
+  try{
+     res.json(addItem(req.body));
+  }
+  catch(err){
+    res.status(400).send(err.message);
+  }
 });
 
 router.get('/', (req, res) => {
@@ -11,7 +16,12 @@ router.get('/', (req, res) => {
 });
 
 router.put('/:id/soldout', (req, res) => {
-  res.json(markSoldOut(req.params.id));
+  try{
+    res.json(markSoldOut(req.params.id));
+  }
+  catch(err){
+    res.status(404).send(err.message);
+  }
 });
 
 router.put('/:id',(req,res)=>{

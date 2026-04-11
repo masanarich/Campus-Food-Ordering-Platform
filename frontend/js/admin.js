@@ -1,33 +1,61 @@
-/*const API = "http://localhost:3000";
+let vendors = [];
 
-async function loadVendors() {
-  const res = await fetch(`${API}/vendors`);
-  const data = await res.json();
+// --------------------
+// CREATE VENDOR (MOCK)
+// --------------------
+function addVendor(vendor) {
+  const newVendor = {
+    id: Date.now().toString(),
+    name: vendor.name,
+    status: "pending"
+  };
 
-  const list = document.getElementById("vendorList");
-
-  data.forEach(v => {
-    list.innerHTML += `
-      <div>
-        <p>${v.name} (${v.status})</p>
-        <button onclick="approve(${v.id})">Approve</button>
-        <button onclick="suspend(${v.id})">Suspend</button>
-      </div>
-    `;
-  });   
+  vendors.push(newVendor);
+  return newVendor;
 }
 
-function approve(id) {
-  fetch(`${API}/vendor/${id}/approve`, { method: "PUT" });
+// --------------------
+// GET VENDORS
+// --------------------
+function getVendors() {
+  return vendors;
 }
 
-function suspend(id) {
-  fetch(`${API}/vendor/${id}/suspend`, { method: "PUT" });
+// --------------------
+// APPROVE VENDOR
+// --------------------
+function approveVendor(id) {
+  const vendor = vendors.find(v => v.id === id);
+
+  if (!vendor) throw new Error("Vendor not found");
+
+  vendor.status = "approved";
+  return vendor;
 }
 
-loadVendors();*/
+// --------------------
+// SUSPEND VENDOR
+// --------------------
+function suspendVendor(id) {
+  const vendor = vendors.find(v => v.id === id);
+
+  if (!vendor) throw new Error("Vendor not found");
+
+  vendor.status = "suspended";
+  return vendor;
+}
+
+// --------------------
+// FORMAT (UI helper)
+// --------------------
 function formatVendor(v) {
   return `${v.name} (${v.status})`;
 }
 
-module.exports = { formatVendor };
+module.exports = {
+  addVendor,
+  getVendors,
+  approveVendor,
+  suspendVendor,
+  formatVendor
+};

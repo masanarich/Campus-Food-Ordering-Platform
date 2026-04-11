@@ -1,4 +1,4 @@
-let menu = [];
+let menu = []; // this needs to be changed to firebase datase/configs
 
 function addItem(item) {
   if (!item.name || !item.price) {

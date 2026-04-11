@@ -1,21 +1,50 @@
-let vendors = [{ id: 1, name: "Vendor A", status: "pending" }];
+let vendors = [
+  { id: "1", name: "Vendor A", status: "pending" }
+];
 
+// --------------------
+// GET ALL VENDORS
+// --------------------
 function getVendors() {
   return vendors;
 }
 
+// --------------------
+// APPROVE VENDOR
+// --------------------
 function approveVendor(id) {
-  const v = vendors.find(v => v.id == id);
-  if (!v) throw new Error("Vendor not found");
-  v.status = "approved";
-  return v;
+  const vendor = vendors.find(v => v.id == id);
+
+  if (!vendor) throw new Error("Vendor not found");
+
+  vendor.status = "approved";
+  return vendor;
 }
 
+// --------------------
+// SUSPEND VENDOR
+// --------------------
 function suspendVendor(id) {
-  const v = vendors.find(v => v.id == id);
-  if (!v) throw new Error("Vendor not found");
-  v.status = "suspended";
-  return v;
+  const vendor = vendors.find(v => v.id == id);
+
+  if (!vendor) throw new Error("Vendor not found");
+
+  vendor.status = "suspended";
+  return vendor;
 }
 
-module.exports = { getVendors, approveVendor, suspendVendor };
+// --------------------
+// RESET (IMPORTANT FOR TESTS)
+// --------------------
+function __resetVendors() {
+  vendors = [
+    { id: "1", name: "Vendor A", status: "pending" }
+  ];
+}
+
+module.exports = {
+  getVendors,
+  approveVendor,
+  suspendVendor,
+  __resetVendors
+};
