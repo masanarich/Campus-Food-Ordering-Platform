@@ -1,6 +1,7 @@
-const { formatItem } = require('../../frontend/js/vendor');
+const {addItem}=require('../../backend/models/menuModel');
 
-test("formats item", () => {
-  const result = formatItem({ name: "Burger", price: 50 });
-  expect(result).toBe("Burger - R50");
+test("adds item to menu", () => {
+  const item = { name: "Burger", description: "Delicious burger", price: 50, photo: "https://example.com/burger.jpg" };
+  const result = addItem(item);
+  expect(result).toEqual({ ...item, id: expect.any(String) });
 });
