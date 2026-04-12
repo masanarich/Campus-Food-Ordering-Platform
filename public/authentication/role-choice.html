@@ -3,14 +3,80 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>admin home page</title>
+  <title>Choose Role | Campus Food Ordering Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="./styles.css">
 </head>
 
 <body>
-  <h1>404 Group Not Found</h1>
 
-  <a href="../index.html">Back to home page</a>
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+
+    <nav>
+      <a href="../index.html">Home</a>
+      <a href="./login.html">Login</a>
+      <a href="./register.html">Register</a>
+      <a href="./profile.html">Profile</a>
+    </nav>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Choose Your Role</h2>
+      <p>Select how you want to use the platform.</p>
+
+      <p id="role-choice-status" aria-live="polite"></p>
+    </section>
+
+    <section>
+      <h3>Continue as a Customer</h3>
+      <p>Browse campus vendors, place orders, and collect your food faster.</p>
+      <button id="choose-customer" type="button">Choose Customer</button>
+    </section>
+
+    <section>
+      <h3>Apply as a Vendor</h3>
+      <p>Sell food on the platform and manage student orders from your campus store.</p>
+      <button id="choose-vendor" type="button">Choose Vendor</button>
+    </section>
+
+    <section>
+      <p>
+        Need to update your account first?
+        <a href="./profile.html">Go to profile</a>
+      </p>
+
+      <p>
+        Forgot your password?
+        <a href="./reset.html">Reset password</a>
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Campus Food Ordering Platform © 2026</p>
+  </footer>
+
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./role-choice.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.roleChoicePage.initializeRoleChoicePage({
+      authService,
+      authUtils: window.authUtils
+    });
+  </script>
+
 </body>
 
 </html>
