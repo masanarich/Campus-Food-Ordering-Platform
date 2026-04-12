@@ -8,7 +8,8 @@
   },
   "devDependencies": {
     "express": "^5.2.1",
-    "jest": "^30.3.0"
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0",

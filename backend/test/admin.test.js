@@ -14,7 +14,7 @@ global.fetch = jest.fn(() =>
   })
 );
 
-const { loadVendors } = require("../../frontend/admin");
+const { loadVendors } = require("../../frontend/js/admin");
 
 test("should load vendors into DOM", async () => {
   await loadVendors();
