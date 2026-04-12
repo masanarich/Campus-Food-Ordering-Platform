@@ -82,11 +82,16 @@
         <p>© 2026 Campus Food Ordering Platform</p>
     </footer>
 
+    <script src="./auth-utils.js"></script>
+    <script src="./auth-core.js"></script>
+    <script src="./pending-vendor.js"></script>
+
     <script type="module">
         import { authService } from "./auth.js";
-        import { initializePendingVendorPage } from "./pending-vendor.js";
 
-        initializePendingVendorPage({
+        window.authService = authService;
+
+        window.pendingVendorPage.initializePendingVendorPage({
             authService
         });
     </script>

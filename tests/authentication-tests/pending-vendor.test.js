@@ -10,7 +10,8 @@ const {
     loadPendingVendorProfile,
     signOutCurrentUser,
     initializePendingVendorView,
-    attachPendingVendorSignOutHandler
+    attachPendingVendorSignOutHandler,
+    initializePendingVendorPage
 } = require("../../public/authentication/pending-vendor.js");
 
 function createPendingVendorDom() {
@@ -36,6 +37,10 @@ function createPendingVendorDom() {
 }
 
 describe("pending-vendor.js helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("normalizeText trims whitespace", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
     });
@@ -48,6 +53,10 @@ describe("pending-vendor.js helpers", () => {
         expect(nameElement.textContent).toBe("Faranani Maduwa");
     });
 
+    test("setTextContent does nothing when element is missing", () => {
+        expect(() => setTextContent(null, "Hello")).not.toThrow();
+    });
+
     test("setStatusMessage updates text and state", () => {
         const { statusElement } = createPendingVendorDom();
 
@@ -55,6 +64,10 @@ describe("pending-vendor.js helpers", () => {
 
         expect(statusElement.textContent).toBe("Loaded.");
         expect(statusElement.dataset.state).toBe("success");
+    });
+
+    test("setStatusMessage does nothing when element is missing", () => {
+        expect(() => setStatusMessage(null, "Loaded.", "success")).not.toThrow();
     });
 
     test("getVendorStatusLabel returns Pending", () => {
@@ -71,6 +84,8 @@ describe("pending-vendor.js helpers", () => {
 
     test("getVendorStatusLabel returns None by default", () => {
         expect(getVendorStatusLabel({ vendorStatus: "none" })).toBe("None");
+        expect(getVendorStatusLabel({})).toBe("None");
+        expect(getVendorStatusLabel(null)).toBe("None");
     });
 
     test("getVendorStatusMessage returns pending message", () => {
@@ -95,6 +110,9 @@ describe("pending-vendor.js helpers", () => {
         expect(getVendorStatusMessage({ vendorStatus: "none" })).toBe(
             "No vendor application was found."
         );
+        expect(getVendorStatusMessage(null)).toBe(
+            "No vendor application was found."
+        );
     });
 
     test("getDisplayName prefers profile displayName", () => {
@@ -115,12 +133,21 @@ describe("pending-vendor.js helpers", () => {
         ).toBe("User Name");
     });
 
+    test("getDisplayName returns empty string when missing", () => {
+        expect(getDisplayName({}, {})).toBe("");
+    });
+
     test("getBusinessName returns profile business name", () => {
         expect(
             getBusinessName({
                 businessName: "Campus Grill"
             })
         ).toBe("Campus Grill");
+    });
+
+    test("getBusinessName returns empty string when missing", () => {
+        expect(getBusinessName({})).toBe("");
+        expect(getBusinessName(null)).toBe("");
     });
 
     test("renderPendingVendorInfo writes values into the page", () => {
@@ -149,6 +176,22 @@ describe("pending-vendor.js helpers", () => {
         expect(dom.vendorMessageElement.textContent).toBe(
             "Your vendor application is awaiting review."
         );
+    });
+
+    test("renderPendingVendorInfo handles missing elements safely", () => {
+        expect(() =>
+            renderPendingVendorInfo(
+                {},
+                {
+                    displayName: "Vendor User",
+                    businessName: "Campus Grill",
+                    vendorStatus: "pending"
+                },
+                {
+                    displayName: "Fallback User"
+                }
+            )
+        ).not.toThrow();
     });
 });
 
@@ -233,6 +276,10 @@ describe("pending-vendor.js service functions", () => {
 });
 
 describe("pending-vendor.js page flow", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("initializePendingVendorView renders pending vendor status successfully", async () => {
         const dom = createPendingVendorDom();
 
@@ -389,5 +436,111 @@ describe("pending-vendor.js page flow", () => {
                 }
             })
         ).toThrow("A sign out button is required.");
+    });
+});
+
+describe("pending-vendor.js page initialization", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("initializePendingVendorPage wires sign out handler and starts page loading", async () => {
+        const dom = createPendingVendorDom();
+
+        const authService = {
+            getCurrentUser: jest.fn().mockResolvedValue({
+                uid: "user-3",
+                email: "vendor3@example.com",
+                displayName: "Vendor Three"
+            }),
+            getCurrentUserProfile: jest.fn().mockResolvedValue({
+                uid: "user-3",
+                displayName: "Vendor Three",
+                businessName: "Campus Grill",
+                vendorStatus: "pending"
+            }),
+            signOutUser: jest.fn().mockResolvedValue(undefined)
+        };
+
+        const navigate = jest.fn();
+
+        const result = initializePendingVendorPage({
+            authService,
+            navigate
+        });
+
+        expect(result.signOutController).toBeTruthy();
+        expect(result.pagePromise).toBeTruthy();
+
+        const pageResult = await result.pagePromise;
+
+        expect(pageResult.success).toBe(true);
+        expect(dom.nameElement.textContent).toBe("Vendor Three");
+        expect(dom.businessNameElement.textContent).toBe("Campus Grill");
+        expect(dom.vendorStatusElement.textContent).toBe("Pending");
+        expect(dom.vendorMessageElement.textContent).toBe(
+            "Your vendor application is awaiting review."
+        );
+    });
+
+    test("initializePendingVendorPage returns null signOutController when button is missing", async () => {
+        document.body.innerHTML = `
+            <section>
+              <p id="pending-vendor-name"></p>
+              <p id="pending-vendor-business-name"></p>
+              <p id="pending-vendor-role-status"></p>
+              <p id="pending-vendor-message"></p>
+              <p id="pending-vendor-status"></p>
+            </section>
+        `;
+
+        const authService = {
+            getCurrentUser: jest.fn().mockResolvedValue(null),
+            getCurrentUserProfile: jest.fn()
+        };
+
+        const result = initializePendingVendorPage({
+            authService
+        });
+
+        expect(result.signOutController).toBeNull();
+
+        const pageResult = await result.pagePromise;
+        expect(pageResult.success).toBe(false);
+    });
+
+    test("initializePendingVendorPage uses custom navigate function for sign out", async () => {
+        const dom = createPendingVendorDom();
+
+        const authService = {
+            getCurrentUser: jest.fn().mockResolvedValue({
+                uid: "user-4",
+                email: "vendor4@example.com",
+                displayName: "Vendor Four"
+            }),
+            getCurrentUserProfile: jest.fn().mockResolvedValue({
+                uid: "user-4",
+                displayName: "Vendor Four",
+                businessName: "Campus Grill",
+                vendorStatus: "approved"
+            }),
+            signOutUser: jest.fn().mockResolvedValue(undefined)
+        };
+
+        const navigate = jest.fn();
+
+        const result = initializePendingVendorPage({
+            authService,
+            navigate
+        });
+
+        await result.pagePromise;
+
+        await result.signOutController.handleClick({
+            preventDefault: jest.fn()
+        });
+
+        expect(navigate).toHaveBeenCalledWith("../index.html");
+        expect(dom.statusElement.textContent).toBe("Signed out successfully.");
     });
 });
