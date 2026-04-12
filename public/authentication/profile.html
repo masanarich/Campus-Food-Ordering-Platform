@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Profile | Campus Food Ordering Platform</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Your Profile</h2>
+
+      <p id="profile-status">Loading profile...</p>
+
+      <p>
+        <strong>Name:</strong>
+        <span id="profile-name">-</span>
+      </p>
+
+      <p>
+        <strong>Email:</strong>
+        <span id="profile-email">-</span>
+      </p>
+
+      <p>
+        <strong>Role:</strong>
+        <span id="profile-role">-</span>
+      </p>
+
+      <p>
+        <strong>Vendor Status:</strong>
+        <span id="profile-vendor-status">-</span>
+      </p>
+    </section>
+
+    <section>
+      <h3>Account Actions</h3>
+      <button id="signout-button" type="button">Sign Out</button>
+    </section>
+
+    <section>
+      <h3>Navigation</h3>
+
+      <p><a href="../index.html">Home</a></p>
+      <p><a href="./login.html">Login</a></p>
+      <p><a href="./register.html">Register</a></p>
+      <p><a href="./reset.html">Reset Password</a></p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>© 2026 Campus Food Ordering Platform</p>
+  </footer>
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./profile.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.profilePage.initializeProfilePage({
+      authService
+    });
+  </script>
+
+</body>
+
+</html>

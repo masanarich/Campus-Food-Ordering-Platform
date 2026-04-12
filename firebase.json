@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "functions": {
     "source": "functions",
     "codebase": "default",
@@ -7,10 +8,28 @@
   },
   "hosting": {
     "public": "frontend",
+=======
+  "firestore": {
+    "database": "(default)",
+    "location": "africa-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "public",
+>>>>>>> 1d56247bc1e0a67f0dd2fb481737b7329f486022
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ]
+<<<<<<< HEAD
   }
 }
+=======
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
+>>>>>>> 1d56247bc1e0a67f0dd2fb481737b7329f486022

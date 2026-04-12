@@ -1,6 +1,5 @@
 const API = "http://localhost:3000/menu";
 
-// LOAD MENU
 async function loadMenu() {
   const res = await fetch(API);
   const data = await res.json();
@@ -16,25 +15,43 @@ async function loadMenu() {
     li.innerHTML = `
       <strong>${item.name}</strong> - R${item.price}
       <br/>
-      <em>${item.description}</em>
+
+      <em>${item.description || "No description"}</em>
       <br/>
+
       <img src="${item.photo || 'https://via.placeholder.com/100'}" width="100"/>
       <br/>
+
       ${item.available ? "Available" : "Sold Out"}
       <br/>
-      <button onclick="markSoldOut('${item.id}')">Sold Out</button>
+
+      <!-- NEW: Order Button (next sprint feature) -->
+      <button onclick="placeOrder('${item.id}')">
+        Order / Place Order
+      </button>
+
+      <!-- EXISTING -->
+      <button onclick="markSoldOut('${item.id}')">
+        Sold Out
+      </button>
+
+      <hr/>
     `;
 
     list.appendChild(li);
   });
 }
-
-// ADD ITEM
+// add item
 async function addItem() {
   const name = document.getElementById("name").value;
   const description = document.getElementById("description").value;
   const price = document.getElementById("price").value;
   const photo = document.getElementById("photo").value;
+
+  if (!name || !price) {
+    alert("Please fill in required fields");
+    return;
+  }
 
   await fetch(API, {
     method: "POST",
@@ -42,16 +59,25 @@ async function addItem() {
     body: JSON.stringify({ name, description, price, photo })
   });
 
-  loadMenu();
+  // reset form after adding
+  const form = document.getElementById("menuForm");
+  if (form) form.reset();
+
+  loadMenu(); // refresh list
 }
 
-// SOLD OUT
+// sold_out
 async function markSoldOut(id) {
   await fetch(`${API}/${id}/soldout`, { method: "PUT" });
   loadMenu();
 }
 
-// FORM
+// this is the new  (placeholder)
+
+function placeOrder(id) {
+  alert("Order feature coming in next sprint 🚀");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("menuForm");
 
@@ -65,7 +91,6 @@ document.addEventListener("DOMContentLoaded", () => {
   loadMenu();
 });
 
-// TEST EXPORT
 if (typeof module !== "undefined") {
   module.exports = { loadMenu };
 }
