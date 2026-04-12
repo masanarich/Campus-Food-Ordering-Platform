@@ -1,3 +1,49 @@
+/**
+ * @jest-environment jsdom
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+function loadModule(moduleRelativePath, injectedGlobals = {}) {
+    const filePath = path.resolve(__dirname, moduleRelativePath);
+
+    let source = fs.readFileSync(filePath, "utf8");
+
+    source = source.replace(
+        /export\s*\{[\s\S]*?\};?\s*/m,
+        ""
+    );
+
+    const moduleShim = { exports: {} };
+
+    const argNames = [
+        "module",
+        "exports",
+        "require",
+        "__filename",
+        "__dirname",
+        ...Object.keys(injectedGlobals)
+    ];
+
+    const argValues = [
+        moduleShim,
+        moduleShim.exports,
+        require,
+        filePath,
+        path.dirname(filePath),
+        ...Object.values(injectedGlobals)
+    ];
+
+    const factory = new Function(
+        ...argNames,
+        `${source}
+return module.exports;`
+    );
+
+    return factory(...argValues);
+}
+
 const {
     normalizeText,
     setTextContent,
@@ -7,23 +53,28 @@ const {
     getDisplayName,
     getEmail,
     renderProfile,
+    waitForAuthenticatedUser,
     loadCurrentUserProfile,
     signOutCurrentUser,
     initializeProfileView,
-    attachSignOutHandler
-} = require("../../public/authentication/profile.js");
+    attachSignOutHandler,
+    initializeProfilePage
+} = loadModule("../../public/authentication/profile.js", {
+    document,
+    window
+});
 
 function createProfileDom() {
     document.body.innerHTML = `
-    <section>
-      <p id="profile-name"></p>
-      <p id="profile-email"></p>
-      <p id="profile-role"></p>
-      <p id="profile-vendor-status"></p>
-      <p id="profile-status"></p>
-      <button id="signout-button" type="button">Sign Out</button>
-    </section>
-  `;
+        <section>
+            <p id="profile-name"></p>
+            <p id="profile-email"></p>
+            <p id="profile-role"></p>
+            <p id="profile-vendor-status"></p>
+            <p id="profile-status"></p>
+            <button id="signout-button" type="button">Sign Out</button>
+        </section>
+    `;
 
     return {
         nameElement: document.querySelector("#profile-name"),
@@ -36,6 +87,10 @@ function createProfileDom() {
 }
 
 describe("profile.js helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("normalizeText trims whitespace", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
     });
@@ -48,6 +103,18 @@ describe("profile.js helpers", () => {
         expect(nameElement.textContent).toBe("Faranani Maduwa");
     });
 
+    test("setTextContent uses fallback when text is empty", () => {
+        const { nameElement } = createProfileDom();
+
+        setTextContent(nameElement, "   ", "Unknown");
+
+        expect(nameElement.textContent).toBe("Unknown");
+    });
+
+    test("setTextContent does nothing when element is missing", () => {
+        expect(() => setTextContent(null, "Hello")).not.toThrow();
+    });
+
     test("setStatusMessage updates text and state", () => {
         const { statusElement } = createProfileDom();
 
@@ -55,6 +122,10 @@ describe("profile.js helpers", () => {
 
         expect(statusElement.textContent).toBe("Profile loaded.");
         expect(statusElement.dataset.state).toBe("success");
+    });
+
+    test("setStatusMessage does nothing when element is missing", () => {
+        expect(() => setStatusMessage(null, "Hello", "success")).not.toThrow();
     });
 
     test("getRoleLabel returns Admin when admin role exists", () => {
@@ -81,6 +152,10 @@ describe("profile.js helpers", () => {
         ).toBe("Customer");
     });
 
+    test("getRoleLabel returns Customer when profile is missing", () => {
+        expect(getRoleLabel(null)).toBe("Customer");
+    });
+
     test("getVendorStatusLabel returns Pending", () => {
         expect(getVendorStatusLabel({ vendorStatus: "pending" })).toBe("Pending");
     });
@@ -93,8 +168,13 @@ describe("profile.js helpers", () => {
         expect(getVendorStatusLabel({ vendorStatus: "rejected" })).toBe("Rejected");
     });
 
+    test("getVendorStatusLabel returns Suspended", () => {
+        expect(getVendorStatusLabel({ vendorStatus: "suspended" })).toBe("Suspended");
+    });
+
     test("getVendorStatusLabel returns None by default", () => {
         expect(getVendorStatusLabel({ vendorStatus: "none" })).toBe("None");
+        expect(getVendorStatusLabel({})).toBe("None");
     });
 
     test("getDisplayName prefers profile displayName", () => {
@@ -115,6 +195,10 @@ describe("profile.js helpers", () => {
         ).toBe("User Name");
     });
 
+    test("getDisplayName returns empty string when missing", () => {
+        expect(getDisplayName({}, {})).toBe("");
+    });
+
     test("getEmail prefers profile email", () => {
         expect(
             getEmail(
@@ -131,6 +215,10 @@ describe("profile.js helpers", () => {
                 { email: "user@example.com" }
             )
         ).toBe("user@example.com");
+    });
+
+    test("getEmail returns empty string when missing", () => {
+        expect(getEmail({}, {})).toBe("");
     });
 
     test("renderProfile writes values into the page", () => {
@@ -160,16 +248,82 @@ describe("profile.js helpers", () => {
         expect(dom.roleElement.textContent).toBe("Vendor");
         expect(dom.vendorStatusElement.textContent).toBe("Pending");
     });
+
+    test("renderProfile handles missing elements safely", () => {
+        expect(() =>
+            renderProfile(
+                {},
+                {
+                    displayName: "Name",
+                    email: "email@example.com",
+                    roles: { customer: true },
+                    vendorStatus: "none"
+                },
+                {}
+            )
+        ).not.toThrow();
+    });
+});
+
+describe("profile.js auth waiting helper", () => {
+    test("waitForAuthenticatedUser returns current user immediately", async () => {
+        const authService = {
+            getCurrentUser: jest.fn(() => ({
+                uid: "user-0"
+            }))
+        };
+
+        const result = await waitForAuthenticatedUser(authService);
+
+        expect(result).toEqual({
+            uid: "user-0"
+        });
+    });
+
+    test("waitForAuthenticatedUser waits for auth state change when no current user", async () => {
+        const unsubscribe = jest.fn();
+
+        const authService = {
+            getCurrentUser: jest.fn(() => null),
+            observeAuthState: jest.fn((callback) => {
+                setTimeout(() => callback({ uid: "late-user" }), 0);
+                return unsubscribe;
+            })
+        };
+
+        const result = await waitForAuthenticatedUser(authService);
+
+        expect(result).toEqual({
+            uid: "late-user"
+        });
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    test("waitForAuthenticatedUser returns null when no current user and no observer", async () => {
+        const authService = {
+            getCurrentUser: jest.fn(() => null)
+        };
+
+        const result = await waitForAuthenticatedUser(authService);
+
+        expect(result).toBeNull();
+    });
+
+    test("waitForAuthenticatedUser throws when getCurrentUser is missing", () => {
+        expect(() => waitForAuthenticatedUser({})).toThrow(
+            "authService.getCurrentUser is required."
+        );
+    });
 });
 
 describe("profile.js service functions", () => {
     test("loadCurrentUserProfile returns signed-in user and profile", async () => {
         const authService = {
-            getCurrentUser: jest.fn().mockResolvedValue({
+            getCurrentUser: jest.fn(() => ({
                 uid: "user-1",
                 email: "user@example.com",
                 displayName: "User One"
-            }),
+            })),
             getCurrentUserProfile: jest.fn().mockResolvedValue({
                 uid: "user-1",
                 email: "user@example.com",
@@ -190,7 +344,7 @@ describe("profile.js service functions", () => {
 
     test("loadCurrentUserProfile returns error when no user is signed in", async () => {
         const authService = {
-            getCurrentUser: jest.fn().mockResolvedValue(null),
+            getCurrentUser: jest.fn(() => null),
             getCurrentUserProfile: jest.fn()
         };
 
@@ -215,7 +369,7 @@ describe("profile.js service functions", () => {
         await expect(
             loadCurrentUserProfile({
                 authService: {
-                    getCurrentUser: jest.fn()
+                    getCurrentUser: jest.fn(() => ({ uid: "user-2" }))
                 }
             })
         ).rejects.toThrow("authService.getCurrentUserProfile is required.");
@@ -244,15 +398,19 @@ describe("profile.js service functions", () => {
 });
 
 describe("profile.js page flow", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("initializeProfileView renders profile successfully", async () => {
         const dom = createProfileDom();
 
         const authService = {
-            getCurrentUser: jest.fn().mockResolvedValue({
+            getCurrentUser: jest.fn(() => ({
                 uid: "user-2",
                 email: "user2@example.com",
                 displayName: "User Two"
-            }),
+            })),
             getCurrentUserProfile: jest.fn().mockResolvedValue({
                 uid: "user-2",
                 email: "user2@example.com",
@@ -286,7 +444,7 @@ describe("profile.js page flow", () => {
         const dom = createProfileDom();
 
         const authService = {
-            getCurrentUser: jest.fn().mockResolvedValue(null),
+            getCurrentUser: jest.fn(() => null),
             getCurrentUserProfile: jest.fn()
         };
 
@@ -310,7 +468,9 @@ describe("profile.js page flow", () => {
         const dom = createProfileDom();
 
         const authService = {
-            getCurrentUser: jest.fn().mockRejectedValue(new Error("Unexpected failure")),
+            getCurrentUser: jest.fn(() => {
+                throw new Error("Unexpected failure");
+            }),
             getCurrentUserProfile: jest.fn()
         };
 
@@ -399,5 +559,125 @@ describe("profile.js page flow", () => {
                 }
             })
         ).toThrow("A sign out button is required.");
+    });
+
+    test("attachSignOutHandler throws if authService is missing", () => {
+        const dom = createProfileDom();
+
+        expect(() =>
+            attachSignOutHandler({
+                button: dom.signOutButton
+            })
+        ).toThrow("authService is required.");
+    });
+});
+
+describe("profile.js page initialization", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("initializeProfilePage wires sign out handler and starts profile loading", async () => {
+        const dom = createProfileDom();
+
+        const authService = {
+            getCurrentUser: jest.fn(() => ({
+                uid: "user-9",
+                email: "user9@example.com",
+                displayName: "User Nine"
+            })),
+            getCurrentUserProfile: jest.fn().mockResolvedValue({
+                uid: "user-9",
+                email: "user9@example.com",
+                displayName: "User Nine",
+                roles: { customer: true, vendor: false, admin: false },
+                vendorStatus: "none"
+            }),
+            signOutUser: jest.fn().mockResolvedValue(undefined)
+        };
+
+        const navigate = jest.fn();
+
+        const result = initializeProfilePage({
+            authService,
+            navigate
+        });
+
+        expect(result.signOutController).toBeTruthy();
+        expect(result.profilePromise).toBeTruthy();
+
+        const profileResult = await result.profilePromise;
+
+        expect(profileResult.success).toBe(true);
+        expect(dom.nameElement.textContent).toBe("User Nine");
+        expect(dom.statusElement.textContent).toBe("Profile loaded.");
+    });
+
+    test("initializeProfilePage returns null signOutController when button is missing", async () => {
+        document.body.innerHTML = `
+            <section>
+                <p id="profile-name"></p>
+                <p id="profile-email"></p>
+                <p id="profile-role"></p>
+                <p id="profile-vendor-status"></p>
+                <p id="profile-status"></p>
+            </section>
+        `;
+
+        const authService = {
+            getCurrentUser: jest.fn(() => null),
+            getCurrentUserProfile: jest.fn()
+        };
+
+        const result = initializeProfilePage({
+            authService
+        });
+
+        expect(result.signOutController).toBeNull();
+
+        const profileResult = await result.profilePromise;
+        expect(profileResult.success).toBe(false);
+    });
+
+    test("initializeProfilePage throws when authService is missing", () => {
+        createProfileDom();
+
+        expect(() => initializeProfilePage()).toThrow("authService is required.");
+    });
+
+    test("initializeProfilePage uses custom navigate function for sign out", async () => {
+        const dom = createProfileDom();
+
+        const authService = {
+            getCurrentUser: jest.fn(() => ({
+                uid: "user-10",
+                email: "user10@example.com",
+                displayName: "User Ten"
+            })),
+            getCurrentUserProfile: jest.fn().mockResolvedValue({
+                uid: "user-10",
+                email: "user10@example.com",
+                displayName: "User Ten",
+                roles: { customer: true, vendor: false, admin: false },
+                vendorStatus: "none"
+            }),
+            signOutUser: jest.fn().mockResolvedValue(undefined)
+        };
+
+        const navigate = jest.fn();
+
+        const result = initializeProfilePage({
+            authService,
+            navigate
+        });
+
+        await result.profilePromise;
+
+        await result.signOutController.handleClick({
+            preventDefault: jest.fn()
+        });
+
+        expect(navigate).toHaveBeenCalledWith("../index.html");
+        expect(dom.statusElement.textContent).toBe("Signed out successfully.");
     });
 });
