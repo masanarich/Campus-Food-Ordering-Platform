@@ -6,14 +6,14 @@ app.use(express.json());
 
 console.log("APP START");
 
-const menuRoutes = require("./backend/routes/menu");
-const vendorRoutes = require("./backend/routes/vendor");
-
-app.use("/menu", menuRoutes);
-app.use("/vendors", vendorRoutes);
-
 app.get("/", (req, res) => {
   res.send("API running");
 });
 
-exports.api = functions.https.onRequest(app);
+app.use("/menu", require("./backend/routes/menu"));
+app.use("/vendors", require("./backend/routes/vendor"));
+
+// 🔥 CRITICAL: MUST BE LAST LINE
+const api = functions.https.onRequest(app);
+
+exports.api = api;
