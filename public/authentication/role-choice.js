@@ -260,20 +260,6 @@ const roleChoicePage = {
     initializeRoleChoicePage
 };
 
-export {
-    normalizeText,
-    normalizeRole,
-    isValidRole,
-    setStatusMessage,
-    setButtonState,
-    getNextRouteForRole,
-    buildRoleUpdates,
-    submitRoleChoice,
-    attachRoleChoiceHandler,
-    initializeRoleChoicePage,
-    roleChoicePage
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = roleChoicePage;
 }

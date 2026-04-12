@@ -2,47 +2,6 @@
  * @jest-environment jsdom
  */
 
-const fs = require("fs");
-const path = require("path");
-
-function loadRoleChoiceModule() {
-    const filePath = path.resolve(
-        __dirname,
-        "../../public/authentication/role-choice.js"
-    );
-
-    let source = fs.readFileSync(filePath, "utf8");
-
-    source = source.replace(
-        /export\s*\{[\s\S]*?\};?\s*/m,
-        ""
-    );
-
-    const moduleShim = { exports: {} };
-
-    const factory = new Function(
-        "module",
-        "exports",
-        "require",
-        "__filename",
-        "__dirname",
-        "document",
-        "window",
-        `${source}
-return module.exports;`
-    );
-
-    return factory(
-        moduleShim,
-        moduleShim.exports,
-        require,
-        filePath,
-        path.dirname(filePath),
-        document,
-        window
-    );
-}
-
 const {
     normalizeText,
     normalizeRole,
@@ -54,7 +13,7 @@ const {
     submitRoleChoice,
     attachRoleChoiceHandler,
     initializeRoleChoicePage
-} = loadRoleChoiceModule();
+} = require("../../public/authentication/role-choice.js");
 
 function createRoleChoiceDom() {
     document.body.innerHTML = `
@@ -542,23 +501,8 @@ describe("role-choice.js button flow", () => {
 });
 
 describe("role-choice.js page initialization", () => {
-    let originalDocument;
-    let originalWindow;
-
-    beforeAll(() => {
-        originalDocument = global.document;
-        originalWindow = global.window;
-    });
-
-    afterAll(() => {
-        global.document = originalDocument;
-        global.window = originalWindow;
-    });
-
     beforeEach(() => {
         document.body.innerHTML = "";
-        global.document = document;
-        global.window = window;
     });
 
     test("initializeRoleChoicePage wires both buttons", () => {

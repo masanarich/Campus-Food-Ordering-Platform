@@ -75,14 +75,18 @@
         <p>© 2026 Campus Food Ordering Platform</p>
     </footer>
 
+    <script src="./auth-utils.js"></script>
+    <script src="./auth-core.js"></script>
+    <script src="./vendor-application.js"></script>
+
     <script type="module">
         import { authService } from "./auth.js";
-        import * as authUtils from "./auth-utils.js";
-        import { initializeVendorApplicationPage } from "./vendor-application.js";
 
-        initializeVendorApplicationPage({
+        window.authService = authService;
+
+        window.vendorApplicationPage.initializeVendorApplicationPage({
             authService,
-            authUtils
+            authUtils: window.authUtils
         });
     </script>
 

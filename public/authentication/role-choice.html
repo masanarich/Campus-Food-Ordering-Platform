@@ -61,12 +61,19 @@
     <p>Campus Food Ordering Platform © 2026</p>
   </footer>
 
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./role-choice.js"></script>
+
   <script type="module">
     import { authService } from "./auth.js";
-    import { initializeRoleChoicePage } from "./role-choice.js";
 
-    initializeRoleChoicePage({
-      authService
+    window.authService = authService;
+
+    window.roleChoicePage.initializeRoleChoicePage({
+      authService,
+      authUtils: window.authUtils
     });
   </script>
 
