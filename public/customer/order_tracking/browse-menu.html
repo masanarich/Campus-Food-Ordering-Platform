@@ -4,372 +4,60 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Browse Menu – CampusBite</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #0e0f11;
-      color: #f0ede8;
-      min-height: 100vh;
-    }
-
-    nav {
-      display: flex; align-items: center;
-      justify-content: space-between;
-      padding: 0 32px; height: 60px;
-      background: #16181c;
-      border-bottom: 1px solid #2a2d35;
-      position: sticky; top: 0; z-index: 100;
-    }
-    .nav-logo { font-size: 1.2rem; font-weight: 800; }
-    .nav-logo span { color: #f5a623; }
-    .nav-right { display: flex; gap: 12px; align-items: center; }
-    .nav-right a {
-      color: #7e8494; text-decoration: none;
-      font-size: 0.9rem; padding: 8px 14px;
-      border-radius: 8px; transition: all 0.2s;
-    }
-    .nav-right a:hover { color: #f0ede8; background: #1e2128; }
-    .cart-btn {
-      background: #f5a623; color: #000;
-      padding: 8px 18px; border-radius: 8px;
-      font-weight: 700; font-size: 0.9rem;
-      text-decoration: none; transition: opacity 0.2s;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .cart-btn:hover { opacity: 0.85; }
-    .cart-count {
-      background: #000; color: #f5a623;
-      border-radius: 999px; padding: 1px 7px;
-      font-size: 0.78rem; font-weight: 800;
-    }
-
-    /* ✅ Auth loading overlay — hides page until auth check completes */
-    #authOverlay {
-      position: fixed; inset: 0;
-      background: #0e0f11;
-      display: flex; align-items: center; justify-content: center;
-      z-index: 9999;
-      font-size: 1rem; color: #7e8494;
-    }
-
-    .container { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
-
-    .search-bar {
-      display: flex; gap: 12px; margin-bottom: 28px;
-      flex-wrap: wrap;
-    }
-    .search-input {
-      flex: 1; min-width: 200px;
-      padding: 12px 16px;
-      background: #1e2128;
-      border: 1px solid #2a2d35;
-      border-radius: 10px;
-      color: #f0ede8; font-size: 0.95rem;
-      outline: none; transition: border 0.2s;
-    }
-    .search-input:focus { border-color: #f5a623; }
-    .filter-btn {
-      padding: 10px 18px;
-      background: #1e2128;
-      border: 1px solid #2a2d35;
-      border-radius: 10px;
-      color: #7e8494; font-size: 0.88rem;
-      font-weight: 600; cursor: pointer;
-      transition: all 0.2s;
-    }
-    .filter-btn:hover, .filter-btn.active {
-      border-color: #f5a623; color: #f5a623;
-    }
-
-    .section-title {
-      font-size: 1.1rem; font-weight: 700;
-      margin-bottom: 20px;
-    }
-    .menu-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 20px;
-    }
-    .menu-card {
-      background: #1e2128;
-      border: 1px solid #2a2d35;
-      border-radius: 14px;
-      overflow: hidden;
-      transition: all 0.25s;
-    }
-    .menu-card:hover { transform: translateY(-4px); border-color: #f5a623; }
-    .menu-card.sold-out { opacity: 0.5; pointer-events: none; }
-
-    .card-img {
-      width: 100%; height: 150px;
-      object-fit: cover; background: #2a2d35;
-    }
-    .card-img-placeholder {
-      width: 100%; height: 150px;
-      background: #2a2d35;
-      display: flex; align-items: center;
-      justify-content: center; font-size: 2.5rem;
-    }
-    .card-body { padding: 16px; }
-    .card-category {
-      font-size: 0.72rem; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: #7e8494; margin-bottom: 6px;
-    }
-    .card-name { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
-    .card-desc {
-      color: #7e8494; font-size: 0.82rem;
-      line-height: 1.5; margin-bottom: 14px;
-    }
-    .card-footer {
-      display: flex; justify-content: space-between;
-      align-items: center;
-    }
-    .card-price { color: #f5a623; font-weight: 800; font-size: 1.05rem; }
-    .btn-add-cart {
-      padding: 8px 16px;
-      background: #f5a623; color: #000;
-      border: none; border-radius: 8px;
-      font-weight: 700; font-size: 0.85rem;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .btn-add-cart:hover { opacity: 0.85; transform: scale(1.05); }
-
-    .sold-out-badge {
-      background: rgba(232,86,58,0.15);
-      color: #e8563a; font-size: 0.72rem;
-      font-weight: 700; padding: 4px 10px;
-      border-radius: 999px;
-    }
-
-    .toast {
-      position: fixed; bottom: 24px; right: 24px;
-      background: #3ecf8e; color: #000;
-      padding: 12px 20px; border-radius: 10px;
-      font-weight: 700; font-size: 0.9rem;
-      transform: translateY(100px); opacity: 0;
-      transition: all 0.3s; z-index: 999;
-    }
-    .toast.show { transform: translateY(0); opacity: 1; }
-
-    .empty-state {
-      text-align: center; padding: 80px 20px;
-      color: #7e8494; grid-column: 1/-1;
-    }
-    .empty-state div { font-size: 2.5rem; margin-bottom: 12px; }
-  </style>
+  <link rel="stylesheet" href="./browse-menu.css">
 </head>
 <body>
 
-<!-- ✅ FIX: Overlay shown while Firebase checks auth state — prevents flash of content -->
-<div id="authOverlay">⏳ Checking session…</div>
+<aside id="authOverlay">⏳ Checking session…</aside>
 
 <nav>
-  <div class="nav-logo">Campus<span>Bite</span></div>
-  <div class="nav-right">
+  <strong class="nav-logo">Campus<span>Bite</span></strong>
+  <section class="nav-right">
     <a href="track-order.html">📍 Track Order</a>
     <a href="cart.html" class="cart-btn">
       🛒 Cart <span class="cart-count" id="cartCount">0</span>
     </a>
-  </div>
+  </section>
 </nav>
 
-<div class="container">
-  <div style="margin-bottom:28px;">
+<main class="container">
+  <header style="margin-bottom:28px;">
     <h1 style="font-size:1.6rem;font-weight:800;">
       Browse <span style="color:#f5a623;">Menu</span>
     </h1>
     <p style="color:#7e8494;margin-top:6px;">
       Fresh food from campus vendors
     </p>
-  </div>
+  </header>
 
-  <div class="search-bar">
+  <search class="search-bar">
     <input
-      type="text"
+      type="search"
       class="search-input"
       id="searchInput"
       placeholder="Search for food..."
+      aria-label="Search menu items"
     />
     <button class="filter-btn active" id="filterAll">All</button>
     <button class="filter-btn" id="filterMeals">Meals</button>
     <button class="filter-btn" id="filterSnacks">Snacks</button>
     <button class="filter-btn" id="filterDrinks">Drinks</button>
     <button class="filter-btn" id="filterDesserts">Desserts</button>
-  </div>
+  </search>
 
-  <div class="section-title">Available Items</div>
-  <div class="menu-grid" id="menuGrid">
-    <div class="empty-state">
-      <div>🍽️</div>
+  <h2 class="section-title">Available Items</h2>
+  <section class="menu-grid" id="menuGrid" aria-live="polite">
+    <article class="empty-state">
+      <p aria-hidden="true">🍽️</p>
       <p>Loading menu…</p>
-    </div>
-  </div>
-</div>
+    </article>
+  </section>
+</main>
 
-<div class="toast" id="toast">✅ Added to cart!</div>
+<output class="toast" id="toast" aria-live="assertive">✅ Added to cart!</output>
 
-<script type="module">
-  import { initializeApp }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, getDocs }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db   = getFirestore(app);
-
-  let allItems       = [];
-  let currentCategory = 'all';
-
-  // ✅ FIX: Wait for Firebase auth state before doing anything.
-  // If not logged in → redirect to login. If logged in → load the menu.
-  onAuthStateChanged(auth, (user) => {
-    const overlay = document.getElementById('authOverlay');
-    if (!user) {
-      // Not authenticated — send back to login
-      window.location.href = 'login.html';
-    } else {
-      // Authenticated — hide overlay and load menu
-      overlay.style.display = 'none';
-      loadMenu();
-      updateCartCount();
-    }
-  });
-
-  // LOAD MENU ITEMS FROM FIRESTORE
-  async function loadMenu() {
-    const grid = document.getElementById('menuGrid');
-    try {
-      const snapshot = await getDocs(collection(db, 'menuItems'));
-      allItems = [];
-      snapshot.forEach(doc => {
-        allItems.push({ id: doc.id, ...doc.data() });
-      });
-      renderMenu();
-    } catch (err) {
-      grid.innerHTML = `<p style="color:#e8563a;padding:20px;">Error loading menu: ${err.message}</p>`;
-    }
-  }
-
-  // RENDER MENU
-  function renderMenu() {
-    const grid   = document.getElementById('menuGrid');
-    const search = document.getElementById('searchInput').value.toLowerCase();
-
-    const filtered = allItems.filter(item => {
-      const matchSearch = item.name.toLowerCase().includes(search) ||
-        (item.description || '').toLowerCase().includes(search);
-      const matchCategory = currentCategory === 'all' ||
-        item.category === currentCategory;
-      return matchSearch && matchCategory;
-    });
-
-    if (filtered.length === 0) {
-      grid.innerHTML = `
-        <div class="empty-state">
-          <div>🔍</div>
-          <p>No items found.</p>
-        </div>`;
-      return;
-    }
-
-    grid.innerHTML = filtered.map(item => `
-      <div class="menu-card ${!item.available ? 'sold-out' : ''}">
-        ${item.photo
-          ? `<img class="card-img" src="${item.photo}" alt="${item.name}"
-               onerror="this.style.display='none'" />`
-          : `<div class="card-img-placeholder">🍽️</div>`
-        }
-        <div class="card-body">
-          <div class="card-category">${item.category}</div>
-          <div class="card-name">${item.name}</div>
-          <div class="card-desc">${item.description || ''}</div>
-          <div class="card-footer">
-            <div class="card-price">R${Number(item.price).toFixed(2)}</div>
-            ${item.available
-              ? `<button class="btn-add-cart"
-                   data-id="${item.id}"
-                   data-name="${item.name}"
-                   data-price="${item.price}"
-                   data-vendor="${item.vendorId || ''}">
-                   + Add
-                 </button>`
-              : `<span class="sold-out-badge">Sold Out</span>`
-            }
-          </div>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  // ✅ FIX: Use event delegation for Add buttons — avoids inline onclick in module scope
-  document.getElementById('menuGrid').addEventListener('click', e => {
-    const btn = e.target.closest('.btn-add-cart');
-    if (!btn) return;
-    addToCart(
-      btn.dataset.id,
-      btn.dataset.name,
-      parseFloat(btn.dataset.price),
-      btn.dataset.vendor
-    );
-  });
-
-  // ADD TO CART
-  function addToCart(id, name, price, vendorId) {
-    let cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    const existing = cart.find(i => i.id === id);
-    if (existing) {
-      existing.qty += 1;
-    } else {
-      cart.push({ id, name, price, vendorId, qty: 1 });
-    }
-    localStorage.setItem('cart', JSON.stringify(cart));
-    updateCartCount();
-    showToast(`✅ ${name} added to cart!`);
-  }
-
-  // UPDATE CART COUNT IN NAV
-  function updateCartCount() {
-    const cart  = JSON.parse(localStorage.getItem('cart') || '[]');
-    const total = cart.reduce((sum, i) => sum + i.qty, 0);
-    document.getElementById('cartCount').textContent = total;
-  }
-
-  // SEARCH
-  document.getElementById('searchInput').addEventListener('input', renderMenu);
-
-  // CATEGORY FILTERS
-  const filterMap = {
-    filterAll:      'all',
-    filterMeals:    'meals',
-    filterSnacks:   'snacks',
-    filterDrinks:   'drinks',
-    filterDesserts: 'desserts',
-  };
-  Object.entries(filterMap).forEach(([btnId, category]) => {
-    document.getElementById(btnId).addEventListener('click', function () {
-      currentCategory = category;
-      document.querySelectorAll('.filter-btn')
-        .forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      renderMenu();
-    });
-  });
-
-  // TOAST
-  function showToast(msg) {
-    const toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2500);
-  }
-</script>
+<!-- ✅ type="module" enables ES module imports (import/export syntax) -->
+<script type="module" src="browse-menu.js"></script>
 
 </body>
 </html>
