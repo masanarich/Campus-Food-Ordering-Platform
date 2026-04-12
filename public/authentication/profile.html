@@ -44,7 +44,7 @@
 
     <section>
       <h3>Account Actions</h3>
-      <button id="signout-button">Sign Out</button>
+      <button id="signout-button" type="button">Sign Out</button>
     </section>
 
     <section>
@@ -62,11 +62,18 @@
     <p>© 2026 Campus Food Ordering Platform</p>
   </footer>
 
-  <script type="module">
-    import "./auth.js";
-    import { initializeProfilePage } from "./profile.js";
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./profile.js"></script>
 
-    initializeProfilePage();
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.profilePage.initializeProfilePage({
+      authService
+    });
   </script>
 
 </body>

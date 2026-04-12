@@ -2,53 +2,7 @@
  * @jest-environment jsdom
  */
 
-const fs = require("fs");
-const path = require("path");
-
-function loadModule(moduleRelativePath, injectedGlobals = {}) {
-    const filePath = path.resolve(__dirname, moduleRelativePath);
-
-    let source = fs.readFileSync(filePath, "utf8");
-
-    source = source.replace(
-        /export\s*\{[\s\S]*?\};?\s*/m,
-        ""
-    );
-
-    const moduleShim = { exports: {} };
-
-    const argNames = [
-        "module",
-        "exports",
-        "require",
-        "__filename",
-        "__dirname",
-        ...Object.keys(injectedGlobals)
-    ];
-
-    const argValues = [
-        moduleShim,
-        moduleShim.exports,
-        require,
-        filePath,
-        path.dirname(filePath),
-        ...Object.values(injectedGlobals)
-    ];
-
-    const factory = new Function(
-        ...argNames,
-        `${source}
-return module.exports;`
-    );
-
-    return factory(...argValues);
-}
-
-const authUtils = loadModule("../../public/authentication/auth-utils.js", {
-    window,
-    document
-});
-
+const authUtils = require("../../public/authentication/auth-utils.js");
 const {
     normalizeText,
     normalizeEmail,
@@ -65,10 +19,7 @@ const {
     submitRegistration,
     attachRegisterHandler,
     initializeRegisterPage
-} = loadModule("../../public/authentication/register.js", {
-    document,
-    window
-});
+} = require("../../public/authentication/register.js");
 
 function getRegisterFields(form) {
     return {

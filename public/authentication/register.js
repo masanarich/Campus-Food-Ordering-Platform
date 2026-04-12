@@ -319,25 +319,6 @@ const registerPage = {
     initializeRegisterPage
 };
 
-export {
-    normalizeText,
-    normalizeEmail,
-    getFormField,
-    extractRegisterFormValues,
-    buildRegisterPayload,
-    isValidAccountType,
-    validateRegisterPayload,
-    clearFieldErrors,
-    showFieldErrors,
-    setStatusMessage,
-    setSubmittingState,
-    getSuccessMessage,
-    submitRegistration,
-    attachRegisterHandler,
-    initializeRegisterPage,
-    registerPage
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = registerPage;
 }
