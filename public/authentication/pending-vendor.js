@@ -1,26 +1,24 @@
 /**
- * profile.js
+ * pending-vendor.js
  *
- * Profile page logic for the Campus Food Ordering Platform.
+ * Pending vendor page logic for the Campus Food Ordering Platform.
  * This file:
  * - loads the signed-in user's profile
- * - renders profile details into the page
+ * - displays vendor application status
  * - supports sign out
- * - uses injected services so it stays easy to test
- * - can be used in the browser through initializeProfilePage(...)
+ * - can be used in the browser through initializePendingVendorPage(...)
  */
 
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
 
-function setTextContent(element, value, fallback = "-") {
+function setTextContent(element, value) {
     if (!element) {
         return;
     }
 
-    const normalized = normalizeText(value);
-    element.textContent = normalized || fallback;
+    element.textContent = normalizeText(value);
 }
 
 function setStatusMessage(statusElement, message, state) {
@@ -30,22 +28,6 @@ function setStatusMessage(statusElement, message, state) {
 
     statusElement.textContent = message || "";
     statusElement.dataset.state = state || "";
-}
-
-function getRoleLabel(profile) {
-    if (!profile || !profile.roles) {
-        return "Customer";
-    }
-
-    if (profile.roles.admin) {
-        return "Admin";
-    }
-
-    if (profile.roles.vendor) {
-        return "Vendor";
-    }
-
-    return "Customer";
 }
 
 function getVendorStatusLabel(profile) {
@@ -67,11 +49,25 @@ function getVendorStatusLabel(profile) {
         return "Rejected";
     }
 
-    if (status === "suspended") {
-        return "Suspended";
+    return "None";
+}
+
+function getVendorStatusMessage(profile) {
+    const status = getVendorStatusLabel(profile);
+
+    if (status === "Pending") {
+        return "Your vendor application is awaiting review.";
     }
 
-    return "None";
+    if (status === "Approved") {
+        return "Your vendor application has been approved.";
+    }
+
+    if (status === "Rejected") {
+        return "Your vendor application was not approved.";
+    }
+
+    return "No vendor application was found.";
 }
 
 function getDisplayName(profile, user) {
@@ -86,53 +82,24 @@ function getDisplayName(profile, user) {
     return "";
 }
 
-function getEmail(profile, user) {
-    if (profile && normalizeText(profile.email)) {
-        return profile.email;
-    }
-
-    if (user && normalizeText(user.email)) {
-        return user.email;
+function getBusinessName(profile) {
+    if (profile && normalizeText(profile.businessName)) {
+        return profile.businessName;
     }
 
     return "";
 }
 
-function renderProfile(profileElements, profile, user) {
-    const elements = profileElements || {};
+function renderPendingVendorInfo(pageElements, profile, user) {
+    const elements = pageElements || {};
 
     setTextContent(elements.nameElement, getDisplayName(profile, user));
-    setTextContent(elements.emailElement, getEmail(profile, user));
-    setTextContent(elements.roleElement, getRoleLabel(profile));
+    setTextContent(elements.businessNameElement, getBusinessName(profile));
     setTextContent(elements.vendorStatusElement, getVendorStatusLabel(profile));
+    setTextContent(elements.vendorMessageElement, getVendorStatusMessage(profile));
 }
 
-function waitForAuthenticatedUser(authService) {
-    if (!authService || typeof authService.getCurrentUser !== "function") {
-        throw new Error("authService.getCurrentUser is required.");
-    }
-
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-        return Promise.resolve(currentUser);
-    }
-
-    if (typeof authService.observeAuthState !== "function") {
-        return Promise.resolve(null);
-    }
-
-    return new Promise((resolve) => {
-        const unsubscribe = authService.observeAuthState((user) => {
-            if (typeof unsubscribe === "function") {
-                unsubscribe();
-            }
-
-            resolve(user || null);
-        });
-    });
-}
-
-async function loadCurrentUserProfile(dependencies) {
+async function loadPendingVendorProfile(dependencies) {
     const authService = dependencies && dependencies.authService;
 
     if (!authService || typeof authService.getCurrentUser !== "function") {
@@ -143,7 +110,7 @@ async function loadCurrentUserProfile(dependencies) {
         throw new Error("authService.getCurrentUserProfile is required.");
     }
 
-    const user = await waitForAuthenticatedUser(authService);
+    const user = await authService.getCurrentUser();
 
     if (!user) {
         return {
@@ -175,17 +142,17 @@ async function signOutCurrentUser(dependencies) {
     };
 }
 
-async function initializeProfileView(options) {
+async function initializePendingVendorView(options) {
     const {
         authService,
         statusElement,
-        profileElements
+        pageElements
     } = options || {};
 
-    setStatusMessage(statusElement, "Loading profile...", "loading");
+    setStatusMessage(statusElement, "", "");
 
     try {
-        const result = await loadCurrentUserProfile({
+        const result = await loadPendingVendorProfile({
             authService
         });
 
@@ -194,15 +161,15 @@ async function initializeProfileView(options) {
             return result;
         }
 
-        renderProfile(profileElements, result.profile, result.user);
-        setStatusMessage(statusElement, "Profile loaded.", "success");
+        renderPendingVendorInfo(pageElements, result.profile, result.user);
+        setStatusMessage(statusElement, "Vendor application status loaded.", "success");
 
         return result;
     } catch (error) {
         const message =
             error && error.message
                 ? error.message
-                : "Unable to load profile right now. Please try again.";
+                : "Unable to load vendor application status right now.";
 
         setStatusMessage(statusElement, message, "error");
 
@@ -213,7 +180,7 @@ async function initializeProfileView(options) {
     }
 }
 
-function attachSignOutHandler(options) {
+function attachPendingVendorSignOutHandler(options) {
     const {
         button,
         authService,
@@ -225,10 +192,6 @@ function attachSignOutHandler(options) {
 
     if (!button) {
         throw new Error("A sign out button is required.");
-    }
-
-    if (!authService) {
-        throw new Error("authService is required.");
     }
 
     async function handleClick(event) {
@@ -260,7 +223,7 @@ function attachSignOutHandler(options) {
             const message =
                 error && error.message
                     ? error.message
-                    : "Unable to sign out right now. Please try again.";
+                    : "Unable to sign out right now.";
 
             setStatusMessage(statusElement, message, "error");
             button.disabled = false;
@@ -283,30 +246,26 @@ function attachSignOutHandler(options) {
     };
 }
 
-function initializeProfilePage(options = {}) {
+function initializePendingVendorPage(options = {}) {
     const {
-        authService = typeof window !== "undefined" ? window.authService : undefined,
-        statusSelector = "#profile-status",
-        nameSelector = "#profile-name",
-        emailSelector = "#profile-email",
-        roleSelector = "#profile-role",
-        vendorStatusSelector = "#profile-vendor-status",
-        signOutButtonSelector = "#signout-button",
+        authService,
+        statusSelector = "#pending-vendor-status",
+        nameSelector = "#pending-vendor-name",
+        businessNameSelector = "#pending-vendor-business-name",
+        vendorStatusSelector = "#pending-vendor-role-status",
+        vendorMessageSelector = "#pending-vendor-message",
+        signOutButtonSelector = "#pending-vendor-signout-button",
         navigate
     } = options;
 
     const statusElement = document.querySelector(statusSelector);
-    const profileElements = {
+    const pageElements = {
         nameElement: document.querySelector(nameSelector),
-        emailElement: document.querySelector(emailSelector),
-        roleElement: document.querySelector(roleSelector),
-        vendorStatusElement: document.querySelector(vendorStatusSelector)
+        businessNameElement: document.querySelector(businessNameSelector),
+        vendorStatusElement: document.querySelector(vendorStatusSelector),
+        vendorMessageElement: document.querySelector(vendorMessageSelector)
     };
     const signOutButton = document.querySelector(signOutButtonSelector);
-
-    if (!authService) {
-        throw new Error("authService is required.");
-    }
 
     const resolvedNavigate =
         typeof navigate === "function"
@@ -316,7 +275,7 @@ function initializeProfilePage(options = {}) {
             };
 
     const signOutController = signOutButton
-        ? attachSignOutHandler({
+        ? attachPendingVendorSignOutHandler({
             button: signOutButton,
             authService,
             statusElement,
@@ -324,39 +283,38 @@ function initializeProfilePage(options = {}) {
         })
         : null;
 
-    const profilePromise = initializeProfileView({
+    const pagePromise = initializePendingVendorView({
         authService,
         statusElement,
-        profileElements
+        pageElements
     });
 
     return {
         signOutController,
-        profilePromise
+        pagePromise
     };
 }
 
-const profilePage = {
+const pendingVendorPage = {
     normalizeText,
     setTextContent,
     setStatusMessage,
-    getRoleLabel,
     getVendorStatusLabel,
+    getVendorStatusMessage,
     getDisplayName,
-    getEmail,
-    renderProfile,
-    waitForAuthenticatedUser,
-    loadCurrentUserProfile,
+    getBusinessName,
+    renderPendingVendorInfo,
+    loadPendingVendorProfile,
     signOutCurrentUser,
-    initializeProfileView,
-    attachSignOutHandler,
-    initializeProfilePage
+    initializePendingVendorView,
+    attachPendingVendorSignOutHandler,
+    initializePendingVendorPage
 };
 
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = profilePage;
+    module.exports = pendingVendorPage;
 }
 
 if (typeof window !== "undefined") {
-    window.profilePage = profilePage;
+    window.pendingVendorPage = pendingVendorPage;
 }
