@@ -5,16 +5,14 @@ const app = express();
 
 app.use(express.json());
 
-// TEST ROUTE (must work first)
+console.log("🔥 Firebase function starting...");
+
+// ✅ FIXED PATHS
+app.use("/menu", require("./routes/menu"));
+app.use("/vendors", require("./routes/vendor"));
+
 app.get("/", (req, res) => {
   res.send("API WORKING");
 });
 
-// MENU ROUTES
-app.use("/menu", require("./backend/routes/menu"));
-
-// VENDOR ROUTES
-app.use("/vendors", require("./backend/routes/vendor"));
-
-// EXPORT (IMPORTANT)
 exports.api = functions.https.onRequest(app);

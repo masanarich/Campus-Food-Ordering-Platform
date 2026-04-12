@@ -1,1 +1,0 @@
-const { formatVendor } = require('../../backend/utils/vendorUtils');
