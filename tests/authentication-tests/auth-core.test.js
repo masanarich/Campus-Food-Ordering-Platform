@@ -1,42 +1,8 @@
-const fs = require("fs");
-const path = require("path");
-
-function loadModule(moduleRelativePath) {
-    const filePath = path.resolve(__dirname, moduleRelativePath);
-
-    let source = fs.readFileSync(filePath, "utf8");
-
-    source = source.replace(
-        /export\s*\{[\s\S]*?\};?\s*/m,
-        ""
-    );
-
-    const moduleShim = { exports: {} };
-
-    const factory = new Function(
-        "module",
-        "exports",
-        "require",
-        "__filename",
-        "__dirname",
-        `${source}
-return module.exports;`
-    );
-
-    return factory(
-        moduleShim,
-        moduleShim.exports,
-        require,
-        filePath,
-        path.dirname(filePath)
-    );
-}
-
-const authUtils = loadModule("../../public/authentication/auth-utils.js");
+const authUtils = require("../../public/authentication/auth-utils.js");
 const {
     ensureDependency,
     createAuthService
-} = loadModule("../../public/authentication/auth-core.js");
+} = require("../../public/authentication/auth-core.js");
 
 function createMockDependencies() {
     return {
@@ -515,7 +481,32 @@ describe("auth-core service", () => {
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
-    test("registerWithEmail returns success with vendor role choice route", async () => {
+    test("registerWithEmail succeeds without displayName", async () => {
+        const deps = createMockDependencies();
+        const mockUser = {
+            uid: "user-8b",
+            email: "user8b@example.com",
+            displayName: ""
+        };
+
+        deps.authFns.createUserWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.registerWithEmail({
+            email: "user8b@example.com",
+            password: "password123",
+            accountType: "customer"
+        });
+
+        expect(result.success).toBe(true);
+        expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
+    });
+
+    test("registerWithEmail returns success with vendor route decision", async () => {
         const deps = createMockDependencies();
         const mockUser = {
             uid: "vendor-8",

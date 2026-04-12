@@ -320,12 +320,6 @@ const authCore = {
     createAuthService
 };
 
-export {
-    ensureDependency,
-    createAuthService,
-    authCore
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = authCore;
 }
