@@ -1,5 +1,4 @@
-// Import auth and db directly from your Firebase config — no need to re-initialize
-import { auth, db } from './authentication/config.js';
+import { auth, db } from '../../authentication/config.js';
 
 import { onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
@@ -9,17 +8,12 @@ import { collection, getDocs }
 let allItems        = [];
 let currentCategory = 'all';
 
-// Wait for Firebase auth state before doing anything.
-// Not logged in → redirect to login. Logged in → load the menu.
+// Auth check — skip redirect for now so menu loads during testing
 onAuthStateChanged(auth, (user) => {
   const overlay = document.getElementById('authOverlay');
-  if (!user) {
-    window.location.href = 'login.html';
-  } else {
-    overlay.style.display = 'none';
-    loadMenu();
-    updateCartCount();
-  }
+  overlay.style.display = 'none';
+  loadMenu();
+  updateCartCount();
 });
 
 // LOAD MENU ITEMS FROM FIRESTORE

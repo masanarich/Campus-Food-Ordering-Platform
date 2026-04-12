@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Browse Menu – CampusBite</title>
-  <link rel="stylesheet" href="./browse-menu.css">
+  <title>Browse Menu - CampusBite</title>
+
 </head>
 <body>
 
-<aside id="authOverlay">⏳ Checking session…</aside>
-
+<aside id="authOverlay">Checking session...</aside>
+  <link rel="stylesheet" href="./browse-menu.css">
 <nav>
   <strong class="nav-logo">Campus<span>Bite</span></strong>
   <section class="nav-right">
-    <a href="track-order.html">📍 Track Order</a>
+    <a href="track-order.html">Track Order</a>
     <a href="cart.html" class="cart-btn">
-      🛒 Cart <span class="cart-count" id="cartCount">0</span>
+      Cart <span class="cart-count" id="cartCount">0</span>
     </a>
   </section>
 </nav>
@@ -48,15 +48,13 @@
   <h2 class="section-title">Available Items</h2>
   <section class="menu-grid" id="menuGrid" aria-live="polite">
     <article class="empty-state">
-      <p aria-hidden="true">🍽️</p>
-      <p>Loading menu…</p>
+      <p aria-hidden="true">Loading menu...</p>
     </article>
   </section>
 </main>
 
-<output class="toast" id="toast" aria-live="assertive">✅ Added to cart!</output>
+<output class="toast" id="toast" aria-live="assertive">Added to cart!</output>
 
-<!-- ✅ type="module" enables ES module imports (import/export syntax) -->
 <script type="module" src="browse-menu.js"></script>
 
 </body>
