@@ -7,10 +7,12 @@ const {
   suspendVendor
 } = require('../models/vendorModel');
 
+// GET ALL
 router.get('/', (req, res) => {
   res.json(getVendors());
 });
 
+// APPROVE
 router.put('/:id/approve', (req, res) => {
   try {
     res.json(approveVendor(req.params.id));
@@ -19,6 +21,7 @@ router.put('/:id/approve', (req, res) => {
   }
 });
 
+// SUSPEND
 router.put('/:id/suspend', (req, res) => {
   try {
     res.json(suspendVendor(req.params.id));

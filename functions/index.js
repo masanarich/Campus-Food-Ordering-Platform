@@ -1,18 +1,19 @@
-const functions = require("firebase-functions");
 const express = require("express");
-
 const app = express();
 
 app.use(express.json());
 
-console.log("🔥 Firebase function starting...");
-
-// ✅ FIXED PATHS
+// ✅ CORRECT PATHS (same folder level)
 app.use("/menu", require("./routes/menu"));
 app.use("/vendors", require("./routes/vendor"));
 
+// TEST ROUTE
 app.get("/", (req, res) => {
   res.send("API WORKING");
 });
 
-exports.api = functions.https.onRequest(app);
+// LOCAL SERVER (for testing only)
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

@@ -1,7 +1,9 @@
 {
   "functions": {
     "source": "functions",
-    "codebase": "default"
+    "codebase": "default",
+    "runtime" : "nodejs20",
+    "platform":"gcfv1"
   },
   "hosting": {
     "public": "frontend",
