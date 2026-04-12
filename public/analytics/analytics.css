@@ -1,0 +1,263 @@
+/* =========================================================
+   analytics.css
+   Styles specific to the analytics dashboard page.
+   Extends index.css — do not duplicate base styles here.
+   ========================================================= */
+
+/* ----------------------------------------------------------
+   Analytics Hero
+   ---------------------------------------------------------- */
+.analytics-main {
+    padding-bottom: 4rem;
+}
+
+.analytics-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 3rem 2rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+}
+
+.analytics-hero-text h1 {
+    margin: 0.4rem 0 0.75rem;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.analytics-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding-top: 0.5rem;
+}
+
+.meta-note {
+    font-size: 0.8rem;
+    opacity: 0.6;
+    max-width: 260px;
+}
+
+/* ----------------------------------------------------------
+   KPI Summary Cards
+   ---------------------------------------------------------- */
+.kpi-section {
+    max-width: 1200px;
+    margin: 0 auto 2.5rem;
+    padding: 0 2rem;
+}
+
+.kpi-section .section-label {
+    margin-bottom: 1rem;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.kpi-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    transition: box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.kpi-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+    margin: 0 0 0.4rem;
+    font-weight: 600;
+}
+
+.kpi-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.1;
+}
+
+/* ----------------------------------------------------------
+   Report Sections
+   ---------------------------------------------------------- */
+.report-section {
+    max-width: 1200px;
+    margin: 0 auto 3rem;
+    padding: 2rem;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+}
+
+.report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.75rem;
+    flex-wrap: wrap;
+}
+
+.report-title-group h2 {
+    margin: 0.25rem 0 0.4rem;
+    font-size: 1.35rem;
+}
+
+.report-description {
+    font-size: 0.88rem;
+    opacity: 0.6;
+    margin: 0;
+}
+
+.report-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding-top: 0.25rem;
+}
+
+/* ----------------------------------------------------------
+   Charts
+   ---------------------------------------------------------- */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 320px;
+    margin-bottom: 1.75rem;
+}
+
+.chart-container--doughnut {
+    width: 300px;
+    height: 300px;
+    flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------
+   Tables
+   ---------------------------------------------------------- */
+.report-table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.report-table th {
+    background: var(--table-head-bg, #f9fafb);
+    padding: 0.65rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    white-space: nowrap;
+}
+
+.report-table td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.report-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.report-table tbody tr:hover {
+    background: var(--row-hover-bg, #f9fafb);
+}
+
+.report-table .total-row {
+    font-weight: 700;
+}
+
+/* ----------------------------------------------------------
+   Peak Insight Banner
+   ---------------------------------------------------------- */
+.peak-insight {
+    background: var(--insight-bg, #f0fdf4);
+    border: 1px solid var(--insight-border, #bbf7d0);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-size: 0.9rem;
+    color: var(--insight-text, #166534);
+}
+
+/* ----------------------------------------------------------
+   Popular Items Layout (chart + table side by side)
+   ---------------------------------------------------------- */
+.popular-layout {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.popular-layout .report-table-wrapper {
+    flex: 1;
+    min-width: 280px;
+}
+
+/* ----------------------------------------------------------
+   Active nav state
+   ---------------------------------------------------------- */
+.nav-button.active {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------
+   Responsive
+   ---------------------------------------------------------- */
+@media (max-width: 768px) {
+    .analytics-hero {
+        flex-direction: column;
+        padding: 2rem 1.25rem 1.5rem;
+    }
+
+    .report-section {
+        margin: 0 1rem 2rem;
+        padding: 1.25rem;
+    }
+
+    .kpi-section {
+        padding: 0 1.25rem;
+    }
+
+    .report-header {
+        flex-direction: column;
+    }
+
+    .chart-container {
+        height: 240px;
+    }
+
+    .chart-container--doughnut {
+        width: 100%;
+        height: 260px;
+    }
+
+    .popular-layout {
+        flex-direction: column;
+    }
+}

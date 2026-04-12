@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analytics | Campus Food Ordering Platform</title>
+    <link rel="stylesheet" href="../index.css" />
+    <link rel="stylesheet" href="analytics.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <header class="site-header">
+        <nav class="site-nav" aria-label="Main navigation">
+            <a class="brand" href="../index.html">Campus Food Ordering Platform</a>
+
+            <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="menuList"
+                aria-label="Toggle menu">
+                Menu
+            </button>
+
+            <ul class="nav-list" id="menuList">
+                <li><a href="../index.html#about">About</a></li>
+                <li><a href="../index.html#features">Features</a></li>
+                <li><a href="../index.html#get-started">Get Started</a></li>
+                <li><a href="../index.html#contact">Contact</a></li>
+                <li><a class="nav-button active" href="analytics.html">Analytics</a></li>
+                <li><a class="nav-button" href="../authentication/login.html">Sign In</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="analytics-main">
+
+        <!-- Page Header -->
+        <section class="analytics-hero" aria-labelledby="analytics-title">
+            <article class="analytics-hero-text">
+                <p class="eyebrow">Admin Dashboard</p>
+                <h1 id="analytics-title">Platform Analytics</h1>
+                <p class="hero-description">
+                    Track vendor performance, peak ordering times, and popular menu items
+                    across the campus food ordering platform.
+                </p>
+            </article>
+
+            <aside class="analytics-meta" aria-label="Dashboard summary">
+                <p class="status-badge">Live Data View</p>
+                <p class="meta-note">Data shown is representative mock data. Firebase integration pending.</p>
+            </aside>
+        </section>
+
+        <!-- KPI Summary Cards -->
+        <section class="kpi-section" aria-labelledby="kpi-title">
+            <h2 id="kpi-title" class="section-label">Overview</h2>
+            <div class="kpi-grid" role="list">
+
+                <article class="kpi-card" role="listitem">
+                    <p class="kpi-label">Total Orders (This Month)</p>
+                    <p class="kpi-value" id="kpiTotalOrders">—</p>
+                </article>
+
+                <article class="kpi-card" role="listitem">
+                    <p class="kpi-label">Total Revenue (This Month)</p>
+                    <p class="kpi-value" id="kpiTotalRevenue">—</p>
+                </article>
+
+                <article class="kpi-card" role="listitem">
+                    <p class="kpi-label">Active Vendors</p>
+                    <p class="kpi-value" id="kpiVendors">—</p>
+                </article>
+
+                <article class="kpi-card" role="listitem">
+                    <p class="kpi-label">Peak Hour Today</p>
+                    <p class="kpi-value" id="kpiPeakHour">—</p>
+                </article>
+
+            </div>
+        </section>
+
+        <!-- Report 1: Sales Per Vendor Over Time -->
+        <section class="report-section" id="report-sales" aria-labelledby="sales-title">
+            <header class="report-header">
+                <div class="report-title-group">
+                    <p class="section-label">Report 1</p>
+                    <h2 id="sales-title">Sales Per Vendor Over Time</h2>
+                    <p class="report-description">Monthly revenue breakdown by vendor for the current year.</p>
+                </div>
+                <div class="report-actions">
+                    <button class="button secondary" id="exportSalesCSV" aria-label="Export sales report as CSV">
+                        Export CSV
+                    </button>
+                    <button class="button secondary" id="exportSalesPDF" aria-label="Export sales report as PDF">
+                        Export PDF
+                    </button>
+                </div>
+            </header>
+
+            <div class="chart-container" role="img" aria-label="Bar chart showing sales per vendor over time">
+                <canvas id="salesChart"></canvas>
+            </div>
+
+            <div class="report-table-wrapper">
+                <table class="report-table" id="salesTable" aria-label="Sales per vendor table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Vendor</th>
+                            <th scope="col">Jan</th>
+                            <th scope="col">Feb</th>
+                            <th scope="col">Mar</th>
+                            <th scope="col">Apr</th>
+                            <th scope="col">May</th>
+                            <th scope="col">Jun</th>
+                            <th scope="col">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTableBody">
+                        <!-- Populated by analytics.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Report 2: Peak Ordering Hours -->
+        <section class="report-section" id="report-peak" aria-labelledby="peak-title">
+            <header class="report-header">
+                <div class="report-title-group">
+                    <p class="section-label">Report 2</p>
+                    <h2 id="peak-title">Peak Ordering Hours</h2>
+                    <p class="report-description">Average number of orders placed per hour across the full week.</p>
+                </div>
+                <div class="report-actions">
+                    <button class="button secondary" id="exportPeakCSV" aria-label="Export peak hours report as CSV">
+                        Export CSV
+                    </button>
+                    <button class="button secondary" id="exportPeakPDF" aria-label="Export peak hours report as PDF">
+                        Export PDF
+                    </button>
+                </div>
+            </header>
+
+            <div class="chart-container" role="img" aria-label="Bar chart showing peak ordering hours">
+                <canvas id="peakChart"></canvas>
+            </div>
+
+            <div class="peak-insight" id="peakInsight" aria-live="polite">
+                <!-- Populated by analytics.js -->
+            </div>
+        </section>
+
+        <!-- Report 3: Most Popular Menu Items -->
+        <section class="report-section" id="report-popular" aria-labelledby="popular-title">
+            <header class="report-header">
+                <div class="report-title-group">
+                    <p class="section-label">Report 3 — Custom View</p>
+                    <h2 id="popular-title">Most Popular Menu Items</h2>
+                    <p class="report-description">Top ordered items across all vendors, ranked by order volume.</p>
+                </div>
+                <div class="report-actions">
+                    <button class="button secondary" id="exportPopularCSV" aria-label="Export popular items report as CSV">
+                        Export CSV
+                    </button>
+                    <button class="button secondary" id="exportPopularPDF" aria-label="Export popular items report as PDF">
+                        Export PDF
+                    </button>
+                </div>
+            </header>
+
+            <div class="popular-layout">
+                <div class="chart-container chart-container--doughnut" role="img"
+                    aria-label="Doughnut chart showing most popular menu items">
+                    <canvas id="popularChart"></canvas>
+                </div>
+
+                <div class="report-table-wrapper">
+                    <table class="report-table" id="popularTable" aria-label="Most popular menu items table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Rank</th>
+                                <th scope="col">Item</th>
+                                <th scope="col">Vendor</th>
+                                <th scope="col">Orders</th>
+                                <th scope="col">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody id="popularTableBody">
+                            <!-- Populated by analytics.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="site-footer">
+        <section class="footer-layout" aria-label="Footer links">
+            <article>
+                <h3 class="footer-title">Campus Food Ordering Platform</h3>
+                <p class="footer-text">A Software Design project by 404 Team Not Found.</p>
+            </article>
+
+            <nav aria-label="Authentication footer links">
+                <h4 class="footer-heading">Authentication</h4>
+                <ul class="footer-links">
+                    <li><a href="../authentication/login.html">Sign In</a></li>
+                    <li><a href="../authentication/register.html">Register</a></li>
+                    <li><a href="../authentication/reset.html">Forgot Password</a></li>
+                </ul>
+            </nav>
+
+            <nav aria-label="Legal footer links">
+                <h4 class="footer-heading">Legal</h4>
+                <ul class="footer-links">
+                    <li><a href="../legal/privacy.html">Privacy Policy</a></li>
+                    <li><a href="../legal/terms.html">Terms and Conditions</a></li>
+                    <li><a href="../legal/cookies.html">Cookies Policy</a></li>
+                </ul>
+            </nav>
+        </section>
+
+        <section class="footer-bottom">
+            <p>&copy; <time id="currentYear"></time> Campus Food Ordering Platform. All rights reserved.</p>
+        </section>
+    </footer>
+
+    <script src="analytics.js"></script>
+
+</body>
+
+</html>
