@@ -1,3 +1,54 @@
+/**
+ * @jest-environment jsdom
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+function loadModule(moduleRelativePath, injectedGlobals = {}) {
+    const filePath = path.resolve(__dirname, moduleRelativePath);
+
+    let source = fs.readFileSync(filePath, "utf8");
+
+    source = source.replace(
+        /export\s*\{[\s\S]*?\};?\s*/m,
+        ""
+    );
+
+    const moduleShim = { exports: {} };
+
+    const argNames = [
+        "module",
+        "exports",
+        "require",
+        "__filename",
+        "__dirname",
+        ...Object.keys(injectedGlobals)
+    ];
+
+    const argValues = [
+        moduleShim,
+        moduleShim.exports,
+        require,
+        filePath,
+        path.dirname(filePath),
+        ...Object.values(injectedGlobals)
+    ];
+
+    const factory = new Function(
+        ...argNames,
+        `${source}
+return module.exports;`
+    );
+
+    return factory(...argValues);
+}
+
+const authUtils = loadModule("../../public/authentication/auth-utils.js", {
+    window,
+    document
+});
+
 const {
     normalizeText,
     normalizeEmail,
@@ -11,10 +62,12 @@ const {
     setSubmittingState,
     getSuccessMessage,
     submitPasswordReset,
-    attachResetHandler
-} = require("../../public/authentication/reset.js");
-
-const authUtils = require("../../public/authentication/auth-utils.js");
+    attachResetHandler,
+    initializeResetPage
+} = loadModule("../../public/authentication/reset.js", {
+    document,
+    window
+});
 
 function getResetFields(form) {
     return {
@@ -24,15 +77,15 @@ function getResetFields(form) {
 
 function createResetFormDom() {
     document.body.innerHTML = `
-    <form id="reset-form">
-      <input name="email" value="" />
-      <p data-error-for="email"></p>
+        <form id="reset-form">
+            <input name="email" value="" />
+            <p data-error-for="email"></p>
 
-      <button type="submit">Send Reset Email</button>
-    </form>
+            <button type="submit">Send Reset Email</button>
+        </form>
 
-    <p id="reset-status"></p>
-  `;
+        <p id="reset-status"></p>
+    `;
 
     return {
         form: document.querySelector("#reset-form"),
@@ -41,6 +94,10 @@ function createResetFormDom() {
 }
 
 describe("reset.js helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("normalizeText trims whitespace", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
     });
@@ -55,6 +112,10 @@ describe("reset.js helpers", () => {
         expect(getFormField(form, "email")).toBe(form.elements.namedItem("email"));
     });
 
+    test("getFormField returns null for invalid form", () => {
+        expect(getFormField(null, "email")).toBeNull();
+    });
+
     test("extractResetFormValues reads values from form", () => {
         const { form } = createResetFormDom();
         const fields = getResetFields(form);
@@ -65,6 +126,12 @@ describe("reset.js helpers", () => {
 
         expect(result).toEqual({
             email: "user@example.com"
+        });
+    });
+
+    test("extractResetFormValues falls back to empty values", () => {
+        expect(extractResetFormValues(null)).toEqual({
+            email: ""
         });
     });
 
@@ -102,6 +169,17 @@ describe("reset.js helpers", () => {
         expect(result.errors.email).toBe("Please enter a valid email address.");
     });
 
+    test("validateResetPayload throws when authUtils is missing", () => {
+        expect(() =>
+            validateResetPayload(
+                {
+                    email: "user@example.com"
+                },
+                null
+            )
+        ).toThrow("authUtils is required.");
+    });
+
     test("clearFieldErrors clears visible field errors", () => {
         const { form } = createResetFormDom();
 
@@ -110,6 +188,10 @@ describe("reset.js helpers", () => {
         clearFieldErrors(form);
 
         expect(form.querySelector('[data-error-for="email"]').textContent).toBe("");
+    });
+
+    test("clearFieldErrors does nothing when form is missing", () => {
+        expect(() => clearFieldErrors(null)).not.toThrow();
     });
 
     test("showFieldErrors sets field errors", () => {
@@ -124,6 +206,14 @@ describe("reset.js helpers", () => {
         );
     });
 
+    test("showFieldErrors does nothing when form is missing", () => {
+        expect(() =>
+            showFieldErrors(null, {
+                email: "Please enter a valid email address."
+            })
+        ).not.toThrow();
+    });
+
     test("setStatusMessage updates text and state", () => {
         const { statusElement } = createResetFormDom();
 
@@ -131,6 +221,10 @@ describe("reset.js helpers", () => {
 
         expect(statusElement.textContent).toBe("Password reset email sent.");
         expect(statusElement.dataset.state).toBe("success");
+    });
+
+    test("setStatusMessage does nothing when element is missing", () => {
+        expect(() => setStatusMessage(null, "Hello", "success")).not.toThrow();
     });
 
     test("setSubmittingState disables submit button when submitting", () => {
@@ -149,6 +243,10 @@ describe("reset.js helpers", () => {
 
         expect(form.querySelector('button[type="submit"]').disabled).toBe(false);
         expect(form.dataset.submitting).toBe("false");
+    });
+
+    test("setSubmittingState does nothing when form is missing", () => {
+        expect(() => setSubmittingState(null, true)).not.toThrow();
     });
 
     test("getSuccessMessage returns the reset success message", () => {
@@ -192,6 +290,10 @@ describe("reset.js service submission", () => {
 });
 
 describe("reset.js form submission flow", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("attachResetHandler shows validation errors for invalid input", async () => {
         const { form, statusElement } = createResetFormDom();
         const fields = getResetFields(form);
@@ -220,6 +322,7 @@ describe("reset.js form submission flow", () => {
         );
         expect(statusElement.textContent).toBe("Please fix the highlighted fields.");
         expect(statusElement.dataset.state).toBe("error");
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachResetHandler sends reset email successfully", async () => {
@@ -255,6 +358,7 @@ describe("reset.js form submission flow", () => {
         );
         expect(statusElement.dataset.state).toBe("success");
         expect(onSuccess).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachResetHandler supports navigation when nextRoute is returned", async () => {
@@ -286,6 +390,7 @@ describe("reset.js form submission flow", () => {
 
         expect(result.success).toBe(true);
         expect(navigate).toHaveBeenCalledWith("./login.html");
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachResetHandler shows service error message on failed reset request", async () => {
@@ -319,6 +424,7 @@ describe("reset.js form submission flow", () => {
         expect(statusElement.textContent).toBe("No account was found with that email address.");
         expect(statusElement.dataset.state).toBe("error");
         expect(onError).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachResetHandler handles unexpected thrown errors", async () => {
@@ -331,11 +437,14 @@ describe("reset.js form submission flow", () => {
             sendPasswordResetEmail: jest.fn().mockRejectedValue(new Error("Unexpected failure"))
         };
 
+        const onError = jest.fn();
+
         const { handleSubmit } = attachResetHandler({
             form,
             statusElement,
             authService,
-            authUtils
+            authUtils,
+            onError
         });
 
         const result = await handleSubmit({
@@ -346,5 +455,128 @@ describe("reset.js form submission flow", () => {
         expect(result.message).toBe("Unexpected failure");
         expect(statusElement.textContent).toBe("Unexpected failure");
         expect(statusElement.dataset.state).toBe("error");
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
+    });
+
+    test("attachResetHandler throws if form is missing", () => {
+        expect(() =>
+            attachResetHandler({
+                form: null,
+                authService: {},
+                authUtils
+            })
+        ).toThrow("A reset form is required.");
+    });
+
+    test("attachResetHandler throws if authUtils is missing", () => {
+        const { form } = createResetFormDom();
+
+        expect(() =>
+            attachResetHandler({
+                form,
+                authService: {}
+            })
+        ).toThrow("authUtils is required.");
+    });
+});
+
+describe("reset.js page initialization", () => {
+    let originalWindowAuthUtils;
+
+    beforeAll(() => {
+        originalWindowAuthUtils = window.authUtils;
+    });
+
+    afterAll(() => {
+        window.authUtils = originalWindowAuthUtils;
+    });
+
+    beforeEach(() => {
+        document.body.innerHTML = "";
+        window.authUtils = authUtils;
+    });
+
+    test("initializeResetPage wires the reset handler", () => {
+        createResetFormDom();
+
+        const authService = {
+            sendPasswordResetEmail: jest.fn()
+        };
+
+        const result = initializeResetPage({
+            authService,
+            authUtils,
+            navigate: jest.fn()
+        });
+
+        expect(result).toBeTruthy();
+        expect(typeof result.handleSubmit).toBe("function");
+    });
+
+    test("initializeResetPage uses custom navigate function", async () => {
+        const { form } = createResetFormDom();
+        const fields = getResetFields(form);
+
+        fields.email.value = "user@example.com";
+
+        const authService = {
+            sendPasswordResetEmail: jest.fn().mockResolvedValue({
+                success: true,
+                nextRoute: "./login.html"
+            })
+        };
+
+        const navigate = jest.fn();
+
+        const controller = initializeResetPage({
+            authService,
+            authUtils,
+            navigate
+        });
+
+        await controller.handleSubmit({
+            preventDefault: jest.fn()
+        });
+
+        expect(navigate).toHaveBeenCalledWith("./login.html");
+    });
+
+    test("initializeResetPage throws when form is missing", () => {
+        document.body.innerHTML = `<p id="reset-status"></p>`;
+
+        expect(() =>
+            initializeResetPage({
+                authService: {},
+                authUtils
+            })
+        ).toThrow("Reset form not found.");
+    });
+
+    test("initializeResetPage throws when authService is missing", () => {
+        createResetFormDom();
+
+        expect(() =>
+            initializeResetPage({
+                authUtils
+            })
+        ).toThrow("authService is required.");
+    });
+
+    test("initializeResetPage throws when authUtils is missing", () => {
+        createResetFormDom();
+
+        const savedAuthUtils = window.authUtils;
+        delete window.authUtils;
+
+        try {
+            expect(() =>
+                initializeResetPage({
+                    authService: {}
+                })
+            ).toThrow("authUtils is required.");
+        } finally {
+            window.authUtils = savedAuthUtils;
+        }
     });
 });
