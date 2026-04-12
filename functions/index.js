@@ -1,43 +1,24 @@
-/*const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-const express = require("express");
-
-admin.initializeApp(); // 🔥 IMPORTANT FIX
-
-const app = express();
-app.use(express.json());
-
-console.log("STARTING APP");
-
-const menuRoutes = require("./backend/routes/menu");
-const vendorRoutes = require("./backend/routes/vendor");
-
-app.use("/menu", menuRoutes);
-app.use("/vendors", vendorRoutes);
-
-app.get("/", (req, res) => {
-  res.send("API is running");
-});
-
-exports.api = functions.https.onRequest(app);*/
-console.log("BOOT 1");
-
-const express = require("express");
-const app = express();
-
-console.log("BOOT 2");
+console.log("🔥 START");
 
 try {
-  console.log("LOADING MENU");
+  console.log("STEP 1: require express");
+  const express = require("express");
+
+  console.log("STEP 2: create app");
+  const app = express();
+
+  console.log("STEP 3: require menu");
   require("./backend/routes/menu");
-  console.log("MENU OK");
+  console.log("STEP 4: menu OK");
 
-  console.log("LOADING VENDOR");
+  console.log("STEP 5: require vendor");
   require("./backend/routes/vendor");
-  console.log("VENDOR OK");
+  console.log("STEP 6: vendor OK");
 
-} catch (err) {
-  console.error("🔥 CRASH HERE:", err);
+  console.log("STEP 7: DONE");
+
+} catch (e) {
+  console.error("🔥 CRASH:", e);
 }
 
-console.log("BOOT DONE");
+process.exit(0);
