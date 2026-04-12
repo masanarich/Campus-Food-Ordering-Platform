@@ -31,14 +31,29 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-import {
+const authUtils = typeof window !== "undefined" ? window.authUtils : undefined;
+const authCore = typeof window !== "undefined" ? window.authCore : undefined;
+
+if (!authUtils) {
+  throw new Error(
+    "window.authUtils is required. Make sure auth-utils.js is loaded before auth.js."
+  );
+}
+
+if (!authCore || typeof authCore.createAuthService !== "function") {
+  throw new Error(
+    "window.authCore.createAuthService is required. Make sure auth-core.js is loaded before auth.js."
+  );
+}
+
+const {
   createBaseUserProfile,
   applyVendorApplicationToProfile,
   getDefaultPortalRoute,
   mapAuthErrorCode
-} from "./auth-utils.js";
+} = authUtils;
 
-import { createAuthService } from "./auth-core.js";
+const { createAuthService } = authCore;
 
 const authService = createAuthService({
   auth,
