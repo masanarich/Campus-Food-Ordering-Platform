@@ -1,6 +1,58 @@
+/**
+ * @jest-environment jsdom
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+function loadModule(moduleRelativePath, injectedGlobals = {}) {
+    const filePath = path.resolve(__dirname, moduleRelativePath);
+
+    let source = fs.readFileSync(filePath, "utf8");
+
+    source = source.replace(
+        /export\s*\{[\s\S]*?\};?\s*/m,
+        ""
+    );
+
+    const moduleShim = { exports: {} };
+
+    const argNames = [
+        "module",
+        "exports",
+        "require",
+        "__filename",
+        "__dirname",
+        ...Object.keys(injectedGlobals)
+    ];
+
+    const argValues = [
+        moduleShim,
+        moduleShim.exports,
+        require,
+        filePath,
+        path.dirname(filePath),
+        ...Object.values(injectedGlobals)
+    ];
+
+    const factory = new Function(
+        ...argNames,
+        `${source}
+return module.exports;`
+    );
+
+    return factory(...argValues);
+}
+
+const authUtils = loadModule("../../public/authentication/auth-utils.js", {
+    window,
+    document
+});
+
 const {
     normalizeText,
     normalizeEmail,
+    getFormField,
     extractRegisterFormValues,
     buildRegisterPayload,
     isValidAccountType,
@@ -11,10 +63,12 @@ const {
     setSubmittingState,
     getSuccessMessage,
     submitRegistration,
-    attachRegisterHandler
-} = require("../../public/authentication/register.js");
-
-const authUtils = require("../../public/authentication/auth-utils.js");
+    attachRegisterHandler,
+    initializeRegisterPage
+} = loadModule("../../public/authentication/register.js", {
+    document,
+    window
+});
 
 function getRegisterFields(form) {
     return {
@@ -28,30 +82,30 @@ function getRegisterFields(form) {
 
 function createRegisterFormDom() {
     document.body.innerHTML = `
-    <form id="register-form">
-      <input name="fullName" value="" />
-      <p data-error-for="fullName"></p>
+        <form id="register-form">
+            <input name="fullName" value="" />
+            <p data-error-for="fullName"></p>
 
-      <input name="email" value="" />
-      <p data-error-for="email"></p>
+            <input name="email" value="" />
+            <p data-error-for="email"></p>
 
-      <input name="password" value="" />
-      <p data-error-for="password"></p>
+            <input name="password" value="" />
+            <p data-error-for="password"></p>
 
-      <input name="confirmPassword" value="" />
-      <p data-error-for="confirmPassword"></p>
+            <input name="confirmPassword" value="" />
+            <p data-error-for="confirmPassword"></p>
 
-      <select name="accountType">
-        <option value="customer">Customer</option>
-        <option value="vendor">Vendor</option>
-      </select>
-      <p data-error-for="accountType"></p>
+            <select name="accountType">
+                <option value="customer">Customer</option>
+                <option value="vendor">Vendor</option>
+            </select>
+            <p data-error-for="accountType"></p>
 
-      <button type="submit">Register</button>
-    </form>
+            <button type="submit">Register</button>
+        </form>
 
-    <p id="register-status"></p>
-  `;
+        <p id="register-status"></p>
+    `;
 
     return {
         form: document.querySelector("#register-form"),
@@ -60,12 +114,27 @@ function createRegisterFormDom() {
 }
 
 describe("register.js helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("normalizeText trims whitespace", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
     });
 
     test("normalizeEmail trims and lowercases email", () => {
         expect(normalizeEmail("  USER@Example.COM  ")).toBe("user@example.com");
+    });
+
+    test("getFormField returns the requested field", () => {
+        const { form } = createRegisterFormDom();
+
+        expect(getFormField(form, "fullName")).toBe(form.elements.namedItem("fullName"));
+        expect(getFormField(form, "email")).toBe(form.elements.namedItem("email"));
+    });
+
+    test("getFormField returns null for invalid form", () => {
+        expect(getFormField(null, "email")).toBeNull();
     });
 
     test("extractRegisterFormValues reads values from form", () => {
@@ -89,6 +158,16 @@ describe("register.js helpers", () => {
         });
     });
 
+    test("extractRegisterFormValues falls back to defaults", () => {
+        expect(extractRegisterFormValues(null)).toEqual({
+            fullName: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+            accountType: "customer"
+        });
+    });
+
     test("buildRegisterPayload normalizes raw values", () => {
         const result = buildRegisterPayload({
             fullName: "  Faranani Maduwa  ",
@@ -104,6 +183,24 @@ describe("register.js helpers", () => {
             password: "password123",
             confirmPassword: "password123",
             accountType: "vendor"
+        });
+    });
+
+    test("buildRegisterPayload defaults invalid values safely", () => {
+        const result = buildRegisterPayload({
+            fullName: null,
+            email: null,
+            password: null,
+            confirmPassword: null,
+            accountType: null
+        });
+
+        expect(result).toEqual({
+            fullName: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+            accountType: "customer"
         });
     });
 
@@ -155,6 +252,21 @@ describe("register.js helpers", () => {
         expect(result.errors.accountType).toBe("Please choose a valid account type.");
     });
 
+    test("validateRegisterPayload throws when authUtils is missing", () => {
+        expect(() =>
+            validateRegisterPayload(
+                {
+                    fullName: "Faranani",
+                    email: "faranani@example.com",
+                    password: "password123",
+                    confirmPassword: "password123",
+                    accountType: "customer"
+                },
+                null
+            )
+        ).toThrow("authUtils is required.");
+    });
+
     test("clearFieldErrors clears all visible field errors", () => {
         const { form } = createRegisterFormDom();
 
@@ -165,6 +277,10 @@ describe("register.js helpers", () => {
 
         expect(form.querySelector('[data-error-for="fullName"]').textContent).toBe("");
         expect(form.querySelector('[data-error-for="email"]').textContent).toBe("");
+    });
+
+    test("clearFieldErrors does nothing when form is missing", () => {
+        expect(() => clearFieldErrors(null)).not.toThrow();
     });
 
     test("showFieldErrors sets field error messages", () => {
@@ -183,6 +299,14 @@ describe("register.js helpers", () => {
         );
     });
 
+    test("showFieldErrors does nothing when form is missing", () => {
+        expect(() =>
+            showFieldErrors(null, {
+                fullName: "Full name is required."
+            })
+        ).not.toThrow();
+    });
+
     test("setStatusMessage updates text and state", () => {
         const { statusElement } = createRegisterFormDom();
 
@@ -190,6 +314,10 @@ describe("register.js helpers", () => {
 
         expect(statusElement.textContent).toBe("Registration successful.");
         expect(statusElement.dataset.state).toBe("success");
+    });
+
+    test("setStatusMessage does nothing when element is missing", () => {
+        expect(() => setStatusMessage(null, "Hello", "success")).not.toThrow();
     });
 
     test("setSubmittingState disables submit button when submitting", () => {
@@ -210,6 +338,10 @@ describe("register.js helpers", () => {
         expect(form.dataset.submitting).toBe("false");
     });
 
+    test("setSubmittingState does nothing when form is missing", () => {
+        expect(() => setSubmittingState(null, true)).not.toThrow();
+    });
+
     test("getSuccessMessage returns customer success message", () => {
         expect(getSuccessMessage("customer")).toBe("Registration successful.");
     });
@@ -218,6 +350,10 @@ describe("register.js helpers", () => {
         expect(getSuccessMessage("vendor")).toBe(
             "Registration successful. Your vendor application is awaiting approval."
         );
+    });
+
+    test("getSuccessMessage falls back to default message", () => {
+        expect(getSuccessMessage("anything-else")).toBe("Registration successful.");
     });
 });
 
@@ -266,6 +402,10 @@ describe("register.js service submission", () => {
 });
 
 describe("register.js form submission flow", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("attachRegisterHandler shows validation errors for invalid input", async () => {
         const { form, statusElement } = createRegisterFormDom();
         const fields = getRegisterFields(form);
@@ -274,7 +414,7 @@ describe("register.js form submission flow", () => {
         fields.email.value = "bad-email";
         fields.password.value = "123";
         fields.confirmPassword.value = "456";
-        fields.accountType.value = "admin";
+        fields.accountType.value = "customer";
 
         const authService = {
             registerWithEmail: jest.fn()
@@ -296,8 +436,18 @@ describe("register.js form submission flow", () => {
         expect(form.querySelector('[data-error-for="fullName"]').textContent).toBe(
             "Full name is required."
         );
+        expect(form.querySelector('[data-error-for="email"]').textContent).toBe(
+            "Please enter a valid email address."
+        );
+        expect(form.querySelector('[data-error-for="password"]').textContent).toBe(
+            "Password must be at least 8 characters long."
+        );
+        expect(form.querySelector('[data-error-for="confirmPassword"]').textContent).toBe(
+            "Passwords do not match."
+        );
         expect(statusElement.textContent).toBe("Please fix the highlighted fields.");
         expect(statusElement.dataset.state).toBe("error");
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachRegisterHandler registers a customer successfully", async () => {
@@ -342,6 +492,7 @@ describe("register.js form submission flow", () => {
         expect(statusElement.dataset.state).toBe("success");
         expect(onSuccess).toHaveBeenCalledTimes(1);
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachRegisterHandler registers a vendor and shows pending message", async () => {
@@ -383,7 +534,9 @@ describe("register.js form submission flow", () => {
         expect(statusElement.textContent).toBe(
             "Registration successful. Your vendor application is awaiting approval."
         );
+        expect(statusElement.dataset.state).toBe("success");
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachRegisterHandler shows service error message on failed registration", async () => {
@@ -421,6 +574,7 @@ describe("register.js form submission flow", () => {
         expect(statusElement.textContent).toBe("That email address is already in use.");
         expect(statusElement.dataset.state).toBe("error");
         expect(onError).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachRegisterHandler handles unexpected thrown errors", async () => {
@@ -437,11 +591,14 @@ describe("register.js form submission flow", () => {
             registerWithEmail: jest.fn().mockRejectedValue(new Error("Unexpected failure"))
         };
 
+        const onError = jest.fn();
+
         const { handleSubmit } = attachRegisterHandler({
             form,
             statusElement,
             authService,
-            authUtils
+            authUtils,
+            onError
         });
 
         const result = await handleSubmit({
@@ -452,5 +609,132 @@ describe("register.js form submission flow", () => {
         expect(result.message).toBe("Unexpected failure");
         expect(statusElement.textContent).toBe("Unexpected failure");
         expect(statusElement.dataset.state).toBe("error");
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
+    });
+
+    test("attachRegisterHandler throws if form is missing", () => {
+        expect(() =>
+            attachRegisterHandler({
+                form: null,
+                authService: {},
+                authUtils
+            })
+        ).toThrow("A registration form is required.");
+    });
+
+    test("attachRegisterHandler throws if authUtils is missing", () => {
+        const { form } = createRegisterFormDom();
+
+        expect(() =>
+            attachRegisterHandler({
+                form,
+                authService: {}
+            })
+        ).toThrow("authUtils is required.");
+    });
+});
+
+describe("register.js page initialization", () => {
+    let originalWindowAuthUtils;
+
+    beforeAll(() => {
+        originalWindowAuthUtils = window.authUtils;
+    });
+
+    afterAll(() => {
+        window.authUtils = originalWindowAuthUtils;
+    });
+
+    beforeEach(() => {
+        document.body.innerHTML = "";
+        window.authUtils = authUtils;
+    });
+
+    test("initializeRegisterPage wires the register handler", () => {
+        createRegisterFormDom();
+
+        const authService = {
+            registerWithEmail: jest.fn()
+        };
+
+        const result = initializeRegisterPage({
+            authService,
+            authUtils,
+            navigate: jest.fn()
+        });
+
+        expect(result).toBeTruthy();
+        expect(typeof result.handleSubmit).toBe("function");
+    });
+
+    test("initializeRegisterPage uses custom navigate function", async () => {
+        const { form } = createRegisterFormDom();
+        const fields = getRegisterFields(form);
+
+        fields.fullName.value = "Faranani Maduwa";
+        fields.email.value = "faranani@example.com";
+        fields.password.value = "password123";
+        fields.confirmPassword.value = "password123";
+        fields.accountType.value = "customer";
+
+        const authService = {
+            registerWithEmail: jest.fn().mockResolvedValue({
+                success: true,
+                nextRoute: "../customer/index.html"
+            })
+        };
+
+        const navigate = jest.fn();
+
+        const controller = initializeRegisterPage({
+            authService,
+            authUtils,
+            navigate
+        });
+
+        await controller.handleSubmit({
+            preventDefault: jest.fn()
+        });
+
+        expect(navigate).toHaveBeenCalledWith("../customer/index.html");
+    });
+
+    test("initializeRegisterPage throws when form is missing", () => {
+        document.body.innerHTML = `<p id="register-status"></p>`;
+
+        expect(() =>
+            initializeRegisterPage({
+                authService: {},
+                authUtils
+            })
+        ).toThrow("Register form not found.");
+    });
+
+    test("initializeRegisterPage throws when authService is missing", () => {
+        createRegisterFormDom();
+
+        expect(() =>
+            initializeRegisterPage({
+                authUtils
+            })
+        ).toThrow("authService is required.");
+    });
+
+    test("initializeRegisterPage throws when authUtils is missing", () => {
+        createRegisterFormDom();
+
+        const savedAuthUtils = window.authUtils;
+        delete window.authUtils;
+
+        try {
+            expect(() =>
+                initializeRegisterPage({
+                    authService: {}
+                })
+            ).toThrow("authUtils is required.");
+        } finally {
+            window.authUtils = savedAuthUtils;
+        }
     });
 });
