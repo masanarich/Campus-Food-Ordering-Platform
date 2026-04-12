@@ -434,28 +434,6 @@ const loginPage = {
     initializeLoginPage
 };
 
-export {
-    normalizeText,
-    normalizeEmail,
-    getFormField,
-    extractLoginFormValues,
-    buildLoginPayload,
-    validateLoginPayload,
-    clearFieldErrors,
-    showFieldErrors,
-    setStatusMessage,
-    setSubmittingState,
-    submitEmailLogin,
-    submitGoogleLogin,
-    submitAppleLogin,
-    handleAuthSuccess,
-    handleAuthFailure,
-    attachLoginHandler,
-    attachOAuthHandler,
-    initializeLoginPage,
-    loginPage
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = loginPage;
 }
