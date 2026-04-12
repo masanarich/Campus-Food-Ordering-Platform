@@ -1,3 +1,40 @@
+const fs = require("fs");
+const path = require("path");
+
+function loadAuthUtilsModule() {
+    const filePath = path.resolve(
+        __dirname,
+        "../../public/authentication/auth-utils.js"
+    );
+
+    let source = fs.readFileSync(filePath, "utf8");
+
+    source = source.replace(
+        /export\s*\{[\s\S]*?\};?\s*/m,
+        ""
+    );
+
+    const moduleShim = { exports: {} };
+
+    const factory = new Function(
+        "module",
+        "exports",
+        "require",
+        "__filename",
+        "__dirname",
+        `${source}
+return module.exports;`
+    );
+
+    return factory(
+        moduleShim,
+        moduleShim.exports,
+        require,
+        filePath,
+        path.dirname(filePath)
+    );
+}
+
 const {
     normalizeText,
     normalizeEmail,
@@ -29,7 +66,7 @@ const {
     suspendVendorProfile,
     rejectVendorProfile,
     mapAuthErrorCode
-} = require("../../public/authentication/auth-utils.js");
+} = loadAuthUtilsModule();
 
 describe("auth-utils validation helpers", () => {
     test("normalizeText trims text", () => {
@@ -115,6 +152,20 @@ describe("auth-utils role helpers", () => {
         });
     });
 
+    test("normalizeRoles only accepts strict true", () => {
+        expect(
+            normalizeRoles({
+                customer: 1,
+                vendor: "true",
+                admin: true
+            })
+        ).toEqual({
+            customer: false,
+            vendor: false,
+            admin: true
+        });
+    });
+
     test("normaliseUserData returns safe defaults", () => {
         const result = normaliseUserData(undefined);
 
@@ -129,6 +180,38 @@ describe("auth-utils role helpers", () => {
         expect(result.vendorStatus).toBe("none");
         expect(result.accountStatus).toBe("active");
         expect(result.isOwner).toBe(false);
+        expect(result.createdAt).toBeNull();
+        expect(result.updatedAt).toBeNull();
+    });
+
+    test("normaliseUserData normalizes provided values", () => {
+        const result = normaliseUserData({
+            uid: "abc123",
+            displayName: "  Faranani  ",
+            email: "  USER@example.com  ",
+            roles: { customer: true, vendor: false, admin: true },
+            vendorStatus: "approved",
+            accountStatus: "inactive",
+            isOwner: true,
+            createdAt: "yesterday",
+            updatedAt: "today"
+        });
+
+        expect(result).toEqual({
+            uid: "abc123",
+            displayName: "Faranani",
+            email: "user@example.com",
+            roles: {
+                customer: true,
+                vendor: false,
+                admin: true
+            },
+            vendorStatus: "approved",
+            accountStatus: "inactive",
+            isOwner: true,
+            createdAt: "yesterday",
+            updatedAt: "today"
+        });
     });
 
     test("hasRole detects customer role", () => {
@@ -140,6 +223,17 @@ describe("auth-utils role helpers", () => {
                 "customer"
             )
         ).toBe(true);
+    });
+
+    test("hasRole returns false for unknown role name", () => {
+        expect(
+            hasRole(
+                {
+                    roles: { customer: true, vendor: false, admin: false }
+                },
+                "owner"
+            )
+        ).toBe(false);
     });
 
     test("isCustomer returns true for customer", () => {
@@ -170,6 +264,10 @@ describe("auth-utils role helpers", () => {
 describe("auth-utils vendor status helpers", () => {
     test("getVendorStatus returns none by default", () => {
         expect(getVendorStatus({})).toBe("none");
+    });
+
+    test("getVendorStatus returns none for invalid status", () => {
+        expect(getVendorStatus({ vendorStatus: "unknown-status" })).toBe("none");
     });
 
     test("getVendorStatus returns pending correctly", () => {
@@ -210,6 +308,14 @@ describe("auth-utils portal access and routing", () => {
         expect(
             canAccessCustomerPortal({
                 roles: { customer: true, vendor: false, admin: false }
+            })
+        ).toBe(true);
+    });
+
+    test("vendor can access customer portal", () => {
+        expect(
+            canAccessCustomerPortal({
+                roles: { customer: false, vendor: true, admin: false }
             })
         ).toBe(true);
     });
@@ -333,6 +439,18 @@ describe("auth-utils profile shaping", () => {
         });
         expect(result.vendorStatus).toBe("none");
         expect(result.accountStatus).toBe("active");
+        expect(typeof result.createdAt).toBe("string");
+        expect(typeof result.updatedAt).toBe("string");
+    });
+
+    test("createBaseUserProfile falls back to fullName override", () => {
+        const result = createBaseUserProfile(
+            { uid: "abc123", email: "" },
+            { fullName: "Vendor Person" }
+        );
+
+        expect(result.displayName).toBe("Vendor Person");
+        expect(result.email).toBe("");
     });
 
     test("applyVendorApplicationToProfile sets vendor status to pending", () => {
@@ -348,6 +466,7 @@ describe("auth-utils profile shaping", () => {
         expect(result.roles.customer).toBe(true);
         expect(result.roles.vendor).toBe(false);
         expect(result.vendorStatus).toBe("pending");
+        expect(typeof result.updatedAt).toBe("string");
     });
 
     test("approveVendorProfile approves vendor access", () => {
@@ -362,6 +481,7 @@ describe("auth-utils profile shaping", () => {
 
         expect(result.roles.vendor).toBe(true);
         expect(result.vendorStatus).toBe("approved");
+        expect(typeof result.updatedAt).toBe("string");
     });
 
     test("suspendVendorProfile suspends vendor", () => {
@@ -375,6 +495,7 @@ describe("auth-utils profile shaping", () => {
         });
 
         expect(result.vendorStatus).toBe("suspended");
+        expect(typeof result.updatedAt).toBe("string");
     });
 
     test("rejectVendorProfile rejects vendor application", () => {
@@ -388,6 +509,7 @@ describe("auth-utils profile shaping", () => {
         });
 
         expect(result.vendorStatus).toBe("rejected");
+        expect(typeof result.updatedAt).toBe("string");
     });
 });
 
@@ -402,9 +524,39 @@ describe("auth-utils auth error mapping", () => {
         );
     });
 
+    test("maps wrong password error", () => {
+        expect(mapAuthErrorCode("auth/wrong-password")).toBe(
+            "Incorrect email or password."
+        );
+    });
+
     test("maps invalid credential error", () => {
         expect(mapAuthErrorCode("auth/invalid-credential")).toBe(
             "Incorrect email or password."
+        );
+    });
+
+    test("maps email already in use error", () => {
+        expect(mapAuthErrorCode("auth/email-already-in-use")).toBe(
+            "That email address is already in use."
+        );
+    });
+
+    test("maps weak password error", () => {
+        expect(mapAuthErrorCode("auth/weak-password")).toBe(
+            "The password is too weak."
+        );
+    });
+
+    test("maps network error", () => {
+        expect(mapAuthErrorCode("auth/network-request-failed")).toBe(
+            "Network error. Please check your connection and try again."
+        );
+    });
+
+    test("maps popup closed by user error", () => {
+        expect(mapAuthErrorCode("auth/popup-closed-by-user")).toBe(
+            "The sign-in popup was closed before completing sign-in."
         );
     });
 
