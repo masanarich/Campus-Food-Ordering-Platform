@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CheckOut</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="Index.css" />
+</head>
+<body>
+
+  <!-- Atmospheric background -->
+  <div class="bg-layer" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <!-- Page header -->
+  <header class="pay-header">
+    <button class="back-btn" onclick="history.back()" aria-label="Go back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      <span>Back</span>
+    </button>
+
+    <div class="pay-brand">
+      <span class="brand-dot"></span>
+      CheckOut
+    </div>
+
+    <div class="secure-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      SSL Secured
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <main class="pay-main">
+
+    <!-- LEFT PANEL: 3D Card + Order summary -->
+    <div class="left-panel">
+
+      <!-- 3D Card scene -->
+      <div class="card-scene" id="cardScene">
+        <div class="card-3d" id="card3d">
+
+          <!-- Front face -->
+          <div class="card-face card-front" id="cardFront">
+            <div class="card-shimmer" id="cardShimmer"></div>
+            <div class="card-top-row">
+              <span class="card-issuer">The Gourmet Social</span>
+              <!-- NFC icon -->
+              <svg class="nfc-icon" viewBox="0 0 24 24" width="24" height="24" fill="none">
+                <path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8.5 8.5C10 7 11 6 12 6c2.76 0 5 2.24 5 5s-2.24 5-5 5c-1 0-2-.5-3-1.5"/>
+                <path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M5.5 5.5C7.5 3.5 9.5 2.5 12 2.5c5.25 0 9.5 4.25 9.5 9.5s-4.25 9.5-9.5 9.5c-2.5 0-4.5-1-6.5-3"/>
+              </svg>
+            </div>
+
+            <!-- EMV Chip -->
+            <div class="card-chip">
+              <svg viewBox="0 0 54 44" width="54" height="44">
+                <rect width="54" height="44" rx="6" fill="#c9a227"/>
+                <rect x="18" y="0" width="18" height="44" fill="rgba(0,0,0,0.12)"/>
+                <rect x="0" y="15" width="54" height="14" fill="rgba(0,0,0,0.12)"/>
+                <rect x="22" y="6" width="10" height="32" rx="2" fill="#c9a227"/>
+                <rect x="6" y="17" width="42" height="10" rx="2" fill="#c9a227"/>
+                <rect x="22" y="15" width="10" height="14" rx="2" fill="#b8911e"/>
+              </svg>
+            </div>
+
+            <div class="card-number-display" id="displayNumber">
+              <span>••••</span><span>••••</span><span>••••</span><span>••••</span>
+            </div>
+
+            <div class="card-bottom-row">
+              <div class="card-info-block">
+                <span class="card-label">Card Holder</span>
+                <span class="card-holder-name" id="displayName">FULL NAME</span>
+              </div>
+              <div class="card-info-block">
+                <span class="card-label">Expires</span>
+                <span class="card-expiry-display" id="displayExpiry">MM/YY</span>
+              </div>
+              <div class="card-network-logo" id="cardNetworkLogo">
+                <!-- injected by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Back face -->
+          <div class="card-face card-back" id="cardBack">
+            <div class="card-magnetic-stripe"></div>
+            <div class="card-signature-row">
+              <div class="signature-lines">
+                <div class="sig-line"></div>
+                <div class="sig-line"></div>
+                <div class="sig-line"></div>
+              </div>
+              <div class="cvv-display-box">
+                <span class="cvv-label-small">CVV</span>
+                <span id="displayCvv" class="cvv-digits">•••</span>
+              </div>
+            </div>
+            <div class="card-back-network" id="cardBackNetwork"></div>
+            <p class="card-back-notice">
+              This card is property of The Gourmet Social Bank. If found, please return to the nearest branch.
+            </p>
+          </div>
+
+        </div><!-- /card-3d -->
+      </div><!-- /card-scene -->
+
+      <!-- Order summary mini panel -->
+      <div class="order-summary-mini" id="orderSummaryMini">
+        <h3 class="mini-title">Order Summary</h3>
+        <div class="mini-items" id="miniItems">
+          <!-- populated by payment.js -->
+        </div>
+        <div class="mini-divider"></div>
+        <div class="mini-totals" id="miniTotals">
+          <!-- populated by payment.js -->
+        </div>
+      </div>
+
+    </div><!-- /left-panel -->
+
+    <!-- RIGHT PANEL: Payment Form -->
+    <div class="right-panel">
+      <div class="form-header">
+        <h2 class="form-title">Payment Details</h2>
+        <p class="form-subtitle">Enter your card information below</p>
+      </div>
+
+      <form id="paymentForm" novalidate autocomplete="on">
+
+        <!-- Card Number -->
+        <div class="field-group" id="fg-number">
+          <label class="field-label" for="cardNumber">Card Number</label>
+          <div class="input-wrapper has-icon">
+            <input
+              class="field-input"
+              type="text"
+              id="cardNumber"
+              name="cardNumber"
+              inputmode="numeric"
+              maxlength="19"
+              placeholder="0000 0000 0000 0000"
+              autocomplete="cc-number"
+            />
+            <div class="input-card-icon" id="inputCardIcon">
+              <svg width="28" height="18" viewBox="0 0 28 18" fill="none">
+                <rect width="28" height="18" rx="3" fill="#2a2a3a"/>
+                <rect y="4" width="28" height="4" fill="#444"/>
+                <rect x="3" y="11" width="8" height="3" rx="1" fill="#666"/>
+              </svg>
+            </div>
+          </div>
+          <span class="field-error" id="err-number" role="alert"></span>
+        </div>
+
+        <!-- Cardholder Name -->
+        <div class="field-group" id="fg-name">
+          <label class="field-label" for="cardName">Cardholder Name</label>
+          <input
+            class="field-input"
+            type="text"
+            id="cardName"
+            name="cardName"
+            placeholder="Jane Doe"
+            autocomplete="cc-name"
+            spellcheck="false"
+          />
+          <span class="field-error" id="err-name" role="alert"></span>
+        </div>
+
+        <!-- Expiry + CVV row -->
+        <div class="field-row">
+          <div class="field-group" id="fg-expiry">
+            <label class="field-label" for="cardExpiry">Expiry Date</label>
+            <input
+              class="field-input"
+              type="text"
+              id="cardExpiry"
+              name="cardExpiry"
+              inputmode="numeric"
+              maxlength="5"
+              placeholder="MM / YY"
+              autocomplete="cc-exp"
+            />
+            <span class="field-error" id="err-expiry" role="alert"></span>
+          </div>
+
+          <div class="field-group" id="fg-cvv">
+            <label class="field-label" for="cardCvv">
+              CVV
+              <button type="button" class="cvv-help" id="cvvHelp" aria-label="What is CVV?">?</button>
+            </label>
+            <input
+              class="field-input"
+              type="password"
+              id="cardCvv"
+              name="cardCvv"
+              inputmode="numeric"
+              maxlength="4"
+              placeholder="•••"
+              autocomplete="cc-csc"
+            />
+            <span class="field-error" id="err-cvv" role="alert"></span>
+            <div class="cvv-tooltip" id="cvvTooltip">
+              The 3-digit code on the back of your card (4 digits for Amex).
+            </div>
+          </div>
+        </div>
+
+        <!-- Pay button -->
+        <button type="submit" class="pay-btn" id="payBtn">
+          <span class="pay-btn-label" id="payBtnLabel">Pay Now</span>
+          <span class="pay-btn-amount" id="payBtnAmount">R0.00</span>
+          <div class="pay-btn-spinner" id="payBtnSpinner" aria-hidden="true"></div>
+          <svg class="pay-btn-lock" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </button>
+
+        <!-- Test cards hint -->
+        <div class="test-cards-hint">
+          <details>
+            <summary>Test card numbers</summary>
+            <div class="test-card-list">
+              <div class="test-card" data-number="4242 4242 4242 4242">
+                <span class="tc-badge tc-success">✓ Success</span>
+                <code>4242 4242 4242 4242</code>
+              </div>
+              <div class="test-card" data-number="4000 0000 0000 0002">
+                <span class="tc-badge tc-declined">✗ Declined</span>
+                <code>4000 0000 0000 0002</code>
+              </div>
+              <div class="test-card" data-number="5555 5555 5555 4444">
+                <span class="tc-badge tc-success">✓ Success</span>
+                <code>5555 5555 5555 4444</code>
+              </div>
+              <div class="test-card" data-number="3782 8224 6310 005">
+                <span class="tc-badge tc-success">✓ Amex</span>
+                <code>3782 8224 6310 005</code>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Trust row -->
+        <div class="trust-row">
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            PCI DSS
+          </div>
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            256-bit SSL
+          </div>
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 11 12 14 22 4"></polyline>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            Verified
+          </div>
+        </div>
+
+      </form>
+    </div><!-- /right-panel -->
+  </main>
+
+  <script src="Index.js"></script>
+</body>
+</html>

@@ -1,0 +1,905 @@
+:root {
+  --bg:          #fffaf5;
+  --bg-surface:  #ffffff;
+  --bg-card:     #13131f;
+  --bg-input:    #1a1a2a;
+  --border:      rgba(255,255,255,0.08);
+  --border-focus:rgba(240,180,50,0.6);
+  --text-primary:#f0f0f8;
+  --text-muted:  #6b6b80;
+  --text-dim:    #3a3a4f;
+  --accent:      #f0b432;
+  --accent-glow: rgba(240,180,50,0.25);
+  --error:       #ff5c5c;
+  --success:     #34d399;
+  --radius-sm:   8px;
+  --radius-md:   14px;
+  --radius-lg:   20px;
+  --shadow-card: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Sora', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ══════════════════════════════════════════════
+   ATMOSPHERIC BACKGROUND
+   ══════════════════════════════════════════════ */
+.bg-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+}
+
+.orb-1 {
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(159,61,0,0.35) 0%, transparent 70%);
+  top: -300px; left: -200px;
+  animation: drift1 12s ease-in-out infinite alternate;
+}
+
+.orb-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(90,20,180,0.25) 0%, transparent 70%);
+  bottom: -200px; right: -100px;
+  animation: drift2 10s ease-in-out infinite alternate;
+}
+
+.orb-3 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(240,180,50,0.12) 0%, transparent 70%);
+  top: 40%; left: 50%;
+  animation: drift3 15s ease-in-out infinite alternate;
+}
+
+@keyframes drift1 { to { transform: translate(60px, 40px); } }
+@keyframes drift2 { to { transform: translate(-40px, -60px); } }
+@keyframes drift3 { 0%{transform:translate(-50%,-50%) scale(1);} 100%{transform:translate(-50%,-50%) scale(1.3);} }
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+}
+
+/* ══════════════════════════════════════════════
+   HEADER
+   ══════════════════════════════════════════════ */
+.pay-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  background: rgba(7,7,15,0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.back-btn:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.2); }
+
+.pay-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.brand-dot {
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.secure-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--success);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(52,211,153,0.08);
+  border: 1px solid rgba(52,211,153,0.2);
+  padding: 6px 12px;
+  border-radius: 9999px;
+}
+
+/* ══════════════════════════════════════════════
+   MAIN LAYOUT
+   ══════════════════════════════════════════════ */
+.pay-main {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  padding: 96px 24px 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  max-width: 1100px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* ══════════════════════════════════════════════
+   LEFT PANEL
+   ══════════════════════════════════════════════ */
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  position: sticky;
+  top: 88px;
+}
+
+/* ══════════════════════════════════════════════
+   3D CREDIT CARD
+   ══════════════════════════════════════════════ */
+.card-scene {
+  width: 380px;
+  height: 240px;
+  perspective: 1200px;
+  cursor: pointer;
+}
+
+.card-3d {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.75s cubic-bezier(0.4, 0.2, 0.2, 1);
+  animation: card-float 5s ease-in-out infinite;
+  filter: drop-shadow(0 30px 60px rgba(0,0,0,0.7));
+}
+
+.card-3d.is-flipped {
+  transform: rotateY(180deg) !important;
+  animation: none;
+}
+
+.card-3d.is-tilting {
+  animation: none;
+}
+
+@keyframes card-float {
+  0%, 100% { transform: translateY(0px) rotateX(2deg); }
+  50%       { transform: translateY(-12px) rotateX(-2deg); }
+}
+
+/* Card faces */
+.card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card-front {
+  background: linear-gradient(135deg, #1c1c3a 0%, #2a1a50 40%, #1a2a50 100%);
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Card gradient - updated by JS */
+.card-front[data-type="visa"] {
+  background: linear-gradient(135deg, #0d1b3e 0%, #1a3470 50%, #0d2050 100%);
+}
+.card-front[data-type="mastercard"] {
+  background: linear-gradient(135deg, #1a0505 0%, #3d0f0f 40%, #1a1010 100%);
+}
+.card-front[data-type="amex"] {
+  background: linear-gradient(135deg, #032010 0%, #0a4a2a 50%, #032010 100%);
+}
+.card-front[data-type="discover"] {
+  background: linear-gradient(135deg, #1a1000 0%, #3d2800 50%, #1a1000 100%);
+}
+
+/* Holographic shimmer */
+.card-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.08) 0%, transparent 60%);
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+/* Card top row */
+.card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.card-issuer {
+  font-family: 'Sora', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+}
+
+.nfc-icon {
+  color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+}
+
+/* Chip */
+.card-chip {
+  margin-top: 4px;
+  width: 54px;
+  height: 44px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+
+/* Card number */
+.card-number-display {
+  font-family: 'Space Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(255,255,255,0.95);
+  display: flex;
+  gap: 18px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+/* Bottom row */
+.card-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.card-info-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.card-label {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+}
+
+.card-holder-name {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.9);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.card-expiry-display {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+}
+
+/* Network logo area */
+.card-network-logo {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 60px;
+}
+
+/* ── CARD BACK ── */
+.card-back {
+  background: linear-gradient(160deg, #101018 0%, #1a1a28 100%);
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+}
+
+.card-magnetic-stripe {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 50%, #1a1a1a 100%);
+  margin-top: 8px;
+}
+
+.card-signature-row {
+  display: flex;
+  align-items: stretch;
+  margin: 18px 28px 0;
+  gap: 12px;
+}
+
+.signature-lines {
+  flex: 1;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(180,160,140,0.25) 0px,
+    rgba(180,160,140,0.25) 2px,
+    rgba(240,230,220,0.9) 2px,
+    rgba(240,230,220,0.9) 10px
+  );
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+  gap: 4px;
+}
+
+.sig-line {
+  height: 1px;
+  background: rgba(0,0,0,0.15);
+}
+
+.cvv-display-box {
+  background: #f5f0e8;
+  border-radius: 4px;
+  padding: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 60px;
+}
+
+.cvv-label-small {
+  font-family: 'Sora', sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.cvv-digits {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: 0.1em;
+}
+
+.card-back-network {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 28px 0;
+  opacity: 0.8;
+}
+
+.card-back-notice {
+  font-size: 7px;
+  color: rgba(255,255,255,0.2);
+  line-height: 1.5;
+  padding: 8px 28px 0;
+  letter-spacing: 0.02em;
+}
+
+/* ── NETWORK LOGOS (CSS + inline SVG) ── */
+.logo-visa {
+  font-family: 'Sora', sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(255,255,255,0.3);
+}
+
+.logo-mastercard {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.logo-mastercard .mc-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  position: absolute;
+}
+
+.logo-mastercard .mc-left  { background: #eb001b; left: 0; }
+.logo-mastercard .mc-right { background: #f79e1b; left: 18px; mix-blend-mode: screen; }
+
+.logo-amex {
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════
+   ORDER SUMMARY MINI
+   ══════════════════════════════════════════════ */
+.order-summary-mini {
+  width: 380px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  animation: fadeUp 0.5s ease 0.2s both;
+}
+
+.mini-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.mini-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mini-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.mini-item-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.mini-item-qty {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.mini-item-price {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mini-divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+.mini-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.mini-total-row.grand-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.mini-total-row.grand-total .mini-total-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.mini-total-row.grand-total .mini-total-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.mini-total-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+}
+
+/* ══════════════════════════════════════════════
+   PAYMENT FORM
+   ══════════════════════════════════════════════ */
+.right-panel {
+  padding-top: 8px;
+  animation: fadeUp 0.5s ease both;
+}
+
+.form-header {
+  margin-bottom: 32px;
+}
+
+.form-title {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: black;
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+
+.form-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.field-group {
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper.has-icon .field-input {
+  padding-right: 52px;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-family: 'Sora', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  -webkit-appearance: none;
+}
+
+.field-input::placeholder {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.field-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+  background: rgba(26,26,42,0.8);
+}
+
+.field-group.has-error .field-input {
+  border-color: rgba(255,92,92,0.6);
+  box-shadow: 0 0 0 4px rgba(255,92,92,0.1);
+}
+
+.field-group.is-valid .field-input {
+  border-color: rgba(52,211,153,0.4);
+}
+
+.field-error {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--error);
+  margin-top: 5px;
+  min-height: 16px;
+  transition: opacity 0.2s ease;
+}
+
+/* Card type icon in number input */
+.input-card-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+/* CVV help button */
+.cvv-help {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--border);
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Sora', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.2s ease;
+}
+.cvv-help:hover { background: rgba(255,255,255,0.15); }
+
+.cvv-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 200px;
+  background: #222233;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.cvv-tooltip.visible { display: block; }
+
+/* ── PAY BUTTON ── */
+.pay-btn {
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #c74e00 0%, #f0a020 100%);
+  border: none;
+  border-radius: var(--radius-md);
+  color: #fff;
+  font-family: 'Sora', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  margin-top: 8px;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 32px rgba(200,80,0,0.4), 0 0 0 1px rgba(255,160,32,0.2);
+}
+
+.pay-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.pay-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(200,80,0,0.5), 0 0 0 1px rgba(255,160,32,0.3);
+}
+
+.pay-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 4px 16px rgba(200,80,0,0.3);
+}
+
+.pay-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pay-btn.loading .pay-btn-label,
+.pay-btn.loading .pay-btn-amount,
+.pay-btn.loading .pay-btn-lock { opacity: 0; }
+
+.pay-btn.loading .pay-btn-spinner { opacity: 1; }
+
+.pay-btn-amount {
+  font-family: 'Space Mono', monospace;
+  font-size: 17px;
+}
+
+.pay-btn-spinner {
+  position: absolute;
+  width: 24px; height: 24px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── TEST CARDS ── */
+.test-cards-hint {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.test-cards-hint details > summary {
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  list-style: none;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+.test-cards-hint details > summary:hover { color: var(--text-primary); }
+.test-cards-hint details > summary::-webkit-details-marker { display: none; }
+
+.test-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-top: 1px solid var(--border);
+}
+
+.test-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.test-card:hover { background: rgba(255,255,255,0.04); }
+
+.test-card code {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.tc-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tc-success { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid rgba(52,211,153,0.2); }
+.tc-declined { background: rgba(255,92,92,0.12); color: var(--error); border: 1px solid rgba(255,92,92,0.2); }
+
+/* ── TRUST ROW ── */
+.trust-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════
+   ENTRANCE ANIMATIONS
+   ══════════════════════════════════════════════ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-scene    { animation: fadeUp 0.6s ease both; }
+.right-panel   { animation: fadeUp 0.6s ease 0.1s both; }
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════ */
+@media (max-width: 860px) {
+  .pay-main {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding-top: 88px;
+  }
+
+  .left-panel {
+    position: static;
+    align-items: center;
+  }
+
+  .card-scene,
+  .order-summary-mini { width: 100%; max-width: 420px; }
+  .card-scene { height: 220px; }
+
+  .card-number-display { font-size: 18px; gap: 12px; }
+}
+
+@media (max-width: 480px) {
+  .pay-header { padding: 0 16px; }
+  .secure-badge span { display: none; }
+  .card-scene { height: 200px; }
+  .card-number-display { font-size: 15px; gap: 10px; }
+  .card-holder-name { font-size: 11px; max-width: 120px; }
+  .field-row { grid-template-columns: 1fr; }
+  .form-title { font-size: 26px; }
+}
