@@ -1,24 +1,19 @@
-console.log("🔥 START");
+const functions = require("firebase-functions");
+const express = require("express");
 
-try {
-  console.log("STEP 1: require express");
-  const express = require("express");
+const app = express();
+app.use(express.json());
 
-  console.log("STEP 2: create app");
-  const app = express();
+console.log("APP START");
 
-  console.log("STEP 3: require menu");
-  require("./backend/routes/menu");
-  console.log("STEP 4: menu OK");
+const menuRoutes = require("./backend/routes/menu");
+const vendorRoutes = require("./backend/routes/vendor");
 
-  console.log("STEP 5: require vendor");
-  require("./backend/routes/vendor");
-  console.log("STEP 6: vendor OK");
+app.use("/menu", menuRoutes);
+app.use("/vendors", vendorRoutes);
 
-  console.log("STEP 7: DONE");
+app.get("/", (req, res) => {
+  res.send("API running");
+});
 
-} catch (e) {
-  console.error("🔥 CRASH:", e);
-}
-
-process.exit(0);
+exports.api = functions.https.onRequest(app);
