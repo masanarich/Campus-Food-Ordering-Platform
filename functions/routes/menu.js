@@ -1,41 +1,43 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-// ✅ CORRECT PATH
 const {
-  addItem,
-  getItems,
-  markSoldOut,
-  updateItem
-} = require('../models/menuModel');
+  addMenuItem,
+  getMenu,
+  markItemSoldOut,
+  updateMenuItem
+} = require("../models/menuModel");
 
-// CREATE
-router.post('/', (req, res) => {
+// GET
+router.get("/", (req, res) => {
+  res.json(getMenu());
+});
+
+// POST
+router.post("/", (req, res) => {
   try {
-    res.json(addItem(req.body));
+    const { name, description, price, photo } = req.body;
+    const item = addMenuItem(name, description, price, photo);
+    res.json(item);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// READ
-router.get('/', (req, res) => {
-  res.json(getItems());
-});
-
 // SOLD OUT
-router.put('/:id/soldout', (req, res) => {
+router.put("/:id/soldout", (req, res) => {
   try {
-    res.json(markSoldOut(req.params.id));
+    res.json(markItemSoldOut(req.params.id));
   } catch (err) {
     res.status(404).json({ error: err.message });
   }
 });
 
 // UPDATE
-router.put('/:id', (req, res) => {
+router.put("/:id", (req, res) => {
   try {
-    res.json(updateItem(req.params.id, req.body));
+    const { name, description, price } = req.body;
+    res.json(updateMenuItem(req.params.id, name, description, price));
   } catch (err) {
     res.status(404).json({ error: err.message });
   }

@@ -1,37 +1,28 @@
 let menu = [];
 
-/**
- * CREATE ITEM
- */
-function addMenuItem(name, price, photo) {
-  if (!name || !price) {
-    throw new Error("Invalid item");
-  }
+// CREATE
+function addMenuItem(name, description, price, photo) {
+  if (!name || !price) throw new Error("Invalid item");
 
-  const newItem = {
+  const item = {
     id: Date.now().toString(),
     name,
+    description: description || "",
     price: Number(price),
     photo: photo || "",
     available: true
   };
 
-  menu.push(newItem);
-  return newItem;
+  menu.push(item);
+  return item;
 }
 
-
-/**
- * READ ALL
- */
+// READ
 function getMenu() {
   return menu;
 }
 
-
-/**
- * MARK SOLD OUT
- */
+// SOLD OUT
 function markItemSoldOut(id) {
   const item = menu.find(i => i.id === id);
   if (!item) throw new Error("Item not found");
@@ -40,28 +31,22 @@ function markItemSoldOut(id) {
   return item;
 }
 
-
-/**
- * UPDATE ITEM
- */
-function updateMenuItem(id, name, price) {
+// UPDATE
+function updateMenuItem(id, name, description, price) {
   const item = menu.find(i => i.id === id);
   if (!item) throw new Error("Item not found");
 
   if (name) item.name = name;
+  if (description) item.description = description;
   if (price) item.price = Number(price);
 
   return item;
 }
 
-
-/**
- * RESET (TEST ONLY)
- */
+// RESET (TEST)
 function __resetMenu() {
   menu = [];
 }
-
 
 module.exports = {
   addMenuItem,
