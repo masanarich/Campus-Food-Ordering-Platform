@@ -353,24 +353,6 @@ const profilePage = {
     initializeProfilePage
 };
 
-export {
-    normalizeText,
-    setTextContent,
-    setStatusMessage,
-    getRoleLabel,
-    getVendorStatusLabel,
-    getDisplayName,
-    getEmail,
-    renderProfile,
-    waitForAuthenticatedUser,
-    loadCurrentUserProfile,
-    signOutCurrentUser,
-    initializeProfileView,
-    attachSignOutHandler,
-    initializeProfilePage,
-    profilePage
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = profilePage;
 }
