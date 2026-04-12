@@ -1,9 +1,42 @@
+const fs = require("fs");
 const path = require("path");
-const authUtils = require(path.resolve(__dirname, "../../public/authentication/auth-utils.js"));
+
+function loadModule(moduleRelativePath) {
+    const filePath = path.resolve(__dirname, moduleRelativePath);
+
+    let source = fs.readFileSync(filePath, "utf8");
+
+    source = source.replace(
+        /export\s*\{[\s\S]*?\};?\s*/m,
+        ""
+    );
+
+    const moduleShim = { exports: {} };
+
+    const factory = new Function(
+        "module",
+        "exports",
+        "require",
+        "__filename",
+        "__dirname",
+        `${source}
+return module.exports;`
+    );
+
+    return factory(
+        moduleShim,
+        moduleShim.exports,
+        require,
+        filePath,
+        path.dirname(filePath)
+    );
+}
+
+const authUtils = loadModule("../../public/authentication/auth-utils.js");
 const {
     ensureDependency,
     createAuthService
-} = require(path.resolve(__dirname, "../../public/authentication/auth-core.js"));
+} = loadModule("../../public/authentication/auth-core.js");
 
 function createMockDependencies() {
     return {
@@ -54,11 +87,46 @@ describe("auth-core dependency checks", () => {
         expect(() => createAuthService(deps)).toThrow("auth is required.");
     });
 
+    test("createAuthService throws when db is missing", () => {
+        const deps = createMockDependencies();
+        delete deps.db;
+
+        expect(() => createAuthService(deps)).toThrow("db is required.");
+    });
+
+    test("createAuthService throws when googleProvider is missing", () => {
+        const deps = createMockDependencies();
+        delete deps.googleProvider;
+
+        expect(() => createAuthService(deps)).toThrow("googleProvider is required.");
+    });
+
+    test("createAuthService throws when appleProvider is missing", () => {
+        const deps = createMockDependencies();
+        delete deps.appleProvider;
+
+        expect(() => createAuthService(deps)).toThrow("appleProvider is required.");
+    });
+
+    test("createAuthService throws when authFns is missing", () => {
+        const deps = createMockDependencies();
+        delete deps.authFns;
+
+        expect(() => createAuthService(deps)).toThrow("authFns is required.");
+    });
+
     test("createAuthService throws when firestoreFns is missing", () => {
         const deps = createMockDependencies();
         delete deps.firestoreFns;
 
         expect(() => createAuthService(deps)).toThrow("firestoreFns is required.");
+    });
+
+    test("createAuthService throws when utils is missing", () => {
+        const deps = createMockDependencies();
+        delete deps.utils;
+
+        expect(() => createAuthService(deps)).toThrow("utils is required.");
     });
 });
 
@@ -447,6 +515,34 @@ describe("auth-core service", () => {
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
+    test("registerWithEmail returns success with vendor role choice route", async () => {
+        const deps = createMockDependencies();
+        const mockUser = {
+            uid: "vendor-8",
+            email: "vendor8@example.com",
+            displayName: ""
+        };
+
+        deps.authFns.createUserWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+        deps.authFns.updateProfile.mockResolvedValue(undefined);
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.registerWithEmail({
+            email: "vendor8@example.com",
+            password: "password123",
+            displayName: "Vendor Eight",
+            accountType: "vendor"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.profile.vendorStatus).toBe("pending");
+        expect(result.nextRoute).toBe("../customer/index.html");
+    });
+
     test("registerWithEmail returns mapped error on failure", async () => {
         const deps = createMockDependencies();
 
@@ -549,6 +645,28 @@ describe("auth-core service", () => {
         expect(result.message).toBe(
             "The sign-in popup was closed before completing sign-in."
         );
+    });
+
+    test("loginWithApple creates default customer profile for first-time user", async () => {
+        const deps = createMockDependencies();
+        const mockUser = {
+            uid: "apple-2",
+            email: "apple2@example.com",
+            displayName: "Apple User"
+        };
+
+        deps.authFns.signInWithPopup.mockResolvedValue({ user: mockUser });
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.loginWithApple();
+
+        expect(result.success).toBe(true);
+        expect(result.profile.roles.customer).toBe(true);
+        expect(result.nextRoute).toBe("../customer/index.html");
     });
 
     test("loginWithApple returns mapped error on failure", async () => {
