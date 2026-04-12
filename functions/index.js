@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+/*const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const express = require("express");
 
@@ -19,4 +19,25 @@ app.get("/", (req, res) => {
   res.send("API is running");
 });
 
-exports.api = functions.https.onRequest(app);
+exports.api = functions.https.onRequest(app);*/
+console.log("BOOT 1");
+
+const express = require("express");
+const app = express();
+
+console.log("BOOT 2");
+
+try {
+  console.log("LOADING MENU");
+  require("./backend/routes/menu");
+  console.log("MENU OK");
+
+  console.log("LOADING VENDOR");
+  require("./backend/routes/vendor");
+  console.log("VENDOR OK");
+
+} catch (err) {
+  console.error("🔥 CRASH HERE:", err);
+}
+
+console.log("BOOT DONE");
