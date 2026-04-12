@@ -1,7 +1,3 @@
-/* ══════════════════════════════════════════════
-   THE GOURMET SOCIAL — payment.js
-   3D card animation, form validation, payment sim
-   ══════════════════════════════════════════════ */
 
 // ── Order data from cart ──────────────────────
 const orderRaw = sessionStorage.getItem("gourmet_order");
