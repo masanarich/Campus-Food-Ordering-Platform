@@ -3,17 +3,16 @@ let menu = [];
 /**
  * CREATE ITEM
  */
-function addItem(item) {
-  if (!item.name || !item.price) {
+function addMenuItem(name, price, photo) {
+  if (!name || !price) {
     throw new Error("Invalid item");
   }
 
   const newItem = {
     id: Date.now().toString(),
-    name: item.name,
-    description: item.description || "",
-    price: Number(item.price),
-    photo: item.photo || null,
+    name,
+    price: Number(price),
+    photo: photo || "",
     available: true
   };
 
@@ -21,17 +20,19 @@ function addItem(item) {
   return newItem;
 }
 
+
 /**
  * READ ALL
  */
-function getItems() {
+function getMenu() {
   return menu;
 }
+
 
 /**
  * MARK SOLD OUT
  */
-function markSoldOut(id) {
+function markItemSoldOut(id) {
   const item = menu.find(i => i.id === id);
   if (!item) throw new Error("Item not found");
 
@@ -39,16 +40,20 @@ function markSoldOut(id) {
   return item;
 }
 
+
 /**
  * UPDATE ITEM
  */
-function updateItem(id, data) {
+function updateMenuItem(id, name, price) {
   const item = menu.find(i => i.id === id);
   if (!item) throw new Error("Item not found");
 
-  Object.assign(item, data);
+  if (name) item.name = name;
+  if (price) item.price = Number(price);
+
   return item;
 }
+
 
 /**
  * RESET (TEST ONLY)
@@ -57,10 +62,11 @@ function __resetMenu() {
   menu = [];
 }
 
+
 module.exports = {
-  addItem,
-  getItems,
-  markSoldOut,
-  updateItem,
+  addMenuItem,
+  getMenu,
+  markItemSoldOut,
+  updateMenuItem,
   __resetMenu
 };

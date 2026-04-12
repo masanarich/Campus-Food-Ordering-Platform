@@ -7,24 +7,28 @@ const {
   suspendVendor
 } = require('../models/vendorModel');
 
-// GET ALL
 router.get('/', (req, res) => {
-  res.json(getVendors());
+  try {
+    const vendors = getVendors();
+    res.json(vendors);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// APPROVE
 router.put('/:id/approve', (req, res) => {
   try {
-    res.json(approveVendor(req.params.id));
+    const updatedVendor = approveVendor(req.params.id);
+    res.json(updatedVendor);
   } catch (err) {
     res.status(404).json({ error: err.message });
   }
 });
 
-// SUSPEND
 router.put('/:id/suspend', (req, res) => {
   try {
-    res.json(suspendVendor(req.params.id));
+    const updatedVendor = suspendVendor(req.params.id);
+    res.json(updatedVendor);
   } catch (err) {
     res.status(404).json({ error: err.message });
   }

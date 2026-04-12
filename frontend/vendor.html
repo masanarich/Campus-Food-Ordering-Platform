@@ -1,16 +1,36 @@
 <!DOCTYPE html>
 <html>
+    <head>
+        <link rel="stylesheet" href="styles.css">
+    </head>
     <body>
-        <h1>Vendor_Menu</h1>
-            <form id="menuForm">
-                <input id="name" placeholder="Item Name" required>
-                <input id="description" placeholder="Description">
-                <input id="price" type="number" placeholder="Price" step="0.01">
-                <input id="photo" placeholder="image URL">
-                <button>Add Item</button>
-            </form>
 
-        <div id="menuList"></div>
-        <script src="js/vendor.js"> </script>
+        <header>
+            <h1>Vendor Menu</h1>
+        </header>
+
+        <main>
+
+            <section>
+                <h2>Add Menu Item</h2>
+
+                <form id="menuForm">
+                    <input id="name" placeholder="Item Name" required>
+                    <input id="description" placeholder="Description">
+                    <input id="price" type="number" placeholder="Price" step="0.01">
+                    <input id="photo" placeholder="Image URL">
+                    <button type="submit">Add Item</button>
+                </form>
+            </section>
+
+            <section>
+                <h2>Menu List</h2>
+                <ul id="menuList"></ul>
+            </section>
+
+        </main>
+
+        <script src="js/vendor.js"></script>
+
     </body>
 </html>

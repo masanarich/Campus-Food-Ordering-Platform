@@ -1,0 +1,135 @@
+/* =======================
+   GLOBAL STYLES
+======================= */
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #f0f4ff, #e6fff5);
+    color: #333;
+}
+
+/* =======================
+   HEADER
+======================= */
+
+header {
+    background: #2d6cdf;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* =======================
+   MAIN LAYOUT
+======================= */
+
+main {
+    width: 90%;
+    max-width: 900px;
+    margin: 20px auto;
+}
+
+/* =======================
+   SECTIONS
+======================= */
+
+section {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* =======================
+   HEADINGS
+======================= */
+
+h1, h2 {
+    margin: 0 0 10px 0;
+}
+
+/* =======================
+   FORMS
+======================= */
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+input:focus {
+    outline: none;
+    border-color: #2d6cdf;
+    box-shadow: 0 0 5px rgba(45,108,223,0.3);
+}
+
+/* =======================
+   BUTTONS
+======================= */
+
+button {
+    padding: 10px;
+    background: #2d6cdf;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+button:hover {
+    background: #1b4fb3;
+}
+
+/* =======================
+   LISTS (MENU + VENDORS)
+======================= */
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+li {
+    background: #f9f9f9;
+    margin-bottom: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 5px solid #2d6cdf;
+    transition: 0.2s;
+}
+
+li:hover {
+    transform: scale(1.01);
+    background: #f1f6ff;
+}
+
+/* =======================
+   STATUS COLORS (VENDORS)
+======================= */
+
+.approved {
+    color: green;
+    font-weight: bold;
+}
+
+.suspended {
+    color: red;
+    font-weight: bold;
+}
+
+.pending {
+    color: orange;
+    font-weight: bold;
+}
