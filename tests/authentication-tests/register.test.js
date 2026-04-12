@@ -55,12 +55,17 @@ function createRegisterFormDom() {
             <button type="submit">Register</button>
         </form>
 
+        <button id="google-signin" type="button">Continue with Google</button>
+        <button id="apple-signin" type="button">Continue with Apple</button>
+
         <p id="register-status"></p>
     `;
 
     return {
         form: document.querySelector("#register-form"),
-        statusElement: document.querySelector("#register-status")
+        statusElement: document.querySelector("#register-status"),
+        googleButton: document.querySelector("#google-signin"),
+        appleButton: document.querySelector("#apple-signin")
     };
 }
 
@@ -602,11 +607,13 @@ describe("register.js page initialization", () => {
         window.authUtils = authUtils;
     });
 
-    test("initializeRegisterPage wires the register handler", () => {
+    test("initializeRegisterPage wires register and OAuth controllers", () => {
         createRegisterFormDom();
 
         const authService = {
-            registerWithEmail: jest.fn()
+            registerWithEmail: jest.fn(),
+            loginWithGoogle: jest.fn(),
+            loginWithApple: jest.fn()
         };
 
         const result = initializeRegisterPage({
@@ -615,8 +622,10 @@ describe("register.js page initialization", () => {
             navigate: jest.fn()
         });
 
-        expect(result).toBeTruthy();
-        expect(typeof result.handleSubmit).toBe("function");
+        expect(result.registerController).toBeTruthy();
+        expect(typeof result.registerController.handleSubmit).toBe("function");
+        expect(result.googleController).toBeTruthy();
+        expect(result.appleController).toBeTruthy();
     });
 
     test("initializeRegisterPage uses custom navigate function", async () => {
@@ -633,22 +642,67 @@ describe("register.js page initialization", () => {
             registerWithEmail: jest.fn().mockResolvedValue({
                 success: true,
                 nextRoute: "../customer/index.html"
-            })
+            }),
+            loginWithGoogle: jest.fn(),
+            loginWithApple: jest.fn()
         };
 
         const navigate = jest.fn();
 
-        const controller = initializeRegisterPage({
+        const result = initializeRegisterPage({
             authService,
             authUtils,
             navigate
         });
 
-        await controller.handleSubmit({
+        await result.registerController.handleSubmit({
             preventDefault: jest.fn()
         });
 
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
+    });
+
+    test("initializeRegisterPage returns null OAuth controllers when buttons are missing", () => {
+        document.body.innerHTML = `
+            <form id="register-form">
+                <input name="fullName" value="" />
+                <p data-error-for="fullName"></p>
+
+                <input name="email" value="" />
+                <p data-error-for="email"></p>
+
+                <input name="password" value="" />
+                <p data-error-for="password"></p>
+
+                <input name="confirmPassword" value="" />
+                <p data-error-for="confirmPassword"></p>
+
+                <select name="accountType">
+                    <option value="customer">Customer</option>
+                    <option value="vendor">Vendor</option>
+                </select>
+                <p data-error-for="accountType"></p>
+
+                <button type="submit">Register</button>
+            </form>
+
+            <p id="register-status"></p>
+        `;
+
+        const authService = {
+            registerWithEmail: jest.fn(),
+            loginWithGoogle: jest.fn(),
+            loginWithApple: jest.fn()
+        };
+
+        const result = initializeRegisterPage({
+            authService,
+            authUtils
+        });
+
+        expect(result.registerController).toBeTruthy();
+        expect(result.googleController).toBeNull();
+        expect(result.appleController).toBeNull();
     });
 
     test("initializeRegisterPage throws when form is missing", () => {

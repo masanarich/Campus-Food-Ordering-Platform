@@ -276,24 +276,6 @@ const resetPage = {
     initializeResetPage
 };
 
-export {
-    normalizeText,
-    normalizeEmail,
-    getFormField,
-    extractResetFormValues,
-    buildResetPayload,
-    validateResetPayload,
-    clearFieldErrors,
-    showFieldErrors,
-    setStatusMessage,
-    setSubmittingState,
-    getSuccessMessage,
-    submitPasswordReset,
-    attachResetHandler,
-    initializeResetPage,
-    resetPage
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = resetPage;
 }

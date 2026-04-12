@@ -5,6 +5,7 @@
  * This file:
  * - validates registration form data
  * - supports customer and vendor registration entry points
+ * - supports Google and Apple sign-up/sign-in entry points
  * - uses injected services so it stays easy to test
  * - can be used in the browser through initializeRegisterPage(...)
  */
@@ -161,6 +162,68 @@ async function submitRegistration(payload, dependencies) {
     });
 }
 
+async function submitGoogleRegistration(dependencies) {
+    const authService = dependencies && dependencies.authService;
+
+    if (!authService || typeof authService.loginWithGoogle !== "function") {
+        throw new Error("authService.loginWithGoogle is required.");
+    }
+
+    return authService.loginWithGoogle();
+}
+
+async function submitAppleRegistration(dependencies) {
+    const authService = dependencies && dependencies.authService;
+
+    if (!authService || typeof authService.loginWithApple !== "function") {
+        throw new Error("authService.loginWithApple is required.");
+    }
+
+    return authService.loginWithApple();
+}
+
+function handleAuthSuccess(result, options = {}) {
+    const {
+        statusElement,
+        successMessage = "Registration successful.",
+        onSuccess,
+        navigate
+    } = options;
+
+    setStatusMessage(statusElement, successMessage, "success");
+
+    if (typeof onSuccess === "function") {
+        onSuccess(result);
+    }
+
+    if (typeof navigate === "function" && result && result.nextRoute) {
+        navigate(result.nextRoute);
+    }
+
+    return result;
+}
+
+function handleAuthFailure(result, options = {}) {
+    const {
+        statusElement,
+        fallbackMessage = "Unable to complete registration right now. Please try again.",
+        onError
+    } = options;
+
+    const message =
+        result && result.message
+            ? result.message
+            : fallbackMessage;
+
+    setStatusMessage(statusElement, message, "error");
+
+    if (typeof onError === "function") {
+        onError(result);
+    }
+
+    return result;
+}
+
 function attachRegisterHandler(options) {
     const {
         form,
@@ -209,33 +272,22 @@ function attachRegisterHandler(options) {
                 authService
             });
 
-            if (!result.success) {
-                setStatusMessage(
-                    statusElement,
-                    result.message || "Unable to register right now. Please try again.",
-                    "error"
-                );
-                setSubmittingState(form, false);
-
-                if (typeof onError === "function") {
-                    onError(result);
-                }
-
-                return result;
-            }
-
-            setStatusMessage(statusElement, getSuccessMessage(payload.accountType), "success");
             setSubmittingState(form, false);
 
-            if (typeof onSuccess === "function") {
-                onSuccess(result);
+            if (!result.success) {
+                return handleAuthFailure(result, {
+                    statusElement,
+                    fallbackMessage: "Unable to register right now. Please try again.",
+                    onError
+                });
             }
 
-            if (typeof navigate === "function" && result.nextRoute) {
-                navigate(result.nextRoute);
-            }
-
-            return result;
+            return handleAuthSuccess(result, {
+                statusElement,
+                successMessage: getSuccessMessage(payload.accountType),
+                onSuccess,
+                navigate
+            });
         } catch (error) {
             const message =
                 error && error.message
@@ -263,10 +315,84 @@ function attachRegisterHandler(options) {
     };
 }
 
+function attachOAuthHandler(options) {
+    const {
+        button,
+        statusElement,
+        loginMethod,
+        onSuccess,
+        onError,
+        navigate
+    } = options || {};
+
+    if (!button) {
+        throw new Error("An OAuth button is required.");
+    }
+
+    if (typeof loginMethod !== "function") {
+        throw new Error("A loginMethod function is required.");
+    }
+
+    async function handleClick(event) {
+        if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+        }
+
+        button.disabled = true;
+        setStatusMessage(statusElement, "", "");
+
+        try {
+            const result = await loginMethod();
+
+            button.disabled = false;
+
+            if (!result.success) {
+                return handleAuthFailure(result, {
+                    statusElement,
+                    fallbackMessage: "Unable to complete registration right now. Please try again.",
+                    onError
+                });
+            }
+
+            return handleAuthSuccess(result, {
+                statusElement,
+                successMessage: "Registration successful.",
+                onSuccess,
+                navigate
+            });
+        } catch (error) {
+            const message =
+                error && error.message
+                    ? error.message
+                    : "Unable to complete registration right now. Please try again.";
+
+            button.disabled = false;
+            setStatusMessage(statusElement, message, "error");
+
+            if (typeof onError === "function") {
+                onError(error);
+            }
+
+            return {
+                success: false,
+                message
+            };
+        }
+    }
+
+    button.addEventListener("click", handleClick);
+
+    return {
+        handleClick
+    };
+}
+
 function initializeRegisterPage(options = {}) {
     const {
         formSelector = "#register-form",
         statusSelector = "#register-status",
+        googleButtonSelector = "#google-signin",
+        appleButtonSelector = "#apple-signin",
         authService = typeof window !== "undefined" ? window.authService : undefined,
         authUtils = typeof window !== "undefined" ? window.authUtils : undefined,
         navigate
@@ -274,6 +400,8 @@ function initializeRegisterPage(options = {}) {
 
     const form = document.querySelector(formSelector);
     const statusElement = document.querySelector(statusSelector);
+    const googleButton = document.querySelector(googleButtonSelector);
+    const appleButton = document.querySelector(appleButtonSelector);
 
     if (!form) {
         throw new Error("Register form not found.");
@@ -287,18 +415,47 @@ function initializeRegisterPage(options = {}) {
         throw new Error("authUtils is required.");
     }
 
-    return attachRegisterHandler({
+    const resolvedNavigate =
+        typeof navigate === "function"
+            ? navigate
+            : (nextRoute) => {
+                window.location.href = nextRoute;
+            };
+
+    const registerController = attachRegisterHandler({
         form,
         statusElement,
         authService,
         authUtils,
-        navigate:
-            typeof navigate === "function"
-                ? navigate
-                : (nextRoute) => {
-                    window.location.href = nextRoute;
-                }
+        navigate: resolvedNavigate
     });
+
+    let googleController = null;
+    let appleController = null;
+
+    if (googleButton) {
+        googleController = attachOAuthHandler({
+            button: googleButton,
+            statusElement,
+            loginMethod: () => submitGoogleRegistration({ authService }),
+            navigate: resolvedNavigate
+        });
+    }
+
+    if (appleButton) {
+        appleController = attachOAuthHandler({
+            button: appleButton,
+            statusElement,
+            loginMethod: () => submitAppleRegistration({ authService }),
+            navigate: resolvedNavigate
+        });
+    }
+
+    return {
+        registerController,
+        googleController,
+        appleController
+    };
 }
 
 const registerPage = {
@@ -315,7 +472,12 @@ const registerPage = {
     setSubmittingState,
     getSuccessMessage,
     submitRegistration,
+    submitGoogleRegistration,
+    submitAppleRegistration,
+    handleAuthSuccess,
+    handleAuthFailure,
     attachRegisterHandler,
+    attachOAuthHandler,
     initializeRegisterPage
 };
 
