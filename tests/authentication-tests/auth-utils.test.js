@@ -1,40 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-
-function loadAuthUtilsModule() {
-    const filePath = path.resolve(
-        __dirname,
-        "../../public/authentication/auth-utils.js"
-    );
-
-    let source = fs.readFileSync(filePath, "utf8");
-
-    source = source.replace(
-        /export\s*\{[\s\S]*?\};?\s*/m,
-        ""
-    );
-
-    const moduleShim = { exports: {} };
-
-    const factory = new Function(
-        "module",
-        "exports",
-        "require",
-        "__filename",
-        "__dirname",
-        `${source}
-return module.exports;`
-    );
-
-    return factory(
-        moduleShim,
-        moduleShim.exports,
-        require,
-        filePath,
-        path.dirname(filePath)
-    );
-}
-
 const {
     normalizeText,
     normalizeEmail,
@@ -66,7 +29,7 @@ const {
     suspendVendorProfile,
     rejectVendorProfile,
     mapAuthErrorCode
-} = loadAuthUtilsModule();
+} = require("../../public/authentication/auth-utils.js");
 
 describe("auth-utils validation helpers", () => {
     test("normalizeText trims text", () => {
@@ -87,8 +50,10 @@ describe("auth-utils validation helpers", () => {
         expect(isNonEmptyString("Campus Food")).toBe(true);
     });
 
-    test("isNonEmptyString returns false for blank text", () => {
+    test("isNonEmptyString returns false for blank or invalid text", () => {
         expect(isNonEmptyString("   ")).toBe(false);
+        expect(isNonEmptyString(null)).toBe(false);
+        expect(isNonEmptyString(123)).toBe(false);
     });
 
     test("isValidEmail returns true for a valid email", () => {
@@ -115,9 +80,14 @@ describe("auth-utils validation helpers", () => {
         expect(isValidPhoneNumber("+27712345678")).toBe(true);
     });
 
+    test("isValidPhoneNumber accepts numbers with spaces", () => {
+        expect(isValidPhoneNumber("071 234 5678")).toBe(true);
+    });
+
     test("isValidPhoneNumber rejects bad phone numbers", () => {
         expect(isValidPhoneNumber("07-123")).toBe(false);
         expect(isValidPhoneNumber("abc123")).toBe(false);
+        expect(isValidPhoneNumber(null)).toBe(false);
     });
 });
 
@@ -212,6 +182,14 @@ describe("auth-utils role helpers", () => {
             createdAt: "yesterday",
             updatedAt: "today"
         });
+    });
+
+    test("normaliseUserData defaults blank accountStatus to active", () => {
+        const result = normaliseUserData({
+            accountStatus: "   "
+        });
+
+        expect(result.accountStatus).toBe("active");
     });
 
     test("hasRole detects customer role", () => {
@@ -320,6 +298,22 @@ describe("auth-utils portal access and routing", () => {
         ).toBe(true);
     });
 
+    test("admin can access customer portal", () => {
+        expect(
+            canAccessCustomerPortal({
+                roles: { customer: false, vendor: false, admin: true }
+            })
+        ).toBe(true);
+    });
+
+    test("user with no roles cannot access customer portal", () => {
+        expect(
+            canAccessCustomerPortal({
+                roles: { customer: false, vendor: false, admin: false }
+            })
+        ).toBe(false);
+    });
+
     test("approved vendor can access vendor portal", () => {
         expect(
             canAccessVendorPortal({
@@ -355,12 +349,28 @@ describe("auth-utils portal access and routing", () => {
         ).toBe(true);
     });
 
+    test("non-admin cannot access admin portal", () => {
+        expect(
+            canAccessAdminPortal({
+                roles: { customer: true, vendor: false, admin: false }
+            })
+        ).toBe(false);
+    });
+
     test("admin should go to role choice", () => {
         expect(
             shouldGoToRoleChoice({
                 roles: { customer: true, vendor: true, admin: true }
             })
         ).toBe(true);
+    });
+
+    test("non-admin should not go to role choice", () => {
+        expect(
+            shouldGoToRoleChoice({
+                roles: { customer: true, vendor: true, admin: false }
+            })
+        ).toBe(false);
     });
 
     test("getAvailablePortals returns customer only for basic customer", () => {
@@ -388,6 +398,10 @@ describe("auth-utils portal access and routing", () => {
                 vendorStatus: "approved"
             })
         ).toEqual(["customer", "vendor", "admin"]);
+    });
+
+    test("getAvailablePortals returns empty array for unknown user", () => {
+        expect(getAvailablePortals({})).toEqual([]);
     });
 
     test("getDefaultPortalRoute returns role-choice for admin", () => {
@@ -450,6 +464,23 @@ describe("auth-utils profile shaping", () => {
         );
 
         expect(result.displayName).toBe("Vendor Person");
+        expect(result.email).toBe("");
+    });
+
+    test("createBaseUserProfile prefers override email", () => {
+        const result = createBaseUserProfile(
+            { uid: "abc123", email: "auth@example.com" },
+            { email: "override@example.com" }
+        );
+
+        expect(result.email).toBe("override@example.com");
+    });
+
+    test("createBaseUserProfile handles missing authUser", () => {
+        const result = createBaseUserProfile(null, null);
+
+        expect(result.uid).toBe("");
+        expect(result.displayName).toBe("");
         expect(result.email).toBe("");
     });
 

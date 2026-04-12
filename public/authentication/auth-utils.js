@@ -297,40 +297,6 @@ const authUtils = {
     mapAuthErrorCode
 };
 
-export {
-    normalizeText,
-    normalizeEmail,
-    isNonEmptyString,
-    isValidEmail,
-    isStrongPassword,
-    isValidPhoneNumber,
-    createEmptyRoles,
-    normalizeRoles,
-    normaliseUserData,
-    hasRole,
-    isCustomer,
-    isVendor,
-    isAdmin,
-    getVendorStatus,
-    isVendorPending,
-    isVendorApproved,
-    isVendorSuspended,
-    isVendorRejected,
-    canAccessCustomerPortal,
-    canAccessVendorPortal,
-    canAccessAdminPortal,
-    shouldGoToRoleChoice,
-    getAvailablePortals,
-    getDefaultPortalRoute,
-    createBaseUserProfile,
-    applyVendorApplicationToProfile,
-    approveVendorProfile,
-    suspendVendorProfile,
-    rejectVendorProfile,
-    mapAuthErrorCode,
-    authUtils
-};
-
 if (typeof module !== "undefined" && module.exports) {
     module.exports = authUtils;
 }
