@@ -1,3 +1,54 @@
+/**
+ * @jest-environment jsdom
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+function loadModule(moduleRelativePath, injectedGlobals = {}) {
+    const filePath = path.resolve(__dirname, moduleRelativePath);
+
+    let source = fs.readFileSync(filePath, "utf8");
+
+    source = source.replace(
+        /export\s*\{[\s\S]*?\};?\s*/m,
+        ""
+    );
+
+    const moduleShim = { exports: {} };
+
+    const argNames = [
+        "module",
+        "exports",
+        "require",
+        "__filename",
+        "__dirname",
+        ...Object.keys(injectedGlobals)
+    ];
+
+    const argValues = [
+        moduleShim,
+        moduleShim.exports,
+        require,
+        filePath,
+        path.dirname(filePath),
+        ...Object.values(injectedGlobals)
+    ];
+
+    const factory = new Function(
+        ...argNames,
+        `${source}
+return module.exports;`
+    );
+
+    return factory(...argValues);
+}
+
+const authUtils = loadModule("../../public/authentication/auth-utils.js", {
+    window,
+    document
+});
+
 const {
     normalizeText,
     getFormField,
@@ -11,10 +62,12 @@ const {
     getVendorApplicationUpdates,
     getSuccessMessage,
     submitVendorApplication,
-    attachVendorApplicationHandler
-} = require("../../public/authentication/vendor-application.js");
-
-const authUtils = require("../../public/authentication/auth-utils.js");
+    attachVendorApplicationHandler,
+    initializeVendorApplicationPage
+} = loadModule("../../public/authentication/vendor-application.js", {
+    document,
+    window
+});
 
 function getVendorApplicationFields(form) {
     return {
@@ -27,24 +80,24 @@ function getVendorApplicationFields(form) {
 
 function createVendorApplicationDom() {
     document.body.innerHTML = `
-    <form id="vendor-application-form">
-      <input name="businessName" value="" />
-      <p data-error-for="businessName"></p>
+        <form id="vendor-application-form">
+            <input name="businessName" value="" />
+            <p data-error-for="businessName"></p>
 
-      <input name="contactNumber" value="" />
-      <p data-error-for="contactNumber"></p>
+            <input name="contactNumber" value="" />
+            <p data-error-for="contactNumber"></p>
 
-      <textarea name="description"></textarea>
-      <p data-error-for="description"></p>
+            <textarea name="description"></textarea>
+            <p data-error-for="description"></p>
 
-      <input name="campusLocation" value="" />
-      <p data-error-for="campusLocation"></p>
+            <input name="campusLocation" value="" />
+            <p data-error-for="campusLocation"></p>
 
-      <button type="submit">Submit Application</button>
-    </form>
+            <button type="submit">Submit Application</button>
+        </form>
 
-    <p id="vendor-application-status"></p>
-  `;
+        <p id="vendor-application-status"></p>
+    `;
 
     return {
         form: document.querySelector("#vendor-application-form"),
@@ -53,6 +106,10 @@ function createVendorApplicationDom() {
 }
 
 describe("vendor-application.js helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("normalizeText trims whitespace", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
     });
@@ -62,6 +119,10 @@ describe("vendor-application.js helpers", () => {
 
         expect(getFormField(form, "businessName")).toBe(form.elements.namedItem("businessName"));
         expect(getFormField(form, "description")).toBe(form.elements.namedItem("description"));
+    });
+
+    test("getFormField returns null for invalid form", () => {
+        expect(getFormField(null, "businessName")).toBeNull();
     });
 
     test("extractVendorApplicationValues reads values from form", () => {
@@ -80,6 +141,15 @@ describe("vendor-application.js helpers", () => {
             contactNumber: "0712345678",
             description: "Fresh meals and drinks",
             campusLocation: "Matrix Food Court"
+        });
+    });
+
+    test("extractVendorApplicationValues falls back to empty strings", () => {
+        expect(extractVendorApplicationValues(null)).toEqual({
+            businessName: "",
+            contactNumber: "",
+            description: "",
+            campusLocation: ""
         });
     });
 
@@ -132,6 +202,20 @@ describe("vendor-application.js helpers", () => {
         expect(result.errors.campusLocation).toBe("Campus location is required.");
     });
 
+    test("validateVendorApplicationPayload throws when authUtils is missing", () => {
+        expect(() =>
+            validateVendorApplicationPayload(
+                {
+                    businessName: "Campus Grill",
+                    contactNumber: "0712345678",
+                    description: "Fresh meals and drinks",
+                    campusLocation: "Matrix Food Court"
+                },
+                null
+            )
+        ).toThrow("authUtils.isNonEmptyString is required.");
+    });
+
     test("clearFieldErrors clears visible errors", () => {
         const { form } = createVendorApplicationDom();
 
@@ -169,6 +253,10 @@ describe("vendor-application.js helpers", () => {
         expect(statusElement.dataset.state).toBe("success");
     });
 
+    test("setStatusMessage does nothing when element is missing", () => {
+        expect(() => setStatusMessage(null, "Submitted.", "success")).not.toThrow();
+    });
+
     test("setSubmittingState disables submit button when submitting", () => {
         const { form } = createVendorApplicationDom();
 
@@ -185,6 +273,10 @@ describe("vendor-application.js helpers", () => {
 
         expect(form.querySelector('button[type="submit"]').disabled).toBe(false);
         expect(form.dataset.submitting).toBe("false");
+    });
+
+    test("setSubmittingState does nothing when form is missing", () => {
+        expect(() => setSubmittingState(null, true)).not.toThrow();
     });
 
     test("getVendorApplicationUpdates builds pending vendor updates", () => {
@@ -215,6 +307,24 @@ describe("vendor-application.js helpers", () => {
                 admin: true
             },
             vendorStatus: "pending"
+        });
+    });
+
+    test("getVendorApplicationUpdates defaults roles safely", () => {
+        const result = getVendorApplicationUpdates(
+            {
+                businessName: "Campus Grill",
+                contactNumber: "0712345678",
+                description: "Fresh meals and drinks",
+                campusLocation: "Matrix Food Court"
+            },
+            {}
+        );
+
+        expect(result.roles).toEqual({
+            customer: false,
+            vendor: true,
+            admin: false
         });
     });
 
@@ -350,6 +460,10 @@ describe("vendor-application.js service submission", () => {
 });
 
 describe("vendor-application.js form submission flow", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
     test("attachVendorApplicationHandler shows validation errors for invalid input", async () => {
         const { form, statusElement } = createVendorApplicationDom();
         const fields = getVendorApplicationFields(form);
@@ -391,6 +505,7 @@ describe("vendor-application.js form submission flow", () => {
         );
         expect(statusElement.textContent).toBe("Please fix the highlighted fields.");
         expect(statusElement.dataset.state).toBe("error");
+        expect(form.dataset.submitting).toBe("false");
         expect(authService.getCurrentUser).not.toHaveBeenCalled();
     });
 
@@ -440,6 +555,7 @@ describe("vendor-application.js form submission flow", () => {
         expect(statusElement.dataset.state).toBe("success");
         expect(onSuccess).toHaveBeenCalledTimes(1);
         expect(navigate).toHaveBeenCalledWith("./pending-vendor.html");
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachVendorApplicationHandler shows service error result", async () => {
@@ -475,6 +591,7 @@ describe("vendor-application.js form submission flow", () => {
         expect(statusElement.textContent).toBe("No user is currently signed in.");
         expect(statusElement.dataset.state).toBe("error");
         expect(onError).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachVendorApplicationHandler handles thrown errors", async () => {
@@ -511,6 +628,7 @@ describe("vendor-application.js form submission flow", () => {
         expect(statusElement.textContent).toBe("Unexpected failure");
         expect(statusElement.dataset.state).toBe("error");
         expect(onError).toHaveBeenCalledTimes(1);
+        expect(form.dataset.submitting).toBe("false");
     });
 
     test("attachVendorApplicationHandler throws if form is missing", () => {
@@ -531,6 +649,90 @@ describe("vendor-application.js form submission flow", () => {
             attachVendorApplicationHandler({
                 form,
                 statusElement,
+                authService: {}
+            })
+        ).toThrow("authUtils is required.");
+    });
+});
+
+describe("vendor-application.js page initialization", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("initializeVendorApplicationPage wires the vendor application handler", () => {
+        createVendorApplicationDom();
+
+        const authService = {
+            getCurrentUser: jest.fn(),
+            getCurrentUserProfile: jest.fn(),
+            updateUserProfile: jest.fn()
+        };
+
+        const result = initializeVendorApplicationPage({
+            authService,
+            authUtils,
+            navigate: jest.fn()
+        });
+
+        expect(result).toBeTruthy();
+        expect(typeof result.handleSubmit).toBe("function");
+    });
+
+    test("initializeVendorApplicationPage uses custom navigate function", async () => {
+        const { form } = createVendorApplicationDom();
+        const fields = getVendorApplicationFields(form);
+
+        fields.businessName.value = "Campus Grill";
+        fields.contactNumber.value = "0712345678";
+        fields.description.value = "Fresh meals and drinks";
+        fields.campusLocation.value = "Matrix Food Court";
+
+        const authService = {
+            getCurrentUser: jest.fn().mockResolvedValue({
+                uid: "user-3"
+            }),
+            getCurrentUserProfile: jest.fn().mockResolvedValue({
+                uid: "user-3",
+                roles: { customer: true, vendor: false, admin: false },
+                vendorStatus: "none"
+            }),
+            updateUserProfile: jest.fn().mockResolvedValue({
+                uid: "user-3"
+            })
+        };
+
+        const navigate = jest.fn();
+
+        const controller = initializeVendorApplicationPage({
+            authService,
+            authUtils,
+            navigate
+        });
+
+        await controller.handleSubmit({
+            preventDefault: jest.fn()
+        });
+
+        expect(navigate).toHaveBeenCalledWith("./pending-vendor.html");
+    });
+
+    test("initializeVendorApplicationPage throws when form is missing", () => {
+        document.body.innerHTML = `<p id="vendor-application-status"></p>`;
+
+        expect(() =>
+            initializeVendorApplicationPage({
+                authService: {},
+                authUtils
+            })
+        ).toThrow("Vendor application form not found.");
+    });
+
+    test("initializeVendorApplicationPage throws when authUtils is missing", () => {
+        createVendorApplicationDom();
+
+        expect(() =>
+            initializeVendorApplicationPage({
                 authService: {}
             })
         ).toThrow("authUtils is required.");
