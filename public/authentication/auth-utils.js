@@ -4,6 +4,7 @@
  * Pure helper functions for authentication, role checks,
  * vendor approval flow, validation, and routing.
  *
+<<<<<<< HEAD
  * Source of truth:
  * - isAdmin
  * - vendorStatus
@@ -48,6 +49,12 @@ const PORTAL_ROUTES = Object.freeze({
     adminApplication: "../customer/admin-application.html"
 });
 
+=======
+ * This file avoids direct DOM access and avoids direct Firebase calls
+ * so that it stays easy to test with Jest.
+ */
+
+>>>>>>> 18e586b (fixed something)
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
@@ -56,10 +63,13 @@ function normalizeEmail(email) {
     return normalizeText(email).toLowerCase();
 }
 
+<<<<<<< HEAD
 function normalizePhoneNumber(phone) {
     return normalizeText(phone).replace(/\s+/g, "");
 }
 
+=======
+>>>>>>> 18e586b (fixed something)
 function isNonEmptyString(value) {
     return typeof value === "string" && value.trim().length > 0;
 }
@@ -74,6 +84,7 @@ function isStrongPassword(password) {
 }
 
 function isValidPhoneNumber(phone) {
+<<<<<<< HEAD
     const value = normalizePhoneNumber(phone);
     return /^\+?[0-9]{10,15}$/.test(value);
 }
@@ -82,6 +93,12 @@ function isValidPhoneNumber(phone) {
  * Backward-compatibility helper only.
  * Not a source of truth anymore.
  */
+=======
+    const value = normalizeText(phone).replace(/\s+/g, "");
+    return /^\+?[0-9]{10,15}$/.test(value);
+}
+
+>>>>>>> 18e586b (fixed something)
 function createEmptyRoles() {
     return {
         customer: false,
@@ -90,10 +107,13 @@ function createEmptyRoles() {
     };
 }
 
+<<<<<<< HEAD
 /**
  * Backward-compatibility helper only.
  * Reads old docs safely.
  */
+=======
+>>>>>>> 18e586b (fixed something)
 function normalizeRoles(roles) {
     const safeRoles = roles && typeof roles === "object" ? roles : {};
 
@@ -104,6 +124,7 @@ function normalizeRoles(roles) {
     };
 }
 
+<<<<<<< HEAD
 function hasAuthenticatedIdentity(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
 
@@ -229,10 +250,22 @@ function getDerivedRoles(userData) {
         vendor: vendorStatus === VENDOR_STATUSES.APPROVED,
         admin: isAdmin
     };
+=======
+function getVendorStatus(userData) {
+    const allowedStatuses = ["none", "pending", "approved", "suspended", "rejected"];
+    const status = normalizeText(userData && userData.vendorStatus).toLowerCase();
+
+    if (allowedStatuses.includes(status)) {
+        return status;
+    }
+
+    return "none";
+>>>>>>> 18e586b (fixed something)
 }
 
 function normaliseUserData(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
+<<<<<<< HEAD
     const derivedRoles = getDerivedRoles(safeUser);
 
     return {
@@ -362,6 +395,76 @@ function canAccessAdminPortal(userData) {
 function getAvailablePortals(userData) {
     const user = normaliseUserData(userData);
     const portals = [];
+=======
+    const roles = normalizeRoles(safeUser.roles);
+
+    return {
+        uid: safeUser.uid || "",
+        displayName: normalizeText(safeUser.displayName),
+        email: normalizeEmail(safeUser.email),
+        roles,
+        vendorStatus: getVendorStatus(safeUser),
+        accountStatus: normalizeText(safeUser.accountStatus) || "active",
+        isOwner: safeUser.isOwner === true,
+        createdAt: safeUser.createdAt || null,
+        updatedAt: safeUser.updatedAt || null
+    };
+}
+
+function hasRole(userData, roleName) {
+    const user = normaliseUserData(userData);
+    return user.roles[roleName] === true;
+}
+
+function isCustomer(userData) {
+    return hasRole(userData, "customer");
+}
+
+function isVendor(userData) {
+    return hasRole(userData, "vendor");
+}
+
+function isAdmin(userData) {
+    return hasRole(userData, "admin");
+}
+
+function isVendorPending(userData) {
+    return getVendorStatus(userData) === "pending";
+}
+
+function isVendorApproved(userData) {
+    return getVendorStatus(userData) === "approved";
+}
+
+function isVendorSuspended(userData) {
+    return getVendorStatus(userData) === "suspended";
+}
+
+function isVendorRejected(userData) {
+    return getVendorStatus(userData) === "rejected";
+}
+
+function canAccessCustomerPortal(userData) {
+    return isCustomer(userData) || isVendor(userData) || isAdmin(userData);
+}
+
+function canAccessVendorPortal(userData) {
+    const approvedVendor = isVendor(userData) && isVendorApproved(userData);
+    return approvedVendor || isAdmin(userData);
+}
+
+function canAccessAdminPortal(userData) {
+    return isAdmin(userData);
+}
+
+function shouldGoToRoleChoice(userData) {
+    return isAdmin(userData);
+}
+
+function getAvailablePortals(userData) {
+    const portals = [];
+    const user = normaliseUserData(userData);
+>>>>>>> 18e586b (fixed something)
 
     if (canAccessCustomerPortal(user)) {
         portals.push("customer");
@@ -378,6 +481,7 @@ function getAvailablePortals(userData) {
     return portals;
 }
 
+<<<<<<< HEAD
 function shouldGoToRoleChoice(userData) {
     return getAvailablePortals(userData).length > 1;
 }
@@ -472,12 +576,31 @@ function shouldShowPendingAdminPage(userData) {
         user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.REJECTED ||
         user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.BLOCKED
     );
+=======
+function getDefaultPortalRoute(userData) {
+    const user = normaliseUserData(userData);
+
+    if (shouldGoToRoleChoice(user)) {
+        return "../authentication/role-choice.html";
+    }
+
+    if (canAccessVendorPortal(user)) {
+        return "../vendor/index.html";
+    }
+
+    if (canAccessCustomerPortal(user)) {
+        return "../customer/index.html";
+    }
+
+    return "../authentication/login.html";
+>>>>>>> 18e586b (fixed something)
 }
 
 function createBaseUserProfile(authUser, overrides = {}) {
     const safeOverrides = overrides && typeof overrides === "object" ? overrides : {};
     const now = new Date().toISOString();
 
+<<<<<<< HEAD
     const profile = {
         uid: normalizeText((authUser && authUser.uid) || safeOverrides.uid),
         displayName: normalizeText(
@@ -572,10 +695,29 @@ function mergeProfileWithAuthData(existingProfile, authUser, overrides = {}) {
     return {
         ...mergedProfile,
         roles: getDerivedRoles(mergedProfile)
+=======
+    return {
+        uid: authUser && authUser.uid ? authUser.uid : "",
+        displayName: normalizeText(safeOverrides.displayName || safeOverrides.fullName || ""),
+        email: normalizeEmail(
+            safeOverrides.email || (authUser && authUser.email ? authUser.email : "")
+        ),
+        roles: {
+            customer: true,
+            vendor: false,
+            admin: false
+        },
+        vendorStatus: "none",
+        accountStatus: "active",
+        isOwner: false,
+        createdAt: now,
+        updatedAt: now
+>>>>>>> 18e586b (fixed something)
     };
 }
 
 function applyVendorApplicationToProfile(profile) {
+<<<<<<< HEAD
     const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
@@ -588,10 +730,25 @@ function applyVendorApplicationToProfile(profile) {
     return {
         ...updatedProfile,
         roles: getDerivedRoles(updatedProfile)
+=======
+    const safeProfile = normaliseUserData(profile);
+
+    return {
+        ...safeProfile,
+        roles: {
+            ...safeProfile.roles,
+            customer: true,
+            vendor: false,
+            admin: safeProfile.roles.admin
+        },
+        vendorStatus: "pending",
+        updatedAt: new Date().toISOString()
+>>>>>>> 18e586b (fixed something)
     };
 }
 
 function approveVendorProfile(profile) {
+<<<<<<< HEAD
     const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
@@ -694,6 +851,41 @@ function createVendorApplicationData(authUser, formData = {}) {
         submittedAt: now,
         updatedAt: now
     };
+=======
+    const safeProfile = normaliseUserData(profile);
+
+    return {
+        ...safeProfile,
+        roles: {
+            ...safeProfile.roles,
+            customer: true,
+            vendor: true,
+            admin: safeProfile.roles.admin
+        },
+        vendorStatus: "approved",
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function suspendVendorProfile(profile) {
+    const safeProfile = normaliseUserData(profile);
+
+    return {
+        ...safeProfile,
+        vendorStatus: "suspended",
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function rejectVendorProfile(profile) {
+    const safeProfile = normaliseUserData(profile);
+
+    return {
+        ...safeProfile,
+        vendorStatus: "rejected",
+        updatedAt: new Date().toISOString()
+    };
+>>>>>>> 18e586b (fixed something)
 }
 
 function mapAuthErrorCode(code) {
@@ -713,15 +905,19 @@ function mapAuthErrorCode(code) {
             return "Network error. Please check your connection and try again.";
         case "auth/popup-closed-by-user":
             return "The sign-in popup was closed before completing sign-in.";
+<<<<<<< HEAD
         case "auth/popup-blocked":
             return "Your browser blocked the sign-in popup. Please allow popups and try again.";
         case "auth/too-many-requests":
             return "Too many attempts were made. Please wait a bit and try again.";
+=======
+>>>>>>> 18e586b (fixed something)
         default:
             return "Something went wrong. Please try again.";
     }
 }
 
+<<<<<<< HEAD
 function applyAdminApplicationToProfile(profile) {
     const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
@@ -848,12 +1044,18 @@ const authUtils = {
     normalizeText,
     normalizeEmail,
     normalizePhoneNumber,
+=======
+const authUtils = {
+    normalizeText,
+    normalizeEmail,
+>>>>>>> 18e586b (fixed something)
     isNonEmptyString,
     isValidEmail,
     isStrongPassword,
     isValidPhoneNumber,
     createEmptyRoles,
     normalizeRoles,
+<<<<<<< HEAD
     hasAuthenticatedIdentity,
     getAccountStatus,
     isAccountActive,
@@ -866,10 +1068,14 @@ const authUtils = {
     normaliseUserData,
     normalizeUserData,
     removeDerivedRoles,
+=======
+    normaliseUserData,
+>>>>>>> 18e586b (fixed something)
     hasRole,
     isCustomer,
     isVendor,
     isAdmin,
+<<<<<<< HEAD
     isVendorPending,
     isVendorApproved,
     isVendorRejected,
@@ -903,6 +1109,24 @@ const authUtils = {
     clearAdminApplication,
     createVendorApplicationData,
     createAdminApplicationData,
+=======
+    getVendorStatus,
+    isVendorPending,
+    isVendorApproved,
+    isVendorSuspended,
+    isVendorRejected,
+    canAccessCustomerPortal,
+    canAccessVendorPortal,
+    canAccessAdminPortal,
+    shouldGoToRoleChoice,
+    getAvailablePortals,
+    getDefaultPortalRoute,
+    createBaseUserProfile,
+    applyVendorApplicationToProfile,
+    approveVendorProfile,
+    suspendVendorProfile,
+    rejectVendorProfile,
+>>>>>>> 18e586b (fixed something)
     mapAuthErrorCode
 };
 
@@ -912,4 +1136,8 @@ if (typeof module !== "undefined" && module.exports) {
 
 if (typeof window !== "undefined") {
     window.authUtils = authUtils;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 18e586b (fixed something)

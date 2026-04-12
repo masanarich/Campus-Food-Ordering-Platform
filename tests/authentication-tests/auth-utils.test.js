@@ -1,4 +1,5 @@
 const {
+<<<<<<< HEAD
     VENDOR_STATUSES,
     ACCOUNT_STATUSES,
     ADMIN_APPLICATION_STATUSES,
@@ -6,12 +7,17 @@ const {
     normalizeText,
     normalizeEmail,
     normalizePhoneNumber,
+=======
+    normalizeText,
+    normalizeEmail,
+>>>>>>> 18e586b (fixed something)
     isNonEmptyString,
     isValidEmail,
     isStrongPassword,
     isValidPhoneNumber,
     createEmptyRoles,
     normalizeRoles,
+<<<<<<< HEAD
     hasAuthenticatedIdentity,
     getAccountStatus,
     isAccountActive,
@@ -23,10 +29,14 @@ const {
     getDerivedRoles,
     normaliseUserData,
     normalizeUserData,
+=======
+    normaliseUserData,
+>>>>>>> 18e586b (fixed something)
     hasRole,
     isCustomer,
     isVendor,
     isAdmin,
+<<<<<<< HEAD
     isVendorPending,
     isVendorApproved,
     isVendorRejected,
@@ -111,6 +121,27 @@ describe("auth-utils constants", () => {
     });
 });
 
+=======
+    getVendorStatus,
+    isVendorPending,
+    isVendorApproved,
+    isVendorSuspended,
+    isVendorRejected,
+    canAccessCustomerPortal,
+    canAccessVendorPortal,
+    canAccessAdminPortal,
+    shouldGoToRoleChoice,
+    getAvailablePortals,
+    getDefaultPortalRoute,
+    createBaseUserProfile,
+    applyVendorApplicationToProfile,
+    approveVendorProfile,
+    suspendVendorProfile,
+    rejectVendorProfile,
+    mapAuthErrorCode
+} = require("../../public/authentication/auth-utils.js");
+
+>>>>>>> 18e586b (fixed something)
 describe("auth-utils validation helpers", () => {
     test("normalizeText trims text", () => {
         expect(normalizeText("  hello world  ")).toBe("hello world");
@@ -120,17 +151,23 @@ describe("auth-utils validation helpers", () => {
         expect(normalizeText(null)).toBe("");
         expect(normalizeText(undefined)).toBe("");
         expect(normalizeText(123)).toBe("");
+<<<<<<< HEAD
         expect(normalizeText({})).toBe("");
+=======
+>>>>>>> 18e586b (fixed something)
     });
 
     test("normalizeEmail trims and lowercases email", () => {
         expect(normalizeEmail("  USER@Example.COM  ")).toBe("user@example.com");
     });
 
+<<<<<<< HEAD
     test("normalizePhoneNumber trims and removes spaces", () => {
         expect(normalizePhoneNumber("  +27 71 234 5678  ")).toBe("+27712345678");
     });
 
+=======
+>>>>>>> 18e586b (fixed something)
     test("isNonEmptyString returns true for non-empty text", () => {
         expect(isNonEmptyString("Campus Food")).toBe(true);
     });
@@ -147,20 +184,31 @@ describe("auth-utils validation helpers", () => {
 
     test("isValidEmail returns false for an invalid email", () => {
         expect(isValidEmail("userexample.com")).toBe(false);
+<<<<<<< HEAD
         expect(isValidEmail("user@")).toBe(false);
         expect(isValidEmail("")).toBe(false);
+=======
+>>>>>>> 18e586b (fixed something)
     });
 
     test("isStrongPassword returns true for password length >= 8", () => {
         expect(isStrongPassword("password123")).toBe(true);
     });
 
+<<<<<<< HEAD
     test("isStrongPassword returns false for password length < 8 or invalid", () => {
         expect(isStrongPassword("pass12")).toBe(false);
         expect(isStrongPassword(null)).toBe(false);
     });
 
     test("isValidPhoneNumber accepts local digits", () => {
+=======
+    test("isStrongPassword returns false for password length < 8", () => {
+        expect(isStrongPassword("pass12")).toBe(false);
+    });
+
+    test("isValidPhoneNumber accepts standard local-style digits", () => {
+>>>>>>> 18e586b (fixed something)
         expect(isValidPhoneNumber("0712345678")).toBe(true);
     });
 
@@ -179,7 +227,11 @@ describe("auth-utils validation helpers", () => {
     });
 });
 
+<<<<<<< HEAD
 describe("auth-utils role and identity helpers", () => {
+=======
+describe("auth-utils role helpers", () => {
+>>>>>>> 18e586b (fixed something)
     test("createEmptyRoles returns all roles as false", () => {
         expect(createEmptyRoles()).toEqual({
             customer: false,
@@ -196,7 +248,11 @@ describe("auth-utils role and identity helpers", () => {
         });
     });
 
+<<<<<<< HEAD
     test("normalizeRoles preserves strict true boolean values", () => {
+=======
+    test("normalizeRoles preserves true boolean values", () => {
+>>>>>>> 18e586b (fixed something)
         expect(
             normalizeRoles({
                 customer: true,
@@ -224,6 +280,7 @@ describe("auth-utils role and identity helpers", () => {
         });
     });
 
+<<<<<<< HEAD
     test("hasAuthenticatedIdentity returns true for uid", () => {
         expect(hasAuthenticatedIdentity({ uid: "abc123" })).toBe(true);
     });
@@ -262,10 +319,117 @@ describe("auth-utils role and identity helpers", () => {
         expect(isAccountActive({ accountStatus: "blocked" })).toBe(false);
     });
 
+=======
+    test("normaliseUserData returns safe defaults", () => {
+        const result = normaliseUserData(undefined);
+
+        expect(result.uid).toBe("");
+        expect(result.displayName).toBe("");
+        expect(result.email).toBe("");
+        expect(result.roles).toEqual({
+            customer: false,
+            vendor: false,
+            admin: false
+        });
+        expect(result.vendorStatus).toBe("none");
+        expect(result.accountStatus).toBe("active");
+        expect(result.isOwner).toBe(false);
+        expect(result.createdAt).toBeNull();
+        expect(result.updatedAt).toBeNull();
+    });
+
+    test("normaliseUserData normalizes provided values", () => {
+        const result = normaliseUserData({
+            uid: "abc123",
+            displayName: "  Faranani  ",
+            email: "  USER@example.com  ",
+            roles: { customer: true, vendor: false, admin: true },
+            vendorStatus: "approved",
+            accountStatus: "inactive",
+            isOwner: true,
+            createdAt: "yesterday",
+            updatedAt: "today"
+        });
+
+        expect(result).toEqual({
+            uid: "abc123",
+            displayName: "Faranani",
+            email: "user@example.com",
+            roles: {
+                customer: true,
+                vendor: false,
+                admin: true
+            },
+            vendorStatus: "approved",
+            accountStatus: "inactive",
+            isOwner: true,
+            createdAt: "yesterday",
+            updatedAt: "today"
+        });
+    });
+
+    test("normaliseUserData defaults blank accountStatus to active", () => {
+        const result = normaliseUserData({
+            accountStatus: "   "
+        });
+
+        expect(result.accountStatus).toBe("active");
+    });
+
+    test("hasRole detects customer role", () => {
+        expect(
+            hasRole(
+                {
+                    roles: { customer: true, vendor: false, admin: false }
+                },
+                "customer"
+            )
+        ).toBe(true);
+    });
+
+    test("hasRole returns false for unknown role name", () => {
+        expect(
+            hasRole(
+                {
+                    roles: { customer: true, vendor: false, admin: false }
+                },
+                "owner"
+            )
+        ).toBe(false);
+    });
+
+    test("isCustomer returns true for customer", () => {
+        expect(
+            isCustomer({
+                roles: { customer: true, vendor: false, admin: false }
+            })
+        ).toBe(true);
+    });
+
+    test("isVendor returns true for vendor", () => {
+        expect(
+            isVendor({
+                roles: { customer: true, vendor: true, admin: false }
+            })
+        ).toBe(true);
+    });
+
+    test("isAdmin returns true for admin", () => {
+        expect(
+            isAdmin({
+                roles: { customer: true, vendor: true, admin: true }
+            })
+        ).toBe(true);
+    });
+});
+
+describe("auth-utils vendor status helpers", () => {
+>>>>>>> 18e586b (fixed something)
     test("getVendorStatus returns none by default", () => {
         expect(getVendorStatus({})).toBe("none");
     });
 
+<<<<<<< HEAD
     test("getVendorStatus returns normalized supported values", () => {
         expect(getVendorStatus({ vendorStatus: "pending" })).toBe("pending");
         expect(getVendorStatus({ vendorStatus: "approved" })).toBe("approved");
@@ -476,39 +640,117 @@ describe("auth-utils user normalization", () => {
         expect(isVendorBlocked({ vendorStatus: "blocked" })).toBe(true);
         expect(isVendorSuspended({ vendorStatus: "suspended" })).toBe(true);
     });
+=======
+    test("getVendorStatus returns none for invalid status", () => {
+        expect(getVendorStatus({ vendorStatus: "unknown-status" })).toBe("none");
+    });
+
+    test("getVendorStatus returns pending correctly", () => {
+        expect(getVendorStatus({ vendorStatus: "pending" })).toBe("pending");
+    });
+
+    test("getVendorStatus returns approved correctly", () => {
+        expect(getVendorStatus({ vendorStatus: "approved" })).toBe("approved");
+    });
+
+    test("getVendorStatus returns suspended correctly", () => {
+        expect(getVendorStatus({ vendorStatus: "suspended" })).toBe("suspended");
+    });
+
+    test("getVendorStatus returns rejected correctly", () => {
+        expect(getVendorStatus({ vendorStatus: "rejected" })).toBe("rejected");
+    });
+
+    test("isVendorPending works correctly", () => {
+        expect(isVendorPending({ vendorStatus: "pending" })).toBe(true);
+    });
+
+    test("isVendorApproved works correctly", () => {
+        expect(isVendorApproved({ vendorStatus: "approved" })).toBe(true);
+    });
+
+    test("isVendorSuspended works correctly", () => {
+        expect(isVendorSuspended({ vendorStatus: "suspended" })).toBe(true);
+    });
+
+    test("isVendorRejected works correctly", () => {
+        expect(isVendorRejected({ vendorStatus: "rejected" })).toBe(true);
+    });
+>>>>>>> 18e586b (fixed something)
 });
 
 describe("auth-utils portal access and routing", () => {
     test("customer can access customer portal", () => {
         expect(
             canAccessCustomerPortal({
+<<<<<<< HEAD
                 uid: "abc123"
+=======
+                roles: { customer: true, vendor: false, admin: false }
+>>>>>>> 18e586b (fixed something)
             })
         ).toBe(true);
     });
 
+<<<<<<< HEAD
     test("user with no identity and no privileges cannot access customer portal", () => {
         expect(canAccessCustomerPortal({})).toBe(false);
+=======
+    test("vendor can access customer portal", () => {
+        expect(
+            canAccessCustomerPortal({
+                roles: { customer: false, vendor: true, admin: false }
+            })
+        ).toBe(true);
+    });
+
+    test("admin can access customer portal", () => {
+        expect(
+            canAccessCustomerPortal({
+                roles: { customer: false, vendor: false, admin: true }
+            })
+        ).toBe(true);
+    });
+
+    test("user with no roles cannot access customer portal", () => {
+        expect(
+            canAccessCustomerPortal({
+                roles: { customer: false, vendor: false, admin: false }
+            })
+        ).toBe(false);
+>>>>>>> 18e586b (fixed something)
     });
 
     test("approved vendor can access vendor portal", () => {
         expect(
             canAccessVendorPortal({
+<<<<<<< HEAD
                 uid: "abc123",
+=======
+                roles: { customer: true, vendor: true, admin: false },
+>>>>>>> 18e586b (fixed something)
                 vendorStatus: "approved"
             })
         ).toBe(true);
     });
 
+<<<<<<< HEAD
     test("pending vendor cannot access vendor portal", () => {
         expect(
             canAccessVendorPortal({
                 uid: "abc123",
+=======
+    test("pending vendor cannot access vendor portal yet", () => {
+        expect(
+            canAccessVendorPortal({
+                roles: { customer: true, vendor: true, admin: false },
+>>>>>>> 18e586b (fixed something)
                 vendorStatus: "pending"
             })
         ).toBe(false);
     });
 
+<<<<<<< HEAD
     test("plain admin cannot access vendor portal without vendor approval", () => {
         expect(
             canAccessVendorPortal({
@@ -517,21 +759,57 @@ describe("auth-utils portal access and routing", () => {
                 vendorStatus: "none"
             })
         ).toBe(false);
+=======
+    test("admin can access vendor portal", () => {
+        expect(
+            canAccessVendorPortal({
+                roles: { customer: true, vendor: false, admin: true },
+                vendorStatus: "none"
+            })
+        ).toBe(true);
+>>>>>>> 18e586b (fixed something)
     });
 
     test("admin can access admin portal", () => {
         expect(
             canAccessAdminPortal({
+<<<<<<< HEAD
                 isAdmin: true
+=======
+                roles: { customer: true, vendor: false, admin: true }
+>>>>>>> 18e586b (fixed something)
             })
         ).toBe(true);
     });
 
+<<<<<<< HEAD
     test("inactive admin cannot access admin portal", () => {
         expect(
             canAccessAdminPortal({
                 isAdmin: true,
                 accountStatus: "disabled"
+=======
+    test("non-admin cannot access admin portal", () => {
+        expect(
+            canAccessAdminPortal({
+                roles: { customer: true, vendor: false, admin: false }
+            })
+        ).toBe(false);
+    });
+
+    test("admin should go to role choice", () => {
+        expect(
+            shouldGoToRoleChoice({
+                roles: { customer: true, vendor: true, admin: true }
+            })
+        ).toBe(true);
+    });
+
+    test("non-admin should not go to role choice", () => {
+        expect(
+            shouldGoToRoleChoice({
+                roles: { customer: true, vendor: true, admin: false }
+>>>>>>> 18e586b (fixed something)
             })
         ).toBe(false);
     });
@@ -539,7 +817,11 @@ describe("auth-utils portal access and routing", () => {
     test("getAvailablePortals returns customer only for basic customer", () => {
         expect(
             getAvailablePortals({
+<<<<<<< HEAD
                 uid: "abc123",
+=======
+                roles: { customer: true, vendor: false, admin: false },
+>>>>>>> 18e586b (fixed something)
                 vendorStatus: "none"
             })
         ).toEqual(["customer"]);
@@ -548,12 +830,17 @@ describe("auth-utils portal access and routing", () => {
     test("getAvailablePortals returns customer and vendor for approved vendor", () => {
         expect(
             getAvailablePortals({
+<<<<<<< HEAD
                 uid: "abc123",
+=======
+                roles: { customer: true, vendor: true, admin: false },
+>>>>>>> 18e586b (fixed something)
                 vendorStatus: "approved"
             })
         ).toEqual(["customer", "vendor"]);
     });
 
+<<<<<<< HEAD
     test("getAvailablePortals returns customer and admin for admin", () => {
         expect(
             getAvailablePortals({
@@ -566,6 +853,12 @@ describe("auth-utils portal access and routing", () => {
         expect(
             getAvailablePortals({
                 isAdmin: true,
+=======
+    test("getAvailablePortals returns all portals for admin", () => {
+        expect(
+            getAvailablePortals({
+                roles: { customer: true, vendor: true, admin: true },
+>>>>>>> 18e586b (fixed something)
                 vendorStatus: "approved"
             })
         ).toEqual(["customer", "vendor", "admin"]);
@@ -575,6 +868,7 @@ describe("auth-utils portal access and routing", () => {
         expect(getAvailablePortals({})).toEqual([]);
     });
 
+<<<<<<< HEAD
     test("shouldGoToRoleChoice returns true when more than one portal is available", () => {
         expect(
             shouldGoToRoleChoice({
@@ -713,10 +1007,42 @@ describe("auth-utils portal access and routing", () => {
         expect(shouldShowPendingAdminPage({ adminApplicationStatus: "blocked" })).toBe(true);
         expect(shouldShowPendingAdminPage({ adminApplicationStatus: "approved" })).toBe(false);
         expect(shouldShowPendingAdminPage({ adminApplicationStatus: "none" })).toBe(false);
+=======
+    test("getDefaultPortalRoute returns role-choice for admin", () => {
+        expect(
+            getDefaultPortalRoute({
+                roles: { customer: true, vendor: true, admin: true },
+                vendorStatus: "approved"
+            })
+        ).toBe("../authentication/role-choice.html");
+    });
+
+    test("getDefaultPortalRoute returns vendor route for approved vendor", () => {
+        expect(
+            getDefaultPortalRoute({
+                roles: { customer: true, vendor: true, admin: false },
+                vendorStatus: "approved"
+            })
+        ).toBe("../vendor/index.html");
+    });
+
+    test("getDefaultPortalRoute returns customer route for customer", () => {
+        expect(
+            getDefaultPortalRoute({
+                roles: { customer: true, vendor: false, admin: false },
+                vendorStatus: "none"
+            })
+        ).toBe("../customer/index.html");
+    });
+
+    test("getDefaultPortalRoute returns login route for unknown user", () => {
+        expect(getDefaultPortalRoute({})).toBe("../authentication/login.html");
+>>>>>>> 18e586b (fixed something)
     });
 });
 
 describe("auth-utils profile shaping", () => {
+<<<<<<< HEAD
     test("createBaseUserProfile creates a base profile from auth user and overrides", () => {
         const result = createBaseUserProfile(
             {
@@ -743,22 +1069,63 @@ describe("auth-utils profile shaping", () => {
         expect(result.adminApplicationStatus).toBe("none");
         expect(result.adminApplicationReason).toBe("");
         expect(result.accountStatus).toBe("active");
+=======
+    test("createBaseUserProfile creates a base customer profile", () => {
+        const result = createBaseUserProfile(
+            { uid: "abc123", email: "user@example.com" },
+            { displayName: "Faranani Maduwa" }
+        );
+
+        expect(result.uid).toBe("abc123");
+        expect(result.email).toBe("user@example.com");
+        expect(result.displayName).toBe("Faranani Maduwa");
+>>>>>>> 18e586b (fixed something)
         expect(result.roles).toEqual({
             customer: true,
             vendor: false,
             admin: false
         });
+<<<<<<< HEAD
         expectIsoString(result.createdAt);
         expectIsoString(result.updatedAt);
         expectIsoString(result.lastLoginAt);
     });
 
     test("createBaseUserProfile handles missing authUser and missing overrides", () => {
+=======
+        expect(result.vendorStatus).toBe("none");
+        expect(result.accountStatus).toBe("active");
+        expect(typeof result.createdAt).toBe("string");
+        expect(typeof result.updatedAt).toBe("string");
+    });
+
+    test("createBaseUserProfile falls back to fullName override", () => {
+        const result = createBaseUserProfile(
+            { uid: "abc123", email: "" },
+            { fullName: "Vendor Person" }
+        );
+
+        expect(result.displayName).toBe("Vendor Person");
+        expect(result.email).toBe("");
+    });
+
+    test("createBaseUserProfile prefers override email", () => {
+        const result = createBaseUserProfile(
+            { uid: "abc123", email: "auth@example.com" },
+            { email: "override@example.com" }
+        );
+
+        expect(result.email).toBe("override@example.com");
+    });
+
+    test("createBaseUserProfile handles missing authUser", () => {
+>>>>>>> 18e586b (fixed something)
         const result = createBaseUserProfile(null, null);
 
         expect(result.uid).toBe("");
         expect(result.displayName).toBe("");
         expect(result.email).toBe("");
+<<<<<<< HEAD
         expect(result.phoneNumber).toBe("");
         expect(result.photoURL).toBe("");
         expect(result.roles).toEqual({
@@ -815,16 +1182,25 @@ describe("auth-utils profile shaping", () => {
             vendor: true,
             admin: true
         });
+=======
+>>>>>>> 18e586b (fixed something)
     });
 
     test("applyVendorApplicationToProfile sets vendor status to pending", () => {
         const result = applyVendorApplicationToProfile({
             uid: "abc123",
+<<<<<<< HEAD
             email: "vendor@example.com",
+=======
+            displayName: "Vendor User",
+            email: "vendor@example.com",
+            roles: { customer: true, vendor: false, admin: false },
+>>>>>>> 18e586b (fixed something)
             vendorStatus: "none",
             accountStatus: "active"
         });
 
+<<<<<<< HEAD
         expect(result.vendorStatus).toBe("pending");
         expect(result.vendorReason).toBe("");
         expect(result.roles.vendor).toBe(false);
@@ -1084,6 +1460,55 @@ describe("auth-utils profile shaping", () => {
         expect(result.email).toBe("form@example.com");
         expect(result.phoneNumber).toBe("0712345678");
         expect(result.motivation).toBe("Support platform operations");
+=======
+        expect(result.roles.customer).toBe(true);
+        expect(result.roles.vendor).toBe(false);
+        expect(result.vendorStatus).toBe("pending");
+        expect(typeof result.updatedAt).toBe("string");
+    });
+
+    test("approveVendorProfile approves vendor access", () => {
+        const result = approveVendorProfile({
+            uid: "abc123",
+            displayName: "Vendor User",
+            email: "vendor@example.com",
+            roles: { customer: true, vendor: false, admin: false },
+            vendorStatus: "pending",
+            accountStatus: "active"
+        });
+
+        expect(result.roles.vendor).toBe(true);
+        expect(result.vendorStatus).toBe("approved");
+        expect(typeof result.updatedAt).toBe("string");
+    });
+
+    test("suspendVendorProfile suspends vendor", () => {
+        const result = suspendVendorProfile({
+            uid: "abc123",
+            displayName: "Vendor User",
+            email: "vendor@example.com",
+            roles: { customer: true, vendor: true, admin: false },
+            vendorStatus: "approved",
+            accountStatus: "active"
+        });
+
+        expect(result.vendorStatus).toBe("suspended");
+        expect(typeof result.updatedAt).toBe("string");
+    });
+
+    test("rejectVendorProfile rejects vendor application", () => {
+        const result = rejectVendorProfile({
+            uid: "abc123",
+            displayName: "Vendor User",
+            email: "vendor@example.com",
+            roles: { customer: true, vendor: false, admin: false },
+            vendorStatus: "pending",
+            accountStatus: "active"
+        });
+
+        expect(result.vendorStatus).toBe("rejected");
+        expect(typeof result.updatedAt).toBe("string");
+>>>>>>> 18e586b (fixed something)
     });
 });
 
@@ -1098,10 +1523,20 @@ describe("auth-utils auth error mapping", () => {
         );
     });
 
+<<<<<<< HEAD
     test("maps wrong password and invalid credential errors", () => {
         expect(mapAuthErrorCode("auth/wrong-password")).toBe(
             "Incorrect email or password."
         );
+=======
+    test("maps wrong password error", () => {
+        expect(mapAuthErrorCode("auth/wrong-password")).toBe(
+            "Incorrect email or password."
+        );
+    });
+
+    test("maps invalid credential error", () => {
+>>>>>>> 18e586b (fixed something)
         expect(mapAuthErrorCode("auth/invalid-credential")).toBe(
             "Incorrect email or password."
         );
@@ -1125,6 +1560,7 @@ describe("auth-utils auth error mapping", () => {
         );
     });
 
+<<<<<<< HEAD
     test("maps popup closed and popup blocked errors", () => {
         expect(mapAuthErrorCode("auth/popup-closed-by-user")).toBe(
             "The sign-in popup was closed before completing sign-in."
@@ -1138,6 +1574,12 @@ describe("auth-utils auth error mapping", () => {
         expect(mapAuthErrorCode("auth/too-many-requests")).toBe(
             "Too many attempts were made. Please wait a bit and try again."
         );
+=======
+    test("maps popup closed by user error", () => {
+        expect(mapAuthErrorCode("auth/popup-closed-by-user")).toBe(
+            "The sign-in popup was closed before completing sign-in."
+        );
+>>>>>>> 18e586b (fixed something)
     });
 
     test("maps unknown errors to fallback message", () => {
@@ -1145,4 +1587,8 @@ describe("auth-utils auth error mapping", () => {
             "Something went wrong. Please try again."
         );
     });
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 18e586b (fixed something)

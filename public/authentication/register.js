@@ -4,7 +4,11 @@
  * Registration page logic for the Campus Food Ordering Platform.
  * This file:
  * - validates registration form data
+<<<<<<< HEAD
  * - supports customer, vendor, and admin registration entry points
+=======
+ * - supports customer and vendor registration entry points
+>>>>>>> 18e586b (fixed something)
  * - supports Google and Apple sign-up/sign-in entry points
  * - uses injected services so it stays easy to test
  * - can be used in the browser through initializeRegisterPage(...)
@@ -27,10 +31,15 @@ function getFormField(form, fieldName) {
 }
 
 function extractRegisterFormValues(form) {
+<<<<<<< HEAD
+=======
+    const fullNameField = getFormField(form, "fullName");
+>>>>>>> 18e586b (fixed something)
     const emailField = getFormField(form, "email");
     const passwordField = getFormField(form, "password");
     const confirmPasswordField = getFormField(form, "confirmPassword");
     const accountTypeField = getFormField(form, "accountType");
+<<<<<<< HEAD
     const fullNameField = getFormField(form, "fullName");
     const phoneNumberField = getFormField(form, "phoneNumber");
     const businessNameField = getFormField(form, "businessName");
@@ -55,17 +64,31 @@ function extractRegisterFormValues(form) {
         description: descriptionField ? descriptionField.value : "",
         department: departmentField ? departmentField.value : "",
         motivation: motivationField ? motivationField.value : ""
+=======
+
+    return {
+        fullName: fullNameField ? fullNameField.value : "",
+        email: emailField ? emailField.value : "",
+        password: passwordField ? passwordField.value : "",
+        confirmPassword: confirmPasswordField ? confirmPasswordField.value : "",
+        accountType: accountTypeField ? accountTypeField.value : "customer"
+>>>>>>> 18e586b (fixed something)
     };
 }
 
 function buildRegisterPayload(rawValues) {
     return {
+<<<<<<< HEAD
+=======
+        fullName: normalizeText(rawValues.fullName),
+>>>>>>> 18e586b (fixed something)
         email: normalizeEmail(rawValues.email),
         password: typeof rawValues.password === "string" ? rawValues.password : "",
         confirmPassword:
             typeof rawValues.confirmPassword === "string"
                 ? rawValues.confirmPassword
                 : "",
+<<<<<<< HEAD
         accountType: normalizeText(rawValues.accountType).toLowerCase() || "customer",
         fullName: normalizeText(rawValues.fullName),
         phoneNumber: normalizeText(rawValues.phoneNumber),
@@ -76,10 +99,14 @@ function buildRegisterPayload(rawValues) {
         description: normalizeText(rawValues.description),
         department: normalizeText(rawValues.department),
         motivation: normalizeText(rawValues.motivation)
+=======
+        accountType: normalizeText(rawValues.accountType).toLowerCase() || "customer"
+>>>>>>> 18e586b (fixed something)
     };
 }
 
 function isValidAccountType(accountType) {
+<<<<<<< HEAD
     return (
         accountType === "customer" ||
         accountType === "vendor" ||
@@ -89,6 +116,9 @@ function isValidAccountType(accountType) {
 
 function requiresExtendedDetails(accountType) {
     return accountType === "vendor" || accountType === "admin";
+=======
+    return accountType === "customer" || accountType === "vendor";
+>>>>>>> 18e586b (fixed something)
 }
 
 function validateRegisterPayload(payload, authUtils) {
@@ -98,6 +128,13 @@ function validateRegisterPayload(payload, authUtils) {
         throw new Error("authUtils is required.");
     }
 
+<<<<<<< HEAD
+=======
+    if (!authUtils.isNonEmptyString(payload.fullName)) {
+        errors.fullName = "Full name is required.";
+    }
+
+>>>>>>> 18e586b (fixed something)
     if (!authUtils.isValidEmail(payload.email)) {
         errors.email = "Please enter a valid email address.";
     }
@@ -114,6 +151,7 @@ function validateRegisterPayload(payload, authUtils) {
         errors.accountType = "Please choose a valid account type.";
     }
 
+<<<<<<< HEAD
     if (payload.accountType === "vendor") {
         if (!authUtils.isNonEmptyString(payload.fullName)) {
             errors.fullName = "Full name is required for vendor registration.";
@@ -162,6 +200,8 @@ function validateRegisterPayload(payload, authUtils) {
         }
     }
 
+=======
+>>>>>>> 18e586b (fixed something)
     return {
         isValid: Object.keys(errors).length === 0,
         errors
@@ -220,10 +260,13 @@ function getSuccessMessage(accountType) {
         return "Registration successful. Your vendor application is awaiting approval.";
     }
 
+<<<<<<< HEAD
     if (accountType === "admin") {
         return "Registration successful. Your admin application is awaiting approval.";
     }
 
+=======
+>>>>>>> 18e586b (fixed something)
     return "Registration successful.";
 }
 
@@ -238,6 +281,7 @@ async function submitRegistration(payload, dependencies) {
         email: payload.email,
         password: payload.password,
         displayName: payload.fullName,
+<<<<<<< HEAD
         accountType: payload.accountType,
         phoneNumber: payload.phoneNumber,
         businessName: payload.businessName,
@@ -287,6 +331,12 @@ function toggleRegistrationRoleSections(options = {}) {
     }
 }
 
+=======
+        accountType: payload.accountType
+    });
+}
+
+>>>>>>> 18e586b (fixed something)
 async function submitGoogleRegistration(dependencies) {
     const authService = dependencies && dependencies.authService;
 
@@ -527,12 +577,15 @@ function initializeRegisterPage(options = {}) {
     const statusElement = document.querySelector(statusSelector);
     const googleButton = document.querySelector(googleButtonSelector);
     const appleButton = document.querySelector(appleButtonSelector);
+<<<<<<< HEAD
     const accountTypeField = getFormField(form, "accountType");
     const vendorSection = document.querySelector("#vendor-register-fields");
     const adminSection = document.querySelector("#admin-register-fields");
     const detailsHint = document.querySelector("#register-role-hint");
     const fullNameRow = document.querySelector("[data-register-row='fullName']");
     const phoneNumberRow = document.querySelector("[data-register-row='phoneNumber']");
+=======
+>>>>>>> 18e586b (fixed something)
 
     if (!form) {
         throw new Error("Register form not found.");
@@ -561,6 +614,7 @@ function initializeRegisterPage(options = {}) {
         navigate: resolvedNavigate
     });
 
+<<<<<<< HEAD
     if (accountTypeField) {
         toggleRegistrationRoleSections({
             accountType: accountTypeField.value,
@@ -583,6 +637,8 @@ function initializeRegisterPage(options = {}) {
         });
     }
 
+=======
+>>>>>>> 18e586b (fixed something)
     let googleController = null;
     let appleController = null;
 
@@ -618,7 +674,10 @@ const registerPage = {
     extractRegisterFormValues,
     buildRegisterPayload,
     isValidAccountType,
+<<<<<<< HEAD
     requiresExtendedDetails,
+=======
+>>>>>>> 18e586b (fixed something)
     validateRegisterPayload,
     clearFieldErrors,
     showFieldErrors,
@@ -628,8 +687,11 @@ const registerPage = {
     submitRegistration,
     submitGoogleRegistration,
     submitAppleRegistration,
+<<<<<<< HEAD
     setElementHidden,
     toggleRegistrationRoleSections,
+=======
+>>>>>>> 18e586b (fixed something)
     handleAuthSuccess,
     handleAuthFailure,
     attachRegisterHandler,
@@ -643,4 +705,8 @@ if (typeof module !== "undefined" && module.exports) {
 
 if (typeof window !== "undefined") {
     window.registerPage = registerPage;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 18e586b (fixed something)

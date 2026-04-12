@@ -1,6 +1,7 @@
 /**
  * role-choice.js
  *
+<<<<<<< HEAD
  * Portal selection page logic for the Campus Food Ordering Platform.
  * This file:
  * - reads the signed-in user's profile
@@ -13,12 +14,21 @@
  * - vendorStatus
  * - adminApplicationStatus
  * - accountStatus
+=======
+ * Role selection page logic for the Campus Food Ordering Platform.
+ * This file:
+ * - lets a signed-in user choose customer or vendor
+ * - updates the user's profile role in Firestore
+ * - uses injected services so it stays easy to test
+ * - can be used in the browser through initializeRoleChoicePage(...)
+>>>>>>> 18e586b (fixed something)
  */
 
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
 
+<<<<<<< HEAD
 function normalizePortal(portal) {
     return normalizeText(portal).toLowerCase();
 }
@@ -177,6 +187,15 @@ function getPortalRoute(portal, authUtils) {
     }
 
     return fallbackRoutes.login;
+=======
+function normalizeRole(role) {
+    return normalizeText(role).toLowerCase();
+}
+
+function isValidRole(role) {
+    const normalizedRole = normalizeRole(role);
+    return normalizedRole === "customer" || normalizedRole === "vendor";
+>>>>>>> 18e586b (fixed something)
 }
 
 function setStatusMessage(statusElement, message, state) {
@@ -196,6 +215,7 @@ function setButtonState(button, isDisabled) {
     button.disabled = !!isDisabled;
 }
 
+<<<<<<< HEAD
 function setElementHidden(element, isHidden) {
     if (!element) {
         return;
@@ -454,15 +474,52 @@ async function submitPortalChoice(portal, dependencies = {}) {
             message: "Please choose a valid portal."
         };
     }
+=======
+function getNextRouteForRole(role) {
+    const normalizedRole = normalizeRole(role);
+
+    if (normalizedRole === "vendor") {
+        return "./pending-vendor.html";
+    }
+
+    return "../customer/index.html";
+}
+
+function buildRoleUpdates(role, existingProfile = {}) {
+    const normalizedRole = normalizeRole(role);
+    const existingRoles =
+        existingProfile && existingProfile.roles ? existingProfile.roles : {};
+
+    return {
+        roles: {
+            customer: normalizedRole === "customer",
+            vendor: normalizedRole === "vendor",
+            admin: !!existingRoles.admin
+        },
+        vendorStatus: normalizedRole === "vendor" ? "pending" : "none"
+    };
+}
+
+async function submitRoleChoice(role, dependencies) {
+    const authService = dependencies && dependencies.authService;
+>>>>>>> 18e586b (fixed something)
 
     if (!authService || typeof authService.getCurrentUser !== "function") {
         throw new Error("authService.getCurrentUser is required.");
     }
 
+<<<<<<< HEAD
+=======
+    if (!authService || typeof authService.updateUserProfile !== "function") {
+        throw new Error("authService.updateUserProfile is required.");
+    }
+
+>>>>>>> 18e586b (fixed something)
     if (!authService || typeof authService.getCurrentUserProfile !== "function") {
         throw new Error("authService.getCurrentUserProfile is required.");
     }
 
+<<<<<<< HEAD
     const user = authService.getCurrentUser();
 
     if (!user || !user.uid) {
@@ -507,10 +564,46 @@ function attachPortalChoiceHandler(options = {}) {
         portal,
         authService,
         authUtils,
+=======
+    if (!isValidRole(role)) {
+        return {
+            success: false,
+            message: "Please choose a valid role."
+        };
+    }
+
+    const user = authService.getCurrentUser();
+
+    if (!user) {
+        return {
+            success: false,
+            message: "No user is currently signed in."
+        };
+    }
+
+    const existingProfile = await authService.getCurrentUserProfile(user.uid);
+    const updates = buildRoleUpdates(role, existingProfile || {});
+    await authService.updateUserProfile(user.uid, updates);
+
+    return {
+        success: true,
+        role: normalizeRole(role),
+        updates,
+        nextRoute: getNextRouteForRole(role)
+    };
+}
+
+function attachRoleChoiceHandler(options) {
+    const {
+        button,
+        role,
+        authService,
+>>>>>>> 18e586b (fixed something)
         statusElement,
         navigate,
         onSuccess,
         onError
+<<<<<<< HEAD
     } = options;
 
     if (!button) {
@@ -519,6 +612,16 @@ function attachPortalChoiceHandler(options = {}) {
 
     if (!isValidPortal(portal)) {
         throw new Error("A valid portal is required.");
+=======
+    } = options || {};
+
+    if (!button) {
+        throw new Error("A role choice button is required.");
+    }
+
+    if (!isValidRole(role)) {
+        throw new Error("A valid role is required.");
+>>>>>>> 18e586b (fixed something)
     }
 
     if (!authService) {
@@ -534,9 +637,14 @@ function attachPortalChoiceHandler(options = {}) {
         setStatusMessage(statusElement, "", "");
 
         try {
+<<<<<<< HEAD
             const result = await submitPortalChoice(portal, {
                 authService,
                 authUtils
+=======
+            const result = await submitRoleChoice(role, {
+                authService
+>>>>>>> 18e586b (fixed something)
             });
 
             setButtonState(button, false);
@@ -544,7 +652,11 @@ function attachPortalChoiceHandler(options = {}) {
             if (!result.success) {
                 setStatusMessage(
                     statusElement,
+<<<<<<< HEAD
                     result.message || "Unable to continue right now.",
+=======
+                    result.message || "Unable to save your role choice right now.",
+>>>>>>> 18e586b (fixed something)
                     "error"
                 );
 
@@ -555,7 +667,11 @@ function attachPortalChoiceHandler(options = {}) {
                 return result;
             }
 
+<<<<<<< HEAD
             setStatusMessage(statusElement, "Opening portal...", "success");
+=======
+            setStatusMessage(statusElement, "Role selected successfully.", "success");
+>>>>>>> 18e586b (fixed something)
 
             if (typeof onSuccess === "function") {
                 onSuccess(result);
@@ -570,7 +686,11 @@ function attachPortalChoiceHandler(options = {}) {
             const message =
                 error && error.message
                     ? error.message
+<<<<<<< HEAD
                     : "Unable to continue right now.";
+=======
+                    : "Unable to save your role choice right now.";
+>>>>>>> 18e586b (fixed something)
 
             setButtonState(button, false);
             setStatusMessage(statusElement, message, "error");
@@ -593,6 +713,7 @@ function attachPortalChoiceHandler(options = {}) {
     };
 }
 
+<<<<<<< HEAD
 function getPortalDisplayElement(sectionElement, buttonElement) {
     if (sectionElement) {
         return sectionElement;
@@ -733,11 +854,26 @@ async function initializeRoleChoicePage(options = {}) {
     const adminButtonSelector =
         options.adminButtonSelector ||
         "#choose-admin, #go-admin, [data-portal-button='admin']";
+=======
+function initializeRoleChoicePage(options = {}) {
+    const {
+        authService = typeof window !== "undefined" ? window.authService : undefined,
+        statusSelector = "#role-choice-status",
+        customerButtonSelector = "#choose-customer",
+        vendorButtonSelector = "#choose-vendor",
+        navigate
+    } = options;
+
+    const statusElement = document.querySelector(statusSelector);
+    const customerButton = document.querySelector(customerButtonSelector);
+    const vendorButton = document.querySelector(vendorButtonSelector);
+>>>>>>> 18e586b (fixed something)
 
     if (!authService) {
         throw new Error("authService is required.");
     }
 
+<<<<<<< HEAD
     const statusElement = document.querySelector(statusSelector);
     const summaryElement = document.querySelector(summarySelector);
     const applicationStateElement = document.querySelector(applicationStateSelector);
@@ -868,10 +1004,44 @@ async function initializeRoleChoicePage(options = {}) {
             message
         };
     }
+=======
+    const resolvedNavigate =
+        typeof navigate === "function"
+            ? navigate
+            : (nextRoute) => {
+                window.location.href = nextRoute;
+            };
+
+    const customerController = customerButton
+        ? attachRoleChoiceHandler({
+            button: customerButton,
+            role: "customer",
+            authService,
+            statusElement,
+            navigate: resolvedNavigate
+        })
+        : null;
+
+    const vendorController = vendorButton
+        ? attachRoleChoiceHandler({
+            button: vendorButton,
+            role: "vendor",
+            authService,
+            statusElement,
+            navigate: resolvedNavigate
+        })
+        : null;
+
+    return {
+        customerController,
+        vendorController
+    };
+>>>>>>> 18e586b (fixed something)
 }
 
 const roleChoicePage = {
     normalizeText,
+<<<<<<< HEAD
     normalizePortal,
     normalizeVendorStatus,
     normalizeAdminApplicationStatus,
@@ -901,6 +1071,16 @@ const roleChoicePage = {
     getPortalDisplayElement,
     renderRoleChoicePage,
     loadRoleChoiceState,
+=======
+    normalizeRole,
+    isValidRole,
+    setStatusMessage,
+    setButtonState,
+    getNextRouteForRole,
+    buildRoleUpdates,
+    submitRoleChoice,
+    attachRoleChoiceHandler,
+>>>>>>> 18e586b (fixed something)
     initializeRoleChoicePage
 };
 
@@ -910,4 +1090,8 @@ if (typeof module !== "undefined" && module.exports) {
 
 if (typeof window !== "undefined") {
     window.roleChoicePage = roleChoicePage;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 18e586b (fixed something)

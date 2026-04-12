@@ -1,6 +1,7 @@
 /**
  * profile.js
  *
+<<<<<<< HEAD
  * Signed-in profile page logic for the Campus Food Ordering Platform.
  * This file:
  * - loads the authenticated user's profile
@@ -14,12 +15,22 @@
  * - vendorStatus
  * - adminApplicationStatus
  * - accountStatus
+=======
+ * Profile page logic for the Campus Food Ordering Platform.
+ * This file:
+ * - loads the signed-in user's profile
+ * - renders profile details into the page
+ * - supports sign out
+ * - uses injected services so it stays easy to test
+ * - can be used in the browser through initializeProfilePage(...)
+>>>>>>> 18e586b (fixed something)
  */
 
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
 
+<<<<<<< HEAD
 function normalizeVendorStatus(status) {
     const value = normalizeText(status).toLowerCase();
 
@@ -124,6 +135,8 @@ function normalizeUserProfile(profile, authUtils) {
     };
 }
 
+=======
+>>>>>>> 18e586b (fixed something)
 function setTextContent(element, value, fallback = "-") {
     if (!element) {
         return;
@@ -142,6 +155,7 @@ function setStatusMessage(statusElement, message, state) {
     statusElement.dataset.state = state || "";
 }
 
+<<<<<<< HEAD
 function clearStatusMessage(statusElement) {
     setStatusMessage(statusElement, "", "");
 }
@@ -211,12 +225,25 @@ function getRoleLabel(profile, authUtils) {
     }
 
     if (safeProfile.vendorStatus === "approved") {
+=======
+function getRoleLabel(profile) {
+    if (!profile || !profile.roles) {
+        return "Customer";
+    }
+
+    if (profile.roles.admin) {
+        return "Admin";
+    }
+
+    if (profile.roles.vendor) {
+>>>>>>> 18e586b (fixed something)
         return "Vendor";
     }
 
     return "Customer";
 }
 
+<<<<<<< HEAD
 function getVendorStatusLabel(profile, authUtils) {
     const safeProfile = normalizeUserProfile(profile, authUtils);
 
@@ -259,6 +286,32 @@ function getAdminStatusLabel(profile, authUtils) {
     }
 
     return "Not Applied";
+=======
+function getVendorStatusLabel(profile) {
+    if (!profile || !profile.vendorStatus) {
+        return "None";
+    }
+
+    const status = String(profile.vendorStatus).toLowerCase();
+
+    if (status === "pending") {
+        return "Pending";
+    }
+
+    if (status === "approved") {
+        return "Approved";
+    }
+
+    if (status === "rejected") {
+        return "Rejected";
+    }
+
+    if (status === "suspended") {
+        return "Suspended";
+    }
+
+    return "None";
+>>>>>>> 18e586b (fixed something)
 }
 
 function getDisplayName(profile, user) {
@@ -285,6 +338,7 @@ function getEmail(profile, user) {
     return "";
 }
 
+<<<<<<< HEAD
 function getPhoneNumber(profile, user) {
     if (profile && normalizeText(profile.phoneNumber)) {
         return profile.phoneNumber;
@@ -787,6 +841,15 @@ function getFriendlyErrorMessage(error, authUtils, fallbackMessage) {
     }
 
     return normalizeText(error.message) || fallback;
+=======
+function renderProfile(profileElements, profile, user) {
+    const elements = profileElements || {};
+
+    setTextContent(elements.nameElement, getDisplayName(profile, user));
+    setTextContent(elements.emailElement, getEmail(profile, user));
+    setTextContent(elements.roleElement, getRoleLabel(profile));
+    setTextContent(elements.vendorStatusElement, getVendorStatusLabel(profile));
+>>>>>>> 18e586b (fixed something)
 }
 
 function waitForAuthenticatedUser(authService) {
@@ -795,7 +858,10 @@ function waitForAuthenticatedUser(authService) {
     }
 
     const currentUser = authService.getCurrentUser();
+<<<<<<< HEAD
 
+=======
+>>>>>>> 18e586b (fixed something)
     if (currentUser) {
         return Promise.resolve(currentUser);
     }
@@ -805,9 +871,13 @@ function waitForAuthenticatedUser(authService) {
     }
 
     return new Promise((resolve) => {
+<<<<<<< HEAD
         let unsubscribe = null;
 
         unsubscribe = authService.observeAuthState((user) => {
+=======
+        const unsubscribe = authService.observeAuthState((user) => {
+>>>>>>> 18e586b (fixed something)
             if (typeof unsubscribe === "function") {
                 unsubscribe();
             }
@@ -819,7 +889,10 @@ function waitForAuthenticatedUser(authService) {
 
 async function loadCurrentUserProfile(dependencies) {
     const authService = dependencies && dependencies.authService;
+<<<<<<< HEAD
     const authUtils = resolveAuthUtils(dependencies && dependencies.authUtils);
+=======
+>>>>>>> 18e586b (fixed something)
 
     if (!authService || typeof authService.getCurrentUser !== "function") {
         throw new Error("authService.getCurrentUser is required.");
@@ -839,6 +912,7 @@ async function loadCurrentUserProfile(dependencies) {
     }
 
     const profile = await authService.getCurrentUserProfile(user.uid);
+<<<<<<< HEAD
     const normalizedProfile = normalizeUserProfile(profile || {
         uid: user.uid,
         displayName: user.displayName || "",
@@ -846,11 +920,17 @@ async function loadCurrentUserProfile(dependencies) {
         phoneNumber: user.phoneNumber || "",
         photoURL: user.photoURL || ""
     }, authUtils);
+=======
+>>>>>>> 18e586b (fixed something)
 
     return {
         success: true,
         user,
+<<<<<<< HEAD
         profile: normalizedProfile
+=======
+        profile
+>>>>>>> 18e586b (fixed something)
     };
 }
 
@@ -864,6 +944,7 @@ async function signOutCurrentUser(dependencies) {
     await authService.signOutUser();
 
     return {
+<<<<<<< HEAD
         success: true,
         message: "You have been signed out."
     };
@@ -1021,11 +1102,24 @@ async function initializeProfileView(options = {}) {
     const statusElement = options.statusElement;
     const profileElements = options.profileElements || {};
     const formElements = options.formElements || {};
+=======
+        success: true
+    };
+}
+
+async function initializeProfileView(options) {
+    const {
+        authService,
+        statusElement,
+        profileElements
+    } = options || {};
+>>>>>>> 18e586b (fixed something)
 
     setStatusMessage(statusElement, "Loading profile...", "loading");
 
     try {
         const result = await loadCurrentUserProfile({
+<<<<<<< HEAD
             authService,
             authUtils
         });
@@ -1037,15 +1131,33 @@ async function initializeProfileView(options = {}) {
 
         renderProfile(profileElements, result.profile, result.user, authUtils);
         populateProfileForm(formElements, result.profile, result.user);
+=======
+            authService
+        });
+
+        if (!result.success) {
+            setStatusMessage(statusElement, result.message, "error");
+            return result;
+        }
+
+        renderProfile(profileElements, result.profile, result.user);
+>>>>>>> 18e586b (fixed something)
         setStatusMessage(statusElement, "Profile loaded.", "success");
 
         return result;
     } catch (error) {
+<<<<<<< HEAD
         const message = getFriendlyErrorMessage(
             error,
             authUtils,
             "Unable to load profile."
         );
+=======
+        const message =
+            error && error.message
+                ? error.message
+                : "Unable to load profile right now. Please try again.";
+>>>>>>> 18e586b (fixed something)
 
         setStatusMessage(statusElement, message, "error");
 
@@ -1079,14 +1191,20 @@ function attachSignOutHandler(options) {
             event.preventDefault();
         }
 
+<<<<<<< HEAD
         setButtonState(button, true);
         setStatusMessage(statusElement, "Signing you out...", "loading");
+=======
+        button.disabled = true;
+        setStatusMessage(statusElement, "", "");
+>>>>>>> 18e586b (fixed something)
 
         try {
             const result = await signOutCurrentUser({
                 authService
             });
 
+<<<<<<< HEAD
             setButtonState(button, false);
             setStatusMessage(statusElement, result.message || "You have been signed out.", "success");
 
@@ -1581,6 +1699,10 @@ function attachDeleteAccountHandler(options) {
                 result.message || "Your account has been deleted.",
                 "success"
             );
+=======
+            setStatusMessage(statusElement, "Signed out successfully.", "success");
+            button.disabled = false;
+>>>>>>> 18e586b (fixed something)
 
             if (typeof onSuccess === "function") {
                 onSuccess(result);
@@ -1592,6 +1714,7 @@ function attachDeleteAccountHandler(options) {
 
             return result;
         } catch (error) {
+<<<<<<< HEAD
             const message = getFriendlyErrorMessage(
                 error,
                 authUtils,
@@ -1600,6 +1723,15 @@ function attachDeleteAccountHandler(options) {
 
             setButtonState(button, false);
             setStatusMessage(accountMessageElement, message, "error");
+=======
+            const message =
+                error && error.message
+                    ? error.message
+                    : "Unable to sign out right now. Please try again.";
+
+            setStatusMessage(statusElement, message, "error");
+            button.disabled = false;
+>>>>>>> 18e586b (fixed something)
 
             if (typeof onError === "function") {
                 onError(error);
@@ -1619,6 +1751,7 @@ function attachDeleteAccountHandler(options) {
     };
 }
 
+<<<<<<< HEAD
 function attachDeleteConfirmationToggle(options = {}) {
     const checkbox = options.checkbox;
     const button = options.button;
@@ -1681,10 +1814,34 @@ function initializeProfilePage(options = {}) {
         confirmAction
     } = options;
 
+=======
+function initializeProfilePage(options = {}) {
+    const {
+        authService = typeof window !== "undefined" ? window.authService : undefined,
+        statusSelector = "#profile-status",
+        nameSelector = "#profile-name",
+        emailSelector = "#profile-email",
+        roleSelector = "#profile-role",
+        vendorStatusSelector = "#profile-vendor-status",
+        signOutButtonSelector = "#signout-button",
+        navigate
+    } = options;
+
+    const statusElement = document.querySelector(statusSelector);
+    const profileElements = {
+        nameElement: document.querySelector(nameSelector),
+        emailElement: document.querySelector(emailSelector),
+        roleElement: document.querySelector(roleSelector),
+        vendorStatusElement: document.querySelector(vendorStatusSelector)
+    };
+    const signOutButton = document.querySelector(signOutButtonSelector);
+
+>>>>>>> 18e586b (fixed something)
     if (!authService) {
         throw new Error("authService is required.");
     }
 
+<<<<<<< HEAD
     const statusElement = document.querySelector(statusSelector);
     const photoMessageElement = document.querySelector(photoMessageSelector);
     const accountMessageElement = document.querySelector(accountMessageSelector);
@@ -1757,6 +1914,15 @@ function initializeProfilePage(options = {}) {
         })
         : null;
 
+=======
+    const resolvedNavigate =
+        typeof navigate === "function"
+            ? navigate
+            : (nextRoute) => {
+                window.location.href = nextRoute;
+            };
+
+>>>>>>> 18e586b (fixed something)
     const signOutController = signOutButton
         ? attachSignOutHandler({
             button: signOutButton,
@@ -1766,6 +1932,7 @@ function initializeProfilePage(options = {}) {
         })
         : null;
 
+<<<<<<< HEAD
     const backController = backButton
         ? attachBackHandler({
             button: backButton,
@@ -1842,11 +2009,23 @@ function initializeProfilePage(options = {}) {
         deleteAccountController,
         profilePromise,
         refreshProfile
+=======
+    const profilePromise = initializeProfileView({
+        authService,
+        statusElement,
+        profileElements
+    });
+
+    return {
+        signOutController,
+        profilePromise
+>>>>>>> 18e586b (fixed something)
     };
 }
 
 const profilePage = {
     normalizeText,
+<<<<<<< HEAD
     normalizeVendorStatus,
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
@@ -1908,6 +2087,20 @@ const profilePage = {
     attachRemovePhotoHandler,
     attachDeleteConfirmationToggle,
     attachDeleteAccountHandler,
+=======
+    setTextContent,
+    setStatusMessage,
+    getRoleLabel,
+    getVendorStatusLabel,
+    getDisplayName,
+    getEmail,
+    renderProfile,
+    waitForAuthenticatedUser,
+    loadCurrentUserProfile,
+    signOutCurrentUser,
+    initializeProfileView,
+    attachSignOutHandler,
+>>>>>>> 18e586b (fixed something)
     initializeProfilePage
 };
 
@@ -1917,4 +2110,8 @@ if (typeof module !== "undefined" && module.exports) {
 
 if (typeof window !== "undefined") {
     window.profilePage = profilePage;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 18e586b (fixed something)

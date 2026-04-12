@@ -4,6 +4,7 @@
  * Testable authentication service logic for the Campus Food Ordering Platform.
  * This file contains no browser CDN imports and no direct DOM work.
  * It is designed to be the real unit-test target for authentication logic.
+<<<<<<< HEAD
  *
  * Firestore source of truth:
  * - isAdmin
@@ -18,6 +19,8 @@
  * - providerPhotoURL: original Google / Apple profile image if available
  * - uploadedPhotoURL: Firebase Storage download URL for the uploaded image
  * - uploadedPhotoPath: Firebase Storage object path for delete / replace actions
+=======
+>>>>>>> 18e586b (fixed something)
  */
 
 function ensureDependency(value, name) {
@@ -31,8 +34,11 @@ function ensureDependency(value, name) {
 function createAuthService(dependencies = {}) {
     const injectedAuth = ensureDependency(dependencies.auth, "auth");
     const injectedDb = ensureDependency(dependencies.db, "db");
+<<<<<<< HEAD
     const injectedStorage = dependencies.storage || null;
 
+=======
+>>>>>>> 18e586b (fixed something)
     const injectedGoogleProvider = ensureDependency(
         dependencies.googleProvider,
         "googleProvider"
@@ -44,6 +50,7 @@ function createAuthService(dependencies = {}) {
 
     const authFns = ensureDependency(dependencies.authFns, "authFns");
     const firestoreFns = ensureDependency(dependencies.firestoreFns, "firestoreFns");
+<<<<<<< HEAD
     const storageFns = dependencies.storageFns || {};
     const utils = ensureDependency(dependencies.utils, "utils");
 
@@ -403,6 +410,10 @@ function createAuthService(dependencies = {}) {
         await firestoreFns.setDoc(userRef, payload);
     }
 
+=======
+    const utils = ensureDependency(dependencies.utils, "utils");
+
+>>>>>>> 18e586b (fixed something)
     async function createUser(email, password) {
         const result = await authFns.createUserWithEmailAndPassword(
             injectedAuth,
@@ -447,7 +458,14 @@ function createAuthService(dependencies = {}) {
     }
 
     async function sendPasswordReset(email) {
+<<<<<<< HEAD
         requireAuthFunction("sendPasswordResetEmail");
+=======
+        if (typeof authFns.sendPasswordResetEmail !== "function") {
+            throw new Error("authFns.sendPasswordResetEmail is required.");
+        }
+
+>>>>>>> 18e586b (fixed something)
         await authFns.sendPasswordResetEmail(injectedAuth, email);
         return true;
     }
@@ -457,6 +475,7 @@ function createAuthService(dependencies = {}) {
             return;
         }
 
+<<<<<<< HEAD
         requireAuthFunction("updateProfile");
         await authFns.updateProfile(user, { displayName });
     }
@@ -493,6 +512,11 @@ function createAuthService(dependencies = {}) {
         return true;
     }
 
+=======
+        await authFns.updateProfile(user, { displayName });
+    }
+
+>>>>>>> 18e586b (fixed something)
     function getCurrentUser() {
         return injectedAuth.currentUser || null;
     }
@@ -502,10 +526,13 @@ function createAuthService(dependencies = {}) {
     }
 
     async function getUserProfile(uid) {
+<<<<<<< HEAD
         if (!uid) {
             return null;
         }
 
+=======
+>>>>>>> 18e586b (fixed something)
         const userRef = getUserDocRef(uid);
         const snapshot = await firestoreFns.getDoc(userRef);
 
@@ -517,6 +544,7 @@ function createAuthService(dependencies = {}) {
     }
 
     async function getCurrentUserProfile(uid) {
+<<<<<<< HEAD
         const currentUser = getCurrentUser();
         const targetUid = uid || (currentUser && currentUser.uid);
 
@@ -852,10 +880,48 @@ function createAuthService(dependencies = {}) {
             safeOptions.photoURL ||
             (authUser && authUser.photoURL) ||
             "";
+=======
+        return getUserProfile(uid);
+    }
+
+    async function saveUserProfile(profile) {
+        const userRef = getUserDocRef(profile.uid);
+
+        await firestoreFns.setDoc(userRef, {
+            ...profile,
+            createdAt: firestoreFns.serverTimestamp(),
+            updatedAt: firestoreFns.serverTimestamp()
+        });
+
+        return profile;
+    }
+
+    async function updateUserProfile(uid, updates) {
+        const userRef = getUserDocRef(uid);
+
+        await firestoreFns.updateDoc(userRef, {
+            ...updates,
+            updatedAt: firestoreFns.serverTimestamp()
+        });
+
+        return {
+            uid,
+            ...updates
+        };
+    }
+
+    async function ensureUserProfile(authUser, options = {}) {
+        const {
+            accountType = "customer",
+            displayName = authUser && authUser.displayName ? authUser.displayName : "",
+            email = authUser && authUser.email ? authUser.email : ""
+        } = options;
+>>>>>>> 18e586b (fixed something)
 
         const existingProfile = await getUserProfile(authUser.uid);
 
         if (existingProfile) {
+<<<<<<< HEAD
             return syncExistingUserProfile(authUser, existingProfile, {
                 displayName,
                 email,
@@ -863,10 +929,14 @@ function createAuthService(dependencies = {}) {
                 photoURL: providerPhotoURL,
                 providerPhotoURL
             });
+=======
+            return existingProfile;
+>>>>>>> 18e586b (fixed something)
         }
 
         let profile = utils.createBaseUserProfile(authUser, {
             displayName,
+<<<<<<< HEAD
             email,
             phoneNumber,
             photoURL: providerPhotoURL
@@ -939,14 +1009,29 @@ function createAuthService(dependencies = {}) {
                     ? utils.mapAuthErrorCode(error && error.code)
                     : "Something went wrong. Please try again."
         };
+=======
+            email
+        });
+
+        if (accountType === "vendor") {
+            profile = utils.applyVendorApplicationToProfile(profile);
+        }
+
+        await saveUserProfile(profile);
+        return profile;
+>>>>>>> 18e586b (fixed something)
     }
 
     async function registerWithEmail({
         email,
         password,
         displayName,
+<<<<<<< HEAD
         accountType = "customer",
         ...registrationDetails
+=======
+        accountType = "customer"
+>>>>>>> 18e586b (fixed something)
     }) {
         try {
             const user = await createUser(email, password);
@@ -958,6 +1043,7 @@ function createAuthService(dependencies = {}) {
             const profile = await ensureUserProfile(user, {
                 accountType,
                 displayName,
+<<<<<<< HEAD
                 email,
                 ...registrationDetails
             });
@@ -965,6 +1051,23 @@ function createAuthService(dependencies = {}) {
             return resolveAuthResult(user, profile);
         } catch (error) {
             return resolveAuthError(error);
+=======
+                email
+            });
+
+            return {
+                success: true,
+                user,
+                profile,
+                nextRoute: utils.getDefaultPortalRoute(profile)
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error,
+                message: utils.mapAuthErrorCode(error.code)
+            };
+>>>>>>> 18e586b (fixed something)
         }
     }
 
@@ -973,6 +1076,7 @@ function createAuthService(dependencies = {}) {
             const user = await loginUser(email, password);
             const profile = await ensureUserProfile(user, {
                 accountType: "customer",
+<<<<<<< HEAD
                 displayName: (user && user.displayName) || "",
                 email: (user && user.email) || email || "",
                 phoneNumber: (user && user.phoneNumber) || "",
@@ -983,6 +1087,24 @@ function createAuthService(dependencies = {}) {
             return resolveAuthResult(user, profile);
         } catch (error) {
             return resolveAuthError(error);
+=======
+                displayName: user.displayName || "",
+                email: user.email || email
+            });
+
+            return {
+                success: true,
+                user,
+                profile,
+                nextRoute: utils.getDefaultPortalRoute(profile)
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error,
+                message: utils.mapAuthErrorCode(error.code)
+            };
+>>>>>>> 18e586b (fixed something)
         }
     }
 
@@ -991,6 +1113,7 @@ function createAuthService(dependencies = {}) {
             const user = await signInWithGoogle();
             const profile = await ensureUserProfile(user, {
                 accountType: "customer",
+<<<<<<< HEAD
                 displayName: (user && user.displayName) || "",
                 email: (user && user.email) || "",
                 phoneNumber: (user && user.phoneNumber) || "",
@@ -1001,6 +1124,24 @@ function createAuthService(dependencies = {}) {
             return resolveAuthResult(user, profile);
         } catch (error) {
             return resolveAuthError(error);
+=======
+                displayName: user.displayName || "",
+                email: user.email || ""
+            });
+
+            return {
+                success: true,
+                user,
+                profile,
+                nextRoute: utils.getDefaultPortalRoute(profile)
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error,
+                message: utils.mapAuthErrorCode(error.code)
+            };
+>>>>>>> 18e586b (fixed something)
         }
     }
 
@@ -1009,6 +1150,7 @@ function createAuthService(dependencies = {}) {
             const user = await signInWithApple();
             const profile = await ensureUserProfile(user, {
                 accountType: "customer",
+<<<<<<< HEAD
                 displayName: (user && user.displayName) || "",
                 email: (user && user.email) || "",
                 phoneNumber: (user && user.phoneNumber) || "",
@@ -1019,6 +1161,24 @@ function createAuthService(dependencies = {}) {
             return resolveAuthResult(user, profile);
         } catch (error) {
             return resolveAuthError(error);
+=======
+                displayName: user.displayName || "",
+                email: user.email || ""
+            });
+
+            return {
+                success: true,
+                user,
+                profile,
+                nextRoute: utils.getDefaultPortalRoute(profile)
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error,
+                message: utils.mapAuthErrorCode(error.code)
+            };
+>>>>>>> 18e586b (fixed something)
         }
     }
 
@@ -1030,7 +1190,15 @@ function createAuthService(dependencies = {}) {
                 success: true
             };
         } catch (error) {
+<<<<<<< HEAD
             return resolveAuthError(error);
+=======
+            return {
+                success: false,
+                error,
+                message: utils.mapAuthErrorCode(error.code)
+            };
+>>>>>>> 18e586b (fixed something)
         }
     }
 
@@ -1047,6 +1215,7 @@ function createAuthService(dependencies = {}) {
         sendPasswordReset,
         sendPasswordResetEmail,
         setDisplayName,
+<<<<<<< HEAD
         updateAuthUserProfile,
         getCurrentUser,
         getCurrentUserOrThrow,
@@ -1063,6 +1232,14 @@ function createAuthService(dependencies = {}) {
         changeCurrentUserPassword,
         deleteCurrentUserAccount,
         syncExistingUserProfile,
+=======
+        getCurrentUser,
+        getUserDocRef,
+        getUserProfile,
+        getCurrentUserProfile,
+        saveUserProfile,
+        updateUserProfile,
+>>>>>>> 18e586b (fixed something)
         ensureUserProfile,
         registerWithEmail,
         loginWithEmail,
@@ -1083,4 +1260,8 @@ if (typeof module !== "undefined" && module.exports) {
 
 if (typeof window !== "undefined") {
     window.authCore = authCore;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 18e586b (fixed something)

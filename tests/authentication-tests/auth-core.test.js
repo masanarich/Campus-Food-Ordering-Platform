@@ -11,7 +11,10 @@ function createMockDependencies() {
             currentUser: null
         },
         db: { name: "mock-db" },
+<<<<<<< HEAD
         storage: { name: "mock-storage" },
+=======
+>>>>>>> 18e586b (fixed something)
         googleProvider: { providerId: "google.com" },
         appleProvider: { providerId: "apple.com" },
         authFns: {
@@ -21,9 +24,13 @@ function createMockDependencies() {
             signOut: jest.fn(),
             onAuthStateChanged: jest.fn(),
             updateProfile: jest.fn(),
+<<<<<<< HEAD
             sendPasswordResetEmail: jest.fn(),
             updatePassword: jest.fn(),
             deleteUser: jest.fn()
+=======
+            sendPasswordResetEmail: jest.fn()
+>>>>>>> 18e586b (fixed something)
         },
         firestoreFns: {
             doc: jest.fn((database, collectionName, uid) => ({
@@ -34,6 +41,7 @@ function createMockDependencies() {
             getDoc: jest.fn(),
             setDoc: jest.fn(),
             updateDoc: jest.fn(),
+<<<<<<< HEAD
             deleteDoc: jest.fn(),
             serverTimestamp: jest.fn(() => "SERVER_TIMESTAMP")
         },
@@ -50,6 +58,11 @@ function createMockDependencies() {
             ...authUtils,
             getPostLoginRoute: jest.fn(() => "../customer/index.html")
         }
+=======
+            serverTimestamp: jest.fn(() => "SERVER_TIMESTAMP")
+        },
+        utils: authUtils
+>>>>>>> 18e586b (fixed something)
     };
 }
 
@@ -112,7 +125,11 @@ describe("auth-core dependency checks", () => {
     });
 });
 
+<<<<<<< HEAD
 describe("auth-core basic auth methods", () => {
+=======
+describe("auth-core service", () => {
+>>>>>>> 18e586b (fixed something)
     test("createUser creates an email/password user", async () => {
         const deps = createMockDependencies();
         const mockUser = { uid: "user-1", email: "faranani@example.com" };
@@ -247,6 +264,7 @@ describe("auth-core basic auth methods", () => {
         expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
 
+<<<<<<< HEAD
     test("setDisplayName throws if updateProfile function is missing", async () => {
         const deps = createMockDependencies();
         delete deps.authFns.updateProfile;
@@ -324,6 +342,8 @@ describe("auth-core basic auth methods", () => {
         expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
 
+=======
+>>>>>>> 18e586b (fixed something)
     test("getCurrentUser returns the current signed-in user", () => {
         const deps = createMockDependencies();
         deps.auth.currentUser = {
@@ -350,6 +370,7 @@ describe("auth-core basic auth methods", () => {
         expect(result).toBeNull();
     });
 
+<<<<<<< HEAD
     test("getCurrentUserOrThrow throws when there is no authenticated user", () => {
         const deps = createMockDependencies();
         deps.auth.currentUser = null;
@@ -380,6 +401,8 @@ describe("auth-core basic auth methods", () => {
 });
 
 describe("auth-core profile document methods", () => {
+=======
+>>>>>>> 18e586b (fixed something)
     test("getUserDocRef creates reference in users collection", () => {
         const deps = createMockDependencies();
         const service = createAuthService(deps);
@@ -407,6 +430,7 @@ describe("auth-core profile document methods", () => {
         expect(result).toBeNull();
     });
 
+<<<<<<< HEAD
     test("getUserProfile returns null when uid is missing", async () => {
         const deps = createMockDependencies();
         const service = createAuthService(deps);
@@ -415,15 +439,22 @@ describe("auth-core profile document methods", () => {
         expect(deps.firestoreFns.getDoc).not.toHaveBeenCalled();
     });
 
+=======
+>>>>>>> 18e586b (fixed something)
     test("getUserProfile returns profile data when it exists", async () => {
         const deps = createMockDependencies();
         const profile = {
             uid: "user-3",
+<<<<<<< HEAD
             email: "user3@example.com",
             isAdmin: false,
             vendorStatus: "none",
             adminApplicationStatus: "none",
             accountStatus: "active"
+=======
+            roles: { customer: true, vendor: false, admin: false },
+            vendorStatus: "none"
+>>>>>>> 18e586b (fixed something)
         };
 
         deps.firestoreFns.getDoc.mockResolvedValue({
@@ -437,6 +468,7 @@ describe("auth-core profile document methods", () => {
         expect(result).toEqual(profile);
     });
 
+<<<<<<< HEAD
     test("getCurrentUserProfile returns null when there is no target uid", async () => {
         const deps = createMockDependencies();
         deps.auth.currentUser = null;
@@ -448,6 +480,30 @@ describe("auth-core profile document methods", () => {
     });
 
     test("saveUserProfile writes a normalized profile to users collection", async () => {
+=======
+    test("getCurrentUserProfile returns profile data for the supplied uid", async () => {
+        const deps = createMockDependencies();
+        const profile = {
+            uid: "user-3",
+            email: "user3@example.com",
+            roles: { customer: true, vendor: false, admin: false },
+            vendorStatus: "none"
+        };
+
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => profile
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.getCurrentUserProfile("user-3");
+
+        expect(result).toEqual(profile);
+        expect(deps.firestoreFns.doc).toHaveBeenCalledWith(deps.db, "users", "user-3");
+    });
+
+    test("saveUserProfile writes profile to users collection", async () => {
+>>>>>>> 18e586b (fixed something)
         const deps = createMockDependencies();
         deps.firestoreFns.setDoc.mockResolvedValue(undefined);
 
@@ -457,6 +513,10 @@ describe("auth-core profile document methods", () => {
             uid: "user-4",
             email: "user4@example.com",
             displayName: "User Four",
+<<<<<<< HEAD
+=======
+            roles: { customer: true, vendor: false, admin: false },
+>>>>>>> 18e586b (fixed something)
             vendorStatus: "none"
         };
 
@@ -469,6 +529,7 @@ describe("auth-core profile document methods", () => {
                 collectionName: "users",
                 uid: "user-4"
             },
+<<<<<<< HEAD
             expect.objectContaining({
                 uid: "user-4",
                 displayName: "User Four",
@@ -579,18 +640,37 @@ describe("auth-core profile document methods", () => {
     });
 
     test("updateUserProfile updates profile fields and canonicalises statuses", async () => {
+=======
+            {
+                ...profile,
+                createdAt: "SERVER_TIMESTAMP",
+                updatedAt: "SERVER_TIMESTAMP"
+            }
+        );
+        expect(result).toEqual(profile);
+    });
+
+    test("updateUserProfile updates profile fields", async () => {
+>>>>>>> 18e586b (fixed something)
         const deps = createMockDependencies();
         deps.firestoreFns.updateDoc.mockResolvedValue(undefined);
 
         const service = createAuthService(deps);
 
         const result = await service.updateUserProfile("user-5", {
+<<<<<<< HEAD
             vendorStatus: "suspended",
             vendorReason: "Policy issue",
             accountStatus: "unknown",
             isAdmin: true
         });
 
+=======
+            vendorStatus: "approved"
+        });
+
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledTimes(1);
+>>>>>>> 18e586b (fixed something)
         expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
             {
                 database: deps.db,
@@ -598,6 +678,7 @@ describe("auth-core profile document methods", () => {
                 uid: "user-5"
             },
             {
+<<<<<<< HEAD
                 isAdmin: true,
                 vendorStatus: "blocked",
                 vendorReason: "Policy issue",
@@ -1258,6 +1339,24 @@ describe("auth-core profile sync and auth flows", () => {
             adminApplicationStatus: "approved",
             adminApplicationReason: "",
             accountStatus: "active"
+=======
+                vendorStatus: "approved",
+                updatedAt: "SERVER_TIMESTAMP"
+            }
+        );
+        expect(result).toEqual({
+            uid: "user-5",
+            vendorStatus: "approved"
+        });
+    });
+
+    test("ensureUserProfile returns existing profile when found", async () => {
+        const deps = createMockDependencies();
+        const existingProfile = {
+            uid: "user-6",
+            roles: { customer: true, vendor: false, admin: false },
+            vendorStatus: "none"
+>>>>>>> 18e586b (fixed something)
         };
 
         deps.firestoreFns.getDoc.mockResolvedValue({
@@ -1266,6 +1365,7 @@ describe("auth-core profile sync and auth flows", () => {
         });
 
         const service = createAuthService(deps);
+<<<<<<< HEAD
         const result = await service.ensureUserProfile(
             {
                 uid: "user-6",
@@ -1313,6 +1413,15 @@ describe("auth-core profile sync and auth flows", () => {
                 providerPhotoURL: "https://provider.example.com/auth.jpg"
             })
         );
+=======
+        const result = await service.ensureUserProfile({
+            uid: "user-6",
+            email: "user6@example.com"
+        });
+
+        expect(result).toEqual(existingProfile);
+        expect(deps.firestoreFns.setDoc).not.toHaveBeenCalled();
+>>>>>>> 18e586b (fixed something)
     });
 
     test("ensureUserProfile creates a new customer profile when missing", async () => {
@@ -1327,6 +1436,7 @@ describe("auth-core profile sync and auth flows", () => {
         const result = await service.ensureUserProfile({
             uid: "user-7",
             email: "user7@example.com",
+<<<<<<< HEAD
             displayName: "User Seven",
             photoURL: "https://provider.example.com/user7.jpg"
         });
@@ -1341,6 +1451,15 @@ describe("auth-core profile sync and auth flows", () => {
                 adminApplicationStatus: "none"
             })
         );
+=======
+            displayName: "User Seven"
+        });
+
+        expect(result.uid).toBe("user-7");
+        expect(result.roles.customer).toBe(true);
+        expect(result.vendorStatus).toBe("none");
+        expect(deps.firestoreFns.setDoc).toHaveBeenCalledTimes(1);
+>>>>>>> 18e586b (fixed something)
     });
 
     test("ensureUserProfile creates a pending vendor profile when accountType is vendor", async () => {
@@ -1356,12 +1475,17 @@ describe("auth-core profile sync and auth flows", () => {
             {
                 uid: "vendor-2",
                 email: "vendor2@example.com",
+<<<<<<< HEAD
                 displayName: "Vendor Two",
                 photoURL: "https://provider.example.com/vendor2.jpg"
+=======
+                displayName: "Vendor Two"
+>>>>>>> 18e586b (fixed something)
             },
             {
                 accountType: "vendor",
                 displayName: "Vendor Two",
+<<<<<<< HEAD
                 email: "vendor2@example.com",
                 phoneNumber: "0712345678",
                 businessName: "Campus Bites",
@@ -1460,6 +1584,13 @@ describe("auth-core profile sync and auth flows", () => {
         await expect(service.ensureUserProfile(null)).rejects.toThrow(
             "A valid authenticated user is required."
         );
+=======
+                email: "vendor2@example.com"
+            }
+        );
+
+        expect(result.vendorStatus).toBe("pending");
+>>>>>>> 18e586b (fixed something)
     });
 
     test("registerWithEmail returns success with next route", async () => {
@@ -1486,6 +1617,7 @@ describe("auth-core profile sync and auth flows", () => {
         });
 
         expect(result.success).toBe(true);
+<<<<<<< HEAD
         expect(result.profile).toEqual(
             expect.objectContaining({
                 uid: "user-8",
@@ -1534,6 +1666,9 @@ describe("auth-core profile sync and auth flows", () => {
                 adminDepartment: "Student Affairs"
             })
         );
+=======
+        expect(result.profile.roles.customer).toBe(true);
+>>>>>>> 18e586b (fixed something)
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
@@ -1562,6 +1697,37 @@ describe("auth-core profile sync and auth flows", () => {
         expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
 
+<<<<<<< HEAD
+=======
+    test("registerWithEmail returns success with vendor route decision", async () => {
+        const deps = createMockDependencies();
+        const mockUser = {
+            uid: "vendor-8",
+            email: "vendor8@example.com",
+            displayName: ""
+        };
+
+        deps.authFns.createUserWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+        deps.authFns.updateProfile.mockResolvedValue(undefined);
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.registerWithEmail({
+            email: "vendor8@example.com",
+            password: "password123",
+            displayName: "Vendor Eight",
+            accountType: "vendor"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.profile.vendorStatus).toBe("pending");
+        expect(result.nextRoute).toBe("../customer/index.html");
+    });
+
+>>>>>>> 18e586b (fixed something)
     test("registerWithEmail returns mapped error on failure", async () => {
         const deps = createMockDependencies();
 
@@ -1586,6 +1752,7 @@ describe("auth-core profile sync and auth flows", () => {
         const mockUser = {
             uid: "user-9",
             email: "user9@example.com",
+<<<<<<< HEAD
             displayName: "User Nine",
             photoURL: "https://provider.example.com/user9.jpg"
         };
@@ -1605,14 +1772,28 @@ describe("auth-core profile sync and auth flows", () => {
             adminApplicationStatus: "none",
             adminApplicationReason: "",
             accountStatus: "active"
+=======
+            displayName: "User Nine"
+>>>>>>> 18e586b (fixed something)
         };
 
         deps.authFns.signInWithEmailAndPassword.mockResolvedValue({ user: mockUser });
         deps.firestoreFns.getDoc.mockResolvedValue({
             exists: () => true,
+<<<<<<< HEAD
             data: () => existingProfile
         });
         deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+=======
+            data: () => ({
+                uid: "user-9",
+                email: "user9@example.com",
+                displayName: "User Nine",
+                roles: { customer: true, vendor: false, admin: false },
+                vendorStatus: "none"
+            })
+        });
+>>>>>>> 18e586b (fixed something)
 
         const service = createAuthService(deps);
         const result = await service.loginWithEmail({
@@ -1622,6 +1803,7 @@ describe("auth-core profile sync and auth flows", () => {
 
         expect(result.success).toBe(true);
         expect(result.nextRoute).toBe("../customer/index.html");
+<<<<<<< HEAD
         expect(deps.firestoreFns.setDoc).toHaveBeenCalledWith(
             {
                 database: deps.db,
@@ -1637,6 +1819,8 @@ describe("auth-core profile sync and auth flows", () => {
             }),
             { merge: true }
         );
+=======
+>>>>>>> 18e586b (fixed something)
     });
 
     test("loginWithEmail returns mapped error on failure", async () => {
@@ -1661,8 +1845,12 @@ describe("auth-core profile sync and auth flows", () => {
         const mockUser = {
             uid: "google-2",
             email: "google2@example.com",
+<<<<<<< HEAD
             displayName: "Google User",
             photoURL: "https://provider.example.com/google2.jpg"
+=======
+            displayName: "Google User"
+>>>>>>> 18e586b (fixed something)
         };
 
         deps.authFns.signInWithPopup.mockResolvedValue({ user: mockUser });
@@ -1675,6 +1863,7 @@ describe("auth-core profile sync and auth flows", () => {
         const result = await service.loginWithGoogle();
 
         expect(result.success).toBe(true);
+<<<<<<< HEAD
         expect(result.profile).toEqual(
             expect.objectContaining({
                 uid: "google-2",
@@ -1682,6 +1871,9 @@ describe("auth-core profile sync and auth flows", () => {
                 displayName: "Google User"
             })
         );
+=======
+        expect(result.profile.roles.customer).toBe(true);
+>>>>>>> 18e586b (fixed something)
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
@@ -1706,8 +1898,12 @@ describe("auth-core profile sync and auth flows", () => {
         const mockUser = {
             uid: "apple-2",
             email: "apple2@example.com",
+<<<<<<< HEAD
             displayName: "Apple User",
             photoURL: "https://provider.example.com/apple2.jpg"
+=======
+            displayName: "Apple User"
+>>>>>>> 18e586b (fixed something)
         };
 
         deps.authFns.signInWithPopup.mockResolvedValue({ user: mockUser });
@@ -1720,6 +1916,7 @@ describe("auth-core profile sync and auth flows", () => {
         const result = await service.loginWithApple();
 
         expect(result.success).toBe(true);
+<<<<<<< HEAD
         expect(result.profile).toEqual(
             expect.objectContaining({
                 uid: "apple-2",
@@ -1727,6 +1924,9 @@ describe("auth-core profile sync and auth flows", () => {
                 displayName: "Apple User"
             })
         );
+=======
+        expect(result.profile.roles.customer).toBe(true);
+>>>>>>> 18e586b (fixed something)
         expect(result.nextRoute).toBe("../customer/index.html");
     });
 
@@ -1776,6 +1976,7 @@ describe("auth-core profile sync and auth flows", () => {
         expect(result.message).toBe("No account was found with that email address.");
     });
 
+<<<<<<< HEAD
     test("auth flows fall back to generic next route and generic error message when utils helpers are missing", async () => {
         const deps = createMockDependencies();
         const mockUser = {
@@ -1814,3 +2015,22 @@ describe("auth-core profile sync and auth flows", () => {
         expect(failureResult.message).toBe("Something went wrong. Please try again.");
     });
 });
+=======
+    test("observeAuthState registers an auth state listener", () => {
+        const deps = createMockDependencies();
+        const unsubscribe = jest.fn();
+        const callback = jest.fn();
+
+        deps.authFns.onAuthStateChanged.mockReturnValue(unsubscribe);
+
+        const service = createAuthService(deps);
+        const result = service.observeAuthState(callback);
+
+        expect(deps.authFns.onAuthStateChanged).toHaveBeenCalledWith(
+            deps.auth,
+            callback
+        );
+        expect(result).toBe(unsubscribe);
+    });
+});
+>>>>>>> 18e586b (fixed something)

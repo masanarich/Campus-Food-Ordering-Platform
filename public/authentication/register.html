@@ -22,10 +22,22 @@
 
     <section>
       <h2>Create Account</h2>
+<<<<<<< HEAD
       <p>Choose the role that matches how you want to use the platform.</p>
 
       <form id="register-form" novalidate>
 
+=======
+      <p>Register to order food from campus vendors.</p>
+
+      <form id="register-form" novalidate>
+
+        <label for="fullName">Full Name</label>
+        <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" autocomplete="name"
+          required>
+        <p data-error-for="fullName"></p>
+
+>>>>>>> 18e586b (fixed something)
         <label for="email">Email Address</label>
         <input type="email" id="email" name="email" placeholder="Enter your email" autocomplete="email" required>
         <p data-error-for="email"></p>
@@ -44,6 +56,7 @@
         <select id="accountType" name="accountType">
           <option value="customer">Customer</option>
           <option value="vendor">Vendor</option>
+<<<<<<< HEAD
           <option value="admin">Admin</option>
         </select>
         <p data-error-for="accountType"></p>
@@ -111,6 +124,11 @@
           <p data-error-for="motivation"></p>
         </section>
 
+=======
+        </select>
+        <p data-error-for="accountType"></p>
+
+>>>>>>> 18e586b (fixed something)
         <button type="submit">Create Account</button>
 
       </form>
@@ -119,7 +137,11 @@
     </section>
 
     <section>
+<<<<<<< HEAD
       <h3>Or sign in with</h3>
+=======
+      <h3>Or sign up with</h3>
+>>>>>>> 18e586b (fixed something)
       <button id="google-signin" type="button">Continue with Google</button>
       <button id="apple-signin" type="button">Continue with Apple</button>
     </section>
