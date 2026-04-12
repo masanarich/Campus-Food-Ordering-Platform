@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Application | Campus Food Ordering Platform</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav>
+            <a href="../index.html">Home</a>
+            <a href="./login.html">Login</a>
+            <a href="./register.html">Register</a>
+            <a href="./profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <section>
+            <h2>Vendor Application</h2>
+            <p>Apply to sell food on the platform by completing the form below.</p>
+        </section>
+
+        <section>
+            <form id="vendor-application-form" novalidate>
+
+                <label for="businessName">Business Name</label>
+                <input type="text" id="businessName" name="businessName" placeholder="Enter your business name"
+                    required>
+                <p data-error-for="businessName" aria-live="polite"></p>
+
+                <label for="contactNumber">Contact Number</label>
+                <input type="tel" id="contactNumber" name="contactNumber" placeholder="Enter your contact number"
+                    required>
+                <p data-error-for="contactNumber" aria-live="polite"></p>
+
+                <label for="description">Business Description</label>
+                <textarea id="description" name="description" placeholder="Describe your food business" rows="5"
+                    required></textarea>
+                <p data-error-for="description" aria-live="polite"></p>
+
+                <label for="campusLocation">Campus Location</label>
+                <input type="text" id="campusLocation" name="campusLocation"
+                    placeholder="Enter your campus trading location" required>
+                <p data-error-for="campusLocation" aria-live="polite"></p>
+
+                <button type="submit">Submit Vendor Application</button>
+            </form>
+
+            <p id="vendor-application-status" aria-live="polite"></p>
+        </section>
+
+        <section>
+            <p>
+                Want to go back?
+                <a href="./role-choice.html">Choose role again</a>
+            </p>
+
+            <p>
+                Need to review your details?
+                <a href="./profile.html">Go to profile</a>
+            </p>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>© 2026 Campus Food Ordering Platform</p>
+    </footer>
+
+    <script src="./auth-utils.js"></script>
+    <script src="./auth-core.js"></script>
+    <script src="./vendor-application.js"></script>
+
+    <script type="module">
+        import { authService } from "./auth.js";
+
+        window.authService = authService;
+
+        window.vendorApplicationPage.initializeVendorApplicationPage({
+            authService,
+            authUtils: window.authUtils
+        });
+    </script>
+
+</body>
+
+</html>
