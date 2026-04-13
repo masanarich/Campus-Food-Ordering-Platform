@@ -4,409 +4,67 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Menu Manager – CampusBite</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #0e0f11;
-      color: #f0ede8;
-      min-height: 100vh;
-    }
-
-    /* NAV */
-    nav {
-      display: flex; align-items: center;
-      justify-content: space-between;
-      padding: 0 32px; height: 60px;
-      background: #16181c;
-      border-bottom: 1px solid #2a2d35;
-    }
-    .nav-logo { font-size: 1.2rem; font-weight: 800; }
-    .nav-logo span { color: #f5a623; }
-    .nav-right { display: flex; gap: 12px; align-items: center; }
-    .nav-right a {
-      color: #7e8494; text-decoration: none;
-      font-size: 0.9rem; padding: 8px 14px;
-      border-radius: 8px; transition: all 0.2s;
-    }
-    .nav-right a:hover { color: #f0ede8; background: #1e2128; }
-    .btn-logout {
-      background: transparent;
-      border: 1px solid #2a2d35;
-      color: #7e8494; padding: 8px 16px;
-      border-radius: 8px; cursor: pointer;
-      font-size: 0.88rem; transition: all 0.2s;
-    }
-    .btn-logout:hover { border-color: #e8563a; color: #e8563a; }
-
-    /* MAIN */
-    .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
-
-    .page-header {
-      display: flex; justify-content: space-between;
-      align-items: center; margin-bottom: 32px;
-    }
-    .page-header h1 { font-size: 1.6rem; font-weight: 800; }
-    .page-header h1 span { color: #f5a623; }
-
-    /* ADD ITEM FORM */
-    .form-card {
-      background: #1e2128;
-      border: 1px solid #2a2d35;
-      border-radius: 14px;
-      padding: 32px;
-      margin-bottom: 40px;
-    }
-    .form-card h2 {
-      font-size: 1.1rem; font-weight: 700;
-      margin-bottom: 24px; color: #f5a623;
-    }
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-    .form-group { display: flex; flex-direction: column; gap: 8px; }
-    .form-group.full { grid-column: 1 / -1; }
-    label {
-      font-size: 0.82rem; font-weight: 600;
-      color: #7e8494; text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    input, textarea, select {
-      padding: 11px 14px;
-      background: #0e0f11;
-      border: 1px solid #2a2d35;
-      border-radius: 8px;
-      color: #f0ede8;
-      font-size: 0.92rem;
-      outline: none;
-      transition: border 0.2s;
-      font-family: inherit;
-    }
-    input:focus, textarea:focus, select:focus { border-color: #f5a623; }
-    textarea { resize: vertical; min-height: 80px; }
-    .btn-add {
-      margin-top: 20px;
-      padding: 13px 28px;
-      background: #f5a623; color: #000;
-      border: none; border-radius: 10px;
-      font-weight: 700; font-size: 0.95rem;
-      cursor: pointer; transition: opacity 0.2s;
-    }
-    .btn-add:hover { opacity: 0.85; }
-
-    /* MESSAGES */
-    .msg {
-      padding: 12px 16px; border-radius: 8px;
-      font-size: 0.88rem; margin-top: 16px;
-      display: none;
-    }
-    .msg-success {
-      background: rgba(62,207,142,0.15);
-      border: 1px solid rgba(62,207,142,0.4);
-      color: #3ecf8e;
-    }
-    .msg-error {
-      background: rgba(232,86,58,0.15);
-      border: 1px solid rgba(232,86,58,0.4);
-      color: #e8563a;
-    }
-
-    /* MENU ITEMS LIST */
-    .section-title {
-      font-size: 1.1rem; font-weight: 700;
-      margin-bottom: 20px;
-    }
-    .menu-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 20px;
-    }
-    .menu-item-card {
-      background: #1e2128;
-      border: 1px solid #2a2d35;
-      border-radius: 14px;
-      overflow: hidden;
-      transition: all 0.2s;
-    }
-    .menu-item-card:hover { border-color: #f5a623; }
-    .item-img {
-      width: 100%; height: 160px;
-      object-fit: cover;
-      background: #2a2d35;
-    }
-    .item-img-placeholder {
-      width: 100%; height: 160px;
-      background: #2a2d35;
-      display: flex; align-items: center;
-      justify-content: center;
-      font-size: 2.5rem;
-    }
-    .item-body { padding: 16px; }
-    .item-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
-    .item-desc { color: #7e8494; font-size: 0.82rem; margin-bottom: 10px; line-height: 1.5; }
-    .item-footer {
-      display: flex; justify-content: space-between;
-      align-items: center;
-    }
-    .item-price { color: #f5a623; font-weight: 800; font-size: 1rem; }
-    .item-actions { display: flex; gap: 8px; }
-    .btn-soldout {
-      padding: 5px 10px; border-radius: 6px;
-      font-size: 0.78rem; font-weight: 600;
-      cursor: pointer; border: 1px solid #2a2d35;
-      background: transparent; color: #7e8494;
-      transition: all 0.2s;
-    }
-    .btn-soldout:hover { border-color: #f5a623; color: #f5a623; }
-    .btn-soldout.sold { border-color: #e8563a; color: #e8563a; }
-    .btn-delete {
-      padding: 5px 10px; border-radius: 6px;
-      font-size: 0.78rem; font-weight: 600;
-      cursor: pointer; border: 1px solid #2a2d35;
-      background: transparent; color: #7e8494;
-      transition: all 0.2s;
-    }
-    .btn-delete:hover { border-color: #e8563a; color: #e8563a; }
-    .sold-badge {
-      background: rgba(232,86,58,0.15);
-      color: #e8563a; font-size: 0.72rem;
-      font-weight: 700; padding: 3px 8px;
-      border-radius: 999px; margin-left: 8px;
-    }
-    .empty-state {
-      text-align: center; padding: 60px 20px;
-      color: #7e8494;
-    }
-    .empty-state p { margin-top: 12px; font-size: 0.95rem; }
-
-    @media (max-width: 600px) {
-      .form-grid { grid-template-columns: 1fr; }
-      .page-header { flex-direction: column; gap: 16px; align-items: flex-start; }
-    }
-  </style>
+  <link rel="stylesheet" href="./menu-manager.css">
 </head>
 <body>
 
 <nav>
-  <div class="nav-logo">Campus<span>Bite</span> <small style="color:#7e8494;font-size:0.75rem;font-weight:400;">Vendor</small></div>
-  <div class="nav-right">
-    <a href="order-dashboard.html">📋 Orders</a>
-    <button class="btn-logout" onclick="logoutVendor()">Logout</button>
-  </div>
+  <strong class="nav-logo">Campus<span>Bite</span> <small>Vendor</small></strong>
+  <section class="nav-right">
+    <a href="order-dashboard.html">Orders</a>
+    <button class="btn-logout" id="logoutBtn">Logout</button>
+  </section>
 </nav>
 
-<div class="container">
-  <div class="page-header">
+<main class="container">
+  <header class="page-header">
     <h1>Menu <span>Manager</span></h1>
-  </div>
+  </header>
 
-  <!-- ADD ITEM FORM -->
-  <div class="form-card">
+  <article class="form-card">
     <h2>+ Add New Menu Item</h2>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Item Name</label>
+    <section class="form-grid">
+      <fieldset class="form-group">
+        <label for="itemName">Item Name</label>
         <input type="text" id="itemName" placeholder="e.g. Chicken Wrap" />
-      </div>
-      <div class="form-group">
-        <label>Price (R)</label>
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="itemPrice">Price (R)</label>
         <input type="number" id="itemPrice" placeholder="e.g. 45" />
-      </div>
-      <div class="form-group">
-        <label>Category</label>
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="itemCategory">Category</label>
         <select id="itemCategory">
           <option value="meals">Meals</option>
           <option value="snacks">Snacks</option>
           <option value="drinks">Drinks</option>
           <option value="desserts">Desserts</option>
         </select>
-      </div>
-      <div class="form-group">
-        <label>Photo URL (optional)</label>
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="itemPhoto">Photo URL (optional)</label>
         <input type="text" id="itemPhoto" placeholder="https://..." />
-      </div>
-      <div class="form-group full">
-        <label>Description</label>
+      </fieldset>
+      <fieldset class="form-group full">
+        <label for="itemDesc">Description</label>
         <textarea id="itemDesc" placeholder="Describe the item..."></textarea>
-      </div>
-    </div>
-    <button class="btn-add" onclick="addMenuItem()">Add Item</button>
-    <div class="msg msg-success" id="successMsg">✅ Item added successfully!</div>
-    <div class="msg msg-error" id="errorMsg">❌ Something went wrong. Try again.</div>
-  </div>
+      </fieldset>
+    </section>
+    <button class="btn-add" id="addItemBtn">Add Item</button>
+    <output class="msg msg-success" id="successMsg" aria-live="polite"></output>
+    <output class="msg msg-error" id="errorMsg" aria-live="assertive"></output>
+  </article>
 
-  <!-- MENU ITEMS LIST -->
-  <div class="section-title">Your Menu Items</div>
-  <div class="menu-grid" id="menuGrid">
-    <div class="empty-state">
-      <div style="font-size:2rem">🍽️</div>
+  <h2 class="section-title">Your Menu Items</h2>
+  <section class="menu-grid" id="menuGrid">
+    <p class="empty-state">
+      <p style="font-size:2rem">🍽️</p>
       <p>No items yet. Add your first menu item above!</p>
-    </div>
-  </div>
-</div>
+    </p>
+  </section>
+</main>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc,
-    getDocs, updateDoc, deleteDoc, doc, query, where, serverTimestamp }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
- 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  let currentVendorId = null;
-
-  // Check if vendor is logged in
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      currentVendorId = user.uid;
-      loadMenuItems();
-    } else {
-      // Not logged in → redirect to login
-      window.location.href = 'login.html';
-    }
-  });
-
-  // ADD MENU ITEM
-  window.addMenuItem = async function () {
-    const name = document.getElementById('itemName').value.trim();
-    const price = document.getElementById('itemPrice').value.trim();
-    const category = document.getElementById('itemCategory').value;
-    const photo = document.getElementById('itemPhoto').value.trim();
-    const desc = document.getElementById('itemDesc').value.trim();
-    const successMsg = document.getElementById('successMsg');
-    const errorMsg = document.getElementById('errorMsg');
-
-    successMsg.style.display = 'none';
-    errorMsg.style.display = 'none';
-
-    if (!name || !price || !desc) {
-      errorMsg.textContent = '❌ Please fill in name, price and description.';
-      errorMsg.style.display = 'block';
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, 'menuItems'), {
-        vendorId: currentVendorId,
-        name,
-        price: parseFloat(price),
-        category,
-        photo: photo || '',
-        description: desc,
-        available: true,
-        createdAt: serverTimestamp()
-      });
-
-      // Clear form
-      document.getElementById('itemName').value = '';
-      document.getElementById('itemPrice').value = '';
-      document.getElementById('itemPhoto').value = '';
-      document.getElementById('itemDesc').value = '';
-
-      successMsg.style.display = 'block';
-      setTimeout(() => successMsg.style.display = 'none', 3000);
-
-      loadMenuItems();
-
-    } catch (err) {
-      errorMsg.textContent = '❌ Error: ' + err.message;
-      errorMsg.style.display = 'block';
-    }
-  }
-
-  // LOAD MENU ITEMS
-  async function loadMenuItems() {
-    const grid = document.getElementById('menuGrid');
-    grid.innerHTML = '<p style="color:#7e8494;padding:20px;">Loading...</p>';
-
-    try {
-      const q = query(
-        collection(db, 'menuItems'),
-        where('vendorId', '==', currentVendorId)
-      );
-      const snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        grid.innerHTML = `
-          <div class="empty-state">
-            <div style="font-size:2rem">🍽️</div>
-            <p>No items yet. Add your first menu item above!</p>
-          </div>`;
-        return;
-      }
-
-      grid.innerHTML = '';
-      snapshot.forEach((docSnap) => {
-        const item = docSnap.data();
-        const id = docSnap.id;
-        grid.innerHTML += `
-          <div class="menu-item-card" id="card-${id}">
-            ${item.photo
-              ? `<img class="item-img" src="${item.photo}" alt="${item.name}" onerror="this.style.display='none'" />`
-              : `<div class="item-img-placeholder">🍽️</div>`
-            }
-            <div class="item-body">
-              <div class="item-name">
-                ${item.name}
-                ${!item.available ? '<span class="sold-badge">SOLD OUT</span>' : ''}
-              </div>
-              <div class="item-desc">${item.description}</div>
-              <div class="item-footer">
-                <div class="item-price">R${item.price.toFixed(2)}</div>
-                <div class="item-actions">
-                  <button class="btn-soldout ${!item.available ? 'sold' : ''}"
-                    onclick="toggleAvailability('${id}', ${item.available})">
-                    ${item.available ? 'Mark Sold Out' : 'Mark Available'}
-                  </button>
-                  <button class="btn-delete" onclick="deleteItem('${id}')">Delete</button>
-                </div>
-              </div>
-            </div>
-          </div>`;
-      });
-
-    } catch (err) {
-      grid.innerHTML = `<p style="color:#e8563a;">Error loading items: ${err.message}</p>`;
-    }
-  }
-
-  // TOGGLE AVAILABLE / SOLD OUT
-  window.toggleAvailability = async function (id, currentStatus) {
-    try {
-      await updateDoc(doc(db, 'menuItems', id), {
-        available: !currentStatus
-      });
-      loadMenuItems();
-    } catch (err) {
-      alert('Error updating item: ' + err.message);
-    }
-  }
-
-  // DELETE ITEM
-  window.deleteItem = async function (id) {
-    if (!confirm('Are you sure you want to delete this item?')) return;
-    try {
-      await deleteDoc(doc(db, 'menuItems', id));
-      loadMenuItems();
-    } catch (err) {
-      alert('Error deleting item: ' + err.message);
-    }
-  }
-
-  // LOGOUT
-  window.logoutVendor = async function () {
-    await signOut(auth);
-    window.location.href = 'login.html';
-  }
-</script>
+<script type="module" src="./menu-manager.js"></script>
 
 </body>
 </html>

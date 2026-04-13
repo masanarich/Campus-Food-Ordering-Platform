@@ -4,361 +4,43 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Order Dashboard – CampusBite</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #0e0f11;
-      color: #f0ede8;
-      min-height: 100vh;
-    }
-
-    nav {
-      display: flex; align-items: center;
-      justify-content: space-between;
-      padding: 0 32px; height: 60px;
-      background: #16181c;
-      border-bottom: 1px solid #2a2d35;
-    }
-    .nav-logo { font-size: 1.2rem; font-weight: 800; }
-    .nav-logo span { color: #f5a623; }
-    .nav-right { display: flex; gap: 12px; align-items: center; }
-    .nav-right a {
-      color: #7e8494; text-decoration: none;
-      font-size: 0.9rem; padding: 8px 14px;
-      border-radius: 8px; transition: all 0.2s;
-    }
-    .nav-right a:hover { color: #f0ede8; background: #1e2128; }
-    .btn-logout {
-      background: transparent;
-      border: 1px solid #2a2d35;
-      color: #7e8494; padding: 8px 16px;
-      border-radius: 8px; cursor: pointer;
-      font-size: 0.88rem; transition: all 0.2s;
-    }
-    .btn-logout:hover { border-color: #e8563a; color: #e8563a; }
-
-    .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
-
-    .page-header {
-      display: flex; justify-content: space-between;
-      align-items: center; margin-bottom: 12px;
-    }
-    .page-header h1 { font-size: 1.6rem; font-weight: 800; }
-    .page-header h1 span { color: #f5a623; }
-
-    .live-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(62,207,142,0.12);
-      border: 1px solid rgba(62,207,142,0.3);
-      color: #3ecf8e; padding: 6px 14px;
-      border-radius: 999px; font-size: 0.82rem; font-weight: 600;
-    }
-    .live-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: #3ecf8e; animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    /* TABS */
-    .tabs {
-      display: flex; gap: 8px;
-      margin-bottom: 28px; margin-top: 24px;
-      border-bottom: 1px solid #2a2d35;
-      padding-bottom: 0;
-    }
-    .tab-btn {
-      padding: 10px 20px;
-      background: transparent;
-      border: none; border-bottom: 2px solid transparent;
-      color: #7e8494; font-size: 0.9rem;
-      font-weight: 600; cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: -1px;
-    }
-    .tab-btn:hover { color: #f0ede8; }
-    .tab-btn.active { color: #f5a623; border-bottom-color: #f5a623; }
-
-    /* ORDER CARDS */
-    .orders-list { display: flex; flex-direction: column; gap: 16px; }
-
-    .order-card {
-      background: #1e2128;
-      border: 1px solid #2a2d35;
-      border-radius: 14px;
-      padding: 24px;
-      transition: all 0.2s;
-    }
-    .order-card:hover { border-color: #3a3d45; }
-
-    .order-top {
-      display: flex; justify-content: space-between;
-      align-items: flex-start; margin-bottom: 16px;
-    }
-    .order-id { font-size: 0.78rem; color: #7e8494; margin-bottom: 4px; }
-    .order-student { font-weight: 700; font-size: 1rem; }
-    .order-time { font-size: 0.8rem; color: #7e8494; }
-
-    .status-badge {
-      padding: 5px 12px; border-radius: 999px;
-      font-size: 0.78rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    .status-received {
-      background: rgba(100,149,237,0.15);
-      color: #6495ed;
-    }
-    .status-preparing {
-      background: rgba(245,166,35,0.15);
-      color: #f5a623;
-    }
-    .status-ready {
-      background: rgba(62,207,142,0.15);
-      color: #3ecf8e;
-    }
-
-    .order-items {
-      background: #0e0f11;
-      border-radius: 10px;
-      padding: 14px 16px;
-      margin-bottom: 16px;
-    }
-    .order-item-row {
-      display: flex; justify-content: space-between;
-      font-size: 0.9rem; padding: 4px 0;
-      border-bottom: 1px solid #1e2128;
-    }
-    .order-item-row:last-child { border-bottom: none; }
-    .order-item-name { color: #f0ede8; }
-    .order-item-qty { color: #7e8494; }
-    .order-item-price { color: #f5a623; font-weight: 600; }
-
-    .order-total {
-      display: flex; justify-content: space-between;
-      font-weight: 700; font-size: 0.95rem;
-      padding-top: 10px; margin-top: 4px;
-      border-top: 1px solid #2a2d35;
-    }
-    .order-total span:last-child { color: #f5a623; }
-
-    .order-actions { display: flex; gap: 10px; margin-top: 16px; }
-    .btn-action {
-      padding: 10px 20px; border-radius: 8px;
-      font-size: 0.88rem; font-weight: 600;
-      cursor: pointer; border: none;
-      transition: all 0.2s;
-    }
-    .btn-preparing {
-      background: rgba(245,166,35,0.15);
-      color: #f5a623; border: 1px solid rgba(245,166,35,0.3);
-    }
-    .btn-preparing:hover { background: rgba(245,166,35,0.25); }
-    .btn-ready {
-      background: rgba(62,207,142,0.15);
-      color: #3ecf8e; border: 1px solid rgba(62,207,142,0.3);
-    }
-    .btn-ready:hover { background: rgba(62,207,142,0.25); }
-
-    .empty-state {
-      text-align: center; padding: 80px 20px;
-      color: #7e8494;
-    }
-    .empty-state div { font-size: 2.5rem; margin-bottom: 12px; }
-
-    .new-order-flash {
-      animation: flashIn 0.5s ease;
-    }
-    @keyframes flashIn {
-      from { transform: translateY(-10px); opacity: 0; border-color: #3ecf8e; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-  </style>
+  <link rel="stylesheet" href="./order-dashboard.css">
 </head>
 <body>
 
 <nav>
-  <div class="nav-logo">Campus<span>Bite</span> <small style="color:#7e8494;font-size:0.75rem;font-weight:400;">Vendor</small></div>
-  <div class="nav-right">
+  <strong class="nav-logo">Campus<span>Bite</span> <small>Vendor</small></strong>
+  <section class="nav-right">
     <a href="menu-manager.html">🍽️ Menu</a>
-    <button class="btn-logout" onclick="logoutVendor()">Logout</button>
-  </div>
+    <button class="btn-logout" id="logoutBtn">Logout</button>
+  </section>
 </nav>
 
-<div class="container">
-  <div class="page-header">
+<main class="container">
+  <header class="page-header">
     <h1>Order <span>Dashboard</span></h1>
-    <div class="live-badge">
-      <div class="live-dot"></div>
+    <p class="live-badge">
+      <span class="live-dot"></span>
       Live Updates
-    </div>
-  </div>
+    </p>
+  </header>
 
-  <!-- TABS -->
-  <div class="tabs">
-    <button class="tab-btn active" onclick="filterOrders('all', this)">All Orders</button>
-    <button class="tab-btn" onclick="filterOrders('received', this)">New</button>
-    <button class="tab-btn" onclick="filterOrders('preparing', this)">Preparing</button>
-    <button class="tab-btn" onclick="filterOrders('ready', this)">Ready</button>
-  </div>
+  <nav class="tabs" aria-label="Order filters">
+    <button class="tab-btn active" data-filter="all">All Orders</button>
+    <button class="tab-btn" data-filter="received">New</button>
+    <button class="tab-btn" data-filter="preparing">Preparing</button>
+    <button class="tab-btn" data-filter="ready">Ready</button>
+  </nav>
 
-  <!-- ORDERS -->
-  <div class="orders-list" id="ordersList">
-    <div class="empty-state">
-      <div>📋</div>
-      <p>Loading orders...</p>
-    </div>
-  </div>
-</div>
+  <section class="orders-list" id="ordersList" aria-live="polite">
+    <p class="empty-state">
+      <span style="font-size:2.5rem">📋</span><br/>
+      Loading orders...
+    </p>
+  </section>
+</main>
 
-<script type="module">
-  import { initializeApp }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, query, where,
-    onSnapshot, updateDoc, doc, orderBy }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  let allOrders = [];
-  let currentFilter = 'all';
-
-  // Check login
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      listenToOrders(user.uid);
-    } else {
-      window.location.href = 'login.html';
-    }
-  });
-
-  // REAL-TIME LISTENER — this is the magic!
-  function listenToOrders(vendorId) {
-    const q = query(
-      collection(db, 'orders'),
-      where('vendorId', '==', vendorId)
-    );
-
-    onSnapshot(q, (snapshot) => {
-      allOrders = [];
-      snapshot.forEach((docSnap) => {
-        allOrders.push({ id: docSnap.id, ...docSnap.data() });
-      });
-
-      // Sort by newest first
-      allOrders.sort((a, b) => {
-        const timeA = a.createdAt?.seconds || 0;
-        const timeB = b.createdAt?.seconds || 0;
-        return timeB - timeA;
-      });
-
-      renderOrders();
-    });
-  }
-
-  // RENDER ORDERS
-  function renderOrders() {
-    const list = document.getElementById('ordersList');
-    const filtered = currentFilter === 'all'
-      ? allOrders
-      : allOrders.filter(o => o.status === currentFilter);
-
-    if (filtered.length === 0) {
-      list.innerHTML = `
-        <div class="empty-state">
-          <div>📋</div>
-          <p>No ${currentFilter === 'all' ? '' : currentFilter} orders yet.</p>
-        </div>`;
-      return;
-    }
-
-    list.innerHTML = filtered.map(order => `
-      <div class="order-card new-order-flash" id="order-${order.id}">
-        <div class="order-top">
-          <div>
-            <div class="order-id">Order #${order.id.slice(-6).toUpperCase()}</div>
-            <div class="order-student">👤 ${order.studentName || 'Student'}</div>
-            <div class="order-time">${formatTime(order.createdAt)}</div>
-          </div>
-          <span class="status-badge status-${order.status}">
-            ${order.status}
-          </span>
-        </div>
-
-        <div class="order-items">
-          ${order.items.map(item => `
-            <div class="order-item-row">
-              <span class="order-item-name">${item.name}</span>
-              <span class="order-item-qty">x${item.qty}</span>
-              <span class="order-item-price">R${(item.price * item.qty).toFixed(2)}</span>
-            </div>
-          `).join('')}
-          <div class="order-total">
-            <span>Total</span>
-            <span>R${order.total.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div class="order-actions">
-          ${order.status === 'received' ? `
-            <button class="btn-action btn-preparing"
-              onclick="updateStatus('${order.id}', 'preparing')">
-              🍳 Start Preparing
-            </button>` : ''}
-          ${order.status === 'preparing' ? `
-            <button class="btn-action btn-ready"
-              onclick="updateStatus('${order.id}', 'ready')">
-              ✅ Mark Ready
-            </button>` : ''}
-          ${order.status === 'ready' ? `
-            <span style="color:#3ecf8e;font-size:0.9rem;font-weight:600;">
-              ✅ Ready for collection
-            </span>` : ''}
-        </div>
-      </div>
-    `).join('');
-  }
-
-  // UPDATE ORDER STATUS
-  window.updateStatus = async function (orderId, newStatus) {
-    try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: newStatus
-      });
-    } catch (err) {
-      alert('Error updating order: ' + err.message);
-    }
-  }
-
-  // FILTER TABS
-  window.filterOrders = function (filter, btn) {
-    currentFilter = filter;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderOrders();
-  }
-
-  // FORMAT TIME
-  function formatTime(timestamp) {
-    if (!timestamp) return '';
-    const date = new Date(timestamp.seconds * 1000);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // LOGOUT
-  window.logoutVendor = async function () {
-    await signOut(auth);
-    window.location.href = 'login.html';
-  }
-</script>
+<script type="module" src="./order-dashboard.js"></script>
 
 </body>
 </html>
