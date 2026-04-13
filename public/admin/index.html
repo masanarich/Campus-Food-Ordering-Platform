@@ -3,11 +3,95 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Admin Home | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Admin portal home page for the Campus Food Ordering Platform.">
+    <link rel="stylesheet" href="./index.css">
 </head>
 
 <body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Primary navigation">
+            <a href="../index.html" aria-current="page">Home</a>
+            <a href="../authentication/role-choice.html">Choose Portal</a>
+            <a href="../authentication/profile.html">Profile</a>
+            <a href="../authentication/reset.html">Reset Password</a>
+            <a href="../authentication/login.html">Login</a>
+            <a href="../authentication/register.html">Register</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <section aria-labelledby="admin-home-heading">
+            <h2 id="admin-home-heading">Admin Home</h2>
+            <p>
+                Welcome to your admin portal. View your account details, move between portals,
+                and continue managing the platform from your admin space.
+            </p>
+
+            <p id="admin-home-status" aria-live="polite"></p>
+
+            <button id="go-profile-button" type="button">Profile</button>
+            <button id="choose-portal-button" type="button">Choose Portal</button>
+        </section>
+
+        <section aria-labelledby="profile-overview-heading">
+            <h3 id="profile-overview-heading">Profile Overview</h3>
+
+            <img id="profile-photo" src="" alt="User profile picture">
+
+            <p id="profile-photo-caption">Your profile picture appears here.</p>
+            <p id="profile-name-line">Name: Loading...</p>
+            <p id="profile-role-line">Role: Loading...</p>
+            <p id="profile-email-line">Email: Loading...</p>
+            <p id="profile-vendor-line">Vendor status: Loading...</p>
+        </section>
+
+        <section aria-labelledby="portal-shortcuts-heading">
+            <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
+
+            <p id="portal-summary">
+                Your available portal buttons will appear here.
+            </p>
+
+            <button id="go-customer-portal-button" type="button">Customer Portal</button>
+            <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
+            <button id="go-admin-portal-button" type="button">Admin Portal</button>
+        </section>
+
+        <section aria-labelledby="admin-notes-heading">
+            <h3 id="admin-notes-heading">Admin Notes</h3>
+
+            <p id="welcome-message">Loading your admin details...</p>
+            <p id="admin-portal-note">
+                Admin account information will appear here.
+            </p>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./index.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+
+        window.authService = authService;
+
+        window.adminHomePage.initializeAdminHomePage({
+            authService,
+            authUtils: window.authUtils
+        });
+    </script>
 
 </body>
 
