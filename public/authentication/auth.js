@@ -9,6 +9,7 @@
 import {
   auth,
   db,
+  storage,
   googleProvider,
   appleProvider
 } from "./config.js";
@@ -20,6 +21,8 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  updatePassword,
+  deleteUser,
   sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
@@ -28,11 +31,22 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-const authUtils = typeof window !== "undefined" ? window.authUtils : undefined;
-const authCore = typeof window !== "undefined" ? window.authCore : undefined;
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
+
+const authUtils =
+  typeof window !== "undefined" ? window.authUtils : undefined;
+
+const authCore =
+  typeof window !== "undefined" ? window.authCore : undefined;
 
 if (!authUtils) {
   throw new Error(
@@ -46,18 +60,10 @@ if (!authCore || typeof authCore.createAuthService !== "function") {
   );
 }
 
-const {
-  createBaseUserProfile,
-  applyVendorApplicationToProfile,
-  getDefaultPortalRoute,
-  mapAuthErrorCode
-} = authUtils;
-
-const { createAuthService } = authCore;
-
-const authService = createAuthService({
+const authService = authCore.createAuthService({
   auth,
   db,
+  storage,
   googleProvider,
   appleProvider,
   authFns: {
@@ -67,6 +73,8 @@ const authService = createAuthService({
     signOut: firebaseSignOut,
     onAuthStateChanged,
     updateProfile,
+    updatePassword,
+    deleteUser,
     sendPasswordResetEmail
   },
   firestoreFns: {
@@ -74,14 +82,16 @@ const authService = createAuthService({
     getDoc,
     setDoc,
     updateDoc,
+    deleteDoc,
     serverTimestamp
   },
-  utils: {
-    createBaseUserProfile,
-    applyVendorApplicationToProfile,
-    getDefaultPortalRoute,
-    mapAuthErrorCode
-  }
+  storageFns: {
+    ref,
+    uploadBytes,
+    getDownloadURL,
+    deleteObject
+  },
+  utils: authUtils
 });
 
 export { authService };
