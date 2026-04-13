@@ -30,7 +30,7 @@
       </fieldset>
       <fieldset class="form-group">
         <label for="itemPrice">Price (R)</label>
-        <input type="number" id="itemPrice" placeholder="e.g. 45" />
+        <input type="number" id="itemPrice" placeholder="e.g. 45" min="0" step="0.01" />
       </fieldset>
       <fieldset class="form-group">
         <label for="itemCategory">Category</label>
@@ -41,10 +41,23 @@
           <option value="desserts">Desserts</option>
         </select>
       </fieldset>
+
+      <!-- FIXED: file picker instead of text URL input -->
       <fieldset class="form-group">
-        <label for="itemPhoto">Photo URL (optional)</label>
-        <input type="text" id="itemPhoto" placeholder="https://..." />
+        <label for="itemPhoto">Photo (optional)</label>
+        <input type="file" id="itemPhoto" accept="image/*" />
+        <!-- Image preview shown after vendor picks a file -->
+        <img id="photoPreview"
+             alt="Photo preview"
+             style="display:none; margin-top:8px; max-height:120px;
+                    border-radius:8px; object-fit:cover;" />
+        <!-- Upload progress bar -->
+        <progress id="uploadProgress"
+                  value="0" max="100"
+                  style="display:none; width:100%; margin-top:6px;">
+        </progress>
       </fieldset>
+
       <fieldset class="form-group full">
         <label for="itemDesc">Description</label>
         <textarea id="itemDesc" placeholder="Describe the item..."></textarea>
@@ -52,7 +65,7 @@
     </section>
     <button class="btn-add" id="addItemBtn">Add Item</button>
     <output class="msg msg-success" id="successMsg" aria-live="polite"></output>
-    <output class="msg msg-error" id="errorMsg" aria-live="assertive"></output>
+    <output class="msg msg-error"   id="errorMsg"   aria-live="assertive"></output>
   </article>
 
   <h2 class="section-title">Your Menu Items</h2>
@@ -65,6 +78,21 @@
 </main>
 
 <script type="module" src="./menu-manager.js"></script>
+
+<!-- Live image preview when vendor picks a file -->
+<script>
+  document.getElementById('itemPhoto').addEventListener('change', function () {
+    const preview = document.getElementById('photoPreview');
+    const file    = this.files[0];
+    if (file) {
+      preview.src          = URL.createObjectURL(file);
+      preview.style.display = 'block';
+    } else {
+      preview.src           = '';
+      preview.style.display = 'none';
+    }
+  });
+</script>
 
 </body>
 </html>

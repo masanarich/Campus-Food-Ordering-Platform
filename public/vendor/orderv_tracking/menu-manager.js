@@ -1,4 +1,4 @@
-import { auth, db } from '../../authentication/config.js';
+import { auth, db, storage } from '../../authentication/config.js';
 
 import { onAuthStateChanged, signOut }
   from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
@@ -6,10 +6,13 @@ import {
   collection, addDoc, getDocs, updateDoc,
   deleteDoc, doc, query, where, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import {
+  ref, uploadBytesResumable, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
 
 let currentVendorId = null;
 
-// AUTH — load menu if logged in, do nothing if not
+// AUTH — load menu if logged in
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentVendorId = user.uid;
@@ -17,7 +20,7 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-// LOGOUT — only redirects when user clicks the button
+// LOGOUT
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await signOut(auth);
   window.location.href = '../../authentication/login.html';
@@ -27,13 +30,15 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 document.getElementById('addItemBtn').addEventListener('click', addMenuItem);
 
 async function addMenuItem() {
-  const name       = document.getElementById('itemName').value.trim();
-  const price      = document.getElementById('itemPrice').value.trim();
-  const category   = document.getElementById('itemCategory').value;
-  const photo      = document.getElementById('itemPhoto').value.trim();
-  const desc       = document.getElementById('itemDesc').value.trim();
-  const successMsg = document.getElementById('successMsg');
-  const errorMsg   = document.getElementById('errorMsg');
+  const name        = document.getElementById('itemName').value.trim();
+  const price       = document.getElementById('itemPrice').value.trim();
+  const category    = document.getElementById('itemCategory').value;
+  const photoFile   = document.getElementById('itemPhoto').files[0]; // ← real file now
+  const desc        = document.getElementById('itemDesc').value.trim();
+  const successMsg  = document.getElementById('successMsg');
+  const errorMsg    = document.getElementById('errorMsg');
+  const addBtn      = document.getElementById('addItemBtn');
+  const progressBar = document.getElementById('uploadProgress'); // optional progress bar
 
   successMsg.style.display = 'none';
   errorMsg.style.display   = 'none';
@@ -44,24 +49,89 @@ async function addMenuItem() {
     return;
   }
 
+  // Validate price is a number
+  if (isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
+    errorMsg.textContent   = 'Please enter a valid price.';
+    errorMsg.style.display = 'block';
+    return;
+  }
+
+  addBtn.disabled    = true;
+  addBtn.textContent = 'Saving...';
+
   try {
+    let photoURL = '';
+
+    // ── UPLOAD PHOTO TO FIREBASE STORAGE ──────────────────────────────
+    if (photoFile) {
+      // Validate file type
+      if (!photoFile.type.startsWith('image/')) {
+        errorMsg.textContent   = 'Please select a valid image file.';
+        errorMsg.style.display = 'block';
+        addBtn.disabled        = false;
+        addBtn.textContent     = 'Add Item';
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (photoFile.size > 5 * 1024 * 1024) {
+        errorMsg.textContent   = 'Image must be smaller than 5MB.';
+        errorMsg.style.display = 'block';
+        addBtn.disabled        = false;
+        addBtn.textContent     = 'Add Item';
+        return;
+      }
+
+      // Unique path per vendor + timestamp to avoid collisions
+      const filePath    = `menuItems/${currentVendorId}/${Date.now()}_${photoFile.name}`;
+      const storageRef  = ref(storage, filePath);
+      const uploadTask  = uploadBytesResumable(storageRef, photoFile);
+
+      // Show upload progress if element exists
+      photoURL = await new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const pct = Math.round(
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            );
+            if (progressBar) {
+              progressBar.style.display = 'block';
+              progressBar.value         = pct;
+            }
+            addBtn.textContent = `Uploading... ${pct}%`;
+          },
+          (err) => reject(err),
+          async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(url);
+          }
+        );
+      });
+
+      if (progressBar) progressBar.style.display = 'none';
+    }
+    // ──────────────────────────────────────────────────────────────────
+
+    // SAVE ITEM TO FIRESTORE (with real photo URL)
     await addDoc(collection(db, 'menuItems'), {
       vendorId:    currentVendorId,
       name,
       price:       parseFloat(price),
       category,
-      photo:       photo || '',
+      photo:       photoURL,   // ← now a real Firebase Storage URL
       description: desc,
       available:   true,
       createdAt:   serverTimestamp()
     });
 
+    // Reset form
     document.getElementById('itemName').value  = '';
     document.getElementById('itemPrice').value = '';
     document.getElementById('itemPhoto').value = '';
     document.getElementById('itemDesc').value  = '';
 
-    successMsg.textContent   = 'Item added successfully!';
+    successMsg.textContent   = '✅ Item added successfully!';
     successMsg.style.display = 'block';
     setTimeout(() => successMsg.style.display = 'none', 3000);
 
@@ -70,6 +140,9 @@ async function addMenuItem() {
   } catch (err) {
     errorMsg.textContent   = 'Error: ' + err.message;
     errorMsg.style.display = 'block';
+  } finally {
+    addBtn.disabled    = false;
+    addBtn.textContent = 'Add Item';
   }
 }
 
@@ -97,7 +170,8 @@ async function loadMenuItems() {
       grid.innerHTML += `
         <article class="menu-item-card" id="card-${id}">
           ${item.photo
-            ? `<img class="item-img" src="${item.photo}" alt="${item.name}" onerror="this.style.display='none'" />`
+            ? `<img class="item-img" src="${item.photo}" alt="${item.name}"
+                 onerror="this.src=''; this.style.display='none'" />`
             : `<figure class="item-img-placeholder">🍽️</figure>`
           }
           <section class="item-body">
@@ -107,13 +181,15 @@ async function loadMenuItems() {
             </p>
             <p class="item-desc">${item.description}</p>
             <footer class="item-footer">
-              <strong class="item-price">R${item.price.toFixed(2)}</strong>
+              <strong class="item-price">R${Number(item.price).toFixed(2)}</strong>
               <span class="item-actions">
                 <button class="btn-soldout ${!item.available ? 'sold' : ''}"
                   data-id="${id}" data-available="${item.available}">
                   ${item.available ? 'Mark Sold Out' : 'Mark Available'}
                 </button>
-                <button class="btn-delete" data-id="${id}">Delete</button>
+                <button class="btn-delete" data-id="${id}" data-photo="${item.photo || ''}">
+                  Delete
+                </button>
               </span>
             </footer>
           </section>
@@ -121,12 +197,15 @@ async function loadMenuItems() {
     });
 
     grid.querySelectorAll('.btn-soldout').forEach(btn => {
-      btn.addEventListener('click', () => {
-        toggleAvailability(btn.dataset.id, btn.dataset.available === 'true');
-      });
+      btn.addEventListener('click', () =>
+        toggleAvailability(btn.dataset.id, btn.dataset.available === 'true')
+      );
     });
+
     grid.querySelectorAll('.btn-delete').forEach(btn => {
-      btn.addEventListener('click', () => deleteItem(btn.dataset.id));
+      btn.addEventListener('click', () =>
+        deleteItem(btn.dataset.id, btn.dataset.photo)
+      );
     });
 
   } catch (err) {
@@ -144,11 +223,24 @@ async function toggleAvailability(id, currentStatus) {
   }
 }
 
-// DELETE ITEM
-async function deleteItem(id) {
+// DELETE ITEM — also removes photo from Storage
+async function deleteItem(id, photoURL) {
   if (!confirm('Are you sure you want to delete this item?')) return;
   try {
+    // Delete from Firestore
     await deleteDoc(doc(db, 'menuItems', id));
+
+    // Also delete the image from Firebase Storage if it exists
+    if (photoURL) {
+      try {
+        const photoRef = ref(storage, photoURL);
+        await deleteObject(photoRef);
+      } catch (storageErr) {
+        // Don't block deletion if storage cleanup fails
+        console.warn('Could not delete image from storage:', storageErr.message);
+      }
+    }
+
     loadMenuItems();
   } catch (err) {
     alert('Error deleting item: ' + err.message);
