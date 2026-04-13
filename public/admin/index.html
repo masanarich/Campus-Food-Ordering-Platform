@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title>Customer Home | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Customer portal home page for the Campus Food Ordering Platform.">
     <link rel="stylesheet" href="./index.css">
 </head>
 
@@ -13,8 +14,8 @@
     <header>
         <h1>Campus Food Ordering Platform</h1>
 
-        <nav>
-            <a href="../index.html">Home</a>
+        <nav aria-label="Primary navigation">
+            <a href="../index.html" aria-current="page">Home</a>
             <a href="../authentication/role-choice.html">Choose Portal</a>
             <a href="../authentication/profile.html">Profile</a>
             <a href="../authentication/reset.html">Reset Password</a>
@@ -25,8 +26,8 @@
 
     <main>
 
-        <section>
-            <h2>Customer Home</h2>
+        <section aria-labelledby="customer-home-heading">
+            <h2 id="customer-home-heading">Customer Home</h2>
             <p>
                 Welcome to your customer portal. View your account details, move between portals,
                 and continue your vendor application journey.
@@ -39,8 +40,8 @@
             <button id="go-vendor-application-button" type="button">Vendor Application</button>
         </section>
 
-        <section>
-            <h3>Profile Overview</h3>
+        <section aria-labelledby="profile-overview-heading">
+            <h3 id="profile-overview-heading">Profile Overview</h3>
 
             <img id="profile-photo" src="" alt="User profile picture">
 
@@ -51,8 +52,8 @@
             <p id="profile-vendor-line">Vendor status: Loading...</p>
         </section>
 
-        <section>
-            <h3>Portal Shortcuts</h3>
+        <section aria-labelledby="portal-shortcuts-heading">
+            <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
 
             <p id="portal-summary">
                 Your available portal buttons will appear here.
@@ -63,8 +64,8 @@
             <button id="go-admin-portal-button" type="button">Admin Portal</button>
         </section>
 
-        <section>
-            <h3>Account Notes</h3>
+        <section aria-labelledby="account-notes-heading">
+            <h3 id="account-notes-heading">Account Notes</h3>
 
             <p id="welcome-message">Loading your account details...</p>
             <p id="vendor-application-note">
