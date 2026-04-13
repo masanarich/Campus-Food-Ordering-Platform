@@ -1,35 +1,95 @@
 const {
+    VENDOR_STATUSES,
+    ACCOUNT_STATUSES,
+    PORTAL_ROUTES,
     normalizeText,
     normalizeEmail,
+    normalizePhoneNumber,
     isNonEmptyString,
     isValidEmail,
     isStrongPassword,
     isValidPhoneNumber,
     createEmptyRoles,
     normalizeRoles,
+    hasAuthenticatedIdentity,
+    getAccountStatus,
+    isAccountActive,
+    getVendorStatus,
+    getVendorReason,
+    getIsOwner,
+    getIsAdmin,
+    getDerivedRoles,
     normaliseUserData,
+    normalizeUserData,
     hasRole,
+    isOwner,
     isCustomer,
     isVendor,
     isAdmin,
-    getVendorStatus,
     isVendorPending,
     isVendorApproved,
-    isVendorSuspended,
     isVendorRejected,
+    isVendorBlocked,
+    isVendorSuspended,
     canAccessCustomerPortal,
     canAccessVendorPortal,
     canAccessAdminPortal,
-    shouldGoToRoleChoice,
     getAvailablePortals,
+    shouldGoToRoleChoice,
+    getPortalRoute,
+    getRoleChoiceOptions,
     getDefaultPortalRoute,
+    getPostLoginRoute,
+    canSubmitVendorApplication,
+    shouldShowPendingVendorPage,
     createBaseUserProfile,
+    mergeProfileWithAuthData,
     applyVendorApplicationToProfile,
     approveVendorProfile,
-    suspendVendorProfile,
     rejectVendorProfile,
+    blockVendorProfile,
+    suspendVendorProfile,
+    clearVendorProfile,
+    createVendorApplicationData,
     mapAuthErrorCode
 } = require("../../public/authentication/auth-utils.js");
+
+function expectIsoString(value) {
+    expect(typeof value).toBe("string");
+    expect(Number.isNaN(Date.parse(value))).toBe(false);
+}
+
+describe("auth-utils constants", () => {
+    test("exports vendor statuses", () => {
+        expect(VENDOR_STATUSES).toEqual({
+            NONE: "none",
+            PENDING: "pending",
+            APPROVED: "approved",
+            REJECTED: "rejected",
+            BLOCKED: "blocked"
+        });
+    });
+
+    test("exports account statuses", () => {
+        expect(ACCOUNT_STATUSES).toEqual({
+            ACTIVE: "active",
+            DISABLED: "disabled",
+            BLOCKED: "blocked"
+        });
+    });
+
+    test("exports portal routes", () => {
+        expect(PORTAL_ROUTES).toEqual({
+            customer: "../customer/index.html",
+            vendor: "../vendor/index.html",
+            admin: "../admin/index.html",
+            roleChoice: "../authentication/role-choice.html",
+            login: "../authentication/login.html",
+            pendingVendor: "../authentication/pending-vendor.html",
+            vendorApplication: "../authentication/vendor-application.html"
+        });
+    });
+});
 
 describe("auth-utils validation helpers", () => {
     test("normalizeText trims text", () => {
@@ -40,10 +100,15 @@ describe("auth-utils validation helpers", () => {
         expect(normalizeText(null)).toBe("");
         expect(normalizeText(undefined)).toBe("");
         expect(normalizeText(123)).toBe("");
+        expect(normalizeText({})).toBe("");
     });
 
     test("normalizeEmail trims and lowercases email", () => {
         expect(normalizeEmail("  USER@Example.COM  ")).toBe("user@example.com");
+    });
+
+    test("normalizePhoneNumber trims and removes spaces", () => {
+        expect(normalizePhoneNumber("  +27 71 234 5678  ")).toBe("+27712345678");
     });
 
     test("isNonEmptyString returns true for non-empty text", () => {
@@ -62,17 +127,20 @@ describe("auth-utils validation helpers", () => {
 
     test("isValidEmail returns false for an invalid email", () => {
         expect(isValidEmail("userexample.com")).toBe(false);
+        expect(isValidEmail("user@")).toBe(false);
+        expect(isValidEmail("")).toBe(false);
     });
 
     test("isStrongPassword returns true for password length >= 8", () => {
         expect(isStrongPassword("password123")).toBe(true);
     });
 
-    test("isStrongPassword returns false for password length < 8", () => {
+    test("isStrongPassword returns false for password length < 8 or invalid", () => {
         expect(isStrongPassword("pass12")).toBe(false);
+        expect(isStrongPassword(null)).toBe(false);
     });
 
-    test("isValidPhoneNumber accepts standard local-style digits", () => {
+    test("isValidPhoneNumber accepts local digits", () => {
         expect(isValidPhoneNumber("0712345678")).toBe(true);
     });
 
@@ -91,7 +159,7 @@ describe("auth-utils validation helpers", () => {
     });
 });
 
-describe("auth-utils role helpers", () => {
+describe("auth-utils role and identity helpers", () => {
     test("createEmptyRoles returns all roles as false", () => {
         expect(createEmptyRoles()).toEqual({
             customer: false,
@@ -108,7 +176,7 @@ describe("auth-utils role helpers", () => {
         });
     });
 
-    test("normalizeRoles preserves true boolean values", () => {
+    test("normalizeRoles preserves strict true boolean values", () => {
         expect(
             normalizeRoles({
                 customer: true,
@@ -136,148 +204,246 @@ describe("auth-utils role helpers", () => {
         });
     });
 
-    test("normaliseUserData returns safe defaults", () => {
-        const result = normaliseUserData(undefined);
-
-        expect(result.uid).toBe("");
-        expect(result.displayName).toBe("");
-        expect(result.email).toBe("");
-        expect(result.roles).toEqual({
-            customer: false,
-            vendor: false,
-            admin: false
-        });
-        expect(result.vendorStatus).toBe("none");
-        expect(result.accountStatus).toBe("active");
-        expect(result.isOwner).toBe(false);
-        expect(result.createdAt).toBeNull();
-        expect(result.updatedAt).toBeNull();
+    test("hasAuthenticatedIdentity returns true for uid", () => {
+        expect(hasAuthenticatedIdentity({ uid: "abc123" })).toBe(true);
     });
 
-    test("normaliseUserData normalizes provided values", () => {
-        const result = normaliseUserData({
-            uid: "abc123",
-            displayName: "  Faranani  ",
-            email: "  USER@example.com  ",
-            roles: { customer: true, vendor: false, admin: true },
-            vendorStatus: "approved",
-            accountStatus: "inactive",
-            isOwner: true,
-            createdAt: "yesterday",
-            updatedAt: "today"
-        });
-
-        expect(result).toEqual({
-            uid: "abc123",
-            displayName: "Faranani",
-            email: "user@example.com",
-            roles: {
-                customer: true,
-                vendor: false,
-                admin: true
-            },
-            vendorStatus: "approved",
-            accountStatus: "inactive",
-            isOwner: true,
-            createdAt: "yesterday",
-            updatedAt: "today"
-        });
+    test("hasAuthenticatedIdentity returns true for valid email", () => {
+        expect(hasAuthenticatedIdentity({ email: "user@example.com" })).toBe(true);
     });
 
-    test("normaliseUserData defaults blank accountStatus to active", () => {
-        const result = normaliseUserData({
-            accountStatus: "   "
-        });
-
-        expect(result.accountStatus).toBe("active");
+    test("hasAuthenticatedIdentity returns true for valid phone number", () => {
+        expect(hasAuthenticatedIdentity({ phoneNumber: "+27712345678" })).toBe(true);
     });
 
-    test("hasRole detects customer role", () => {
-        expect(
-            hasRole(
-                {
-                    roles: { customer: true, vendor: false, admin: false }
-                },
-                "customer"
-            )
-        ).toBe(true);
+    test("hasAuthenticatedIdentity returns false with no valid identity", () => {
+        expect(hasAuthenticatedIdentity({})).toBe(false);
+        expect(hasAuthenticatedIdentity({ email: "bad-email" })).toBe(false);
     });
 
-    test("hasRole returns false for unknown role name", () => {
-        expect(
-            hasRole(
-                {
-                    roles: { customer: true, vendor: false, admin: false }
-                },
-                "owner"
-            )
-        ).toBe(false);
+    test("getAccountStatus returns active by default", () => {
+        expect(getAccountStatus({})).toBe("active");
     });
 
-    test("isCustomer returns true for customer", () => {
-        expect(
-            isCustomer({
-                roles: { customer: true, vendor: false, admin: false }
-            })
-        ).toBe(true);
+    test("getAccountStatus accepts valid statuses", () => {
+        expect(getAccountStatus({ accountStatus: "active" })).toBe("active");
+        expect(getAccountStatus({ accountStatus: "disabled" })).toBe("disabled");
+        expect(getAccountStatus({ accountStatus: "blocked" })).toBe("blocked");
     });
 
-    test("isVendor returns true for vendor", () => {
-        expect(
-            isVendor({
-                roles: { customer: true, vendor: true, admin: false }
-            })
-        ).toBe(true);
+    test("getAccountStatus normalizes invalid statuses to active", () => {
+        expect(getAccountStatus({ accountStatus: "inactive" })).toBe("active");
+        expect(getAccountStatus({ accountStatus: "   " })).toBe("active");
     });
 
-    test("isAdmin returns true for admin", () => {
-        expect(
-            isAdmin({
-                roles: { customer: true, vendor: true, admin: true }
-            })
-        ).toBe(true);
+    test("isAccountActive only returns true for active accounts", () => {
+        expect(isAccountActive({ accountStatus: "active" })).toBe(true);
+        expect(isAccountActive({ accountStatus: "disabled" })).toBe(false);
+        expect(isAccountActive({ accountStatus: "blocked" })).toBe(false);
     });
-});
 
-describe("auth-utils vendor status helpers", () => {
     test("getVendorStatus returns none by default", () => {
         expect(getVendorStatus({})).toBe("none");
     });
 
-    test("getVendorStatus returns none for invalid status", () => {
+    test("getVendorStatus returns normalized supported values", () => {
+        expect(getVendorStatus({ vendorStatus: "pending" })).toBe("pending");
+        expect(getVendorStatus({ vendorStatus: "approved" })).toBe("approved");
+        expect(getVendorStatus({ vendorStatus: "rejected" })).toBe("rejected");
+        expect(getVendorStatus({ vendorStatus: "blocked" })).toBe("blocked");
+    });
+
+    test("getVendorStatus maps legacy suspended to blocked", () => {
+        expect(getVendorStatus({ vendorStatus: "suspended" })).toBe("blocked");
+    });
+
+    test("getVendorStatus uses legacy vendor flags as approved fallback", () => {
+        expect(getVendorStatus({ isVendor: true })).toBe("approved");
+        expect(getVendorStatus({ vendor: true })).toBe("approved");
+        expect(getVendorStatus({ roles: { vendor: true } })).toBe("approved");
+    });
+
+    test("getVendorStatus returns none for unknown status with no legacy vendor flag", () => {
         expect(getVendorStatus({ vendorStatus: "unknown-status" })).toBe("none");
     });
 
-    test("getVendorStatus returns pending correctly", () => {
-        expect(getVendorStatus({ vendorStatus: "pending" })).toBe("pending");
+    test("getVendorReason prefers vendorReason", () => {
+        expect(
+            getVendorReason({
+                vendorReason: "  Main reason  ",
+                rejectionReason: "Other reason"
+            })
+        ).toBe("Main reason");
     });
 
-    test("getVendorStatus returns approved correctly", () => {
-        expect(getVendorStatus({ vendorStatus: "approved" })).toBe("approved");
+    test("getVendorReason falls back to rejectionReason or blockReason", () => {
+        expect(getVendorReason({ rejectionReason: "Rejected for missing docs" })).toBe(
+            "Rejected for missing docs"
+        );
+        expect(getVendorReason({ blockReason: "Blocked by admin" })).toBe(
+            "Blocked by admin"
+        );
     });
 
-    test("getVendorStatus returns suspended correctly", () => {
-        expect(getVendorStatus({ vendorStatus: "suspended" })).toBe("suspended");
+    test("getIsOwner returns true for isOwner or owner", () => {
+        expect(getIsOwner({ isOwner: true })).toBe(true);
+        expect(getIsOwner({ owner: true })).toBe(true);
+        expect(getIsOwner({})).toBe(false);
     });
 
-    test("getVendorStatus returns rejected correctly", () => {
-        expect(getVendorStatus({ vendorStatus: "rejected" })).toBe("rejected");
+    test("getIsAdmin returns true for admin flags, legacy admin role, or owner", () => {
+        expect(getIsAdmin({ isAdmin: true })).toBe(true);
+        expect(getIsAdmin({ admin: true })).toBe(true);
+        expect(getIsAdmin({ roles: { admin: true } })).toBe(true);
+        expect(getIsAdmin({ isOwner: true })).toBe(true);
+        expect(getIsAdmin({})).toBe(false);
     });
 
-    test("isVendorPending works correctly", () => {
+    test("getDerivedRoles returns expected roles for approved vendor", () => {
+        expect(
+            getDerivedRoles({
+                uid: "abc123",
+                vendorStatus: "approved"
+            })
+        ).toEqual({
+            customer: true,
+            vendor: true,
+            admin: false
+        });
+    });
+
+    test("getDerivedRoles returns customer and admin for owner", () => {
+        expect(
+            getDerivedRoles({
+                isOwner: true
+            })
+        ).toEqual({
+            customer: true,
+            vendor: false,
+            admin: true
+        });
+    });
+});
+
+describe("auth-utils user normalization", () => {
+    test("normaliseUserData returns safe defaults", () => {
+        const result = normaliseUserData(undefined);
+
+        expect(result).toEqual({
+            uid: "",
+            displayName: "",
+            email: "",
+            phoneNumber: "",
+            photoURL: "",
+            isAdmin: false,
+            isOwner: false,
+            vendorStatus: "none",
+            vendorReason: "",
+            accountStatus: "active",
+            createdAt: null,
+            updatedAt: null,
+            lastLoginAt: null,
+            roles: {
+                customer: false,
+                vendor: false,
+                admin: false
+            }
+        });
+    });
+
+    test("normaliseUserData normalizes and derives values", () => {
+        const result = normaliseUserData({
+            uid: "abc123",
+            fullName: "  Faranani Maduwa  ",
+            email: "  USER@example.com  ",
+            phoneNumber: "  +27 71 234 5678  ",
+            photoURL: "  https://example.com/photo.jpg  ",
+            roles: { admin: true },
+            vendorStatus: "approved",
+            accountStatus: "inactive",
+            isOwner: true,
+            rejectionReason: "  Missing docs  ",
+            createdAt: "yesterday",
+            updatedAt: "today",
+            lastLoginAt: "just now"
+        });
+
+        expect(result).toEqual({
+            uid: "abc123",
+            displayName: "Faranani Maduwa",
+            email: "user@example.com",
+            phoneNumber: "+27712345678",
+            photoURL: "https://example.com/photo.jpg",
+            isAdmin: true,
+            isOwner: true,
+            vendorStatus: "approved",
+            vendorReason: "Missing docs",
+            accountStatus: "active",
+            createdAt: "yesterday",
+            updatedAt: "today",
+            lastLoginAt: "just now",
+            roles: {
+                customer: true,
+                vendor: true,
+                admin: true
+            }
+        });
+    });
+
+    test("normalizeUserData is an alias of normaliseUserData", () => {
+        const input = { email: " USER@example.com " };
+        expect(normalizeUserData(input)).toEqual(normaliseUserData(input));
+    });
+
+    test("hasRole supports customer, vendor, admin, owner and rejects unknown roles", () => {
+        const user = {
+            uid: "abc123",
+            isOwner: true,
+            vendorStatus: "approved"
+        };
+
+        expect(hasRole(user, "customer")).toBe(true);
+        expect(hasRole(user, "vendor")).toBe(true);
+        expect(hasRole(user, "admin")).toBe(true);
+        expect(hasRole(user, "owner")).toBe(true);
+        expect(hasRole(user, "unknown-role")).toBe(false);
+    });
+
+    test("isOwner returns true only for owners", () => {
+        expect(isOwner({ isOwner: true })).toBe(true);
+        expect(isOwner({})).toBe(false);
+    });
+
+    test("isCustomer returns true for authenticated active user", () => {
+        expect(isCustomer({ uid: "abc123", accountStatus: "active" })).toBe(true);
+    });
+
+    test("isCustomer returns true for admin even without direct identity", () => {
+        expect(isCustomer({ isAdmin: true, accountStatus: "active" })).toBe(true);
+    });
+
+    test("isCustomer returns false for inactive user", () => {
+        expect(isCustomer({ uid: "abc123", accountStatus: "blocked" })).toBe(false);
+    });
+
+    test("isVendor returns true only for approved active vendor", () => {
+        expect(isVendor({ uid: "abc123", vendorStatus: "approved" })).toBe(true);
+        expect(isVendor({ uid: "abc123", vendorStatus: "pending" })).toBe(false);
+        expect(isVendor({ uid: "abc123", vendorStatus: "approved", accountStatus: "disabled" })).toBe(false);
+    });
+
+    test("isAdmin returns true only for active admin or owner", () => {
+        expect(isAdmin({ isAdmin: true, accountStatus: "active" })).toBe(true);
+        expect(isAdmin({ isOwner: true, accountStatus: "active" })).toBe(true);
+        expect(isAdmin({ isAdmin: true, accountStatus: "blocked" })).toBe(false);
+    });
+
+    test("vendor status shortcut helpers work correctly", () => {
         expect(isVendorPending({ vendorStatus: "pending" })).toBe(true);
-    });
-
-    test("isVendorApproved works correctly", () => {
         expect(isVendorApproved({ vendorStatus: "approved" })).toBe(true);
-    });
-
-    test("isVendorSuspended works correctly", () => {
-        expect(isVendorSuspended({ vendorStatus: "suspended" })).toBe(true);
-    });
-
-    test("isVendorRejected works correctly", () => {
         expect(isVendorRejected({ vendorStatus: "rejected" })).toBe(true);
+        expect(isVendorBlocked({ vendorStatus: "blocked" })).toBe(true);
+        expect(isVendorSuspended({ vendorStatus: "suspended" })).toBe(true);
     });
 });
 
@@ -285,90 +451,72 @@ describe("auth-utils portal access and routing", () => {
     test("customer can access customer portal", () => {
         expect(
             canAccessCustomerPortal({
-                roles: { customer: true, vendor: false, admin: false }
+                uid: "abc123"
             })
         ).toBe(true);
     });
 
-    test("vendor can access customer portal", () => {
-        expect(
-            canAccessCustomerPortal({
-                roles: { customer: false, vendor: true, admin: false }
-            })
-        ).toBe(true);
-    });
-
-    test("admin can access customer portal", () => {
-        expect(
-            canAccessCustomerPortal({
-                roles: { customer: false, vendor: false, admin: true }
-            })
-        ).toBe(true);
-    });
-
-    test("user with no roles cannot access customer portal", () => {
-        expect(
-            canAccessCustomerPortal({
-                roles: { customer: false, vendor: false, admin: false }
-            })
-        ).toBe(false);
+    test("user with no identity and no privileges cannot access customer portal", () => {
+        expect(canAccessCustomerPortal({})).toBe(false);
     });
 
     test("approved vendor can access vendor portal", () => {
         expect(
             canAccessVendorPortal({
-                roles: { customer: true, vendor: true, admin: false },
+                uid: "abc123",
                 vendorStatus: "approved"
             })
         ).toBe(true);
     });
 
-    test("pending vendor cannot access vendor portal yet", () => {
+    test("pending vendor cannot access vendor portal", () => {
         expect(
             canAccessVendorPortal({
-                roles: { customer: true, vendor: true, admin: false },
+                uid: "abc123",
                 vendorStatus: "pending"
             })
         ).toBe(false);
     });
 
-    test("admin can access vendor portal", () => {
+    test("owner can access vendor portal", () => {
         expect(
             canAccessVendorPortal({
-                roles: { customer: true, vendor: false, admin: true },
-                vendorStatus: "none"
+                isOwner: true
             })
         ).toBe(true);
+    });
+
+    test("plain admin cannot access vendor portal unless owner", () => {
+        expect(
+            canAccessVendorPortal({
+                isAdmin: true,
+                uid: "abc123",
+                vendorStatus: "none"
+            })
+        ).toBe(false);
     });
 
     test("admin can access admin portal", () => {
         expect(
             canAccessAdminPortal({
-                roles: { customer: true, vendor: false, admin: true }
+                isAdmin: true
             })
         ).toBe(true);
     });
 
-    test("non-admin cannot access admin portal", () => {
+    test("owner can access admin portal", () => {
         expect(
             canAccessAdminPortal({
-                roles: { customer: true, vendor: false, admin: false }
-            })
-        ).toBe(false);
-    });
-
-    test("admin should go to role choice", () => {
-        expect(
-            shouldGoToRoleChoice({
-                roles: { customer: true, vendor: true, admin: true }
+                isOwner: true
             })
         ).toBe(true);
     });
 
-    test("non-admin should not go to role choice", () => {
+    test("inactive admin cannot access admin portal", () => {
         expect(
-            shouldGoToRoleChoice({
-                roles: { customer: true, vendor: true, admin: false }
+            canAccessAdminPortal({
+                isAdmin: true,
+                accountStatus: "disabled"
             })
         ).toBe(false);
     });
@@ -376,7 +524,7 @@ describe("auth-utils portal access and routing", () => {
     test("getAvailablePortals returns customer only for basic customer", () => {
         expect(
             getAvailablePortals({
-                roles: { customer: true, vendor: false, admin: false },
+                uid: "abc123",
                 vendorStatus: "none"
             })
         ).toEqual(["customer"]);
@@ -385,16 +533,24 @@ describe("auth-utils portal access and routing", () => {
     test("getAvailablePortals returns customer and vendor for approved vendor", () => {
         expect(
             getAvailablePortals({
-                roles: { customer: true, vendor: true, admin: false },
+                uid: "abc123",
                 vendorStatus: "approved"
             })
         ).toEqual(["customer", "vendor"]);
     });
 
-    test("getAvailablePortals returns all portals for admin", () => {
+    test("getAvailablePortals returns customer and admin for admin", () => {
         expect(
             getAvailablePortals({
-                roles: { customer: true, vendor: true, admin: true },
+                isAdmin: true
+            })
+        ).toEqual(["customer", "admin"]);
+    });
+
+    test("getAvailablePortals returns all portals for owner with approved vendor status", () => {
+        expect(
+            getAvailablePortals({
+                isOwner: true,
                 vendorStatus: "approved"
             })
         ).toEqual(["customer", "vendor", "admin"]);
@@ -404,143 +560,351 @@ describe("auth-utils portal access and routing", () => {
         expect(getAvailablePortals({})).toEqual([]);
     });
 
-    test("getDefaultPortalRoute returns role-choice for admin", () => {
+    test("shouldGoToRoleChoice returns true when more than one portal is available", () => {
         expect(
-            getDefaultPortalRoute({
-                roles: { customer: true, vendor: true, admin: true },
+            shouldGoToRoleChoice({
+                uid: "abc123",
                 vendorStatus: "approved"
             })
-        ).toBe("../authentication/role-choice.html");
+        ).toBe(true);
     });
 
-    test("getDefaultPortalRoute returns vendor route for approved vendor", () => {
+    test("shouldGoToRoleChoice returns false when only one portal is available", () => {
         expect(
-            getDefaultPortalRoute({
-                roles: { customer: true, vendor: true, admin: false },
-                vendorStatus: "approved"
-            })
-        ).toBe("../vendor/index.html");
-    });
-
-    test("getDefaultPortalRoute returns customer route for customer", () => {
-        expect(
-            getDefaultPortalRoute({
-                roles: { customer: true, vendor: false, admin: false },
+            shouldGoToRoleChoice({
+                uid: "abc123",
                 vendorStatus: "none"
             })
-        ).toBe("../customer/index.html");
+        ).toBe(false);
+    });
+
+    test("getPortalRoute returns matching route or login fallback", () => {
+        expect(getPortalRoute("customer")).toBe(PORTAL_ROUTES.customer);
+        expect(getPortalRoute("vendor")).toBe(PORTAL_ROUTES.vendor);
+        expect(getPortalRoute("admin")).toBe(PORTAL_ROUTES.admin);
+        expect(getPortalRoute("unknown")).toBe(PORTAL_ROUTES.login);
+    });
+
+    test("getRoleChoiceOptions builds portal choice objects", () => {
+        expect(
+            getRoleChoiceOptions({
+                uid: "abc123",
+                vendorStatus: "approved"
+            })
+        ).toEqual([
+            {
+                key: "customer",
+                label: "Customer Portal",
+                route: "../customer/index.html"
+            },
+            {
+                key: "vendor",
+                label: "Vendor Portal",
+                route: "../vendor/index.html"
+            }
+        ]);
     });
 
     test("getDefaultPortalRoute returns login route for unknown user", () => {
-        expect(getDefaultPortalRoute({})).toBe("../authentication/login.html");
+        expect(getDefaultPortalRoute({})).toBe(PORTAL_ROUTES.login);
+    });
+
+    test("getDefaultPortalRoute returns customer route for single-portal customer", () => {
+        expect(
+            getDefaultPortalRoute({
+                uid: "abc123",
+                vendorStatus: "none"
+            })
+        ).toBe(PORTAL_ROUTES.customer);
+    });
+
+    test("getDefaultPortalRoute returns role-choice for multi-portal approved vendor", () => {
+        expect(
+            getDefaultPortalRoute({
+                uid: "abc123",
+                vendorStatus: "approved"
+            })
+        ).toBe(PORTAL_ROUTES.roleChoice);
+    });
+
+    test("getPostLoginRoute mirrors getDefaultPortalRoute", () => {
+        const user = { isAdmin: true };
+        expect(getPostLoginRoute(user)).toBe(getDefaultPortalRoute(user));
+    });
+
+    test("canSubmitVendorApplication allows active users with none or rejected status", () => {
+        expect(
+            canSubmitVendorApplication({
+                uid: "abc123",
+                vendorStatus: "none",
+                accountStatus: "active"
+            })
+        ).toBe(true);
+
+        expect(
+            canSubmitVendorApplication({
+                uid: "abc123",
+                vendorStatus: "rejected",
+                accountStatus: "active"
+            })
+        ).toBe(true);
+    });
+
+    test("canSubmitVendorApplication blocks owners, admins, inactive accounts, pending, approved and blocked vendors", () => {
+        expect(canSubmitVendorApplication({ isOwner: true })).toBe(false);
+        expect(canSubmitVendorApplication({ isAdmin: true })).toBe(false);
+        expect(canSubmitVendorApplication({ uid: "abc123", accountStatus: "blocked" })).toBe(false);
+        expect(canSubmitVendorApplication({ uid: "abc123", vendorStatus: "pending" })).toBe(false);
+        expect(canSubmitVendorApplication({ uid: "abc123", vendorStatus: "approved" })).toBe(false);
+        expect(canSubmitVendorApplication({ uid: "abc123", vendorStatus: "blocked" })).toBe(false);
+    });
+
+    test("shouldShowPendingVendorPage is true for pending, rejected and blocked", () => {
+        expect(shouldShowPendingVendorPage({ vendorStatus: "pending" })).toBe(true);
+        expect(shouldShowPendingVendorPage({ vendorStatus: "rejected" })).toBe(true);
+        expect(shouldShowPendingVendorPage({ vendorStatus: "blocked" })).toBe(true);
+        expect(shouldShowPendingVendorPage({ vendorStatus: "approved" })).toBe(false);
+        expect(shouldShowPendingVendorPage({ vendorStatus: "none" })).toBe(false);
     });
 });
 
 describe("auth-utils profile shaping", () => {
-    test("createBaseUserProfile creates a base customer profile", () => {
+    test("createBaseUserProfile creates a base profile from auth user and overrides", () => {
         const result = createBaseUserProfile(
-            { uid: "abc123", email: "user@example.com" },
-            { displayName: "Faranani Maduwa" }
+            {
+                uid: "abc123",
+                email: "auth@example.com",
+                displayName: "Auth Name",
+                phoneNumber: "+27712345678",
+                photoURL: "https://example.com/auth.jpg"
+            },
+            {
+                displayName: "Override Name",
+                photoURL: "https://example.com/override.jpg"
+            }
         );
 
         expect(result.uid).toBe("abc123");
-        expect(result.email).toBe("user@example.com");
-        expect(result.displayName).toBe("Faranani Maduwa");
+        expect(result.displayName).toBe("Override Name");
+        expect(result.email).toBe("auth@example.com");
+        expect(result.phoneNumber).toBe("+27712345678");
+        expect(result.photoURL).toBe("https://example.com/override.jpg");
+        expect(result.isAdmin).toBe(false);
+        expect(result.isOwner).toBe(false);
+        expect(result.vendorStatus).toBe("none");
+        expect(result.vendorReason).toBe("");
+        expect(result.accountStatus).toBe("active");
         expect(result.roles).toEqual({
             customer: true,
             vendor: false,
             admin: false
         });
-        expect(result.vendorStatus).toBe("none");
-        expect(result.accountStatus).toBe("active");
-        expect(typeof result.createdAt).toBe("string");
-        expect(typeof result.updatedAt).toBe("string");
+        expectIsoString(result.createdAt);
+        expectIsoString(result.updatedAt);
+        expectIsoString(result.lastLoginAt);
     });
 
-    test("createBaseUserProfile falls back to fullName override", () => {
-        const result = createBaseUserProfile(
-            { uid: "abc123", email: "" },
-            { fullName: "Vendor Person" }
-        );
-
-        expect(result.displayName).toBe("Vendor Person");
-        expect(result.email).toBe("");
-    });
-
-    test("createBaseUserProfile prefers override email", () => {
-        const result = createBaseUserProfile(
-            { uid: "abc123", email: "auth@example.com" },
-            { email: "override@example.com" }
-        );
-
-        expect(result.email).toBe("override@example.com");
-    });
-
-    test("createBaseUserProfile handles missing authUser", () => {
+    test("createBaseUserProfile handles missing authUser and missing overrides", () => {
         const result = createBaseUserProfile(null, null);
 
         expect(result.uid).toBe("");
         expect(result.displayName).toBe("");
         expect(result.email).toBe("");
+        expect(result.phoneNumber).toBe("");
+        expect(result.photoURL).toBe("");
+        expect(result.roles).toEqual({
+            customer: false,
+            vendor: false,
+            admin: false
+        });
+    });
+
+    test("mergeProfileWithAuthData preserves privileged fields from existing profile", () => {
+        const result = mergeProfileWithAuthData(
+            {
+                uid: "existing-uid",
+                displayName: "Existing Name",
+                email: "existing@example.com",
+                phoneNumber: "+27710000000",
+                photoURL: "https://example.com/existing.jpg",
+                isAdmin: true,
+                isOwner: false,
+                vendorStatus: "approved",
+                vendorReason: "Already approved",
+                accountStatus: "blocked",
+                createdAt: "2026-01-01T10:00:00.000Z"
+            },
+            {
+                uid: "auth-uid",
+                displayName: "Auth Name",
+                email: "auth@example.com",
+                phoneNumber: "+27719999999",
+                photoURL: "https://example.com/auth.jpg"
+            },
+            {
+                displayName: "Override Name"
+            }
+        );
+
+        expect(result.uid).toBe("existing-uid");
+        expect(result.displayName).toBe("Override Name");
+        expect(result.email).toBe("existing@example.com");
+        expect(result.phoneNumber).toBe("+27710000000");
+        expect(result.photoURL).toBe("https://example.com/existing.jpg");
+        expect(result.isAdmin).toBe(true);
+        expect(result.isOwner).toBe(false);
+        expect(result.vendorStatus).toBe("approved");
+        expect(result.vendorReason).toBe("Already approved");
+        expect(result.accountStatus).toBe("blocked");
+        expect(result.createdAt).toBe("2026-01-01T10:00:00.000Z");
+        expectIsoString(result.updatedAt);
+        expectIsoString(result.lastLoginAt);
+        expect(result.roles).toEqual({
+            customer: true,
+            vendor: true,
+            admin: true
+        });
     });
 
     test("applyVendorApplicationToProfile sets vendor status to pending", () => {
         const result = applyVendorApplicationToProfile({
             uid: "abc123",
-            displayName: "Vendor User",
             email: "vendor@example.com",
-            roles: { customer: true, vendor: false, admin: false },
             vendorStatus: "none",
             accountStatus: "active"
         });
 
-        expect(result.roles.customer).toBe(true);
-        expect(result.roles.vendor).toBe(false);
         expect(result.vendorStatus).toBe("pending");
-        expect(typeof result.updatedAt).toBe("string");
+        expect(result.vendorReason).toBe("");
+        expect(result.roles.vendor).toBe(false);
+        expectIsoString(result.updatedAt);
     });
 
-    test("approveVendorProfile approves vendor access", () => {
+    test("approveVendorProfile approves vendor", () => {
         const result = approveVendorProfile({
             uid: "abc123",
-            displayName: "Vendor User",
             email: "vendor@example.com",
-            roles: { customer: true, vendor: false, admin: false },
-            vendorStatus: "pending",
-            accountStatus: "active"
+            vendorStatus: "pending"
         });
 
-        expect(result.roles.vendor).toBe(true);
         expect(result.vendorStatus).toBe("approved");
-        expect(typeof result.updatedAt).toBe("string");
+        expect(result.vendorReason).toBe("");
+        expect(result.roles.vendor).toBe(true);
+        expectIsoString(result.updatedAt);
     });
 
-    test("suspendVendorProfile suspends vendor", () => {
-        const result = suspendVendorProfile({
-            uid: "abc123",
-            displayName: "Vendor User",
-            email: "vendor@example.com",
-            roles: { customer: true, vendor: true, admin: false },
-            vendorStatus: "approved",
-            accountStatus: "active"
-        });
-
-        expect(result.vendorStatus).toBe("suspended");
-        expect(typeof result.updatedAt).toBe("string");
-    });
-
-    test("rejectVendorProfile rejects vendor application", () => {
-        const result = rejectVendorProfile({
-            uid: "abc123",
-            displayName: "Vendor User",
-            email: "vendor@example.com",
-            roles: { customer: true, vendor: false, admin: false },
-            vendorStatus: "pending",
-            accountStatus: "active"
-        });
+    test("rejectVendorProfile rejects vendor and stores reason", () => {
+        const result = rejectVendorProfile(
+            {
+                uid: "abc123",
+                email: "vendor@example.com",
+                vendorStatus: "pending"
+            },
+            " Missing tax number "
+        );
 
         expect(result.vendorStatus).toBe("rejected");
-        expect(typeof result.updatedAt).toBe("string");
+        expect(result.vendorReason).toBe("Missing tax number");
+        expect(result.roles.vendor).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("blockVendorProfile blocks vendor and stores reason", () => {
+        const result = blockVendorProfile(
+            {
+                uid: "abc123",
+                email: "vendor@example.com",
+                vendorStatus: "approved"
+            },
+            " Policy violation "
+        );
+
+        expect(result.vendorStatus).toBe("blocked");
+        expect(result.vendorReason).toBe("Policy violation");
+        expect(result.roles.vendor).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("suspendVendorProfile is a backward-compatible alias for blockVendorProfile", () => {
+        const result = suspendVendorProfile(
+            {
+                uid: "abc123",
+                email: "vendor@example.com",
+                vendorStatus: "approved"
+            },
+            " Suspended by admin "
+        );
+
+        expect(result.vendorStatus).toBe("blocked");
+        expect(result.vendorReason).toBe("Suspended by admin");
+        expect(result.roles.vendor).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("clearVendorProfile resets vendor state", () => {
+        const result = clearVendorProfile({
+            uid: "abc123",
+            email: "vendor@example.com",
+            vendorStatus: "blocked",
+            vendorReason: "Old reason"
+        });
+
+        expect(result.vendorStatus).toBe("none");
+        expect(result.vendorReason).toBe("");
+        expect(result.roles.vendor).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("createVendorApplicationData builds pending application data", () => {
+        const result = createVendorApplicationData(
+            {
+                uid: "abc123",
+                displayName: "Auth User",
+                email: "auth@example.com",
+                phoneNumber: "+27712345678"
+            },
+            {
+                businessName: "  Campus Kitchen  ",
+                description: "  Fresh meals daily  "
+            }
+        );
+
+        expect(result).toMatchObject({
+            uid: "abc123",
+            applicantName: "Auth User",
+            email: "auth@example.com",
+            phoneNumber: "+27712345678",
+            businessName: "Campus Kitchen",
+            businessDescription: "Fresh meals daily",
+            status: "pending",
+            reason: ""
+        });
+        expectIsoString(result.submittedAt);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("createVendorApplicationData prefers form overrides", () => {
+        const result = createVendorApplicationData(
+            {
+                uid: "abc123",
+                displayName: "Auth User",
+                email: "auth@example.com",
+                phoneNumber: "+27712345678"
+            },
+            {
+                applicantName: "Form User",
+                email: "form@example.com",
+                phoneNumber: "071 234 5678",
+                businessName: "Vendor Shop",
+                businessDescription: "Snacks"
+            }
+        );
+
+        expect(result.applicantName).toBe("Form User");
+        expect(result.email).toBe("form@example.com");
+        expect(result.phoneNumber).toBe("0712345678");
+        expect(result.businessName).toBe("Vendor Shop");
+        expect(result.businessDescription).toBe("Snacks");
     });
 });
 
@@ -555,13 +919,10 @@ describe("auth-utils auth error mapping", () => {
         );
     });
 
-    test("maps wrong password error", () => {
+    test("maps wrong password and invalid credential errors", () => {
         expect(mapAuthErrorCode("auth/wrong-password")).toBe(
             "Incorrect email or password."
         );
-    });
-
-    test("maps invalid credential error", () => {
         expect(mapAuthErrorCode("auth/invalid-credential")).toBe(
             "Incorrect email or password."
         );
@@ -585,9 +946,18 @@ describe("auth-utils auth error mapping", () => {
         );
     });
 
-    test("maps popup closed by user error", () => {
+    test("maps popup closed and popup blocked errors", () => {
         expect(mapAuthErrorCode("auth/popup-closed-by-user")).toBe(
             "The sign-in popup was closed before completing sign-in."
+        );
+        expect(mapAuthErrorCode("auth/popup-blocked")).toBe(
+            "Your browser blocked the sign-in popup. Please allow popups and try again."
+        );
+    });
+
+    test("maps too many requests error", () => {
+        expect(mapAuthErrorCode("auth/too-many-requests")).toBe(
+            "Too many attempts were made. Please wait a bit and try again."
         );
     });
 

@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Choose Role | Campus Food Ordering Platform</title>
+  <title>Choose Portal | Campus Food Ordering Platform</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <link rel="stylesheet" href="./styles.css">
@@ -25,22 +25,30 @@
   <main>
 
     <section>
-      <h2>Choose Your Role</h2>
-      <p>Select how you want to use the platform.</p>
+      <h2>Choose Your Portal</h2>
+      <p>Select where you want to continue.</p>
 
       <p id="role-choice-status" aria-live="polite"></p>
+      <p id="role-choice-summary"></p>
+      <p id="vendor-status-message" aria-live="polite"></p>
     </section>
 
-    <section>
-      <h3>Continue as a Customer</h3>
+    <section id="customer-portal-section">
+      <h3>Customer Portal</h3>
       <p>Browse campus vendors, place orders, and collect your food faster.</p>
-      <button id="choose-customer" type="button">Choose Customer</button>
+      <button id="choose-customer" type="button">Continue to Customer Portal</button>
     </section>
 
-    <section>
-      <h3>Apply as a Vendor</h3>
-      <p>Sell food on the platform and manage student orders from your campus store.</p>
-      <button id="choose-vendor" type="button">Choose Vendor</button>
+    <section id="vendor-portal-section">
+      <h3>Vendor Portal</h3>
+      <p>Manage your store, update your menu, and handle customer orders.</p>
+      <button id="choose-vendor" type="button">Continue to Vendor Portal</button>
+    </section>
+
+    <section id="admin-portal-section">
+      <h3>Admin Portal</h3>
+      <p>Manage users, vendors, approvals, and platform administration.</p>
+      <button id="choose-admin" type="button">Continue to Admin Portal</button>
     </section>
 
     <section>
@@ -60,7 +68,6 @@
   <footer>
     <p>Campus Food Ordering Platform © 2026</p>
   </footer>
-
 
   <script src="./auth-utils.js"></script>
   <script src="./auth-core.js"></script>
