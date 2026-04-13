@@ -2,18 +2,23 @@
     --page-bg: #f4ede6;
     --surface: #ffffff;
     --surface-soft: #f8f2ec;
+    --surface-muted: #fffaf5;
     --text: #2d160d;
     --text-soft: #7a6559;
     --border: #e4cfc0;
     --accent: #f58a00;
     --accent-dark: #d97400;
+    --accent-soft: #fff1df;
     --success-bg: #dff0e6;
     --success-text: #17694a;
     --error-bg: #fde8e4;
     --error-text: #8d2f24;
     --info-bg: #f3ecff;
     --info-text: #5b4699;
+    --warning-bg: #fff4d9;
+    --warning-text: #8a5a00;
     --shadow: 0 18px 40px rgba(60, 30, 10, 0.08);
+    --shadow-soft: 0 10px 24px rgba(60, 30, 10, 0.06);
     --radius-xl: 2.2rem;
     --radius-lg: 2rem;
     --radius-md: 1.5rem;
@@ -124,7 +129,7 @@ main {
     padding-bottom: 2rem;
 }
 
-main>section {
+main > section {
     background: rgba(255, 255, 255, 0.82);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
@@ -132,16 +137,34 @@ main>section {
     padding: 1.9rem;
 }
 
-main>section:first-of-type {
+.page-hero,
+.users-results {
     grid-column: 1 / -1;
 }
 
-main>section:last-of-type {
+.users-toolbar {
     grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 1.25rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.users-toolbar > article {
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    padding: 1.9rem;
 }
 
 main h2,
-main h3 {
+main h3,
+main h4,
+main h5 {
     margin-top: 0;
     color: var(--text);
     line-height: 1.1;
@@ -153,44 +176,44 @@ main h2 {
 }
 
 main h3 {
-    font-size: clamp(1.8rem, 3vw, 2.3rem);
+    font-size: clamp(1.5rem, 2.5vw, 2rem);
     margin-bottom: 1rem;
 }
 
-main>section:first-of-type>p:not(#vendor-home-status) {
+main h4 {
+    font-size: 1.2rem;
+    margin-bottom: 0.75rem;
+}
+
+main h5 {
+    font-size: 1rem;
+    margin-bottom: 0.85rem;
     color: var(--text-soft);
+}
+
+.page-hero > p,
+.users-search-panel > p,
+.users-summary-panel > p,
+.user-card > p {
+    color: var(--text-soft);
+}
+
+.page-hero > p {
     font-size: 1.08rem;
     margin-top: 0;
     margin-bottom: 1rem;
     max-width: 60rem;
 }
 
-#vendor-home-status {
+#users-status {
     min-height: 1.5rem;
-    margin: 0 0 1.2rem;
+    margin: 1rem 0 0;
     padding: 1rem 1.25rem;
     border-radius: var(--radius-md);
     font-weight: 700;
-    border: 1px solid transparent;
-}
-
-#vendor-home-status[data-state="success"] {
-    background: var(--success-bg);
-    color: var(--success-text);
-    border-color: #bddbca;
-}
-
-#vendor-home-status[data-state="error"] {
-    background: var(--error-bg);
-    color: var(--error-text);
-    border-color: #efc2bb;
-}
-
-#vendor-home-status[data-state="info"],
-#vendor-home-status[data-state="loading"] {
+    border: 1px solid #ddd0ff;
     background: var(--info-bg);
     color: var(--info-text);
-    border-color: #ddd0ff;
 }
 
 button {
@@ -203,7 +226,7 @@ button {
     margin: 0.35rem 0.55rem 0 0;
     background: #fff8f2;
     color: var(--text);
-    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 button:hover,
@@ -211,70 +234,245 @@ button:focus {
     background: #fff0df;
     outline: none;
     transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
 }
 
-#go-profile-button,
-#go-vendor-portal-button {
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+button:disabled:hover,
+button:disabled:focus {
+    background: #fff8f2;
+    transform: none;
+    box-shadow: none;
+}
+
+#back-button {
     background: var(--accent);
     border-color: var(--accent);
     color: #ffffff;
 }
 
-#go-profile-button:hover,
-#go-profile-button:focus,
-#go-vendor-portal-button:hover,
-#go-vendor-portal-button:focus {
+#back-button:hover,
+#back-button:focus {
     background: var(--accent-dark);
     border-color: var(--accent-dark);
     color: #ffffff;
 }
 
-button:disabled {
-    opacity: 0.65;
-    cursor: not-allowed;
-    transform: none;
+.page-actions,
+.filter-menu,
+.user-actions {
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
-#profile-photo {
-    width: 12rem;
-    height: 12rem;
-    object-fit: cover;
-    border-radius: 50%;
-    border: 6px solid #ffffff;
-    background: #efe2d6;
-    box-shadow: var(--shadow);
-    margin-bottom: 1rem;
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
 
-#profile-photo-caption {
-    margin-top: 0;
-    margin-bottom: 1rem;
-    color: var(--text-soft);
-    font-size: 1rem;
+.filter-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-top: 1rem;
 }
 
-#profile-name-line,
-#profile-role-line,
-#profile-email-line,
-#profile-vendor-line {
-    margin: 0 0 1rem;
-    font-size: 1.08rem;
-    color: var(--text);
-    font-weight: 600;
+.filter-menu li,
+.page-actions li,
+.user-actions li {
+    margin: 0;
+    padding: 0;
 }
 
-#portal-summary,
-#welcome-message,
-#vendor-portal-note {
-    margin: 0 0 1rem;
-    font-size: 1.08rem;
-    color: var(--text-soft);
-}
-
-main>section:nth-of-type(2),
-main>section:nth-of-type(3),
-main>section:nth-of-type(4) {
+.filter-menu button {
+    margin: 0;
     background: var(--surface-soft);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.filter-menu button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+}
+
+.filter-menu button[aria-pressed="true"]:hover,
+.filter-menu button[aria-pressed="true"]:focus {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+    color: #ffffff;
+}
+
+#user-search {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1rem 1.2rem;
+    background: #fffdfa;
+    color: var(--text);
+    box-shadow: inset 0 1px 2px rgba(60, 30, 10, 0.04);
+}
+
+#user-search:focus {
+    outline: 2px solid rgba(245, 138, 0, 0.18);
+    border-color: var(--accent);
+    background: #ffffff;
+}
+
+.users-summary-panel output {
+    font-weight: 800;
+    color: var(--text);
+}
+
+.users-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+.user-card-item {
+    margin: 0;
+    padding: 0;
+}
+
+.user-card {
+    height: 100%;
+    background: linear-gradient(180deg, #ffffff 0%, var(--surface-muted) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.user-card h4 {
+    margin-bottom: 0.2rem;
+}
+
+.user-card p {
+    margin: 0;
+}
+
+.user-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.user-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 800;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.user-badge-role {
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    border-color: #ffd7ad;
+}
+
+.user-badge-vendor {
+    background: var(--info-bg);
+    color: var(--info-text);
+    border-color: #ddd0ff;
+}
+
+.user-badge-account {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border-color: #bddbca;
+}
+
+.user-card-empty {
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 14rem;
+}
+
+.user-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin-top: auto;
+    padding-top: 0.4rem;
+}
+
+.user-actions button {
+    margin: 0;
+    padding: 0.78rem 1rem;
+    font-size: 0.95rem;
+}
+
+.user-actions button[data-action="approve-vendor"],
+.user-actions button[data-action="enable-account"],
+.user-actions button[data-action="make-admin"],
+.user-actions button[data-action="make-owner"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+}
+
+.user-actions button[data-action="approve-vendor"]:hover,
+.user-actions button[data-action="approve-vendor"]:focus,
+.user-actions button[data-action="enable-account"]:hover,
+.user-actions button[data-action="enable-account"]:focus,
+.user-actions button[data-action="make-admin"]:hover,
+.user-actions button[data-action="make-admin"]:focus,
+.user-actions button[data-action="make-owner"]:hover,
+.user-actions button[data-action="make-owner"]:focus {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+    color: #ffffff;
+}
+
+.user-actions button[data-action="suspend-vendor"],
+.user-actions button[data-action="disable-account"],
+.user-actions button[data-action="remove-owner"],
+.user-actions button[data-action="remove-admin"] {
+    background: #fff1ee;
+    border-color: #efc2bb;
+    color: var(--error-text);
+}
+
+.user-actions button[data-action="suspend-vendor"]:hover,
+.user-actions button[data-action="suspend-vendor"]:focus,
+.user-actions button[data-action="disable-account"]:hover,
+.user-actions button[data-action="disable-account"]:focus,
+.user-actions button[data-action="remove-owner"]:hover,
+.user-actions button[data-action="remove-owner"]:focus,
+.user-actions button[data-action="remove-admin"]:hover,
+.user-actions button[data-action="remove-admin"]:focus {
+    background: #ffe4de;
+    border-color: #e8aa9f;
+    color: #7a241b;
+}
+
+.user-actions button[data-action="clear-vendor"] {
+    background: #fff8f2;
+    border-color: var(--border);
+    color: var(--text);
 }
 
 footer {
@@ -288,17 +486,26 @@ footer p {
     text-align: center;
 }
 
+@media (max-width: 1050px) {
+    .users-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .users-list {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 900px) {
     main {
         grid-template-columns: 1fr;
     }
 
-    main>section:first-of-type,
-    main>section:last-of-type {
-        grid-column: auto;
+    main > section {
+        padding: 1.45rem;
     }
 
-    main>section {
+    .users-toolbar > article {
         padding: 1.45rem;
     }
 
@@ -308,7 +515,6 @@ footer p {
 }
 
 @media (max-width: 600px) {
-
     header,
     main,
     footer {
@@ -325,18 +531,31 @@ footer p {
         padding: 0.8rem 1rem;
     }
 
+    main {
+        gap: 1rem;
+        padding-top: 1.25rem;
+    }
+
+    .page-actions,
+    .filter-menu,
+    .user-actions {
+        flex-direction: column;
+    }
+
+    .page-actions button,
+    .filter-menu button,
+    .user-actions button,
+    #back-button,
     button {
         width: 100%;
         margin-right: 0;
     }
 
-    #profile-photo {
-        width: 9.5rem;
-        height: 9.5rem;
+    .user-card {
+        padding: 1.2rem;
     }
 
-    main {
-        gap: 1rem;
-        padding-top: 1.25rem;
+    .user-card-meta {
+        gap: 0.45rem;
     }
 }

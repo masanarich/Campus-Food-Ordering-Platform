@@ -28,15 +28,27 @@
 
         <section aria-labelledby="admin-home-heading">
             <h2 id="admin-home-heading">Admin Home</h2>
+
             <p>
                 Welcome to your admin portal. View your account details, move between portals,
-                and continue managing the platform from your admin space.
+                and manage platform users and vendors.
             </p>
 
             <p id="admin-home-status" aria-live="polite"></p>
 
-            <button id="go-profile-button" type="button">Profile</button>
-            <button id="choose-portal-button" type="button">Choose Portal</button>
+            <menu>
+                <li>
+                    <button id="go-profile-button" type="button">
+                        Profile
+                    </button>
+                </li>
+
+                <li>
+                    <button id="choose-portal-button" type="button">
+                        Choose Portal
+                    </button>
+                </li>
+            </menu>
         </section>
 
         <section aria-labelledby="profile-overview-heading">
@@ -44,7 +56,10 @@
 
             <img id="profile-photo" src="" alt="User profile picture">
 
-            <p id="profile-photo-caption">Your profile picture appears here.</p>
+            <p id="profile-photo-caption">
+                Your profile picture appears here.
+            </p>
+
             <p id="profile-name-line">Name: Loading...</p>
             <p id="profile-role-line">Role: Loading...</p>
             <p id="profile-email-line">Email: Loading...</p>
@@ -55,20 +70,50 @@
             <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
 
             <p id="portal-summary">
-                Your available portal buttons will appear here.
+                Access the portals and management tools available to your account.
             </p>
 
-            <button id="go-customer-portal-button" type="button">Customer Portal</button>
-            <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
-            <button id="go-admin-portal-button" type="button">Admin Portal</button>
+            <menu>
+
+                <li>
+                    <button id="go-customer-portal-button" type="button">
+                        Customer Portal
+                    </button>
+                </li>
+
+                <li>
+                    <button id="go-vendor-portal-button" type="button">
+                        Vendor Portal
+                    </button>
+                </li>
+
+                <li>
+                    <button id="go-admin-portal-button" type="button">
+                        Admin Portal
+                    </button>
+                </li>
+
+                <li>
+                    <a href="./users.html">
+                        <button id="manage-users-button" type="button">
+                            Manage Users
+                        </button>
+                    </a>
+                </li>
+
+            </menu>
         </section>
 
         <section aria-labelledby="admin-notes-heading">
             <h3 id="admin-notes-heading">Admin Notes</h3>
 
-            <p id="welcome-message">Loading your admin details...</p>
+            <p id="welcome-message">
+                Loading your admin details...
+            </p>
+
             <p id="admin-portal-note">
-                Admin account information will appear here.
+                From this portal you can approve vendor applications, manage user roles,
+                suspend accounts, and monitor platform access.
             </p>
         </section>
 
