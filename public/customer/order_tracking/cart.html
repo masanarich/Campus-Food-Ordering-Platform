@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cart – CampusBite</title>
+  <link rel="stylesheet" href="./cart.css">
+</head>
+<body>
+
+<aside id="authOverlay">⏳ Checking session…</aside>
+
+<nav>
+  <strong class="nav-logo">Campus<span>Bite</span></strong>
+  <section class="nav-right">
+    <a href="browse-menu.html">← Back to Menu</a>
+  </section>
+</nav>
+
+<main class="container">
+  <header style="margin-bottom:28px;">
+    <h1 style="font-size:1.6rem;font-weight:800;">
+      Your <span style="color:#f5a623;">Cart</span>
+    </h1>
+    <p style="color:#7e8494;margin-top:6px;">
+      Review your order before placing it
+    </p>
+  </header>
+
+  <output class="msg msg-success" id="successMsg" aria-live="polite"></output>
+  <output class="msg msg-error" id="errorMsg" aria-live="assertive"></output>
+
+  <!-- STUDENT NAME -->
+  <article class="name-card">
+    <label for="studentName">Your Name</label>
+    <input
+      type="text"
+      id="studentName"
+      placeholder="Enter your name for the order"
+      autocomplete="name"
+    />
+  </article>
+
+  <!-- CART ITEMS -->
+  <article class="cart-card">
+    <h2>🛒 Order Items</h2>
+    <section id="cartItemsList" aria-live="polite"></section>
+  </article>
+
+  <!-- ORDER SUMMARY -->
+  <article class="summary-card" id="summaryCard">
+    <h2>Order Summary</h2>
+    <section id="summaryRows"></section>
+    <footer class="summary-total">
+      <span>Total</span>
+      <span id="totalAmount">R0.00</span>
+    </footer>
+  </article>
+
+  <button class="btn-place-order" id="placeOrderBtn">
+    Place Order 🚀
+  </button>
+</main>
+
+<output class="toast" id="toast" aria-live="assertive"></output>
+
+<script type="module" src="cart.js"></script>
+
+</body>
+</html>

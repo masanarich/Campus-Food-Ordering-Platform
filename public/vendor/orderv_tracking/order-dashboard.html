@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Order Dashboard – CampusBite</title>
+  <link rel="stylesheet" href="./order-dashboard.css">
+</head>
+<body>
+
+<nav>
+  <strong class="nav-logo">Campus<span>Bite</span> <small>Vendor</small></strong>
+  <section class="nav-right">
+    <a href="menu-manager.html">🍽️ Menu</a>
+    <button class="btn-logout" id="logoutBtn">Logout</button>
+  </section>
+</nav>
+
+<main class="container">
+  <header class="page-header">
+    <h1>Order <span>Dashboard</span></h1>
+    <p class="live-badge">
+      <span class="live-dot"></span>
+      Live Updates
+    </p>
+  </header>
+
+  <nav class="tabs" aria-label="Order filters">
+    <button class="tab-btn active" data-filter="all">All Orders</button>
+    <button class="tab-btn" data-filter="received">New</button>
+    <button class="tab-btn" data-filter="preparing">Preparing</button>
+    <button class="tab-btn" data-filter="ready">Ready</button>
+  </nav>
+
+  <section class="orders-list" id="ordersList" aria-live="polite">
+    <p class="empty-state">
+      <span style="font-size:2.5rem">📋</span><br/>
+      Loading orders...
+    </p>
+  </section>
+</main>
+
+<script type="module" src="./order-dashboard.js"></script>
+
+</body>
+</html>

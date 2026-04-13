@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Menu Manager – CampusBite</title>
+  <link rel="stylesheet" href="./menu-manager.css">
+</head>
+<body>
+
+<nav>
+  <strong class="nav-logo">Campus<span>Bite</span> <small>Vendor</small></strong>
+  <section class="nav-right">
+    <a href="order-dashboard.html">Orders</a>
+    <button class="btn-logout" id="logoutBtn">Logout</button>
+  </section>
+</nav>
+
+<main class="container">
+  <header class="page-header">
+    <h1>Menu <span>Manager</span></h1>
+  </header>
+
+  <article class="form-card">
+    <h2>+ Add New Menu Item</h2>
+    <section class="form-grid">
+      <fieldset class="form-group">
+        <label for="itemName">Item Name</label>
+        <input type="text" id="itemName" placeholder="e.g. Chicken Wrap" />
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="itemPrice">Price (R)</label>
+        <input type="number" id="itemPrice" placeholder="e.g. 45" min="0" step="0.01" />
+      </fieldset>
+      <fieldset class="form-group">
+        <label for="itemCategory">Category</label>
+        <select id="itemCategory">
+          <option value="meals">Meals</option>
+          <option value="snacks">Snacks</option>
+          <option value="drinks">Drinks</option>
+          <option value="desserts">Desserts</option>
+        </select>
+      </fieldset>
+
+  
+      <fieldset class="form-group">
+        <label for="itemPhoto">Photo (optional)</label>
+        <input type="file" id="itemPhoto" accept="image/*" />
+        <!-- Image preview shown after vendor picks a file -->
+        <img id="photoPreview"
+             alt="Photo preview"
+             style="display:none; margin-top:8px; max-height:120px;
+                    border-radius:8px; object-fit:cover;" />
+        <!-- Upload progress bar -->
+        <progress id="uploadProgress"
+                  value="0" max="100"
+                  style="display:none; width:100%; margin-top:6px;">
+        </progress>
+      </fieldset>
+
+      <fieldset class="form-group full">
+        <label for="itemDesc">Description</label>
+        <textarea id="itemDesc" placeholder="Describe the item..."></textarea>
+      </fieldset>
+    </section>
+    <button class="btn-add" id="addItemBtn">Add Item</button>
+    <output class="msg msg-success" id="successMsg" aria-live="polite"></output>
+    <output class="msg msg-error"   id="errorMsg"   aria-live="assertive"></output>
+  </article>
+
+  <h2 class="section-title">Your Menu Items</h2>
+  <section class="menu-grid" id="menuGrid">
+    <p class="empty-state">
+      <p style="font-size:2rem">🍽️</p>
+      <p>No items yet. Add your first menu item above!</p>
+    </p>
+  </section>
+</main>
+
+<script type="module" src="./menu-manager.js"></script>
+
+<!-- Live image preview when vendor picks a file -->
+<script>
+  document.getElementById('itemPhoto').addEventListener('change', function () {
+    const preview = document.getElementById('photoPreview');
+    const file    = this.files[0];
+    if (file) {
+      preview.src          = URL.createObjectURL(file);
+      preview.style.display = 'block';
+    } else {
+      preview.src           = '';
+      preview.style.display = 'none';
+    }
+  });
+</script>
+
+</body>
+</html>
