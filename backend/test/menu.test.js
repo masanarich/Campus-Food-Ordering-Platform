@@ -14,7 +14,7 @@ global.fetch = jest.fn(() =>
   })
 );
 
-const { loadMenu } = require("../../frontend/js/menu");
+const { loadMenu } = require("../../public/admin/js/menu");
 
 test("should render menu items", async () => {
   await loadMenu();

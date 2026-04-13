@@ -1,8 +1,8 @@
 const MENU_API = "http://localhost:3000/menu";
 
-// =======================
-// LOAD MENU
-// =======================
+
+// load menu
+
 async function loadMenu() {
   const res = await fetch(MENU_API);
   const data = await res.json();
@@ -31,9 +31,9 @@ async function loadMenu() {
 }
 
 
-// =======================
-// ADD ITEM
-// =======================
+
+// add item
+
 async function addItem() {
   const name = document.getElementById("name").value;
   const price = document.getElementById("price").value;
@@ -58,9 +58,9 @@ async function addItem() {
 }
 
 
-// =======================
-// MARK SOLD OUT
-// =======================
+
+// mark sold_out
+
 async function markSoldOut(id) {
   await fetch(`${MENU_API}/${id}/soldout`, {
     method: "PUT"
@@ -70,9 +70,9 @@ async function markSoldOut(id) {
 }
 
 
-// =======================
-// EDIT ITEM
-// =======================
+
+// edit menu
+
 function editItem(id, name, price) {
   const newName = prompt("New name:", name);
   const newPrice = prompt("New price:", price);
@@ -83,9 +83,9 @@ function editItem(id, name, price) {
 }
 
 
-// =======================
-// UPDATE ITEM
-// =======================
+
+// update item
+
 async function updateItem(id, name, price) {
   await fetch(`${MENU_API}/${id}`, {
     method: "PUT",
@@ -97,9 +97,9 @@ async function updateItem(id, name, price) {
 }
 
 
-// =======================
-// FORM SUBMIT HANDLER
-// =======================
+
+// form submit
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("menuForm");
 
@@ -114,9 +114,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-// =======================
-// EXPORT FOR TESTS
-// =======================
+
+// export tests
+
 if (typeof module !== "undefined") {
   module.exports = { loadMenu, addItem, markSoldOut, editItem, updateItem };
 }
