@@ -16,7 +16,8 @@
     "testEnvironment": "jsdom",
     "collectCoverageFrom": [
       "public/**/*.js",
-      "!public/authentication/config.js"
+      "!public/authentication/config.js",
+      "!public/authentication/auth.js"
     ],
     "coverageDirectory": "coverage",
     "setupFilesAfterEnv": [

@@ -3,14 +3,97 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>admin home page</title>
+  <title>Register | Campus Food Ordering Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 
 <body>
-  <h1>404 Group Not Found</h1>
 
-  <a href="../index.html">Back to home page</a>
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+    <nav>
+      <a href="../index.html">Home</a>
+      <a href="./login.html">Login</a>
+    </nav>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Create Account</h2>
+      <p>Register to order food from campus vendors.</p>
+
+      <form id="register-form" novalidate>
+
+        <label for="fullName">Full Name</label>
+        <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" autocomplete="name"
+          required>
+        <p data-error-for="fullName"></p>
+
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="Enter your email" autocomplete="email" required>
+        <p data-error-for="email"></p>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Create a password" autocomplete="new-password"
+          required>
+        <p data-error-for="password"></p>
+
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password"
+          autocomplete="new-password" required>
+        <p data-error-for="confirmPassword"></p>
+
+        <label for="accountType">Register As</label>
+        <select id="accountType" name="accountType">
+          <option value="customer">Customer</option>
+          <option value="vendor">Vendor</option>
+        </select>
+        <p data-error-for="accountType"></p>
+
+        <button type="submit">Create Account</button>
+
+      </form>
+
+      <p id="register-status" aria-live="polite"></p>
+    </section>
+
+    <section>
+      <h3>Or sign up with</h3>
+      <button id="google-signin" type="button">Continue with Google</button>
+      <button id="apple-signin" type="button">Continue with Apple</button>
+    </section>
+
+    <section>
+      <p>
+        Already have an account?
+        <a href="./login.html">Login here</a>
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Campus Food Ordering Platform © 2026</p>
+  </footer>
+
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./register.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.registerPage.initializeRegisterPage({
+      authService,
+      authUtils: window.authUtils
+    });
+  </script>
+
 </body>
 
 </html>

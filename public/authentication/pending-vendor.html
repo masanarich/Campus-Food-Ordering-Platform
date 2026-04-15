@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Application Status | Campus Food Ordering Platform</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav>
+            <a href="../index.html">Home</a>
+            <a href="./profile.html">Profile</a>
+            <a href="./role-choice.html">Choose Role</a>
+            <a href="./vendor-application.html">Vendor Application</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <section>
+            <h2>Vendor Application Status</h2>
+            <p>Your vendor application details are shown below.</p>
+            <p id="pending-vendor-status" aria-live="polite">Loading application status...</p>
+        </section>
+
+        <section>
+            <h3>Applicant Details</h3>
+
+            <p>
+                <strong>Name:</strong>
+                <span id="pending-vendor-name">-</span>
+            </p>
+
+            <p>
+                <strong>Business Name:</strong>
+                <span id="pending-vendor-business-name">-</span>
+            </p>
+
+            <p>
+                <strong>Application Status:</strong>
+                <span id="pending-vendor-role-status">-</span>
+            </p>
+
+            <p id="pending-vendor-message" aria-live="polite"></p>
+        </section>
+
+        <section>
+            <h3>Next Steps</h3>
+            <p>
+                Once your application has been reviewed, your vendor access can be approved.
+            </p>
+            <p>
+                You can return to your profile or update your application details later if needed.
+            </p>
+        </section>
+
+        <section>
+            <button id="pending-vendor-signout-button" type="button">Sign Out</button>
+        </section>
+
+        <section>
+            <p>
+                Need to review your profile?
+                <a href="./profile.html">Go to profile</a>
+            </p>
+
+            <p>
+                Need to edit your application?
+                <a href="./vendor-application.html">Return to vendor application</a>
+            </p>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>© 2026 Campus Food Ordering Platform</p>
+    </footer>
+
+    <script src="./auth-utils.js"></script>
+    <script src="./auth-core.js"></script>
+    <script src="./pending-vendor.js"></script>
+
+    <script type="module">
+        import { authService } from "./auth.js";
+
+        window.authService = authService;
+
+        window.pendingVendorPage.initializePendingVendorPage({
+            authService
+        });
+    </script>
+
+</body>
+
+</html>
