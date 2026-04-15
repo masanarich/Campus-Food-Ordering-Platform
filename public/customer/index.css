@@ -134,12 +134,10 @@ main>section {
     padding: 1.9rem;
 }
 
-/* First section full width */
 main>section:first-of-type {
     grid-column: 1 / -1;
 }
 
-/* Last section full width */
 main>section:last-of-type {
     grid-column: 1 / -1;
 }
@@ -161,7 +159,7 @@ main h3 {
     margin-bottom: 1rem;
 }
 
-main>section:first-of-type>p:not(#customer-home-status) {
+main>section:first-of-type>p:not(#customer-home-status):not(#vendor-application-status) {
     color: var(--text-soft);
     font-size: 1.08rem;
     margin-top: 0;
@@ -169,8 +167,9 @@ main>section:first-of-type>p:not(#customer-home-status) {
     max-width: 60rem;
 }
 
-/* Status message */
-#customer-home-status {
+/* Status messages */
+#customer-home-status,
+#vendor-application-status {
     min-height: 1.5rem;
     margin: 0 0 1.2rem;
     padding: 1rem 1.25rem;
@@ -179,20 +178,24 @@ main>section:first-of-type>p:not(#customer-home-status) {
     border: 1px solid transparent;
 }
 
-#customer-home-status[data-state="success"] {
+#customer-home-status[data-state="success"],
+#vendor-application-status[data-state="success"] {
     background: var(--success-bg);
     color: var(--success-text);
     border-color: #bddbca;
 }
 
-#customer-home-status[data-state="error"] {
+#customer-home-status[data-state="error"],
+#vendor-application-status[data-state="error"] {
     background: var(--error-bg);
     color: var(--error-text);
     border-color: #efc2bb;
 }
 
 #customer-home-status[data-state="info"],
-#customer-home-status[data-state="loading"] {
+#customer-home-status[data-state="loading"],
+#vendor-application-status[data-state="info"],
+#vendor-application-status[data-state="loading"] {
     background: var(--info-bg);
     color: var(--info-text);
     border-color: #ddd0ff;
@@ -220,7 +223,9 @@ button:focus {
 }
 
 #go-profile-button,
-#go-customer-portal-button {
+#go-customer-portal-button,
+#submit-vendor-application-button,
+#go-vendor-portal-button {
     background: var(--accent);
     border-color: var(--accent);
     color: #ffffff;
@@ -229,7 +234,11 @@ button:focus {
 #go-profile-button:hover,
 #go-profile-button:focus,
 #go-customer-portal-button:hover,
-#go-customer-portal-button:focus {
+#go-customer-portal-button:focus,
+#submit-vendor-application-button:hover,
+#submit-vendor-application-button:focus,
+#go-vendor-portal-button:hover,
+#go-vendor-portal-button:focus {
     background: var(--accent-dark);
     border-color: var(--accent-dark);
     color: #ffffff;
@@ -239,6 +248,22 @@ button:disabled {
     opacity: 0.65;
     cursor: not-allowed;
     transform: none;
+}
+
+/* Menu buttons */
+menu {
+    margin: 1.25rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+}
+
+menu li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
 /* Profile card */
@@ -279,6 +304,111 @@ button:disabled {
     color: var(--text-soft);
 }
 
+/* Form styling */
+form {
+    margin-top: 1rem;
+}
+
+form p {
+    margin-top: 0;
+    margin-bottom: 0.85rem;
+}
+
+label {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--text);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+textarea,
+select {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #ffffff;
+    color: var(--text);
+    padding: 0.95rem 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+textarea {
+    min-height: 10rem;
+    resize: vertical;
+}
+
+select {
+    cursor: pointer;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #9a8477;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(245, 138, 0, 0.14);
+    background: #fffdfb;
+}
+
+input[type="checkbox"] {
+    width: auto;
+    margin-right: 0.55rem;
+    accent-color: var(--accent);
+}
+
+[aria-invalid="true"] {
+    border: 2px solid var(--error-text);
+    box-shadow: 0 0 0 4px rgba(141, 47, 36, 0.1);
+}
+
+/* Error messages */
+.form-error {
+    color: var(--error-text);
+    font-size: 0.95rem;
+    font-weight: 700;
+    min-height: 1.1rem;
+    margin-top: -0.25rem;
+    margin-bottom: 0.8rem;
+}
+
+/* Vendor form hint text */
+#vendor-application-form-section>p,
+#vendor-application-form p:not(.form-error) {
+    color: var(--text-soft);
+}
+
+/* Summary outputs */
+output {
+    display: inline;
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-word;
+}
+
+/* Vendor application summary section */
+#vendor-status-output {
+    text-transform: capitalize;
+}
+
+#vendor-business-name-output,
+#vendor-owner-name-output,
+#vendor-email-output,
+#vendor-phone-output,
+#vendor-university-output,
+#vendor-location-output,
+#vendor-food-type-output,
+#vendor-description-output,
+#vendor-reason-output {
+    color: var(--text);
+}
+
 /* Add a softer background to inner content sections */
 main>section:nth-of-type(2),
 main>section:nth-of-type(3),
@@ -316,6 +446,20 @@ footer p {
     header nav {
         border-radius: 1.7rem;
     }
+
+    menu {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    menu li {
+        width: 100%;
+    }
+
+    menu button {
+        width: 100%;
+        margin-right: 0;
+    }
 }
 
 /* Mobile */
@@ -350,5 +494,25 @@ footer p {
     main {
         gap: 1rem;
         padding-top: 1.25rem;
+    }
+
+    main h2 {
+        font-size: 2rem;
+    }
+
+    main h3 {
+        font-size: 1.5rem;
+    }
+
+    main>section {
+        padding: 1.2rem;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    textarea,
+    select {
+        padding: 0.85rem 0.9rem;
     }
 }

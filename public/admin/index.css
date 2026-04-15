@@ -129,7 +129,7 @@ main {
     padding-bottom: 2rem;
 }
 
-main > section {
+main>section {
     background: rgba(255, 255, 255, 0.82);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
@@ -153,7 +153,7 @@ main > section {
     box-shadow: none;
 }
 
-.users-toolbar > article {
+.users-toolbar>article {
     background: rgba(255, 255, 255, 0.82);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
@@ -191,14 +191,14 @@ main h5 {
     color: var(--text-soft);
 }
 
-.page-hero > p,
-.users-search-panel > p,
-.users-summary-panel > p,
-.user-card > p {
+.page-hero>p,
+.users-search-panel>p,
+.users-summary-panel>p,
+.user-card>p {
     color: var(--text-soft);
 }
 
-.page-hero > p {
+.page-hero>p {
     font-size: 1.08rem;
     margin-top: 0;
     margin-bottom: 1rem;
@@ -501,11 +501,11 @@ footer p {
         grid-template-columns: 1fr;
     }
 
-    main > section {
+    main>section {
         padding: 1.45rem;
     }
 
-    .users-toolbar > article {
+    .users-toolbar>article {
         padding: 1.45rem;
     }
 
@@ -515,6 +515,7 @@ footer p {
 }
 
 @media (max-width: 600px) {
+
     header,
     main,
     footer {
@@ -558,4 +559,29 @@ footer p {
     .user-card-meta {
         gap: 0.45rem;
     }
+}
+
+/* =========================
+   ADMIN TOOL BUTTONS
+========================= */
+
+.admin-action-button {
+    background: #ff7a18;
+    background: linear-gradient(135deg, #ff7a18, #ffb347);
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.admin-action-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.admin-action-button:active {
+    transform: translateY(0);
 }

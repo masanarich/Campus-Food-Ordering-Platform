@@ -67,7 +67,7 @@ function getFallbackRoutes() {
         admin: "../admin/index.html",
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
-        vendorapplication: "../authentication/vendor-application.html",
+        vendorapplication: "./vendor-application.html",
         login: "../authentication/login.html"
     };
 }

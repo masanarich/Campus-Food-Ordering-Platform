@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Application | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Apply to become a vendor on the Campus Food Ordering Platform.">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Customer navigation">
+            <a href="../index.html">Home</a>
+            <a href="./index.html">Customer Home</a>
+            <a href="../authentication/profile.html">Profile</a>
+            <a href="../authentication/role-choice.html">Choose Portal</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <section aria-labelledby="vendor-application-heading">
+            <h2 id="vendor-application-heading">Apply to become a vendor</h2>
+
+            <p>
+                Tell us about your food business so we can review your application.
+                Once approved, you will unlock the vendor portal and be able to manage your menu, prices, and orders.
+            </p>
+
+            <p id="vendor-application-status" aria-live="polite">
+                Loading your vendor application details...
+            </p>
+
+            <p id="vendor-application-note" aria-live="polite">
+                Vendor application updates will appear here.
+            </p>
+
+            <menu>
+                <li>
+                    <button id="back-button" type="button">
+                        Back to Customer Home
+                    </button>
+                </li>
+
+                <li>
+                    <button id="go-vendor-portal-button" type="button" hidden>
+                        Go to Vendor Portal
+                    </button>
+                </li>
+            </menu>
+        </section>
+
+        <section id="vendor-application-form-section" aria-labelledby="vendor-application-form-heading">
+            <h3 id="vendor-application-form-heading">Vendor application form</h3>
+
+            <p>
+                Complete the details below. Your application will first go into review and show as pending until
+                approved.
+            </p>
+
+            <form id="vendor-application-form" novalidate>
+
+                <p>
+                    <label for="vendor-business-name">Business or restaurant name</label>
+                </p>
+                <p>
+                    <input id="vendor-business-name" name="businessName" type="text" maxlength="120"
+                        placeholder="e.g. Campus Bites" required aria-describedby="vendor-businessName-error">
+                </p>
+                <p id="vendor-businessName-error" class="form-error" data-error-for="businessName" aria-live="polite">
+                </p>
+
+                <p>
+                    <label for="vendor-owner-name">Owner or manager name</label>
+                </p>
+                <p>
+                    <input id="vendor-owner-name" name="ownerName" type="text" maxlength="120"
+                        placeholder="e.g. Faranani Maduwa" required aria-describedby="vendor-ownerName-error">
+                </p>
+                <p id="vendor-ownerName-error" class="form-error" data-error-for="ownerName" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-email">Business email</label>
+                </p>
+                <p>
+                    <input id="vendor-email" name="businessEmail" type="email" maxlength="160"
+                        placeholder="e.g. vendor@example.com" required aria-describedby="vendor-email-error">
+                </p>
+                <p id="vendor-email-error" class="form-error" data-error-for="email" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-phone">Business phone number</label>
+                </p>
+                <p>
+                    <input id="vendor-phone" name="phoneNumber" type="tel" maxlength="30"
+                        placeholder="e.g. 0712345678 or +27712345678" required
+                        aria-describedby="vendor-phoneNumber-error">
+                </p>
+                <p>Enter a valid South African number or international format with 10 to 15 digits.</p>
+                <p id="vendor-phoneNumber-error" class="form-error" data-error-for="phoneNumber" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-university">University / campus</label>
+                </p>
+                <p>
+                    <input id="vendor-university" name="university" type="text" maxlength="120"
+                        placeholder="e.g. Wits University" required aria-describedby="vendor-university-error">
+                </p>
+                <p id="vendor-university-error" class="form-error" data-error-for="university" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-location">Vendor location on campus</label>
+                </p>
+                <p>
+                    <input id="vendor-location" name="location" type="text" maxlength="160"
+                        placeholder="e.g. Matrix Food Court" required aria-describedby="vendor-location-error">
+                </p>
+                <p id="vendor-location-error" class="form-error" data-error-for="location" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-food-type">Food category</label>
+                </p>
+                <p>
+                    <select id="vendor-food-type" name="foodType" required aria-describedby="vendor-foodType-error">
+                        <option value="">Select one</option>
+                        <option value="fast-food">Fast food</option>
+                        <option value="restaurant">Restaurant meals</option>
+                        <option value="snacks">Snacks</option>
+                        <option value="drinks">Drinks</option>
+                        <option value="bakery">Bakery</option>
+                        <option value="desserts">Desserts</option>
+                        <option value="other">Other</option>
+                    </select>
+                </p>
+                <p id="vendor-foodType-error" class="form-error" data-error-for="foodType" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-description">Business description</label>
+                </p>
+                <p>
+                    <textarea id="vendor-description" name="description" rows="5" maxlength="800"
+                        placeholder="Tell us about your food business, menu style, and what students can expect."
+                        required aria-describedby="vendor-description-error"></textarea>
+                </p>
+                <p>Please write at least a short clear description of your business.</p>
+                <p id="vendor-description-error" class="form-error" data-error-for="description" aria-live="polite"></p>
+
+                <p>
+                    <label for="vendor-confirm-checkbox">
+                        <input id="vendor-confirm-checkbox" name="confirmed" type="checkbox"
+                            aria-describedby="vendor-confirmed-error">
+                        I confirm that the information above is correct.
+                    </label>
+                </p>
+                <p id="vendor-confirmed-error" class="form-error" data-error-for="confirmed" aria-live="polite"></p>
+
+                <menu>
+                    <li>
+                        <button id="submit-vendor-application-button" type="submit">
+                            Submit Vendor Application
+                        </button>
+                    </li>
+                    <li>
+                        <button id="reset-vendor-application-button" type="reset">
+                            Clear Form
+                        </button>
+                    </li>
+                </menu>
+
+            </form>
+        </section>
+
+        <section aria-labelledby="vendor-application-summary-heading">
+            <h3 id="vendor-application-summary-heading">Application summary</h3>
+
+            <p><strong>Current vendor status:</strong> <output id="vendor-status-output">Loading...</output></p>
+            <p><strong>Business name:</strong> <output id="vendor-business-name-output">-</output></p>
+            <p><strong>Owner or manager:</strong> <output id="vendor-owner-name-output">-</output></p>
+            <p><strong>Business email:</strong> <output id="vendor-email-output">-</output></p>
+            <p><strong>Phone number:</strong> <output id="vendor-phone-output">-</output></p>
+            <p><strong>Campus:</strong> <output id="vendor-university-output">-</output></p>
+            <p><strong>Location:</strong> <output id="vendor-location-output">-</output></p>
+            <p><strong>Food category:</strong> <output id="vendor-food-type-output">-</output></p>
+            <p><strong>Description:</strong> <output id="vendor-description-output">-</output></p>
+            <p><strong>Review note:</strong> <output id="vendor-reason-output">-</output></p>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./vendor-application.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db } from "../authentication/config.js";
+        import {
+            doc,
+            setDoc,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.authService = authService;
+
+        window.vendorApplicationPage.initializeVendorApplicationPage({
+            authService,
+            authUtils: window.authUtils,
+            db,
+            firestoreFns: {
+                doc,
+                setDoc,
+                serverTimestamp
+            }
+        });
+    </script>
+
+</body>
+
+</html>

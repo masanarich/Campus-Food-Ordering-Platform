@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Products | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Manage vendor menu items for the Campus Food Ordering Platform.">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Vendor navigation">
+            <a href="../index.html">Home</a>
+            <a href="./index.html">Vendor Home</a>
+            <a href="./products.html" aria-current="page">Products</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <section aria-labelledby="products-heading">
+            <h2 id="products-heading">Manage Menu Items</h2>
+
+            <p>
+                Create and update your menu items here. Add item names, descriptions, prices,
+                photos, availability, and mark products as sold out when needed.
+            </p>
+
+            <p id="products-status" aria-live="polite">
+                Ready to manage your menu.
+            </p>
+
+            <p id="products-note" aria-live="polite">
+                Add a new product below or choose an existing one to update it.
+            </p>
+
+            <menu>
+                <li>
+                    <button id="back-button" type="button">
+                        Back to Vendor Home
+                    </button>
+                </li>
+            </menu>
+        </section>
+
+        <section id="products-form-section" aria-labelledby="products-form-heading">
+            <h3 id="products-form-heading">Add or update product</h3>
+
+            <form id="products-form" novalidate>
+                <input id="product-id" name="productId" type="hidden">
+
+                <p>
+                    <label for="product-name">Item name</label>
+                </p>
+                <p>
+                    <input id="product-name" name="name" type="text" maxlength="120" placeholder="e.g. Chicken Burger"
+                        required aria-describedby="product-name-error">
+                </p>
+                <p id="product-name-error" class="form-error" aria-live="polite"></p>
+
+                <p>
+                    <label for="product-description">Description</label>
+                </p>
+                <p>
+                    <textarea id="product-description" name="description" rows="5" maxlength="500"
+                        placeholder="Describe the item, ingredients, and serving size." required
+                        aria-describedby="product-description-error"></textarea>
+                </p>
+                <p id="product-description-error" class="form-error" aria-live="polite"></p>
+
+                <p>
+                    <label for="product-price">Price (R)</label>
+                </p>
+                <p>
+                    <input id="product-price" name="price" type="number" min="0" step="0.01" placeholder="e.g. 45.00"
+                        required aria-describedby="product-price-error">
+                </p>
+                <p id="product-price-error" class="form-error" aria-live="polite"></p>
+
+                <p>
+                    <label for="product-photo-file">Upload photo from device</label>
+                </p>
+                <p>
+                    <input id="product-photo-file" name="photoFile" type="file" accept="image/*">
+                </p>
+
+                <menu>
+                    <li>
+                        <button id="preview-product-photo-button" type="button">
+                            Preview Photo
+                        </button>
+                    </li>
+                    <li>
+                        <button id="remove-product-photo-button" type="button">
+                            Remove Photo
+                        </button>
+                    </li>
+                </menu>
+
+                <p>
+                    <label for="product-availability">Availability</label>
+                </p>
+                <p>
+                    <select id="product-availability" name="availability" aria-describedby="product-availability-error">
+                        <option value="available">Available</option>
+                        <option value="unavailable">Unavailable</option>
+                    </select>
+                </p>
+                <p id="product-availability-error" class="form-error" aria-live="polite"></p>
+
+                <p>
+                    <label for="product-sold-out">
+                        <input id="product-sold-out" name="soldOut" type="checkbox">
+                        Mark item as sold out
+                    </label>
+                </p>
+
+                <menu>
+                    <li>
+                        <button id="save-product-button" type="submit">
+                            Save Product
+                        </button>
+                    </li>
+                    <li>
+                        <button id="clear-product-button" type="reset">
+                            Clear Form
+                        </button>
+                    </li>
+                </menu>
+            </form>
+        </section>
+
+        <section aria-labelledby="product-summary-heading">
+            <h3 id="product-summary-heading">Current product summary</h3>
+
+            <p><strong>Name:</strong> <output id="product-name-output">-</output></p>
+            <p><strong>Description:</strong> <output id="product-description-output">-</output></p>
+            <p><strong>Price:</strong> <output id="product-price-output">-</output></p>
+            <p><strong>Availability:</strong> <output id="product-availability-output">-</output></p>
+            <p><strong>Sold out:</strong> <output id="product-sold-out-output">No</output></p>
+
+            <p>
+                <img id="product-photo-preview" alt="Product photo preview" hidden>
+            </p>
+        </section>
+
+        <section aria-labelledby="products-list-heading">
+            <h3 id="products-list-heading">Your menu items</h3>
+
+            <p id="products-empty-state">No products added yet.</p>
+
+            <ul id="products-list" aria-live="polite"></ul>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./products.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+
+        window.authService = authService;
+
+        window.vendorProductsPage.initializeProductsPage({
+            authService,
+            authUtils: window.authUtils
+        });
+    </script>
+</body>
+
+</html>
