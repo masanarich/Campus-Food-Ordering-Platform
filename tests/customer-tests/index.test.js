@@ -137,7 +137,7 @@ describe("customer/index.js helpers", () => {
         expect(getPortalRoute("admin")).toBe("../admin/index.html");
         expect(getPortalRoute("roleChoice")).toBe("../authentication/role-choice.html");
         expect(getPortalRoute("profile")).toBe("../authentication/profile.html");
-        expect(getPortalRoute("vendorApplication")).toBe("../authentication/vendor-application.html");
+        expect(getPortalRoute("vendorApplication")).toBe("../customer/vendor-application.html");
         expect(getPortalRoute("unknown")).toBe("../authentication/login.html");
     });
 
@@ -772,7 +772,7 @@ describe("customer/index.js loading and initialization", () => {
         elements.vendorApplicationButton.click();
         await flushPromises();
 
-        expect(navigate).toHaveBeenCalledWith("../authentication/vendor-application.html");
+        expect(navigate).toHaveBeenCalledWith("../vendor/vendor-application.html");
     });
 
     test("initializeCustomerHomePage handles loading failure", async () => {

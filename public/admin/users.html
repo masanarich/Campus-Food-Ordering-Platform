@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Users | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Admin navigation">
+            <a href="../index.html">Home</a>
+            <a href="./index.html">Admin Dashboard</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <section class="page-hero">
+            <h2>Manage users</h2>
+            <p>
+                Search accounts, review access, approve vendor applications,
+                suspend vendor access, and manage admin permissions.
+            </p>
+
+            <menu class="page-actions">
+                <li>
+                    <button id="back-button" type="button">← Back to Admin Home</button>
+                </li>
+            </menu>
+        </section>
+
+        <section class="users-toolbar">
+            <article class="users-search-panel">
+                <h3>Search and filter</h3>
+
+                <p>
+                    <label for="user-search">Search users</label>
+                </p>
+
+                <p>
+                    <input id="user-search" type="search" placeholder="Search by name, email, uid, or phone">
+                </p>
+
+                <menu class="filter-menu" aria-label="User filters">
+                    <li><button id="filter-all" type="button" data-filter="all" aria-pressed="true">All</button></li>
+                    <li><button id="filter-customer" type="button" data-filter="customer"
+                            aria-pressed="false">Customers</button></li>
+                    <li><button id="filter-vendor" type="button" data-filter="vendor"
+                            aria-pressed="false">Vendors</button></li>
+                    <li><button id="filter-admin" type="button" data-filter="admin" aria-pressed="false">Admins</button>
+                    </li>
+                    <li><button id="filter-pending" type="button" data-filter="pending" aria-pressed="false">Pending
+                            vendors</button></li>
+                    <li><button id="filter-disabled" type="button" data-filter="disabled"
+                            aria-pressed="false">Disabled</button></li>
+
+                    <li><button id="filter-owner" type="button" data-filter="owner" aria-pressed="false">Owners</button>
+                    </li>
+                </menu>
+            </article>
+
+            <article class="users-summary-panel">
+                <h3>Overview</h3>
+
+                <p><strong>Total users:</strong> <output id="users-total-count">0</output></p>
+                <p><strong>Visible users:</strong> <output id="users-visible-count">0</output></p>
+                <p><strong>Current filter:</strong> <output id="users-current-filter">All</output></p>
+
+                <p id="users-status" aria-live="polite">
+                    Loading users...
+                </p>
+            </article>
+        </section>
+
+        <section class="users-results">
+            <h3>Accounts</h3>
+            <ul id="users-list" class="users-list" aria-live="polite"></ul>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>© 2026 Campus Food Ordering Platform</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./users.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db } from "../authentication/config.js";
+        import {
+            collection,
+            getDocs,
+            doc,
+            updateDoc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.authService = authService;
+
+        window.usersPage.initialize({
+            authService,
+            authUtils: window.authUtils,
+            db,
+            firestoreFns: {
+                collection,
+                getDocs,
+                doc,
+                updateDoc
+            }
+        });
+    </script>
+
+</body>
+
+</html>

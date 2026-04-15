@@ -36,7 +36,7 @@ const PORTAL_ROUTES = Object.freeze({
     roleChoice: "../authentication/role-choice.html",
     login: "../authentication/login.html",
     pendingVendor: "../authentication/pending-vendor.html",
-    vendorApplication: "../authentication/vendor-application.html"
+    vendorApplication: "../customer/vendor-application.html"
 });
 
 function normalizeText(value) {
