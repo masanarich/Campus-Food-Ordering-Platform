@@ -1,454 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>404 — Page Not Found</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #0c0c0e;
-      --surface: #141417;
-      --surface-hover: #1c1c21;
-      --border: rgba(255,255,255,0.07);
-      --border-hover: rgba(255,255,255,0.15);
-      --text-primary: #f0efe8;
-      --text-secondary: #888785;
-      --text-muted: #444340;
-      --accent: #e8613a;
-      --accent-soft: rgba(232,97,58,0.12);
-      --accent-border: rgba(232,97,58,0.4);
-      --blue-soft: rgba(74,143,255,0.1);
-      --green-soft: rgba(63,207,142,0.1);
-      --amber-soft: rgba(240,165,0,0.1);
-      --purple-soft: rgba(155,127,244,0.1);
-    }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text-primary);
-      font-family: 'DM Sans', sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      overflow-x: hidden;
-      position: relative;
-    }
-
-    body::before {
-      content: '';
-      position: fixed;
-      top: -200px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 600px;
-      height: 400px;
-      background: radial-gradient(ellipse, rgba(232,97,58,0.08) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      opacity: 0.025;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
-      background-size: 200px 200px;
-    }
-
-    main {
-      position: relative;
-      z-index: 2;
-      width: 100%;
-      max-width: 520px;
-    }
-
-    header {
-      margin-bottom: 2.5rem;
-      opacity: 0;
-      transform: translateY(20px);
-      animation: fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) 0.1s forwards;
-    }
-
-    .error-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      background: rgba(232,97,58,0.1);
-      border: 1px solid rgba(232,97,58,0.25);
-      color: var(--accent);
-      font-family: 'Syne', sans-serif;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 5px 12px 5px 10px;
-      border-radius: 99px;
-      margin-bottom: 1.25rem;
-    }
-
-    .pulse-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      display: inline-block;
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: 0.4; transform: scale(0.7); }
-    }
-
-    h1 {
-      font-family: 'Syne', sans-serif;
-      font-size: clamp(2rem, 6vw, 2.8rem);
-      font-weight: 800;
-      line-height: 1.1;
-      color: var(--text-primary);
-      letter-spacing: -0.02em;
-      margin-bottom: 0.6rem;
-    }
-
-    h1 em {
-      font-style: normal;
-      color: var(--accent);
-    }
-
-    .subtitle {
-      font-size: 14px;
-      color: var(--text-secondary);
-      line-height: 1.6;
-      font-weight: 300;
-    }
-
-    hr {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 2rem 0;
-      opacity: 0;
-      animation: fadeUp 0.5s ease 0.3s forwards;
-    }
-
-    nav > p {
-      font-family: 'Syne', sans-serif;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-      opacity: 0;
-      animation: fadeUp 0.5s ease 0.35s forwards;
-    }
-
-    ul {
-      list-style: none;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    li:last-child { grid-column: 1 / -1; }
-
-    a.nav-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      text-decoration: none;
-      color: var(--text-primary);
-      transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
-      opacity: 0;
-      transform: translateY(10px);
-      height: 100%;
-    }
-
-    a.nav-card:hover {
-      background: var(--surface-hover);
-      border-color: var(--border-hover);
-      transform: translateY(-2px);
-    }
-
-    a.nav-card:active { transform: scale(0.99); }
-
-    li:nth-child(1) a { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.40s forwards; }
-    li:nth-child(2) a { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.45s forwards; }
-    li:nth-child(3) a { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.50s forwards; }
-    li:nth-child(4) a { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.55s forwards; }
-    li:nth-child(5) a { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.60s forwards; }
-
-    figure.icon-box {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    figure.icon-box svg { width: 16px; height: 16px; }
-
-    section.card-info { flex: 1; min-width: 0; }
-
-    strong.card-title {
-      display: block;
-      font-family: 'Syne', sans-serif;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    small.card-sub {
-      display: block;
-      font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 2px;
-    }
-
-    span.arrow {
-      font-size: 16px;
-      color: var(--text-muted);
-      transition: color 0.2s, transform 0.2s;
-      flex-shrink: 0;
-    }
-
-    a.nav-card:hover span.arrow {
-      color: var(--text-secondary);
-      transform: translateX(2px);
-    }
-
-    a.highlight-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 16px 20px;
-      background: var(--accent-soft);
-      border: 1px solid var(--accent-border);
-      border-radius: 14px;
-      text-decoration: none;
-      color: var(--text-primary);
-      transition: background 0.2s ease, transform 0.15s ease;
-      opacity: 0;
-      transform: translateY(10px);
-      animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.65s forwards;
-    }
-
-    a.highlight-card:hover {
-      background: rgba(232,97,58,0.18);
-      transform: translateY(-2px);
-    }
-
-    a.highlight-card:active { transform: scale(0.99); }
-
-    a.highlight-card figure.icon-box { background: rgba(232,97,58,0.2); }
-
-    a.highlight-card strong.card-title {
-      color: var(--accent);
-      font-size: 14px;
-    }
-
-    a.highlight-card small.card-sub { color: rgba(232,97,58,0.6); }
-
-    a.highlight-card span.arrow { color: var(--accent); opacity: 0.6; }
-
-    a.highlight-card:hover span.arrow {
-      color: var(--accent);
-      opacity: 1;
-      transform: translateX(3px);
-    }
-
-    mark.badge {
-      font-family: 'Syne', sans-serif;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      background: var(--accent);
-      color: #fff;
-      padding: 2px 7px;
-      border-radius: 99px;
-      margin-left: 6px;
-    }
-
-    footer {
-      margin-top: 2rem;
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-muted);
-      opacity: 0;
-      animation: fadeUp 0.5s ease 0.8s forwards;
-    }
-
-    @keyframes fadeUp {
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media (max-width: 420px) {
-      ul { grid-template-columns: 1fr; }
-      li:last-child { grid-column: auto; }
-      h1 { font-size: 1.9rem; }
-    }
-  </style>
+  <meta charset="UTF-8">
+  <title>Customer Home | Campus Food Ordering Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Customer portal home page for the Campus Food Ordering Platform.">
+  <link rel="stylesheet" href="./index.css">
 </head>
+
 <body>
+
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+
+    <nav aria-label="Primary navigation">
+      <a href="../index.html" aria-current="page">Home</a>
+      <a href="../authentication/role-choice.html">Choose Portal</a>
+      <a href="../authentication/profile.html">Profile</a>
+      <a href="../authentication/reset.html">Reset Password</a>
+      <a href="../authentication/login.html">Login</a>
+      <a href="../authentication/register.html">Register</a>
+    </nav>
+  </header>
 
   <main>
 
-    <header>
-      <p class="error-tag">
-        <span class="pulse-dot"></span>
-        404 error
+    <section aria-labelledby="customer-home-heading">
+      <h2 id="customer-home-heading">Customer Home</h2>
+      <p>
+        Welcome to your customer portal. View your account details, move between portals,
+        and continue your vendor application journey.
       </p>
-      <h1>Group <em>not found.</em></h1>
-      <p class="subtitle">This page doesn't exist or may have been moved.<br>Here's where you can go instead.</p>
-    </header>
 
-    <hr />
+      <p id="customer-home-status" aria-live="polite"></p>
 
-    <nav>
-      <p>Navigate to</p>
+      <button id="go-profile-button" type="button">Profile</button>
+      <button id="choose-portal-button" type="button">Choose Portal</button>
+      <button id="go-vendor-application-button" type="button">Vendor Application</button>
+    </section>
 
-      <ul>
-        <li>
-          <a href="../index.html" class="nav-card">
-            <figure class="icon-box" style="background:rgba(255,255,255,0.05);">
-              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 6.8L8 2l6 4.8V14H10.5v-3.5h-5V14H2V6.8z" stroke="#888785" stroke-width="1.3" stroke-linejoin="round"/>
-              </svg>
-            </figure>
-            <section class="card-info">
-              <strong class="card-title">Home</strong>
-              <small class="card-sub">Main landing page</small>
-            </section>
-            <span class="arrow">›</span>
-          </a>
-        </li>
+    <section aria-labelledby="profile-overview-heading">
+      <h3 id="profile-overview-heading">Profile Overview</h3>
 
-        <li>
-          <a href="../admin/index.html" class="nav-card">
-            <figure class="icon-box" style="background:var(--blue-soft);">
-              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="8" cy="8" r="2.2" stroke="#4a8fff" stroke-width="1.3"/>
-                <path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3" stroke="#4a8fff" stroke-width="1.3" stroke-linecap="round"/>
-              </svg>
-            </figure>
-            <section class="card-info">
-              <strong class="card-title">Admin</strong>
-              <small class="card-sub">Admin dashboard</small>
-            </section>
-            <span class="arrow">›</span>
-          </a>
-        </li>
+      <img id="profile-photo" src="" alt="User profile picture">
 
-        <li>
-          <a href="../vendor/index.html" class="nav-card">
-            <figure class="icon-box" style="background:var(--green-soft);">
-              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="7" width="12" height="7" rx="1.2" stroke="#3fcf8e" stroke-width="1.3"/>
-                <path d="M5 7V5.5a3 3 0 016 0V7" stroke="#3fcf8e" stroke-width="1.3" stroke-linecap="round"/>
-              </svg>
-            </figure>
-            <section class="card-info">
-              <strong class="card-title">Vendor</strong>
-              <small class="card-sub">Vendor home page</small>
-            </section>
-            <span class="arrow">›</span>
-          </a>
-        </li>
+      <p id="profile-photo-caption">Your profile picture appears here.</p>
+      <p id="profile-name-line">Name: Loading...</p>
+      <p id="profile-role-line">Role: Loading...</p>
+      <p id="profile-email-line">Email: Loading...</p>
+      <p id="profile-vendor-line">Vendor status: Loading...</p>
+    </section>
 
-        <li>
-          <a href="../authentication/vendor-application.html" class="nav-card">
-            <figure class="icon-box" style="background:var(--amber-soft);">
-              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="3" y="1.5" width="10" height="13" rx="1.2" stroke="#f0a500" stroke-width="1.3"/>
-                <path d="M5.5 6h5M5.5 9h3" stroke="#f0a500" stroke-width="1.3" stroke-linecap="round"/>
-              </svg>
-            </figure>
-            <section class="card-info">
-              <strong class="card-title">Apply as vendor</strong>
-              <small class="card-sub">Submit application</small>
-            </section>
-            <span class="arrow">›</span>
-          </a>
-        </li>
+    <section aria-labelledby="portal-shortcuts-heading">
+      <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
 
-        <li>
-          <a href="../authentication/pending-vendor.html" class="nav-card">
-            <figure class="icon-box" style="background:var(--purple-soft);">
-              <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="8" cy="8" r="5.5" stroke="#9b7ff4" stroke-width="1.3"/>
-                <path d="M8 5v3.2l2.2 1.6" stroke="#9b7ff4" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </figure>
-            <section class="card-info">
-              <strong class="card-title">Pending vendor</strong>
-              <small class="card-sub">Check application status</small>
-            </section>
-            <span class="arrow">›</span>
-          </a>
-        </li>
-      </ul>
+      <p id="portal-summary">
+        Your available portal buttons will appear here.
+      </p>
 
-      <a href="../customer/order_tracking/browse-menu.html" class="highlight-card">
-        <figure class="icon-box">
-          <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 4.5h10M4.5 8h7M6.5 11.5h3" stroke="#e8613a" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-        </figure>
-        <section class="card-info">
-          <strong class="card-title">Go to menu <mark class="badge">Popular</mark></strong>
-          <small class="card-sub">Browse and order food</small>
-        </section>
-        <span class="arrow">→</span>
-      </a>
-    </nav>
+      <button id="go-customer-portal-button" type="button">Customer Portal</button>
+      <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
+      <button id="go-admin-portal-button" type="button">Admin Portal</button>
+    </section>
 
-    <footer>
-      <p>Lost? Contact support or go back to the home page.</p>
-    </footer>
+    <section aria-labelledby="account-notes-heading">
+      <h3 id="account-notes-heading">Account Notes</h3>
+
+      <p id="welcome-message">Loading your account details...</p>
+      <p id="vendor-application-note">
+        Vendor application information will appear here.
+      </p>
+    </section>
 
   </main>
 
-  <script>
-    document.querySelectorAll('a.nav-card, a.highlight-card').forEach(card => {
-      card.addEventListener('click', function() {
-        const href = this.getAttribute('href');
-        if (href && href !== '#') {
-          this.style.opacity = '0.6';
-          this.style.transform = 'scale(0.98)';
-        }
-      });
+  <footer>
+    <p>Campus Food Ordering Platform © 2026</p>
+  </footer>
 
-      card.addEventListener('keydown', e => {
-        if (e.key === 'Enter') card.click();
-      });
+  <script src="../authentication/auth-utils.js"></script>
+  <script src="../authentication/auth-core.js"></script>
+  <script src="./index.js"></script>
+
+  <script type="module">
+    import { authService } from "../authentication/auth.js";
+
+    window.authService = authService;
+
+    window.customerHomePage.initializeCustomerHomePage({
+      authService,
+      authUtils: window.authUtils
     });
   </script>
 
 </body>
+
 </html>

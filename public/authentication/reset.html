@@ -62,7 +62,7 @@
     <p>Campus Food Ordering Platform © 2026</p>
   </footer>
 
-  <script type="module">
+  <!-- <script type="module">
 
     import { authService } from "./auth.js";
     import * as authUtils from "./auth-utils.js";
@@ -73,6 +73,21 @@
       authUtils
     });
 
+  </script> -->
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./reset.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.resetPage.initializeResetPage({
+      authService,
+      authUtils: window.authUtils
+    });
   </script>
 
 </body>
