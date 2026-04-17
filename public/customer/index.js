@@ -57,7 +57,7 @@ function getFallbackRoutes() {
         profile: "../authentication/profile.html",
         vendorapplication: "./vendor-application.html",
         login: "../authentication/login.html",
-        stores: "../Approved-vendors/index.html"
+        stores: "../Approved_vendors/index.html"
     };
 }
 
