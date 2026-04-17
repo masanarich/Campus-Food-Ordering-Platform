@@ -1,15 +1,3 @@
-/**
- * customer/index.js
- *
- * Customer portal landing page logic.
- * This file:
- * - reads the signed-in user and profile
- * - renders name, role, profile picture, email, and vendor status
- * - shows portal navigation buttons
- * - shows all portal buttons for owner/admin users
- * - shows a profile button and vendor application button
- */
-
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
@@ -68,7 +56,8 @@ function getFallbackRoutes() {
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
         vendorapplication: "./vendor-application.html",
-        login: "../authentication/login.html"
+        login: "../authentication/login.html",
+        stores: "../Approved-vendors/index.html"
     };
 }
 
@@ -136,6 +125,9 @@ function getPortalRoute(routeName, authUtils) {
 
     if (key === "vendorapplication") {
         return routes.vendorapplication;
+    }
+    if (key === "stores"){
+        return routes.stores;
     }
 
     return routes.login;
@@ -577,9 +569,11 @@ async function initializeCustomerHomePage(options = {}) {
         profileButton: document.querySelector("#go-profile-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         vendorApplicationButton: document.querySelector("#go-vendor-application-button"),
+        browseVendorsButton: document.querySelector("#browse-vendors"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
         adminPortalButton: document.querySelector("#go-admin-portal-button")
+
     };
 
     setStatusMessage(elements.statusElement, "Loading your home page...", "loading");
@@ -654,6 +648,12 @@ async function initializeCustomerHomePage(options = {}) {
                 navigate
             })
             : null;
+        const browseVendorsController = attachNavigationHandler({
+            button: elements.browseVendorsButton,
+            route: getPortalRoute("stores", authUtils),
+            navigate
+        });
+        
 
         return {
             redirected: false,
@@ -663,7 +663,8 @@ async function initializeCustomerHomePage(options = {}) {
             vendorApplicationController,
             customerPortalController,
             vendorPortalController,
-            adminPortalController
+            adminPortalController,
+            browseVendorsController
         };
     } catch (error) {
         const message =
