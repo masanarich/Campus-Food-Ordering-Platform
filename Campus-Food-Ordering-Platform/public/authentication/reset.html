@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Reset Password | Campus Food Ordering Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+
+    <nav>
+      <a href="../index.html">Home</a>
+      <a href="./login.html">Login</a>
+      <a href="./register.html">Register</a>
+    </nav>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Reset Password</h2>
+      <p>Enter your email address and we will send you a password reset link.</p>
+
+      <form id="reset-form">
+
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="Enter your email" required>
+
+        <p data-error-for="email"></p>
+
+        <button type="submit">
+          Send Reset Link
+        </button>
+
+      </form>
+
+      <p id="reset-status"></p>
+
+    </section>
+
+    <section>
+      <p>
+        Remember your password?
+        <a href="./login.html">Return to login</a>
+      </p>
+
+      <p>
+        Need a new account?
+        <a href="./register.html">Create one</a>
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Campus Food Ordering Platform © 2026</p>
+  </footer>
+
+  <!-- <script type="module">
+
+    import { authService } from "./auth.js";
+    import * as authUtils from "./auth-utils.js";
+    import { initializeResetPage } from "./reset.js";
+
+    initializeResetPage({
+      authService,
+      authUtils
+    });
+
+  </script> -->
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./reset.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.resetPage.initializeResetPage({
+      authService,
+      authUtils: window.authUtils
+    });
+  </script>
+
+</body>
+
+</html>

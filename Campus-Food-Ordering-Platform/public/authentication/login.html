@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Login | Campus Food Ordering Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+
+    <nav>
+      <a href="../index.html">Home</a>
+      <a href="./register.html">Register</a>
+    </nav>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Login</h2>
+      <p>Sign in to order food from campus vendors.</p>
+
+      <form id="login-form" novalidate>
+
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="Enter your email" autocomplete="email" required>
+        <p data-error-for="email"></p>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter your password"
+          autocomplete="current-password" required>
+        <p data-error-for="password"></p>
+
+        <button type="submit">Login</button>
+
+      </form>
+
+      <p id="login-status" aria-live="polite"></p>
+    </section>
+
+    <section>
+      <h3>Or sign in with</h3>
+
+      <button id="google-signin" type="button">
+        Continue with Google
+      </button>
+
+      <button id="apple-signin" type="button">
+        Continue with Apple
+      </button>
+    </section>
+
+    <section>
+      <p>
+        Forgot your password?
+        <a href="./reset.html">Reset password</a>
+      </p>
+
+      <p>
+        Don't have an account?
+        <a href="./register.html">Create one</a>
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Campus Food Ordering Platform © 2026</p>
+  </footer>
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./login.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.loginPage.initializeLoginPage({
+      authService,
+      authUtils: window.authUtils
+    });
+  </script>
+
+</body>
+
+</html>

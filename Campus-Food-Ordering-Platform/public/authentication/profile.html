@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Profile | Campus Food Ordering Platform</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+
+    <nav aria-label="Profile navigation">
+      <a href="../index.html">Home</a>
+      <a href="./role-choice.html">Choose Portal</a>
+      <a href="./profile.html" aria-current="page">Profile</a>
+      <a href="./reset.html">Reset Password</a>
+      <a href="./login.html">Login</a>
+      <a href="./register.html">Register</a>
+    </nav>
+  </header>
+
+  <main>
+
+    <section>
+      <h2>Your Profile</h2>
+      <p id="profile-status" aria-live="polite">Loading profile...</p>
+
+      <menu>
+        <li><button id="profile-back-button" type="button">Back</button></li>
+        <li><button id="signout-button" type="button">Sign Out</button></li>
+      </menu>
+    </section>
+
+    <section>
+      <article>
+        <h3>Profile Overview</h3>
+
+        <figure>
+          <img id="profile-photo" alt="Profile picture" hidden width="140" height="140">
+          <figcaption>Your profile picture appears here.</figcaption>
+        </figure>
+
+        <p>
+          <strong>Name:</strong>
+          <output id="profile-name">-</output>
+        </p>
+
+        <p>
+          <strong>Email:</strong>
+          <output id="profile-email">-</output>
+        </p>
+
+        <p>
+          <strong>Main Role:</strong>
+          <output id="profile-role">-</output>
+        </p>
+
+        <p>
+          <strong>Portal Access:</strong>
+          <output id="profile-access">-</output>
+        </p>
+      </article>
+
+      <article>
+        <h3>Photo Management</h3>
+
+        <p>
+          <label for="profile-photo-input">Choose a profile photo from your device</label>
+        </p>
+
+        <p>
+          <input id="profile-photo-input" type="file" accept="image/*">
+        </p>
+
+        <menu>
+          <li><button id="upload-photo-button" type="button">Upload Photo</button></li>
+          <li><button id="remove-photo-button" type="button">Remove Photo</button></li>
+        </menu>
+
+        <p id="profile-photo-message" aria-live="polite">
+          Upload and remove photo actions will appear here.
+        </p>
+      </article>
+    </section>
+
+    <section>
+      <article>
+        <h3>Account Details</h3>
+
+        <p>
+          <strong>Vendor Status:</strong>
+          <output id="profile-vendor-status">-</output>
+        </p>
+
+        <p>
+          <strong>Vendor Reason:</strong>
+          <output id="profile-vendor-reason">-</output>
+        </p>
+      </article>
+
+      <article>
+        <h3>Security and Account</h3>
+
+        <menu>
+          <li><button id="reset-password-button" type="button">Send Password Reset Email</button></li>
+          <li><a href="./reset.html">Change Password</a></li>
+          <li><button id="delete-account-button" type="button">Delete Account</button></li>
+        </menu>
+
+        <p id="profile-account-message" aria-live="polite">
+          Account action messages will appear here.
+        </p>
+      </article>
+    </section>
+
+    <section>
+      <article>
+        <h3>Membership and Access</h3>
+
+        <menu>
+          <li><button id="leave-vendor-button" type="button">Stop Being a Vendor</button></li>
+          <li><a href="../customer/index.html">Go to Customer Portal</a></li>
+          <li><a href="../vendor/index.html">Go to Vendor Portal</a></li>
+          <li><a href="../admin/index.html">Go to Admin Portal</a></li>
+          <li><a href="./role-choice.html">Choose Portal</a></li>
+        </menu>
+      </article>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>© 2026 Campus Food Ordering Platform</p>
+  </footer>
+
+  <script src="./auth-utils.js"></script>
+  <script src="./auth-core.js"></script>
+  <script src="./profile.js"></script>
+
+  <script type="module">
+    import { authService } from "./auth.js";
+
+    window.authService = authService;
+
+    window.profilePage.initializeProfilePage({
+      authService,
+      authUtils: window.authUtils
+    });
+  </script>
+
+</body>
+
+</html>
