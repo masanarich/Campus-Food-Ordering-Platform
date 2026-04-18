@@ -23,6 +23,10 @@ const clearCart = () => {
   cart = [];
 };
 
+const resetCart = () => {
+  cart = [];
+};
+
 const getTotal = () => {
   return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 };
@@ -32,5 +36,6 @@ module.exports = {
   removeFromCart,
   clearCart,
   getCart,
-  getTotal
+  getTotal,
+  resetCart
 };

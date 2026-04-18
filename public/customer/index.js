@@ -55,7 +55,7 @@ function getFallbackRoutes() {
         admin: "../admin/index.html",
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
-        vendorapplication: "./vendor-application.html",
+        vendorapplication: "../customer/vendor-application.html",
         login: "../authentication/login.html",
         stores: "../Approved_vendors/index.html"
     };
@@ -101,6 +101,18 @@ function getPortalRoute(routeName, authUtils) {
         if (key === "vendorapplication") {
             return authUtils.PORTAL_ROUTES.vendorApplication || routes.vendorapplication;
         }
+       /*if (key === "vendorapplication") {
+        // Allow override if authUtils defines it
+        if (
+            authUtils &&
+            authUtils.PORTAL_ROUTES &&
+            authUtils.PORTAL_ROUTES.vendorApplication
+        ) {
+            return authUtils.PORTAL_ROUTES.vendorApplication;
+            }
+
+    return routes.vendorapplication;
+        }*/
     }
 
     if (key === "customer") {
@@ -472,7 +484,10 @@ function attachNavigationHandler(options = {}) {
         typeof options.navigate === "function"
             ? options.navigate
             : function fallbackNavigate(nextRoute) {
-                window.location.href = nextRoute;
+                if (typeof window !== "undefined" && window.location) {
+                    window.location.href = nextRoute;
+                }
+
             };
 
     if (!button || !route) {
