@@ -22,11 +22,11 @@ function removeFromCart(id) {
 }
 
 function clearCart() {
-  cart = [];
+  cart.length = 0;   // ✅ FIX
 }
 
 function resetCart() {
-  cart = []; // REQUIRED by your tests
+  cart.length = 0;   // ✅ FIX
 }
 
 function getTotal() {
@@ -39,5 +39,5 @@ module.exports = {
   clearCart,
   getCart,
   getTotal,
-  resetCart // ✅ FIXED (this was breaking CI)
+  resetCart
 };
