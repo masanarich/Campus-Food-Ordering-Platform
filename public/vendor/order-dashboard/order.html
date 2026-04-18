@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Orders | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Incoming orders page – accept, reject and manage order status.">
+    <link rel="stylesheet" href="./order.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Primary navigation">
+            <a href="../index.html">Home</a>
+            <a href="./index.html">Vendor Home</a>
+            <a href="./orders.html" aria-current="page">Orders</a>
+            <a href="./products.html">Products</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+
+        <!-- ── Hero / heading section ── -->
+        <section aria-labelledby="vendor-home-heading">
+            <h2 id="vendor-home-heading">Orders</h2>
+            <p>These are your incoming orders. Accept, reject, or update each order's status until completion.</p>
+
+            <p id="vendor-home-status" aria-live="polite" aria-atomic="true"></p>
+
+            <!-- Stats row -->
+            <section aria-label="Order statistics" class="stats-row">
+                <article class="stat-card">
+                    <strong id="stat-pending">0</strong>
+                    <span>Pending</span>
+                </article>
+                <article class="stat-card">
+                    <strong id="stat-active">0</strong>
+                    <span>Active</span>
+                </article>
+                <article class="stat-card">
+                    <strong id="stat-complete">0</strong>
+                    <span>Completed</span>
+                </article>
+                <article class="stat-card">
+                    <strong id="stat-revenue">R0</strong>
+                    <span>Today's Revenue</span>
+                </article>
+            </section>
+
+            <!-- Filter bar -->
+            <nav aria-label="Filter orders" class="filter-bar">
+                <span id="filter-label">Filter:</span>
+                <button class="filter-btn" aria-pressed="true"  data-filter="all"      aria-describedby="filter-label">All</button>
+                <button class="filter-btn" aria-pressed="false" data-filter="pending"   aria-describedby="filter-label">Pending</button>
+                <button class="filter-btn" aria-pressed="false" data-filter="accepted"  aria-describedby="filter-label">Accepted</button>
+                <button class="filter-btn" aria-pressed="false" data-filter="preparing" aria-describedby="filter-label">Preparing</button>
+                <button class="filter-btn" aria-pressed="false" data-filter="ready"     aria-describedby="filter-label">Ready</button>
+                <button class="filter-btn" aria-pressed="false" data-filter="complete"  aria-describedby="filter-label">Complete</button>
+                <button class="filter-btn" aria-pressed="false" data-filter="rejected"  aria-describedby="filter-label">Rejected</button>
+            </nav>
+
+            <!-- Orders list -->
+            <ul id="orders-list" aria-label="Orders" aria-live="polite"></ul>
+        </section>
+
+        <!-- ── Selected order detail ── -->
+        <section aria-labelledby="order-detail-heading" id="order-detail-section">
+            <h3 id="order-detail-heading">Order Detail</h3>
+            <p id="detail-placeholder">Select an order from the list to see its full details here.</p>
+            <section id="order-detail-body" hidden aria-live="polite"></section>
+        </section>
+
+        <!-- ── Activity log ── -->
+        <section aria-labelledby="activity-log-heading">
+            <h3 id="activity-log-heading">Activity Log</h3>
+            <ul id="activity-log-list" aria-label="Recent activity"></ul>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="./order.js"></script>
+
+</body>
+</html>
