@@ -388,8 +388,8 @@ describe("auth-core profile document methods", () => {
             uid: "user-3",
             email: "user3@example.com",
             isAdmin: false,
-            isOwner: false,
             vendorStatus: "none",
+            adminApplicationStatus: "none",
             accountStatus: "active"
         };
 
@@ -446,9 +446,10 @@ describe("auth-core profile document methods", () => {
                 uploadedPhotoURL: "",
                 uploadedPhotoPath: "",
                 isAdmin: false,
-                isOwner: false,
                 vendorStatus: "none",
                 vendorReason: "",
+                adminApplicationStatus: "none",
+                adminApplicationReason: "",
                 accountStatus: "active",
                 createdAt: "SERVER_TIMESTAMP",
                 updatedAt: "SERVER_TIMESTAMP",
@@ -530,8 +531,7 @@ describe("auth-core profile document methods", () => {
             vendorStatus: "suspended",
             vendorReason: "Policy issue",
             accountStatus: "unknown",
-            isAdmin: true,
-            isOwner: false
+            isAdmin: true
         });
 
         expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
@@ -542,7 +542,6 @@ describe("auth-core profile document methods", () => {
             },
             {
                 isAdmin: true,
-                isOwner: false,
                 vendorStatus: "blocked",
                 vendorReason: "Policy issue",
                 accountStatus: "active",
@@ -553,7 +552,6 @@ describe("auth-core profile document methods", () => {
         expect(result).toEqual({
             uid: "user-5",
             isAdmin: true,
-            isOwner: false,
             vendorStatus: "blocked",
             vendorReason: "Policy issue",
             accountStatus: "active",
@@ -1037,9 +1035,10 @@ describe("auth-core profile sync and auth flows", () => {
             uploadedPhotoURL: "",
             uploadedPhotoPath: "",
             isAdmin: true,
-            isOwner: false,
             vendorStatus: "approved",
             vendorReason: "",
+            adminApplicationStatus: "approved",
+            adminApplicationReason: "",
             accountStatus: "active"
         };
 
@@ -1078,8 +1077,9 @@ describe("auth-core profile sync and auth flows", () => {
                 phoneNumber: "0123456789",
                 providerPhotoURL: "https://provider.example.com/auth.jpg",
                 isAdmin: true,
-                isOwner: false,
                 vendorStatus: "approved",
+                adminApplicationStatus: "approved",
+                adminApplicationReason: "",
                 accountStatus: "active",
                 updatedAt: "SERVER_TIMESTAMP",
                 lastLoginAt: "SERVER_TIMESTAMP"
@@ -1119,7 +1119,8 @@ describe("auth-core profile sync and auth flows", () => {
                 uid: "user-7",
                 email: "user7@example.com",
                 displayName: "User Seven",
-                vendorStatus: "none"
+                vendorStatus: "none",
+                adminApplicationStatus: "none"
             })
         );
     });
@@ -1149,6 +1150,35 @@ describe("auth-core profile sync and auth flows", () => {
 
         expect(result.uid).toBe("vendor-2");
         expect(result.vendorStatus).toBe("pending");
+        expect(result.adminApplicationStatus).toBe("none");
+    });
+
+    test("ensureUserProfile creates a pending admin application profile when accountType is admin", async () => {
+        const deps = createMockDependencies();
+
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.ensureUserProfile(
+            {
+                uid: "admin-2",
+                email: "admin2@example.com",
+                displayName: "Admin Two",
+                photoURL: "https://provider.example.com/admin2.jpg"
+            },
+            {
+                accountType: "admin",
+                displayName: "Admin Two",
+                email: "admin2@example.com"
+            }
+        );
+
+        expect(result.uid).toBe("admin-2");
+        expect(result.vendorStatus).toBe("none");
+        expect(result.adminApplicationStatus).toBe("pending");
     });
 
     test("registerWithEmail returns success with next route", async () => {
@@ -1179,7 +1209,44 @@ describe("auth-core profile sync and auth flows", () => {
             expect.objectContaining({
                 uid: "user-8",
                 email: "user8@example.com",
-                displayName: "User Eight"
+                displayName: "User Eight",
+                adminApplicationStatus: "none"
+            })
+        );
+        expect(result.nextRoute).toBe("../customer/index.html");
+    });
+
+    test("registerWithEmail creates a pending admin application for admin sign-ups", async () => {
+        const deps = createMockDependencies();
+        const mockUser = {
+            uid: "user-admin-8",
+            email: "admin8@example.com",
+            displayName: ""
+        };
+
+        deps.authFns.createUserWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+        deps.authFns.updateProfile.mockResolvedValue(undefined);
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const result = await service.registerWithEmail({
+            email: "admin8@example.com",
+            password: "password123",
+            displayName: "Admin Eight",
+            accountType: "admin"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.profile).toEqual(
+            expect.objectContaining({
+                uid: "user-admin-8",
+                email: "admin8@example.com",
+                displayName: "Admin Eight",
+                isAdmin: false,
+                adminApplicationStatus: "pending"
             })
         );
         expect(result.nextRoute).toBe("../customer/index.html");
@@ -1248,9 +1315,10 @@ describe("auth-core profile sync and auth flows", () => {
             uploadedPhotoURL: "",
             uploadedPhotoPath: "",
             isAdmin: false,
-            isOwner: false,
             vendorStatus: "none",
             vendorReason: "",
+            adminApplicationStatus: "none",
+            adminApplicationReason: "",
             accountStatus: "active"
         };
 

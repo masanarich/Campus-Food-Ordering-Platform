@@ -7,9 +7,10 @@
  *
  * Firestore source of truth:
  * - isAdmin
- * - isOwner
  * - vendorStatus
  * - vendorReason
+ * - adminApplicationStatus
+ * - adminApplicationReason
  * - accountStatus
  *
  * Profile photo fields:
@@ -185,9 +186,37 @@ function createAuthService(dependencies = {}) {
         return "active";
     }
 
+    function getCanonicalAdminApplicationStatus(value, isAdmin = false) {
+        if (typeof utils.getAdminApplicationStatus === "function") {
+            return utils.getAdminApplicationStatus({
+                adminApplicationStatus: value,
+                isAdmin
+            });
+        }
+
+        const normalizedValue = typeof value === "string" ? value.trim().toLowerCase() : "";
+
+        if (normalizedValue === "suspended") {
+            return "blocked";
+        }
+
+        if (
+            normalizedValue === "none" ||
+            normalizedValue === "pending" ||
+            normalizedValue === "approved" ||
+            normalizedValue === "rejected" ||
+            normalizedValue === "blocked"
+        ) {
+            return normalizedValue;
+        }
+
+        return isAdmin === true ? "approved" : "none";
+    }
+
     function toPersistedUserProfile(profile) {
         const rawProfile = profile && typeof profile === "object" ? profile : {};
         const safeProfile = normaliseProfile(rawProfile);
+        const isAdmin = safeProfile.isAdmin === true;
 
         return {
             uid: safeProfile.uid || "",
@@ -198,10 +227,14 @@ function createAuthService(dependencies = {}) {
             providerPhotoURL: normalizeUrlLikeValue(rawProfile.providerPhotoURL),
             uploadedPhotoURL: normalizeUrlLikeValue(rawProfile.uploadedPhotoURL),
             uploadedPhotoPath: normalizeUrlLikeValue(rawProfile.uploadedPhotoPath),
-            isAdmin: safeProfile.isAdmin === true,
-            isOwner: safeProfile.isOwner === true,
+            isAdmin,
             vendorStatus: getCanonicalVendorStatus(safeProfile.vendorStatus),
             vendorReason: safeProfile.vendorReason || "",
+            adminApplicationStatus: getCanonicalAdminApplicationStatus(
+                safeProfile.adminApplicationStatus,
+                isAdmin
+            ),
+            adminApplicationReason: safeProfile.adminApplicationReason || "",
             accountStatus: getCanonicalAccountStatus(safeProfile.accountStatus),
             createdAt: safeProfile.createdAt || null,
             updatedAt: safeProfile.updatedAt || null,
@@ -233,9 +266,10 @@ function createAuthService(dependencies = {}) {
             uploadedPhotoURL: persistedProfile.uploadedPhotoURL,
             uploadedPhotoPath: persistedProfile.uploadedPhotoPath,
             isAdmin: persistedProfile.isAdmin,
-            isOwner: persistedProfile.isOwner,
             vendorStatus: persistedProfile.vendorStatus,
             vendorReason: persistedProfile.vendorReason,
+            adminApplicationStatus: persistedProfile.adminApplicationStatus,
+            adminApplicationReason: persistedProfile.adminApplicationReason,
             accountStatus: persistedProfile.accountStatus,
             updatedAt: getSafeServerTimestamp(),
             lastLoginAt: getSafeServerTimestamp()
@@ -258,16 +292,23 @@ function createAuthService(dependencies = {}) {
             payload.isAdmin = safeUpdates.isAdmin === true;
         }
 
-        if (Object.prototype.hasOwnProperty.call(safeUpdates, "isOwner")) {
-            payload.isOwner = safeUpdates.isOwner === true;
-        }
-
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "vendorStatus")) {
             payload.vendorStatus = getCanonicalVendorStatus(safeUpdates.vendorStatus);
         }
 
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "vendorReason")) {
             payload.vendorReason = safeUpdates.vendorReason || "";
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationStatus")) {
+            payload.adminApplicationStatus = getCanonicalAdminApplicationStatus(
+                safeUpdates.adminApplicationStatus,
+                payload.isAdmin === true || safeUpdates.isAdmin === true
+            );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationReason")) {
+            payload.adminApplicationReason = safeUpdates.adminApplicationReason || "";
         }
 
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "accountStatus")) {
@@ -520,6 +561,14 @@ function createAuthService(dependencies = {}) {
             firestoreUpdates.vendorReason = safeUpdates.vendorReason;
         }
 
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationStatus")) {
+            firestoreUpdates.adminApplicationStatus = safeUpdates.adminApplicationStatus;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationReason")) {
+            firestoreUpdates.adminApplicationReason = safeUpdates.adminApplicationReason;
+        }
+
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "accountStatus")) {
             firestoreUpdates.accountStatus = safeUpdates.accountStatus;
         }
@@ -733,9 +782,13 @@ function createAuthService(dependencies = {}) {
                     uploadedPhotoURL: extendedExistingProfile.uploadedPhotoURL || "",
                     uploadedPhotoPath: extendedExistingProfile.uploadedPhotoPath || "",
                     isAdmin: existingProfile.isAdmin === true,
-                    isOwner: existingProfile.isOwner === true,
                     vendorStatus: getCanonicalVendorStatus(existingProfile.vendorStatus),
                     vendorReason: existingProfile.vendorReason || "",
+                    adminApplicationStatus: getCanonicalAdminApplicationStatus(
+                        existingProfile.adminApplicationStatus,
+                        existingProfile.isAdmin === true
+                    ),
+                    adminApplicationReason: existingProfile.adminApplicationReason || "",
                     accountStatus: getCanonicalAccountStatus(existingProfile.accountStatus)
                 };
 
@@ -800,6 +853,19 @@ function createAuthService(dependencies = {}) {
         ) {
             profile = {
                 ...utils.applyVendorApplicationToProfile(profile),
+                providerPhotoURL,
+                uploadedPhotoURL: "",
+                uploadedPhotoPath: "",
+                photoURL: providerPhotoURL
+            };
+        }
+
+        if (
+            accountType === "admin" &&
+            typeof utils.applyAdminApplicationToProfile === "function"
+        ) {
+            profile = {
+                ...utils.applyAdminApplicationToProfile(profile),
                 providerPhotoURL,
                 uploadedPhotoURL: "",
                 uploadedPhotoPath: "",
