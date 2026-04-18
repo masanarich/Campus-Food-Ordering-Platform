@@ -4,7 +4,7 @@
  * Tests for public/customer/order_tracking/order_trackingc.js
  */
 
-const { onSnapshot } = require("../__mocks__/firebase-firestore.js");
+const { onSnapshot } = require("../../tests/__mocks__/firebase-firestore.js");
 
 beforeEach(() => {
   jest.resetModules();

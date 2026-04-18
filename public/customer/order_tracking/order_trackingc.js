@@ -1,8 +1,8 @@
-import { db } from "../../firebase-config.js";
+import { db } from "../../authentication/config.js";
 import {
   doc,
   onSnapshot
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 const btnTrack = document.getElementById("btn-track");
 const orderIdInput = document.getElementById("order-id-input");
