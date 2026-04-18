@@ -17,16 +17,23 @@ function addToCart(item) {
 }
 
 function removeFromCart(id) {
-  cart = cart.filter(item => item.id !== id);
+  const index = cart.findIndex(item => item.id === id);
+
+  if (index !== -1) {
+    cart.splice(index, 1);
+  }
+
   return cart;
 }
 
 function clearCart() {
-  cart.length = 0;   // ✅ FIX
+  cart = [];
+  return cart;
 }
 
 function resetCart() {
-  cart.length = 0;   // ✅ FIX
+  cart = [];
+  return cart;
 }
 
 function getTotal() {

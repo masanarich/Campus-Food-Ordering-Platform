@@ -5,7 +5,7 @@ const {
   getCart,
   getTotal,
   resetCart
-} = require("../cart");
+} = require("../../public/customer/cart");
 
 const {
   createOrder,
