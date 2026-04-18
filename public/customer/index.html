@@ -1,80 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
-  <title>Customer Home | Campus Food Ordering Platform</title>
+  <title>Customer Dashboard | Campus Food Ordering Platform</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Customer portal home page for the Campus Food Ordering Platform.">
+  <meta name="description" content="Customer dashboard for the Campus Food Ordering Platform.">
   <link rel="stylesheet" href="./index.css">
 </head>
-
 <body>
-
   <header>
     <h1>Campus Food Ordering Platform</h1>
 
-    <nav aria-label="Primary navigation">
-      <a href="../index.html" aria-current="page">Home</a>
-      <a href="../authentication/role-choice.html">Choose Portal</a>
+    <nav aria-label="Customer dashboard navigation">
+      <a href="./index.html" aria-current="page">Dashboard</a>
       <a href="../authentication/profile.html">Profile</a>
-      <a href="../authentication/reset.html">Reset Password</a>
-      <a href="../authentication/login.html">Login</a>
-      <a href="../authentication/register.html">Register</a>
+      <a href="./browse-stores.html">Browse Stores</a>
+      <a href="./my-orders.html">My Orders</a>
+      <a href="./support.html">Support</a>
     </nav>
   </header>
 
   <main>
-
     <section aria-labelledby="customer-home-heading">
-      <h2 id="customer-home-heading">Customer Home</h2>
+      <h2 id="customer-home-heading">Customer Dashboard</h2>
       <p>
-        Welcome to your customer portal. View your account details, move between portals,
-        and continue your vendor application journey.
+        This is your customer base. From here you can track your access, apply for extra roles,
+        and move into the parts of the platform that matter to you.
       </p>
 
       <p id="customer-home-status" aria-live="polite"></p>
 
-      <button id="go-profile-button" type="button">Profile</button>
-      <button id="choose-portal-button" type="button">Choose Portal</button>
-      <button id="go-vendor-application-button" type="button">Vendor Application</button>
-      <button id="browse-vendors" type="button">Available stores</button>
+      <menu aria-label="Main customer actions">
+        <li><button id="go-profile-button" type="button">Open Profile</button></li>
+        <li><button id="go-vendor-application-button" type="button">Apply to Become a Vendor</button></li>
+        <li><button id="go-admin-application-button" type="button">Apply to Become an Admin</button></li>
+        <li><button id="browse-stores-button" type="button">Browse Stores</button></li>
+        <li><button id="view-orders-button" type="button">View My Orders</button></li>
+        <li><button id="get-support-button" type="button">Get Support</button></li>
+        <li><button id="choose-portal-button" type="button">Choose Portal</button></li>
+        <li><button id="sign-out-button" type="button">Sign Out</button></li>
+      </menu>
     </section>
-    
 
     <section aria-labelledby="profile-overview-heading">
-      <h3 id="profile-overview-heading">Profile Overview</h3>
+      <h3 id="profile-overview-heading">Profile Snapshot</h3>
 
       <img id="profile-photo" src="" alt="User profile picture">
-
       <p id="profile-photo-caption">Your profile picture appears here.</p>
-      <p id="profile-name-line">Name: Loading...</p>
-      <p id="profile-role-line">Role: Loading...</p>
-      <p id="profile-email-line">Email: Loading...</p>
-      <p id="profile-vendor-line">Vendor status: Loading...</p>
+
+      <p><strong>Name:</strong> <span id="profile-name-line">Loading...</span></p>
+      <p><strong>Current access:</strong> <span id="profile-role-line">Loading...</span></p>
+      <p><strong>Email:</strong> <span id="profile-email-line">Loading...</span></p>
+      <p><strong>Vendor application:</strong> <span id="profile-vendor-line">Loading...</span></p>
+      <p><strong>Admin application:</strong> <span id="profile-admin-line">Loading...</span></p>
     </section>
 
-    <section aria-labelledby="portal-shortcuts-heading">
-      <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
-
-      <p id="portal-summary">
-        Your available portal buttons will appear here.
-      </p>
-
-      <button id="go-customer-portal-button" type="button">Customer Portal</button>
-      <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
-      <button id="go-admin-portal-button" type="button">Admin Portal</button>
-    </section>
-
-    <section aria-labelledby="account-notes-heading">
-      <h3 id="account-notes-heading">Account Notes</h3>
-
+    <section aria-labelledby="access-overview-heading">
+      <h3 id="access-overview-heading">Access Overview</h3>
       <p id="welcome-message">Loading your account details...</p>
-      <p id="vendor-application-note">
-        Vendor application information will appear here.
-      </p>
+      <p id="access-summary">Your available portal buttons will appear here.</p>
+
+      <menu aria-label="Portal shortcuts">
+        <li><button id="go-customer-portal-button" type="button">Customer Portal</button></li>
+        <li><button id="go-vendor-portal-button" type="button">Vendor Portal</button></li>
+        <li><button id="go-admin-portal-button" type="button">Admin Portal</button></li>
+      </menu>
     </section>
 
+    <section aria-labelledby="application-status-heading">
+      <h3 id="application-status-heading">Role Applications</h3>
+      <p id="vendor-application-note">Vendor application information will appear here.</p>
+      <p id="admin-application-note">Admin application information will appear here.</p>
+    </section>
   </main>
 
   <footer>
@@ -95,7 +92,5 @@
       authUtils: window.authUtils
     });
   </script>
-
 </body>
-
 </html>
