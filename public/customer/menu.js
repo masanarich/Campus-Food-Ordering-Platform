@@ -1,15 +1,16 @@
 // Works with browser + Jest (CommonJS style)
 
-// Expect cart to be loaded globally OR imported in tests
+// Import cart functions
 const {
   addToCart,
   removeFromCart,
   clearCart,
   getCart,
   getTotal
-} = window.cart || require("./cart");
+} = (typeof window !== "undefined" && window.cart)
+  ? window.cart
+  : require("./cart");
 
-let cart = getCart();
 
 const menuItems = [
   { id: "1", name: "Burger", price: 50 },
@@ -17,10 +18,12 @@ const menuItems = [
   { id: "3", name: "Chips", price: 30 }
 ];
 
-// ---------------- MENU ----------------
+
 function renderMenu() {
   const menuDiv = document.getElementById("menu");
-  menuDiv.innerHTML = "";
+  if (!menuDiv) return;
+
+  menuDiv.innerHTML = ""; 
 
   menuItems.forEach(item => {
     const div = document.createElement("div");
@@ -40,12 +43,14 @@ function renderMenu() {
   });
 }
 
-// ---------------- CART ----------------
+
 function renderCart() {
   const cartDiv = document.getElementById("cart");
   const totalDiv = document.getElementById("total");
 
-  cartDiv.innerHTML = "";
+  if (!cartDiv || !totalDiv) return;
+
+  cartDiv.innerHTML = ""; 
 
   const currentCart = getCart();
   const total = getTotal();
@@ -70,11 +75,19 @@ function renderCart() {
   totalDiv.innerText = "Total: R" + total;
 }
 
-// ---------------- ACTIONS ----------------
+
+function getMenu() {
+  return menuItems;
+}
+
+
 function cancelOrder() {
   clearCart();
   renderCart();
-  alert("Order cancelled");
+
+  if (typeof window !== "undefined") {
+    alert("Order cancelled");
+  }
 }
 
 async function placeOrder() {
@@ -96,10 +109,25 @@ async function placeOrder() {
   if (response.ok) {
     clearCart();
     renderCart();
-    alert("Order placed successfully!");
+
+    if (typeof window !== "undefined") {
+      alert("Order placed successfully!");
+    }
   }
 }
 
-// INIT
-renderMenu();
-renderCart();
+
+if (typeof window !== "undefined") {
+  renderMenu();
+  renderCart();
+}
+
+
+module.exports = {
+  renderMenu,
+  renderCart,
+  cancelOrder,
+  placeOrder,
+  menuItems,
+  getMenu
+};

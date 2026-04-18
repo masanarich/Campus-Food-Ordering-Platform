@@ -24,7 +24,7 @@ describe("FULL ORDER MANAGEMENT SYSTEM (TDD)", () => {
     clearOrders();
   });
 
-  // ---------------- CART TESTS ----------------
+  
   test("adds items to cart", () => {
     addToCart({ id: "1", name: "Burger", price: 50 });
 
