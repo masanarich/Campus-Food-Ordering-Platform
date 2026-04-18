@@ -1,19 +1,39 @@
 {
-  "firestore": {
-    "database": "(default)",
-    "location": "africa-south1",
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
-  "hosting": {
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
+  "dependencies": {
+    "firebase": "^12.11.0"
   },
-  "storage": {
-    "rules": "storage.rules"
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "collectCoverageFrom": [
+      "public/**/*.js",
+      "!public/authentication/config.js",
+      "!public/authentication/auth.js"
+    ],
+    "coverageDirectory": "coverage",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "moduleNameMapper": {
+      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-app\\.js": "<rootDir>/tests/__mocks__/firebase-app.js",
+      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-firestore\\.js": "<rootDir>/tests/__mocks__/firebase-firestore.js",
+      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-auth\\.js": "<rootDir>/tests/__mocks__/firebase-auth.js",
+      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-storage\\.js": "<rootDir>/tests/__mocks__/firebase-storage.js",
+      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-functions\\.js": "<rootDir>/tests/__mocks__/firebase-functions.js",
+      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-analytics\\.js": "<rootDir>/tests/__mocks__/firebase-analytics.js",
+      "\\.\\./authentication/config\\.js": "<rootDir>/tests/__mocks__/config.js",
+      "\\.\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js",
+      "\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js",
+      "\\.\\./\\.\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js"
+    }
   }
 }

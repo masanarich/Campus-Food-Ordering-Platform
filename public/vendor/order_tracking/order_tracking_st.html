@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff — manage orders</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <main class="card">
+    <header class="card-header">
+      <h1>Manage orders</h1>
+    </header>
+
+    <section class="form-group">
+      <label for="order-id-input">Order ID</label>
+      <input type="text" id="order-id-input" placeholder="e.g. 4821" />
+    </section>
+
+    <section class="form-group">
+      <label for="student-name-input">Student name</label>
+      <input type="text" id="student-name-input" placeholder="e.g. Thabo Nkosi" />
+    </section>
+
+    <section class="form-group">
+      <label for="station-input">Station</label>
+      <input type="text" id="station-input" placeholder="e.g. Station B" />
+    </section>
+
+    <section class="button-group">
+      <button id="btn-received" class="btn btn-blue">Order received</button>
+      <button id="btn-preparing" class="btn btn-amber">Preparing</button>
+      <button id="btn-ready" class="btn btn-green">Ready for pickup</button>
+    </section>
+
+    <p id="staff-message" class="staff-message hidden"></p>
+
+    <section class="orders-list" id="orders-list">
+      <h2>Recent orders</h2>
+      <ul id="orders-ul"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="staff.js"></script>
+</body>
+</html>
