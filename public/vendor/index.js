@@ -1,13 +1,12 @@
 /**
  * vendor/index.js
  *
- * Vendor portal landing page logic.
+ * Vendor dashboard logic for authenticated vendor users.
  * This file:
- * - reads the signed-in user and profile
- * - renders name, role, profile picture, email, and vendor status
- * - shows portal navigation buttons
- * - allows approved vendors, admins, and owners into the vendor portal
- * - redirects users without vendor access to a safer route
+ * - loads the signed-in user's profile
+ * - renders access and workspace summaries
+ * - supports portal switching and sign out
+ * - links to shop details and menu management
  */
 
 function normalizeText(value) {
@@ -67,6 +66,8 @@ function getFallbackRoutes() {
         admin: "../admin/index.html",
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
+        shop: "./shop.html",
+        products: "./products.html",
         login: "../authentication/login.html"
     };
 }
@@ -104,29 +105,17 @@ function getPortalRoute(routeName, authUtils) {
             return authUtils.PORTAL_ROUTES.roleChoice || routes.rolechoice;
         }
 
-        if (key === "login") {
+        if (key === "login" || key === "signout") {
             return authUtils.PORTAL_ROUTES.login || routes.login;
         }
     }
 
-    if (key === "customer") {
-        return routes.customer;
+    if (Object.prototype.hasOwnProperty.call(routes, key)) {
+        return routes[key];
     }
 
-    if (key === "vendor") {
-        return routes.vendor;
-    }
-
-    if (key === "admin") {
-        return routes.admin;
-    }
-
-    if (key === "rolechoice") {
-        return routes.rolechoice;
-    }
-
-    if (key === "profile") {
-        return routes.profile;
+    if (key === "signout") {
+        return routes.login;
     }
 
     return routes.login;
@@ -152,11 +141,7 @@ function normalizeProfile(profile, authUtils) {
     }
 
     const safeProfile = profile && typeof profile === "object" ? profile : {};
-    const isOwner = safeProfile.isOwner === true || safeProfile.owner === true;
-    const isAdmin =
-        safeProfile.isAdmin === true ||
-        safeProfile.admin === true ||
-        isOwner === true;
+    const isAdmin = safeProfile.isAdmin === true || safeProfile.admin === true;
 
     return {
         uid: normalizeText(safeProfile.uid),
@@ -165,7 +150,6 @@ function normalizeProfile(profile, authUtils) {
         phoneNumber: normalizeText(safeProfile.phoneNumber),
         photoURL: normalizeText(safeProfile.photoURL),
         isAdmin,
-        isOwner,
         vendorStatus: normalizeVendorStatus(safeProfile.vendorStatus),
         vendorReason: normalizeText(
             safeProfile.vendorReason ||
@@ -179,8 +163,8 @@ function normalizeProfile(profile, authUtils) {
 function getRoleLabel(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
-    if (safeProfile.isOwner === true) {
-        return "Owner";
+    if (safeProfile.isAdmin === true && safeProfile.vendorStatus === "approved") {
+        return "Admin and Vendor";
     }
 
     if (safeProfile.isAdmin === true) {
@@ -197,23 +181,32 @@ function getRoleLabel(profile, authUtils) {
 function canAccessCustomerPortal(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
+    if (
+        authUtils &&
+        typeof authUtils.canAccessCustomerPortal === "function"
+    ) {
+        return authUtils.canAccessCustomerPortal(safeProfile);
+    }
+
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            hasAuthenticatedIdentity(safeProfile) ||
-            safeProfile.isAdmin === true ||
-            safeProfile.isOwner === true
-        )
+        hasAuthenticatedIdentity(safeProfile)
     );
 }
 
 function canAccessVendorPortal(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
+    if (
+        authUtils &&
+        typeof authUtils.canAccessVendorPortal === "function"
+    ) {
+        return authUtils.canAccessVendorPortal(safeProfile);
+    }
+
     return (
         safeProfile.accountStatus === "active" &&
         (
-            safeProfile.isOwner === true ||
             safeProfile.isAdmin === true ||
             safeProfile.vendorStatus === "approved"
         )
@@ -223,12 +216,16 @@ function canAccessVendorPortal(profile, authUtils) {
 function canAccessAdminPortal(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
+    if (
+        authUtils &&
+        typeof authUtils.canAccessAdminPortal === "function"
+    ) {
+        return authUtils.canAccessAdminPortal(safeProfile);
+    }
+
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            safeProfile.isOwner === true ||
-            safeProfile.isAdmin === true
-        )
+        safeProfile.isAdmin === true
     );
 }
 
@@ -259,28 +256,24 @@ function getPortalSummary(state) {
         return "";
     }
 
-    if (state.profile.isOwner === true) {
-        return "You have owner access and can open every portal.";
-    }
-
     if (
         state.showCustomerPortal &&
         state.showVendorPortal &&
         state.showAdminPortal
     ) {
-        return "You can open the customer, vendor, and admin portals.";
-    }
-
-    if (state.showCustomerPortal && state.showAdminPortal) {
-        return "You can open the customer and admin portals.";
+        return "You can switch between the customer, vendor, and admin portals.";
     }
 
     if (state.showCustomerPortal && state.showVendorPortal) {
-        return "You can open the customer and vendor portals.";
+        return "You can switch between the customer and vendor portals.";
+    }
+
+    if (state.showVendorPortal && state.showAdminPortal) {
+        return "You can switch between the vendor and admin portals.";
     }
 
     if (state.showVendorPortal) {
-        return "You currently have vendor portal access.";
+        return "You currently have vendor portal access only.";
     }
 
     return "You do not currently have portal access.";
@@ -289,16 +282,16 @@ function getPortalSummary(state) {
 function getVendorPortalNote(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
-    if (safeProfile.isOwner === true) {
-        return "You are using the vendor portal with owner access.";
+    if (safeProfile.isAdmin === true && safeProfile.vendorStatus === "approved") {
+        return "You can work as both an admin and a vendor from this account.";
     }
 
     if (safeProfile.isAdmin === true) {
-        return "You are using the vendor portal with admin access.";
+        return "You are using the vendor workspace with admin access.";
     }
 
     if (safeProfile.vendorStatus === "approved") {
-        return "Your vendor account is approved and ready to use.";
+        return "Your vendor account is approved and ready to manage a shop.";
     }
 
     if (safeProfile.vendorStatus === "pending") {
@@ -318,6 +311,20 @@ function getVendorPortalNote(profile, authUtils) {
     }
 
     return "Vendor access is not available right now.";
+}
+
+function getVendorWorkspaceNote(profile, authUtils) {
+    const safeProfile = normalizeProfile(profile, authUtils);
+
+    if (safeProfile.vendorStatus === "approved") {
+        return "From here you can maintain your shop profile, keep your menu updated, and prepare for order management.";
+    }
+
+    if (safeProfile.isAdmin === true) {
+        return "Admin access lets you inspect the vendor workspace even when vendor approval is not active.";
+    }
+
+    return "Your vendor workspace will become fully active once vendor access is approved.";
 }
 
 function getWelcomeMessage(profile, authUtils) {
@@ -341,8 +348,8 @@ function getHomeState(profile, authUtils) {
         vendorStatusLabel: getVendorStatusLabel(safeProfile, authUtils),
         welcomeMessage: getWelcomeMessage(safeProfile, authUtils),
         vendorPortalNote: getVendorPortalNote(safeProfile, authUtils),
+        vendorWorkspaceNote: getVendorWorkspaceNote(safeProfile, authUtils),
         portalSummary: getPortalSummary({
-            profile: safeProfile,
             showCustomerPortal,
             showVendorPortal,
             showAdminPortal
@@ -350,7 +357,10 @@ function getHomeState(profile, authUtils) {
         showCustomerPortal,
         showVendorPortal,
         showAdminPortal,
-        showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1
+        showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
+        shopRoute: getPortalRoute("shop", authUtils),
+        productsRoute: getPortalRoute("products", authUtils),
+        signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
 
@@ -398,13 +408,13 @@ function setHidden(element, isHidden) {
     element.setAttribute("aria-hidden", isHidden ? "true" : "false");
 }
 
-function setStatusMessage(element, message, state) {
+function setStatusMessage(element, message, stateName) {
     if (!element) {
         return;
     }
 
     element.textContent = message || "";
-    element.dataset.state = state || "";
+    element.dataset.state = stateName || "";
 }
 
 function setImage(imageElement, imageUrl, altText, fallbackName) {
@@ -421,25 +431,26 @@ function renderVendorHomePage(elements, state) {
         return;
     }
 
-    setStatusMessage(elements.statusElement, "Home page loaded.", "success");
+    setStatusMessage(elements.statusElement, "Vendor dashboard loaded.", "success");
 
-    setText(elements.nameLine, `Name: ${state.displayName}`);
-    setText(elements.roleLine, `Role: ${state.roleLabel}`);
+    setText(elements.nameLine, state.displayName);
+    setText(elements.roleLine, state.roleLabel);
     setText(
         elements.emailLine,
-        `Email: ${normalizeText(state.profile.email) || "No email available"}`
+        normalizeText(state.profile.email) || "No email available"
     );
-    setText(elements.vendorLine, `Vendor status: ${state.vendorStatusLabel}`);
+    setText(elements.vendorLine, state.vendorStatusLabel);
     setText(elements.portalSummaryElement, state.portalSummary);
     setText(elements.welcomeMessageElement, state.welcomeMessage);
     setText(elements.vendorPortalNoteElement, state.vendorPortalNote);
+    setText(elements.vendorWorkspaceNoteElement, state.vendorWorkspaceNote);
 
     if (elements.photoCaptionElement) {
         setText(
             elements.photoCaptionElement,
             normalizeText(state.profile.photoURL)
                 ? "Your current profile picture is shown here."
-                : "No profile picture found. A default avatar is being used."
+                : "No profile picture was found, so a default avatar is being shown."
         );
     }
 
@@ -477,6 +488,59 @@ function attachNavigationHandler(options = {}) {
 
         navigate(route);
         return route;
+    }
+
+    button.addEventListener("click", handleClick);
+
+    return {
+        handleClick
+    };
+}
+
+function attachSignOutHandler(options = {}) {
+    const button = options.button;
+    const authService = options.authService;
+    const navigate =
+        typeof options.navigate === "function"
+            ? options.navigate
+            : function fallbackNavigate(nextRoute) {
+                window.location.href = nextRoute;
+            };
+    const nextRoute = options.nextRoute;
+    const statusElement = options.statusElement || null;
+
+    if (!button || !authService || typeof authService.signOutUser !== "function" || !nextRoute) {
+        return null;
+    }
+
+    async function handleClick(event) {
+        if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+        }
+
+        setStatusMessage(statusElement, "Signing you out...", "loading");
+
+        try {
+            await authService.signOutUser();
+            navigate(nextRoute);
+            return {
+                success: true,
+                nextRoute
+            };
+        } catch (error) {
+            const message =
+                error && error.message
+                    ? error.message
+                    : "Unable to sign out right now.";
+
+            setStatusMessage(statusElement, message, "error");
+
+            return {
+                success: false,
+                error,
+                message
+            };
+        }
     }
 
     button.addEventListener("click", handleClick);
@@ -565,14 +629,18 @@ async function initializeVendorHomePage(options = {}) {
         portalSummaryElement: document.querySelector("#portal-summary"),
         welcomeMessageElement: document.querySelector("#welcome-message"),
         vendorPortalNoteElement: document.querySelector("#vendor-portal-note"),
+        vendorWorkspaceNoteElement: document.querySelector("#vendor-workspace-note"),
         profileButton: document.querySelector("#go-profile-button"),
+        shopButton: document.querySelector("#go-shop-button"),
+        productsButton: document.querySelector("#go-products-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
+        signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
         adminPortalButton: document.querySelector("#go-admin-portal-button")
     };
 
-    setStatusMessage(elements.statusElement, "Loading your home page...", "loading");
+    setStatusMessage(elements.statusElement, "Loading your vendor dashboard...", "loading");
 
     try {
         const result = await loadVendorHomeState({
@@ -583,7 +651,7 @@ async function initializeVendorHomePage(options = {}) {
         if (!result.success) {
             setStatusMessage(
                 elements.statusElement,
-                result.message || "Unable to load your home page right now.",
+                result.message || "Unable to load your vendor dashboard right now.",
                 "error"
             );
 
@@ -605,10 +673,22 @@ async function initializeVendorHomePage(options = {}) {
             navigate
         });
 
+        const shopController = attachNavigationHandler({
+            button: elements.shopButton,
+            route: result.state.shopRoute,
+            navigate
+        });
+
+        const productsController = attachNavigationHandler({
+            button: elements.productsButton,
+            route: result.state.productsRoute,
+            navigate
+        });
+
         const choosePortalController = result.state.showChoosePortal
             ? attachNavigationHandler({
                 button: elements.choosePortalButton,
-                route: getPortalRoute("rolechoice", authUtils),
+                route: getPortalRoute("roleChoice", authUtils),
                 navigate
             })
             : null;
@@ -637,20 +717,31 @@ async function initializeVendorHomePage(options = {}) {
             })
             : null;
 
+        const signOutController = attachSignOutHandler({
+            button: elements.signOutButton,
+            authService,
+            navigate,
+            nextRoute: result.state.signOutRoute,
+            statusElement: elements.statusElement
+        });
+
         return {
             redirected: false,
             state: result.state,
             profileController,
+            shopController,
+            productsController,
             choosePortalController,
             customerPortalController,
             vendorPortalController,
-            adminPortalController
+            adminPortalController,
+            signOutController
         };
     } catch (error) {
         const message =
             error && error.message
                 ? error.message
-                : "Unable to load your home page right now.";
+                : "Unable to load your vendor dashboard right now.";
 
         setStatusMessage(elements.statusElement, message, "error");
 
@@ -677,6 +768,7 @@ const vendorHomePage = {
     getVendorStatusLabel,
     getPortalSummary,
     getVendorPortalNote,
+    getVendorWorkspaceNote,
     getWelcomeMessage,
     getHomeState,
     getDefaultAvatar,
@@ -687,6 +779,7 @@ const vendorHomePage = {
     setImage,
     renderVendorHomePage,
     attachNavigationHandler,
+    attachSignOutHandler,
     loadVendorHomeState,
     initializeVendorHomePage
 };
