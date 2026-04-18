@@ -247,6 +247,17 @@ describe("auth-core basic auth methods", () => {
         expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
 
+    test("setDisplayName throws if updateProfile function is missing", async () => {
+        const deps = createMockDependencies();
+        delete deps.authFns.updateProfile;
+
+        const service = createAuthService(deps);
+
+        await expect(service.setDisplayName({ uid: "u1" }, "Name")).rejects.toThrow(
+            "authFns.updateProfile is required."
+        );
+    });
+
     test("updateAuthUserProfile updates displayName and http photoURL", async () => {
         const deps = createMockDependencies();
         deps.authFns.updateProfile.mockResolvedValue(undefined);
@@ -297,6 +308,20 @@ describe("auth-core basic auth methods", () => {
         expect(deps.authFns.updateProfile).toHaveBeenCalledWith(user, {
             displayName: "Updated Name"
         });
+    });
+
+    test("updateAuthUserProfile returns true when there is nothing to update and throws when user is missing", async () => {
+        const deps = createMockDependencies();
+        deps.authFns.updateProfile.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+
+        await expect(service.updateAuthUserProfile(null, {})).rejects.toThrow(
+            "A user is required."
+        );
+
+        await expect(service.updateAuthUserProfile({ uid: "u5" }, {})).resolves.toBe(true);
+        expect(deps.authFns.updateProfile).not.toHaveBeenCalled();
     });
 
     test("getCurrentUser returns the current signed-in user", () => {
@@ -380,6 +405,14 @@ describe("auth-core profile document methods", () => {
         const result = await service.getUserProfile("missing-user");
 
         expect(result).toBeNull();
+    });
+
+    test("getUserProfile returns null when uid is missing", async () => {
+        const deps = createMockDependencies();
+        const service = createAuthService(deps);
+
+        await expect(service.getUserProfile("")).resolves.toBeNull();
+        expect(deps.firestoreFns.getDoc).not.toHaveBeenCalled();
     });
 
     test("getUserProfile returns profile data when it exists", async () => {
@@ -521,6 +554,30 @@ describe("auth-core profile document methods", () => {
         );
     });
 
+    test("saveUserProfile uses fallback timestamp and profile normalisation when helper methods are missing", async () => {
+        const deps = createMockDependencies();
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+        delete deps.firestoreFns.serverTimestamp;
+        delete deps.utils.normaliseUserData;
+        delete deps.utils.normalizeUserData;
+
+        const service = createAuthService(deps);
+        const result = await service.saveUserProfile({
+            uid: "fallback-user",
+            displayName: "Fallback User",
+            email: "fallback@example.com",
+            vendorStatus: "unknown",
+            adminApplicationStatus: "unknown",
+            accountStatus: "unknown"
+        });
+
+        expect(result.uid).toBe("fallback-user");
+        expect(result.vendorStatus).toBe("none");
+        expect(result.adminApplicationStatus).toBe("none");
+        expect(result.accountStatus).toBe("active");
+        expect(typeof result.createdAt).toBe("string");
+    });
+
     test("updateUserProfile updates profile fields and canonicalises statuses", async () => {
         const deps = createMockDependencies();
         deps.firestoreFns.updateDoc.mockResolvedValue(undefined);
@@ -566,6 +623,39 @@ describe("auth-core profile document methods", () => {
         await expect(service.updateUserProfile("", { displayName: "Name" })).rejects.toThrow(
             "uid is required."
         );
+    });
+
+    test("updateUserProfile canonicalises admin application state and uses fallback utility logic", async () => {
+        const deps = createMockDependencies();
+        deps.firestoreFns.updateDoc.mockResolvedValue(undefined);
+        delete deps.utils.getVendorStatus;
+        delete deps.utils.getAccountStatus;
+        delete deps.utils.getAdminApplicationStatus;
+
+        const service = createAuthService(deps);
+        const result = await service.updateUserProfile("user-admin-status", {
+            adminApplicationStatus: "suspended",
+            adminApplicationReason: "Needs review",
+            vendorStatus: "mystery",
+            accountStatus: "mystery"
+        });
+
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            {
+                database: deps.db,
+                collectionName: "users",
+                uid: "user-admin-status"
+            },
+            {
+                vendorStatus: "none",
+                adminApplicationStatus: "blocked",
+                adminApplicationReason: "Needs review",
+                accountStatus: "active",
+                updatedAt: "SERVER_TIMESTAMP"
+            }
+        );
+
+        expect(result.adminApplicationStatus).toBe("blocked");
     });
 });
 
@@ -662,6 +752,43 @@ describe("auth-core current-user profile methods", () => {
             deps.auth.currentUser,
             { photoURL: "https://example.com/photo.jpg" }
         );
+    });
+
+    test("updateCurrentUserProfile persists admin application updates", async () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = {
+            uid: "current-admin-1",
+            email: "admin@example.com"
+        };
+        deps.authFns.updateProfile.mockResolvedValue(undefined);
+        deps.firestoreFns.updateDoc.mockResolvedValue(undefined);
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                uid: "current-admin-1",
+                email: "admin@example.com"
+            })
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.updateCurrentUserProfile({
+            adminApplicationStatus: "pending",
+            adminApplicationReason: "Awaiting review"
+        });
+
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            {
+                database: deps.db,
+                collectionName: "users",
+                uid: "current-admin-1"
+            },
+            {
+                adminApplicationStatus: "pending",
+                adminApplicationReason: "Awaiting review",
+                updatedAt: "SERVER_TIMESTAMP"
+            }
+        );
+        expect(result.adminApplicationStatus).toBe("pending");
     });
 });
 
@@ -807,6 +934,27 @@ describe("auth-core photo storage methods", () => {
         ).rejects.toThrow("Please choose an image smaller than 5 MB.");
     });
 
+    test("uploadCurrentUserPhoto throws when storage is unavailable or methods are missing", async () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = { uid: "photo-user-no-storage" };
+
+        const noStorageService = createAuthService({
+            ...deps,
+            storage: null
+        });
+
+        await expect(
+            noStorageService.uploadCurrentUserPhoto({ type: "image/png", size: 10 })
+        ).rejects.toThrow("storage is required.");
+
+        delete deps.storageFns.uploadBytes;
+        const missingFnService = createAuthService(deps);
+
+        await expect(
+            missingFnService.uploadCurrentUserPhoto({ type: "image/png", size: 10 })
+        ).rejects.toThrow("storageFns.uploadBytes is required.");
+    });
+
     test("removeCurrentUserPhoto deletes uploaded image and restores provider photo", async () => {
         const deps = createMockDependencies();
         deps.auth.currentUser = {
@@ -926,6 +1074,27 @@ describe("auth-core photo storage methods", () => {
             })
         );
     });
+
+    test("removeCurrentUserPhoto rethrows unexpected storage errors", async () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = {
+            uid: "photo-user-5",
+            email: "photo5@example.com"
+        };
+        deps.storageFns.deleteObject.mockRejectedValue(new Error("Delete failed"));
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                uid: "photo-user-5",
+                uploadedPhotoPath: "profilePhotos/photo-user-5/profile.jpg",
+                providerPhotoURL: "",
+                photoURL: ""
+            })
+        });
+
+        const service = createAuthService(deps);
+        await expect(service.removeCurrentUserPhoto()).rejects.toThrow("Delete failed");
+    });
 });
 
 describe("auth-core password and account deletion methods", () => {
@@ -1017,6 +1186,55 @@ describe("auth-core password and account deletion methods", () => {
         expect(deps.firestoreFns.deleteDoc).not.toHaveBeenCalled();
         expect(deps.authFns.deleteUser).toHaveBeenCalledWith(deps.auth.currentUser);
         expect(result).toEqual({ success: true });
+    });
+
+    test("deleteCurrentUserAccount ignores missing storage object and rethrows unexpected storage errors", async () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = {
+            uid: "delete-user-3",
+            email: "delete3@example.com"
+        };
+
+        deps.authFns.deleteUser.mockResolvedValue(undefined);
+        deps.firestoreFns.deleteDoc.mockResolvedValue(undefined);
+        deps.storageFns.deleteObject.mockRejectedValueOnce({
+            code: "storage/object-not-found"
+        });
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                uid: "delete-user-3",
+                uploadedPhotoPath: "profilePhotos/delete-user-3/profile.jpg"
+            })
+        });
+
+        const service = createAuthService(deps);
+        await expect(service.deleteCurrentUserAccount()).resolves.toEqual({ success: true });
+
+        deps.storageFns.deleteObject.mockRejectedValueOnce(new Error("Storage delete failed"));
+        await expect(service.deleteCurrentUserAccount()).rejects.toThrow("Storage delete failed");
+    });
+
+    test("deleteCurrentUserAccount throws when deleteDoc function is missing", async () => {
+        const deps = createMockDependencies();
+        deps.auth.currentUser = {
+            uid: "delete-user-4",
+            email: "delete4@example.com"
+        };
+        delete deps.firestoreFns.deleteDoc;
+        deps.authFns.deleteUser.mockResolvedValue(undefined);
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                uid: "delete-user-4",
+                uploadedPhotoPath: ""
+            })
+        });
+
+        const service = createAuthService(deps);
+        await expect(service.deleteCurrentUserAccount()).rejects.toThrow(
+            "firestoreFns.deleteDoc is required."
+        );
     });
 });
 
@@ -1144,13 +1362,21 @@ describe("auth-core profile sync and auth flows", () => {
             {
                 accountType: "vendor",
                 displayName: "Vendor Two",
-                email: "vendor2@example.com"
+                email: "vendor2@example.com",
+                phoneNumber: "0712345678",
+                businessName: "Campus Bites",
+                university: "Wits University",
+                location: "Matrix Food Court",
+                foodType: "fast-food",
+                description: "Fresh campus meals every day for busy students."
             }
         );
 
         expect(result.uid).toBe("vendor-2");
         expect(result.vendorStatus).toBe("pending");
         expect(result.adminApplicationStatus).toBe("none");
+        expect(result.vendorBusinessName).toBe("Campus Bites");
+        expect(result.vendorUniversity).toBe("Wits University");
     });
 
     test("ensureUserProfile creates a pending admin application profile when accountType is admin", async () => {
@@ -1172,13 +1398,68 @@ describe("auth-core profile sync and auth flows", () => {
             {
                 accountType: "admin",
                 displayName: "Admin Two",
-                email: "admin2@example.com"
+                email: "admin2@example.com",
+                phoneNumber: "0712345678",
+                department: "Student Affairs",
+                motivation: "I need admin access to support platform operations."
             }
         );
 
         expect(result.uid).toBe("admin-2");
         expect(result.vendorStatus).toBe("none");
         expect(result.adminApplicationStatus).toBe("pending");
+        expect(result.adminDepartment).toBe("Student Affairs");
+        expect(result.adminMotivation).toBe(
+            "I need admin access to support platform operations."
+        );
+    });
+
+    test("ensureUserProfile uses fallback sync logic when merge helper is missing and throws for invalid auth user", async () => {
+        const deps = createMockDependencies();
+        delete deps.utils.mergeProfileWithAuthData;
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => true,
+            data: () => ({
+                uid: "fallback-sync",
+                displayName: "Old Name",
+                email: "old@example.com",
+                phoneNumber: "",
+                photoURL: "",
+                uploadedPhotoURL: "",
+                uploadedPhotoPath: "",
+                isAdmin: false,
+                vendorStatus: "suspended",
+                vendorReason: "",
+                adminApplicationStatus: "suspended",
+                adminApplicationReason: "",
+                accountStatus: "unknown"
+            })
+        });
+
+        const service = createAuthService(deps);
+        const result = await service.ensureUserProfile(
+            {
+                uid: "fallback-sync",
+                email: "updated@example.com",
+                displayName: "Updated Name",
+                photoURL: "https://provider.example.com/new.jpg"
+            },
+            {
+                displayName: "Updated Name",
+                email: "updated@example.com",
+                phoneNumber: "0123456789",
+                photoURL: "https://provider.example.com/new.jpg"
+            }
+        );
+
+        expect(result.vendorStatus).toBe("blocked");
+        expect(result.adminApplicationStatus).toBe("blocked");
+        expect(result.accountStatus).toBe("active");
+
+        await expect(service.ensureUserProfile(null)).rejects.toThrow(
+            "A valid authenticated user is required."
+        );
     });
 
     test("registerWithEmail returns success with next route", async () => {
@@ -1236,7 +1517,10 @@ describe("auth-core profile sync and auth flows", () => {
             email: "admin8@example.com",
             password: "password123",
             displayName: "Admin Eight",
-            accountType: "admin"
+            accountType: "admin",
+            phoneNumber: "0712345678",
+            department: "Student Affairs",
+            motivation: "I need access to help manage platform operations and users."
         });
 
         expect(result.success).toBe(true);
@@ -1246,7 +1530,8 @@ describe("auth-core profile sync and auth flows", () => {
                 email: "admin8@example.com",
                 displayName: "Admin Eight",
                 isAdmin: false,
-                adminApplicationStatus: "pending"
+                adminApplicationStatus: "pending",
+                adminDepartment: "Student Affairs"
             })
         );
         expect(result.nextRoute).toBe("../customer/index.html");
@@ -1489,5 +1774,43 @@ describe("auth-core profile sync and auth flows", () => {
 
         expect(result.success).toBe(false);
         expect(result.message).toBe("No account was found with that email address.");
+    });
+
+    test("auth flows fall back to generic next route and generic error message when utils helpers are missing", async () => {
+        const deps = createMockDependencies();
+        const mockUser = {
+            uid: "fallback-auth-flow",
+            email: "fallback@example.com",
+            displayName: "Fallback User"
+        };
+
+        delete deps.utils.getPostLoginRoute;
+        delete deps.utils.getDefaultPortalRoute;
+        delete deps.utils.mapAuthErrorCode;
+
+        deps.authFns.createUserWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+        deps.firestoreFns.getDoc.mockResolvedValue({
+            exists: () => false
+        });
+        deps.firestoreFns.setDoc.mockResolvedValue(undefined);
+
+        const service = createAuthService(deps);
+        const successResult = await service.registerWithEmail({
+            email: "fallback@example.com",
+            password: "password123",
+            displayName: "Fallback User",
+            accountType: "customer"
+        });
+
+        expect(successResult.nextRoute).toBe("../customer/index.html");
+
+        deps.authFns.signInWithEmailAndPassword.mockRejectedValue({});
+        const failureResult = await service.loginWithEmail({
+            email: "fallback@example.com",
+            password: "wrongpass"
+        });
+
+        expect(failureResult.success).toBe(false);
+        expect(failureResult.message).toBe("Something went wrong. Please try again.");
     });
 });
