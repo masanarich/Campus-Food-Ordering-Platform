@@ -122,11 +122,12 @@
 
 .users-list-rows {
     display: grid;
+    grid-template-columns: 1fr;
     gap: 0.9rem;
     list-style: none;
     margin: 0;
     padding: 0;
-    min-width: 780px;
+    min-width: 0;
 }
 
 .user-row-item {
@@ -175,6 +176,14 @@
 .user-row-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    min-width: 0;
+}
+
+.user-row-actions .button-primary,
+.user-row-actions button {
+    white-space: nowrap;
+    min-width: 7.5rem;
 }
 
 .pagination-controls {
