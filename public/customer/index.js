@@ -55,7 +55,7 @@ function getFallbackRoutes() {
         admin: "../admin/index.html",
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
-        vendorapplication: "../customer/vendor-application.html",
+        vendorapplication: "../vendor/vendor-application.html",
         login: "../authentication/login.html",
         stores: "../Approved_vendors/index.html"
     };
@@ -635,7 +635,7 @@ async function initializeCustomerHomePage(options = {}) {
         const vendorApplicationController = result.state.showVendorApplication
             ? attachNavigationHandler({
                 button: elements.vendorApplicationButton,
-                route: getPortalRoute("vendorApplication", authUtils),
+                route: "../vendor/vendor-application.html",
                 navigate
             })
             : null;

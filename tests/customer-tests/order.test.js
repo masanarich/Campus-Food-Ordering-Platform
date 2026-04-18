@@ -6,7 +6,7 @@ const {
   cancelOrder,
   clearOrders,
   ORDER_STATUS
-} = require("../order");
+} = require("../../public/customer/order");
 
 describe("Order Tracking System", () => {
 

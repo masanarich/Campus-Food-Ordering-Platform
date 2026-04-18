@@ -34,12 +34,9 @@ function getOrderById(orderId) {
 
 function updateOrderStatus(orderId, status) {
   const order = getOrderById(orderId);
-
   if (!order) return null;
 
-  const validStatuses = Object.values(ORDER_STATUS);
-
-  if (!validStatuses.includes(status)) {
+  if (!Object.values(ORDER_STATUS).includes(status)) {
     throw new Error("Invalid order status");
   }
 

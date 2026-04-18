@@ -1,7 +1,14 @@
 /**
  * tests/admin-tests/users.test.js
  */
+beforeEach(() => {
+    delete window.location;
 
+    window.location = {
+        href: "http://localhost/",
+        assign: jest.fn(),
+    };
+});
 function createMockSnapshot(records) {
     return {
         forEach(callback) {
@@ -548,7 +555,7 @@ describe("public/admin/users.js page coverage", () => {
         await usersPage.initialize(deps);
         await flushPromises();
 
-        expect(window.location.href).not.toBe(originalHref);
+        expect(window.location.assign).toHaveBeenCalledWith("../authentication/login.html");
         expect(window.location.href).toContain("../authentication/login.html");
     });
 
