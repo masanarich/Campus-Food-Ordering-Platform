@@ -1,0 +1,36 @@
+/* Layout for the Vendor Grid */
+#vendor-grid {
+    display: grid;
+    /* Forces exactly two columns of equal width */
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 20px;
+    padding: 0;
+    margin: 2rem 0;
+    list-style: none; /* Removes the bullets */
+}
+
+/* Centers the cards within the grid columns */
+#vendor-grid li {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+/* Ensure the cards look consistent */
+.vendor-card {
+    width: 100%;
+    max-width: 400px;
+    transition: transform 0.2s ease;
+}
+
+.vendor-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Responsive: 1 column on mobile phones */
+@media (max-width: 768px) {
+    #vendor-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+}
