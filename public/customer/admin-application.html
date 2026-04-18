@@ -4,21 +4,117 @@
   <meta charset="UTF-8">
   <title>Admin Application | Campus Food Ordering Platform</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Placeholder page for the customer admin application flow.">
+  <meta name="description" content="Apply to become an admin on the Campus Food Ordering Platform.">
   <link rel="stylesheet" href="./index.css">
 </head>
 <body>
   <header>
     <h1>Campus Food Ordering Platform</h1>
+
+    <nav aria-label="Customer navigation">
+      <a href="./index.html">Customer Dashboard</a>
+      <a href="../authentication/profile.html">Profile</a>
+      <a href="./browse-stores.html">Browse Stores</a>
+      <a href="./support.html">Support</a>
+    </nav>
   </header>
 
   <main>
     <section aria-labelledby="admin-application-heading">
-      <h2 id="admin-application-heading">Admin Application</h2>
-      <p id="admin-application-message">
-        Loading admin application placeholder...
+      <h2 id="admin-application-heading">Apply to become an admin</h2>
+
+      <p>
+        Tell us why you need admin access so the team can review your request.
+        Once approved, you will unlock the admin portal and be able to manage vendor and admin applications.
       </p>
-      <button id="back-to-customer-home-button" type="button">Back to Customer Dashboard</button>
+
+      <p id="admin-application-status" aria-live="polite">
+        Loading your admin application details...
+      </p>
+
+      <p id="admin-application-note" aria-live="polite">
+        Admin application updates will appear here.
+      </p>
+
+      <menu>
+        <li>
+          <button id="back-button" type="button">Back to Customer Dashboard</button>
+        </li>
+        <li>
+          <button id="go-admin-portal-button" type="button" hidden>Go to Admin Portal</button>
+        </li>
+      </menu>
+    </section>
+
+    <section id="admin-application-form-section" aria-labelledby="admin-application-form-heading">
+      <h3 id="admin-application-form-heading">Admin application form</h3>
+
+      <p>
+        Complete the details below. Your application will first go into review and show as pending until approved.
+      </p>
+
+      <form id="admin-application-form" novalidate>
+        <p>
+          <label for="admin-department">Department, faculty, or admin area</label>
+        </p>
+        <p>
+          <input id="admin-department" name="department" type="text" maxlength="120"
+            placeholder="e.g. Student Affairs" required aria-describedby="admin-department-error">
+        </p>
+        <p id="admin-department-error" class="form-error" data-error-for="department" aria-live="polite"></p>
+
+        <p>
+          <label for="admin-email">Admin contact email</label>
+        </p>
+        <p>
+          <input id="admin-email" name="email" type="email" maxlength="160"
+            placeholder="e.g. admin@university.ac.za" required aria-describedby="admin-email-error">
+        </p>
+        <p id="admin-email-error" class="form-error" data-error-for="email" aria-live="polite"></p>
+
+        <p>
+          <label for="admin-motivation">Why do you need admin access?</label>
+        </p>
+        <p>
+          <textarea id="admin-motivation" name="motivation" rows="6" maxlength="1000"
+            placeholder="Describe your responsibilities and why admin access is needed."
+            required aria-describedby="admin-motivation-error"></textarea>
+        </p>
+        <p>Please give a clear explanation of the work you need to do in the platform.</p>
+        <p id="admin-motivation-error" class="form-error" data-error-for="motivation" aria-live="polite"></p>
+
+        <p>
+          <label for="admin-confirm-checkbox">
+            <input id="admin-confirm-checkbox" name="confirmed" type="checkbox"
+              aria-describedby="admin-confirmed-error">
+            I confirm that the information above is correct.
+          </label>
+        </p>
+        <p id="admin-confirmed-error" class="form-error" data-error-for="confirmed" aria-live="polite"></p>
+
+        <menu>
+          <li>
+            <button id="submit-admin-application-button" type="submit">
+              Submit Admin Application
+            </button>
+          </li>
+          <li>
+            <button id="reset-admin-application-button" type="reset">
+              Clear Form
+            </button>
+          </li>
+        </menu>
+      </form>
+    </section>
+
+    <section aria-labelledby="admin-application-summary-heading">
+      <h3 id="admin-application-summary-heading">Application summary</h3>
+
+      <p><strong>Current admin status:</strong> <output id="admin-status-output">Loading...</output></p>
+      <p><strong>Department / area:</strong> <output id="admin-department-output">-</output></p>
+      <p><strong>Contact email:</strong> <output id="admin-email-output">-</output></p>
+      <p><strong>Motivation:</strong> <output id="admin-motivation-output">-</output></p>
+      <p><strong>Review note:</strong> <output id="admin-reason-output">-</output></p>
     </section>
   </main>
 
@@ -26,9 +122,31 @@
     <p>Campus Food Ordering Platform © 2026</p>
   </footer>
 
+  <script src="../authentication/auth-utils.js"></script>
+  <script src="../authentication/auth-core.js"></script>
   <script src="./admin-application.js"></script>
-  <script>
-    window.adminApplicationPage.initializeAdminApplicationPage();
+
+  <script type="module">
+    import { authService } from "../authentication/auth.js";
+    import { db } from "../authentication/config.js";
+    import {
+      doc,
+      setDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+    window.authService = authService;
+
+    window.adminApplicationPage.initializeAdminApplicationPage({
+      authService,
+      authUtils: window.authUtils,
+      db,
+      firestoreFns: {
+        doc,
+        setDoc,
+        serverTimestamp
+      }
+    });
   </script>
 </body>
 </html>
