@@ -600,19 +600,18 @@
     }
 
     function goBack() {
-        window.location.href = "./index.html";
+        if (typeof window !== "undefined") {
+            window.location.href = "./index.html";
+        }
     }
 
-    async function guardAdminAccess() {
+    /*async function guardAdminAccess() {
         return new Promise(function resolveGuard(resolve) {
             state.authService.observeAuthState(async function onAuthStateChanged(user) {
                 try {
-                    if (!user) {
-                        window.location.href = "../authentication/login.html";
-                        resolve(false);
-                        return;
-                    }
-
+                    if (typeof window !== "undefined") {
+                        window.location.assign("../authentication/login.html");
+                }
                     state.currentAdminUser = user;
 
                     const profile =
@@ -640,7 +639,64 @@
                 }
             });
         });
-    }
+    }*/
+   async function guardAdminAccess() {
+    
+    return new Promise(function resolveGuard(resolve) {
+        state.authService.observeAuthState(async function onAuthStateChanged(user) {
+            try {
+
+                // ✅ FIX 1: Handle unauthenticated user FIRST
+                if (!user) {
+                    if (typeof window !== "undefined" && window.location?.assign) {
+                        window.location.assign("../authentication/login.html");
+                    }
+                    resolve(false);
+                    return;
+                }
+
+                // ✅ FIX 2: Only now safe to use user
+                state.currentAdminUser = user;
+
+                const profile =
+                    (await state.authService.getCurrentUserProfile(user.uid)) ||
+                    (await state.authService.getUserProfile(user.uid));
+
+                state.currentAdminProfile = normalizeUserRecord(
+                    state.authUtils,
+                    profile || {},
+                    user.uid
+                );
+
+                // ✅ FIX 3: Admin access check
+                if (
+                    !state.authUtils ||
+                    typeof state.authUtils.canAccessAdminPortal !== "function" ||
+                    !state.authUtils.canAccessAdminPortal(state.currentAdminProfile)
+                ) {
+                    setStatus("You are not allowed to access this page.");
+
+                    if (typeof window !== "undefined" && window.location?.assign) {
+                        window.location.assign("./index.html");
+                    }
+
+                    resolve(false);
+                    return;
+                }
+
+                // ✅ FIX 4: Success path
+                resolve(true);
+
+            } catch (error) {
+                console.error("Admin guard failed:", error);
+                setStatus("Unable to confirm admin access.");
+
+                // ✅ FIX 5: ALWAYS resolve (prevents timeout)
+                resolve(false);
+            }
+        });
+    });
+}
 
     function bindEvents() {
         const backButton = document.getElementById("back-button");
@@ -665,22 +721,45 @@
         }
     }
 
-    async function initialize(dependencies) {
-        state.authService = dependencies.authService;
-        state.authUtils = dependencies.authUtils;
-        state.db = dependencies.db;
-        state.firestoreFns = dependencies.firestoreFns;
+    async function initialize(dependencies = {}) {
 
-        bindEvents();
-        setPressedFilterButton();
+        try {
+            state.authService = dependencies.authService;
+            state.authUtils = dependencies.authUtils;
+            state.db = dependencies.db;
+            state.firestoreFns = dependencies.firestoreFns;
 
-        const allowed = await guardAdminAccess();
+            bindEvents();
+            setPressedFilterButton();
 
-        if (!allowed) {
-            return;
+            // safety: ensure guard always resolves
+            let allowed = false;
+
+            try {
+                allowed = await guardAdminAccess();
+            } catch (err) {
+                console.error("guardAdminAccess failed:", err);
+                allowed = false;
+            }
+
+            if (!allowed) {
+                setStatus("You are not allowed to access this page.");
+                return false;
+            }
+
+            try {
+                await loadUsers();
+            } catch (err) {
+                console.error("Failed to load users:", err);
+                setStatus("Failed to load users.");
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Initialization error:", error);
+            setStatus("Failed to initialize admin page.");
+            return false;
         }
-
-        await loadUsers();
     }
 
     const exportedHelpers = {

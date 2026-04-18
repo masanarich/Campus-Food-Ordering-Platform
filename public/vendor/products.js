@@ -36,7 +36,7 @@
         return `product-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     }
 
-    function validateProduct(values) {
+    /*function validateProduct(values) {
         const safeValues = values && typeof values === "object" ? values : {};
         const errors = {};
 
@@ -64,7 +64,31 @@
             isValid: Object.keys(errors).length === 0,
             errors
         };
+    }*/
+   function validateProduct(product) {
+    const errors = {};
+
+    if (!product.name || product.name.length < 2) {
+        errors.name = "Please enter the item name.";
     }
+
+    if (!product.description || product.description.length < 10) {
+        errors.description = "Please enter a longer item description.";
+    }
+
+    if (product.price == null || product.price < 0) {
+        errors.price = "Please enter a valid price of R0.00 or more.";
+    }
+
+    if (!isValidPhotoUrl(product.photoUrl)) {
+        errors.photoUrl = "Please enter a valid photo URL starting with http:// or https://";
+    }
+
+    return {
+        isValid: Object.keys(errors).length === 0,
+        errors
+    };
+   }
 
     function isImageFile(file) {
         return !!(file && typeof file.type === "string" && file.type.startsWith("image/"));
@@ -144,6 +168,11 @@
         return canvas.toDataURL(targetType, quality);
     }
 
+    function isValidPhotoUrl(url) {
+        if (!url) return true;
+        return url.startsWith("http://") || url.startsWith("https://");
+        }
+
     function getSelectedPhotoFile(fileInput) {
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             return null;
@@ -168,7 +197,7 @@
             name: normalizeText(safeValues.name),
             description: normalizeText(safeValues.description),
             price: parsePrice(safeValues.price),
-            photoDataUrl: normalizeText(safeValues.photoDataUrl),
+            photoUrl: safeValues.photoDataUrl || normalizeText(safeValues.photoUrl),
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true
         };
@@ -536,7 +565,7 @@
             };
         }
 
-        function saveCurrentProduct() {
+        /*function saveCurrentProduct() {
             const values = collectFormValues();
             const validation = validateProduct(values);
 
@@ -576,7 +605,63 @@
                 action,
                 product
             };
+            state.products.push(product);
+            product.id=Date.now().toString();
+        }*/
+       function saveCurrentProduct() {
+
+        const values = collectFormValues();
+        const validation = validateProduct(values);
+
+        if (!validation.isValid) {
+            showValidationErrors(validation.errors);
+
+            const firstError = Object.values(validation.errors)[0];
+            setStatus(firstError, "error");
+            setNote("Please correct the highlighted fields and try again.");
+
+            return {
+                success: false,
+                errors: validation.errors
+            };
         }
+
+        clearFieldErrors();
+
+        const product = toProduct(values);
+        product.id = product.id || Date.now().toString();
+
+        const action = upsertProduct(product);
+
+        state.products = state.products || [];
+
+        const existingIndex = state.products.findIndex(p => p.id === product.id);
+
+        if (existingIndex >= 0) {
+            state.products[existingIndex] = product;
+        } else {
+            state.products.push(product);
+        }
+
+        saveProducts();
+        fillForm(product);
+        updateSummary(product);
+        renderProductsList();
+
+        if (action === "created") {
+            setStatus("Product created successfully.", "success");
+            setNote("Your new menu item has been added.");
+        } else {
+            setStatus("Product updated successfully.", "success");
+            setNote("Your menu item changes have been saved.");
+        }
+
+        return {
+            success: true,
+            action,
+            product
+        };
+    }
 
         function validateSingleField(fieldName) {
             const values = collectFormValues();
@@ -717,7 +802,10 @@
             fileToOptimizedDataURL,
             getSelectedPhotoFile,
             clearFileInput,
-            createVendorProductsPage
+            createVendorProductsPage,
+            isValidPhotoUrl,
+            validateProduct,
+            toProduct
         };
     }
 
