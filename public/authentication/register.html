@@ -22,12 +22,6 @@
 
     <section>
       <h2>Create Account</h2>
-<<<<<<< HEAD
-      <p>Choose the role that matches how you want to use the platform.</p>
-
-      <form id="register-form" novalidate>
-
-=======
       <p>Register to order food from campus vendors.</p>
 
       <form id="register-form" novalidate>
@@ -37,7 +31,6 @@
           required>
         <p data-error-for="fullName"></p>
 
->>>>>>> 18e586b (fixed something)
         <label for="email">Email Address</label>
         <input type="email" id="email" name="email" placeholder="Enter your email" autocomplete="email" required>
         <p data-error-for="email"></p>
@@ -56,79 +49,9 @@
         <select id="accountType" name="accountType">
           <option value="customer">Customer</option>
           <option value="vendor">Vendor</option>
-<<<<<<< HEAD
-          <option value="admin">Admin</option>
         </select>
         <p data-error-for="accountType"></p>
 
-        <p id="register-role-hint">Customer registration only needs your email and password.</p>
-
-        <section data-register-row="fullName" hidden aria-hidden="true">
-          <label for="fullName">Full Name</label>
-          <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" autocomplete="name">
-          <p data-error-for="fullName"></p>
-        </section>
-
-        <section data-register-row="phoneNumber" hidden aria-hidden="true">
-          <label for="phoneNumber">Phone Number</label>
-          <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="e.g. 0712345678 or +27712345678"
-            autocomplete="tel">
-          <p data-error-for="phoneNumber"></p>
-        </section>
-
-        <section id="vendor-register-fields" hidden aria-hidden="true">
-          <h3>Vendor application details</h3>
-
-          <label for="businessName">Business Name</label>
-          <input type="text" id="businessName" name="businessName" placeholder="e.g. Campus Bites">
-          <p data-error-for="businessName"></p>
-
-          <label for="university">Campus or University</label>
-          <input type="text" id="university" name="university" placeholder="e.g. Wits University">
-          <p data-error-for="university"></p>
-
-          <label for="location">Vendor Location</label>
-          <input type="text" id="location" name="location" placeholder="e.g. Matrix Food Court">
-          <p data-error-for="location"></p>
-
-          <label for="foodType">Food Category</label>
-          <select id="foodType" name="foodType">
-            <option value="">Select one</option>
-            <option value="fast-food">Fast food</option>
-            <option value="restaurant">Restaurant meals</option>
-            <option value="snacks">Snacks</option>
-            <option value="drinks">Drinks</option>
-            <option value="bakery">Bakery</option>
-            <option value="desserts">Desserts</option>
-            <option value="other">Other</option>
-          </select>
-          <p data-error-for="foodType"></p>
-
-          <label for="description">Business Description</label>
-          <textarea id="description" name="description" rows="5"
-            placeholder="Tell us about your food business, menu style, and what students can expect."></textarea>
-          <p data-error-for="description"></p>
-        </section>
-
-        <section id="admin-register-fields" hidden aria-hidden="true">
-          <h3>Admin application details</h3>
-
-          <label for="department">Department or Office</label>
-          <input type="text" id="department" name="department"
-            placeholder="e.g. Student Affairs, Residence Council, Campus Operations">
-          <p data-error-for="department"></p>
-
-          <label for="motivation">Why do you need admin access?</label>
-          <textarea id="motivation" name="motivation" rows="5"
-            placeholder="Explain why you need admin access and what responsibilities you will handle."></textarea>
-          <p data-error-for="motivation"></p>
-        </section>
-
-=======
-        </select>
-        <p data-error-for="accountType"></p>
-
->>>>>>> 18e586b (fixed something)
         <button type="submit">Create Account</button>
 
       </form>
@@ -137,11 +60,7 @@
     </section>
 
     <section>
-<<<<<<< HEAD
-      <h3>Or sign in with</h3>
-=======
       <h3>Or sign up with</h3>
->>>>>>> 18e586b (fixed something)
       <button id="google-signin" type="button">Continue with Google</button>
       <button id="apple-signin" type="button">Continue with Apple</button>
     </section>
