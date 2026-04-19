@@ -3,6 +3,7 @@
 
     const DEFAULT_STATUS_MESSAGE = "Loading your menu workspace...";
     const DEFAULT_NOTE_MESSAGE = "Use this page to create, update, and organize your shop menu.";
+    const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
@@ -40,9 +41,13 @@
 
         return rawValue
             .split(",")
-            .map((item) => normalizeLowerText(item))
+            .map(function normalizeItem(item) {
+                return normalizeLowerText(item);
+            })
             .filter(Boolean)
-            .filter((item, index, array) => array.indexOf(item) === index);
+            .filter(function makeUnique(item, index, array) {
+                return array.indexOf(item) === index;
+            });
     }
 
     function formatTagList(tags) {
@@ -55,6 +60,11 @@
         return safeTags.join(", ");
     }
 
+    function getDisplayPhotoUrl(productRecord) {
+        const safeRecord = productRecord && typeof productRecord === "object" ? productRecord : {};
+        return normalizeText(safeRecord.photoURL || safeRecord.photoDataUrl || safeRecord.photoUrl);
+    }
+
     function normalizeProductRecord(productRecord, fallbackId) {
         const safeRecord = productRecord && typeof productRecord === "object" ? productRecord : {};
 
@@ -65,7 +75,8 @@
             category: normalizeText(safeRecord.category),
             description: normalizeText(safeRecord.description),
             price: typeof safeRecord.price === "number" ? safeRecord.price : parsePrice(safeRecord.price),
-            photoDataUrl: normalizeText(safeRecord.photoDataUrl || safeRecord.photoURL),
+            photoURL: getDisplayPhotoUrl(safeRecord),
+            photoPath: normalizeText(safeRecord.photoPath),
             availability: normalizeAvailability(safeRecord.availability),
             soldOut: safeRecord.soldOut === true,
             dietaryTags: normalizeTagList(safeRecord.dietaryTags),
@@ -117,7 +128,7 @@
     }
 
     function readFileAsDataURL(file) {
-        return new Promise((resolve, reject) => {
+        return new Promise(function buildReaderPromise(resolve, reject) {
             const reader = new FileReader();
 
             reader.onload = function handleLoad() {
@@ -133,7 +144,7 @@
     }
 
     function loadImageFromSource(src) {
-        return new Promise((resolve, reject) => {
+        return new Promise(function buildImagePromise(resolve, reject) {
             const image = new Image();
 
             image.onload = function handleLoad() {
@@ -216,7 +227,8 @@
             category: normalizeText(safeValues.category),
             description: normalizeText(safeValues.description),
             price: parsePrice(safeValues.price),
-            photoDataUrl: normalizeText(safeValues.photoDataUrl),
+            photoURL: normalizeText(safeValues.photoURL || safeValues.photoDataUrl),
+            photoPath: normalizeText(safeValues.photoPath),
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true,
             dietaryTags: normalizeTagList(safeValues.dietaryTags),
@@ -224,17 +236,61 @@
         });
     }
 
+    function createMenuItemId() {
+        if (typeof globalThis !== "undefined" && globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+            return globalThis.crypto.randomUUID();
+        }
+
+        return `menu-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function getFileExtension(file) {
+        if (!file || typeof file.type !== "string") {
+            return "jpg";
+        }
+
+        if (file.type === "image/png") {
+            return "png";
+        }
+
+        if (file.type === "image/webp") {
+            return "webp";
+        }
+
+        if (file.type === "image/gif") {
+            return "gif";
+        }
+
+        return "jpg";
+    }
+
+    function buildMenuItemPhotoPath(vendorUid, productId, file) {
+        return `menuItemPhotos/${normalizeText(vendorUid)}/${normalizeText(productId)}/cover.${getFileExtension(file)}`;
+    }
+
     function createVendorProductsPage(dependencies = {}) {
         const authService = dependencies.authService || null;
         const authUtils = dependencies.authUtils || null;
         const db = dependencies.db || null;
+        const storage = dependencies.storage || null;
         const firestoreFns = dependencies.firestoreFns || {};
+        const storageFns = dependencies.storageFns || {};
         const navigate =
             typeof dependencies.navigate === "function"
                 ? dependencies.navigate
                 : function fallbackNavigate(nextRoute) {
                     window.location.href = nextRoute;
                 };
+        const confirmAction =
+            typeof dependencies.confirmAction === "function"
+                ? dependencies.confirmAction
+                : function fallbackConfirm(message) {
+                    return window.confirm(message);
+                };
+        const createId =
+            typeof dependencies.createId === "function"
+                ? dependencies.createId
+                : createMenuItemId;
 
         const state = {
             currentUser: null,
@@ -242,7 +298,8 @@
             products: [],
             selectedPhotoDataUrl: "",
             editingProductId: "",
-            searchQuery: ""
+            searchQuery: "",
+            photoMarkedForRemoval: false
         };
 
         function getElement(id) {
@@ -267,9 +324,16 @@
             return firestoreFns.doc(db, "users", vendorUid, "menuItems", productId);
         }
 
+        function getProductPhotoRef(photoPath) {
+            return storageFns.ref(storage, photoPath);
+        }
+
         function getFormElements() {
             return {
+                modal: getElement("products-editor-modal"),
                 form: getElement("products-form"),
+                formHeading: getElement("products-form-heading"),
+                formSubheading: getElement("products-form-subheading"),
                 productIdInput: getElement("product-id"),
                 nameInput: getElement("product-name"),
                 categoryInput: getElement("product-category"),
@@ -287,7 +351,8 @@
                 removePhotoButton: getElement("remove-product-photo-button"),
                 backButton: getElement("back-button"),
                 resetEditorButton: getElement("reset-editor-button"),
-                searchInput: getElement("products-search")
+                searchInput: getElement("products-search"),
+                closeEditorButton: getElement("close-editor-button")
             };
         }
 
@@ -382,6 +447,17 @@
             });
         }
 
+        function updateResultsMeta() {
+            const resultsMeta = getElement("products-results-meta");
+            const visibleProducts = getVisibleProducts();
+
+            if (!resultsMeta) {
+                return;
+            }
+
+            resultsMeta.textContent = `Showing ${visibleProducts.length} of ${state.products.length} items`;
+        }
+
         function updateStats() {
             const totalCount = getElement("products-total-count");
             const availableCount = getElement("products-available-count");
@@ -396,7 +472,7 @@
                 return product.soldOut === true;
             }).length;
             const totalWithPhotos = state.products.filter(function filterPhotos(product) {
-                return normalizeText(product.photoDataUrl) !== "";
+                return getDisplayPhotoUrl(product) !== "";
             }).length;
 
             if (totalCount) {
@@ -480,19 +556,28 @@
                 allergenTagsOutput.textContent = formatTagList(safeProduct.allergenTags);
             }
 
-            updatePreviewVisibility(safeProduct.photoDataUrl);
+            updatePreviewVisibility(getDisplayPhotoUrl(safeProduct));
         }
 
         function updateEditingState() {
-            const editingStatePill = getElement("editing-state-pill");
-            const deleteButton = getElement("delete-product-button");
+            const elements = getFormElements();
 
-            if (editingStatePill) {
-                editingStatePill.textContent = state.editingProductId ? "Editing Existing Item" : "Creating New Item";
+            if (getElement("editing-state-pill")) {
+                getElement("editing-state-pill").textContent = state.editingProductId ? "Editing Existing Item" : "Creating New Item";
             }
 
-            if (deleteButton) {
-                deleteButton.hidden = !state.editingProductId;
+            if (elements.formHeading) {
+                elements.formHeading.textContent = state.editingProductId ? "Update Menu Item" : "Create Menu Item";
+            }
+
+            if (elements.formSubheading) {
+                elements.formSubheading.textContent = state.editingProductId
+                    ? "Update the selected menu item, then save the changes back to Firestore."
+                    : "Fill in the product details below and save them to your vendor menu.";
+            }
+
+            if (elements.deleteButton) {
+                elements.deleteButton.hidden = !state.editingProductId;
             }
         }
 
@@ -506,7 +591,7 @@
                 category: elements.categoryInput ? elements.categoryInput.value : "",
                 description: elements.descriptionInput ? elements.descriptionInput.value : "",
                 price: elements.priceInput ? elements.priceInput.value : "",
-                photoDataUrl: state.selectedPhotoDataUrl,
+                photoURL: state.selectedPhotoDataUrl,
                 availability: elements.availabilityInput ? elements.availabilityInput.value : "available",
                 dietaryTags: elements.dietaryTagsInput ? elements.dietaryTagsInput.value : "",
                 allergenTags: elements.allergenTagsInput ? elements.allergenTagsInput.value : "",
@@ -514,11 +599,45 @@
             };
         }
 
+        function showEditorModal() {
+            const dialog = getFormElements().modal;
+
+            if (!dialog) {
+                return;
+            }
+
+            if (typeof dialog.showModal === "function") {
+                if (!dialog.open) {
+                    dialog.showModal();
+                }
+            } else {
+                dialog.setAttribute("open", "open");
+                dialog.open = true;
+            }
+        }
+
+        function closeEditorModal() {
+            const dialog = getFormElements().modal;
+
+            if (!dialog) {
+                return;
+            }
+
+            if (typeof dialog.close === "function" && dialog.open) {
+                dialog.close();
+            } else {
+                dialog.removeAttribute("open");
+                dialog.open = false;
+            }
+        }
+
         function fillForm(product) {
             const safeProduct = product && typeof product === "object" ? product : {};
             const elements = getFormElements();
 
             state.editingProductId = normalizeText(safeProduct.id);
+            state.selectedPhotoDataUrl = getDisplayPhotoUrl(safeProduct);
+            state.photoMarkedForRemoval = false;
 
             if (elements.productIdInput) {
                 elements.productIdInput.value = normalizeText(safeProduct.id);
@@ -546,48 +665,79 @@
             }
 
             if (elements.dietaryTagsInput) {
-                elements.dietaryTagsInput.value = formatTagList(safeProduct.dietaryTags) === "-"
-                    ? ""
-                    : formatTagList(safeProduct.dietaryTags);
+                elements.dietaryTagsInput.value =
+                    formatTagList(safeProduct.dietaryTags) === "-" ? "" : formatTagList(safeProduct.dietaryTags);
             }
 
             if (elements.allergenTagsInput) {
-                elements.allergenTagsInput.value = formatTagList(safeProduct.allergenTags) === "-"
-                    ? ""
-                    : formatTagList(safeProduct.allergenTags);
+                elements.allergenTagsInput.value =
+                    formatTagList(safeProduct.allergenTags) === "-" ? "" : formatTagList(safeProduct.allergenTags);
             }
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = safeProduct.soldOut === true;
             }
 
-            state.selectedPhotoDataUrl = normalizeText(safeProduct.photoDataUrl);
             clearFileInput(elements.photoFileInput);
-
             updateEditingState();
             clearFieldErrors();
             updateSummary(safeProduct);
         }
 
-        function resetFormState() {
+        function resetFormState(options = {}) {
+            const safeOptions = options && typeof options === "object" ? options : {};
+            const preserveMessages = safeOptions.preserveMessages === true;
             const elements = getFormElements();
 
             state.editingProductId = "";
             state.selectedPhotoDataUrl = "";
+            state.photoMarkedForRemoval = false;
 
             if (elements.productIdInput) {
                 elements.productIdInput.value = "";
             }
 
-            if (elements.photoFileInput) {
-                clearFileInput(elements.photoFileInput);
+            if (elements.nameInput) {
+                elements.nameInput.value = "";
             }
 
+            if (elements.categoryInput) {
+                elements.categoryInput.value = "";
+            }
+
+            if (elements.descriptionInput) {
+                elements.descriptionInput.value = "";
+            }
+
+            if (elements.priceInput) {
+                elements.priceInput.value = "";
+            }
+
+            if (elements.availabilityInput) {
+                elements.availabilityInput.value = "available";
+            }
+
+            if (elements.dietaryTagsInput) {
+                elements.dietaryTagsInput.value = "";
+            }
+
+            if (elements.allergenTagsInput) {
+                elements.allergenTagsInput.value = "";
+            }
+
+            if (elements.soldOutInput) {
+                elements.soldOutInput.checked = false;
+            }
+
+            clearFileInput(elements.photoFileInput);
             updateEditingState();
             clearFieldErrors();
             updateSummary({});
-            setStatus(DEFAULT_STATUS_MESSAGE, "info");
-            setNote(DEFAULT_NOTE_MESSAGE);
+
+            if (!preserveMessages) {
+                setStatus(DEFAULT_STATUS_MESSAGE, "info");
+                setNote(DEFAULT_NOTE_MESSAGE);
+            }
         }
 
         function createProductCard(product) {
@@ -597,14 +747,19 @@
             const article = document.createElement("article");
             article.className = "product-card";
 
-            const photo = document.createElement("img");
-            photo.className = "product-card-photo";
-            photo.alt = `${product.name || "Product"} photo`;
+            const displayPhotoUrl = getDisplayPhotoUrl(product);
 
-            if (normalizeText(product.photoDataUrl)) {
-                photo.src = product.photoDataUrl;
+            if (displayPhotoUrl) {
+                const photo = document.createElement("img");
+                photo.className = "product-card-photo";
+                photo.alt = `${product.name || "Product"} photo`;
+                photo.src = displayPhotoUrl;
+                article.appendChild(photo);
             } else {
-                photo.hidden = true;
+                const photoFallback = document.createElement("div");
+                photoFallback.className = "product-card-photo-fallback";
+                photoFallback.textContent = "No product image uploaded yet";
+                article.appendChild(photoFallback);
             }
 
             const content = document.createElement("div");
@@ -651,7 +806,7 @@
                     className: "product-badge product-badge-neutral"
                 },
                 {
-                    text: normalizeText(product.photoDataUrl) ? "Photo Added" : "No Photo",
+                    text: displayPhotoUrl ? "Photo Stored" : "No Photo",
                     className: "product-badge product-badge-info"
                 }
             ].forEach(function appendBadge(config) {
@@ -696,7 +851,6 @@
             content.appendChild(tags);
             content.appendChild(actions);
 
-            article.appendChild(photo);
             article.appendChild(content);
             item.appendChild(article);
 
@@ -718,9 +872,10 @@
                 if (emptyState) {
                     emptyState.hidden = false;
                     emptyState.textContent = state.products.length === 0
-                        ? "No menu items added yet. Start by creating your first product above."
+                        ? "No menu items added yet. Start by creating your first product."
                         : "No menu items match your search right now.";
                 }
+                updateResultsMeta();
                 return;
             }
 
@@ -731,6 +886,8 @@
             visibleProducts.forEach(function appendProduct(product) {
                 list.appendChild(createProductCard(product));
             });
+
+            updateResultsMeta();
         }
 
         async function loadProducts() {
@@ -772,7 +929,7 @@
                 setStatus("Failed to load menu items.", "error");
                 return {
                     success: false,
-                    error,
+                    error: error,
                     products: []
                 };
             }
@@ -794,7 +951,7 @@
                 return { success: false };
             }
 
-            if (selectedFile.size > 5 * 1024 * 1024) {
+            if (selectedFile.size > MAX_IMAGE_SIZE_BYTES) {
                 setStatus("Please choose an image smaller than 5 MB.", "error");
                 setNote("Large images should be compressed before upload.");
                 return { success: false };
@@ -808,12 +965,13 @@
                 });
 
                 state.selectedPhotoDataUrl = previewDataUrl;
+                state.photoMarkedForRemoval = false;
                 updateSummary(toProduct({
                     ...collectFormValues(),
-                    photoDataUrl: previewDataUrl
+                    photoURL: previewDataUrl
                 }));
                 setStatus("Photo preview ready.", "success");
-                setNote("Save the menu item to keep this image.");
+                setNote("Save the menu item to upload this image to Firebase Storage.");
 
                 return {
                     success: true,
@@ -821,7 +979,7 @@
                 };
             } catch (error) {
                 setStatus(error && error.message ? error.message : "Unable to preview the selected image.", "error");
-                return { success: false, error };
+                return { success: false, error: error };
             }
         }
 
@@ -829,37 +987,117 @@
             const elements = getFormElements();
 
             state.selectedPhotoDataUrl = "";
+            state.photoMarkedForRemoval = true;
             clearFileInput(elements.photoFileInput);
             updateSummary(toProduct({
                 ...collectFormValues(),
-                photoDataUrl: ""
+                photoURL: ""
             }));
             setStatus("Product photo removed.", "success");
-            setNote("You can choose a new image or save the item without one.");
+            setNote("Save the menu item to remove the stored image as well.");
 
             return { success: true };
         }
 
-        function getCurrentEditingProduct() {
+        function getCurrentEditingProduct(productId) {
+            const idToFind = normalizeText(productId || state.editingProductId);
+
             return state.products.find(function findProduct(product) {
-                return normalizeText(product.id) === normalizeText(state.editingProductId);
+                return normalizeText(product.id) === idToFind;
             }) || null;
         }
 
-        function createFirestorePayload(product, mode, serverTimestampValue) {
+        function createFirestorePayload(product, serverTimestampValue) {
             return {
                 vendorUid: product.vendorUid,
                 name: product.name,
                 category: product.category,
                 description: product.description,
                 price: product.price,
-                photoDataUrl: product.photoDataUrl,
+                photoURL: product.photoURL,
+                photoPath: product.photoPath,
                 availability: product.availability,
                 soldOut: product.soldOut,
                 dietaryTags: product.dietaryTags,
                 allergenTags: product.allergenTags,
                 updatedAt: serverTimestampValue,
-                createdAt: mode === "create" ? serverTimestampValue : null
+                createdAt: serverTimestampValue
+            };
+        }
+
+        async function deleteStoredPhoto(photoPath) {
+            const safePhotoPath = normalizeText(photoPath);
+
+            if (!safePhotoPath) {
+                return { success: true };
+            }
+
+            if (!storage || typeof storageFns.ref !== "function" || typeof storageFns.deleteObject !== "function") {
+                return { success: false };
+            }
+
+            try {
+                await storageFns.deleteObject(getProductPhotoRef(safePhotoPath));
+                return { success: true };
+            } catch (error) {
+                const errorCode = normalizeLowerText(error && error.code);
+
+                if (errorCode === "storage/object-not-found") {
+                    return { success: true, skipped: true };
+                }
+
+                throw error;
+            }
+        }
+
+        async function uploadSelectedPhoto(productId, existingProduct) {
+            const elements = getFormElements();
+            const selectedFile = getSelectedPhotoFile(elements.photoFileInput);
+            const currentProduct = existingProduct && typeof existingProduct === "object" ? existingProduct : {};
+            let photoURL = getDisplayPhotoUrl(currentProduct);
+            let photoPath = normalizeText(currentProduct.photoPath);
+
+            if (selectedFile) {
+                if (!isImageFile(selectedFile)) {
+                    throw new Error("Please choose an image file.");
+                }
+
+                if (selectedFile.size > MAX_IMAGE_SIZE_BYTES) {
+                    throw new Error("Please choose an image smaller than 5 MB.");
+                }
+
+                if (!storage) {
+                    throw new Error("Firebase Storage is not ready.");
+                }
+
+                if (
+                    typeof storageFns.ref !== "function" ||
+                    typeof storageFns.uploadBytes !== "function" ||
+                    typeof storageFns.getDownloadURL !== "function"
+                ) {
+                    throw new Error("Storage functions are not available.");
+                }
+
+                photoPath = buildMenuItemPhotoPath(state.currentUser.uid, productId, selectedFile);
+                const storageRef = getProductPhotoRef(photoPath);
+
+                await storageFns.uploadBytes(storageRef, selectedFile, {
+                    contentType: selectedFile.type || "image/jpeg"
+                });
+                photoURL = await storageFns.getDownloadURL(storageRef);
+                state.photoMarkedForRemoval = false;
+                state.selectedPhotoDataUrl = photoURL;
+                clearFileInput(elements.photoFileInput);
+            } else if (state.photoMarkedForRemoval) {
+                await deleteStoredPhoto(photoPath);
+                photoURL = "";
+                photoPath = "";
+                state.photoMarkedForRemoval = false;
+            }
+
+            return {
+                photoURL: photoURL,
+                photoPath: photoPath
             };
         }
 
@@ -887,75 +1125,92 @@
 
             clearFieldErrors();
 
-            const product = toProduct({
-                ...values,
-                vendorUid: state.currentUser.uid
-            });
-
-            const isEditing = normalizeText(product.id) !== "";
-            const mode = isEditing ? "update" : "create";
+            const existingProduct = getCurrentEditingProduct();
+            const isEditing = !!existingProduct;
+            const productId = normalizeText(values.productId) || createId();
             const serverTimestampValue =
                 typeof firestoreFns.serverTimestamp === "function"
                     ? firestoreFns.serverTimestamp()
                     : null;
 
             try {
+                const photoFields = await uploadSelectedPhoto(productId, existingProduct);
+                const product = toProduct({
+                    ...values,
+                    productId: productId,
+                    vendorUid: state.currentUser.uid,
+                    photoURL: photoFields.photoURL,
+                    photoPath: photoFields.photoPath
+                });
+
+                const payload = createFirestorePayload(product, serverTimestampValue);
+                const productRef = getProductDocRef(state.currentUser.uid, productId);
+
                 if (isEditing) {
-                    const productRef = getProductDocRef(state.currentUser.uid, product.id);
-                    const payload = createFirestorePayload(product, mode, serverTimestampValue);
                     delete payload.createdAt;
                     await firestoreFns.setDoc(productRef, payload, { merge: true });
                 } else {
-                    const payload = createFirestorePayload(product, mode, serverTimestampValue);
-                    await firestoreFns.addDoc(getProductsCollectionRef(state.currentUser.uid), payload);
+                    await firestoreFns.setDoc(productRef, payload);
                 }
 
                 await loadProducts();
-                resetFormState();
+                closeEditorModal();
+                resetFormState({ preserveMessages: true });
                 setStatus(
                     isEditing ? "Menu item updated successfully." : "Menu item created successfully.",
                     "success"
                 );
                 setNote(
                     isEditing
-                        ? "Your menu item changes have been saved."
+                        ? "Your menu item changes have been saved, including any image updates."
                         : "Your new menu item has been added to the menu list."
                 );
 
                 return {
                     success: true,
-                    action: mode
+                    action: isEditing ? "update" : "create",
+                    productId: productId
                 };
             } catch (error) {
                 console.error("Failed to save product:", error);
-                setStatus("Failed to save the menu item.", "error");
+                setStatus(error && error.message ? error.message : "Failed to save the menu item.", "error");
                 return {
                     success: false,
-                    error
+                    error: error
                 };
             }
         }
 
-        async function deleteCurrentProduct() {
-            const currentProduct = getCurrentEditingProduct();
+        async function deleteCurrentProduct(productId) {
+            const currentProduct = getCurrentEditingProduct(productId);
 
             if (!currentProduct || !state.currentUser || !state.currentUser.uid) {
                 setStatus("Choose a menu item first before trying to delete it.", "error");
                 return { success: false };
             }
 
+            const shouldDelete = confirmAction(
+                `Delete "${currentProduct.name || "this menu item"}"? This will also remove its stored product image.`
+            );
+
+            if (!shouldDelete) {
+                return { success: false, cancelled: true };
+            }
+
             try {
+                await deleteStoredPhoto(currentProduct.photoPath);
                 await firestoreFns.deleteDoc(getProductDocRef(state.currentUser.uid, currentProduct.id));
                 await loadProducts();
-                resetFormState();
+                closeEditorModal();
+                resetFormState({ preserveMessages: true });
                 setStatus("Menu item deleted successfully.", "success");
-                setNote("The selected item has been removed from your menu.");
+                setNote("The selected item and its stored image have been removed.");
 
                 return { success: true };
             } catch (error) {
                 console.error("Failed to delete product:", error);
                 setStatus("Failed to delete the menu item.", "error");
-                return { success: false, error };
+                return { success: false, error: error };
             }
         }
 
@@ -1024,6 +1279,13 @@
             }
         }
 
+        function openCreateModal() {
+            resetFormState({ preserveMessages: true });
+            showEditorModal();
+            setStatus("Create a new menu item.", "info");
+            setNote("Add the item details below, preview the image if needed, then save.");
+        }
+
         function editProductById(productId) {
             const product = state.products.find(function findProduct(item) {
                 return normalizeText(item.id) === normalizeText(productId);
@@ -1034,7 +1296,7 @@
             }
 
             fillForm(product);
-            updateSummary(product);
+            showEditorModal();
             setStatus("Loaded menu item into the editor.", "info");
             setNote("Update the fields you want, then save again.");
         }
@@ -1052,9 +1314,7 @@
             }
 
             if (button.matches('button[data-action="delete-product"]')) {
-                const productId = button.dataset.productId;
-                editProductById(productId);
-                await deleteCurrentProduct();
+                await deleteCurrentProduct(button.dataset.productId);
             }
         }
 
@@ -1111,9 +1371,9 @@
 
                 elements.form.addEventListener("reset", function handleReset() {
                     window.setTimeout(function afterReset() {
-                        resetFormState();
-                        renderProductsList();
-                        setNote("The editor has been cleared and is ready for a new item.");
+                        resetFormState({ preserveMessages: true });
+                        setStatus("Editor reset.", "info");
+                        setNote("The form is clear and ready for a fresh menu item.");
                     }, 0);
                 });
             }
@@ -1140,14 +1400,16 @@
             }
 
             if (elements.resetEditorButton) {
-                elements.resetEditorButton.addEventListener("click", function handleResetEditor(event) {
+                elements.resetEditorButton.addEventListener("click", function handleNewItem(event) {
                     event.preventDefault();
-                    if (elements.form) {
-                        elements.form.reset();
-                    }
-                    resetFormState();
-                    renderProductsList();
-                    setNote("The editor has been reset for a brand new menu item.");
+                    openCreateModal();
+                });
+            }
+
+            if (elements.closeEditorButton) {
+                elements.closeEditorButton.addEventListener("click", function handleClose(event) {
+                    event.preventDefault();
+                    closeEditorModal();
                 });
             }
 
@@ -1176,7 +1438,7 @@
             setStatus(DEFAULT_STATUS_MESSAGE, "info");
             setNote(DEFAULT_NOTE_MESSAGE);
             bindEvents();
-            resetFormState();
+            resetFormState({ preserveMessages: true });
 
             const allowed = await ensureVendorAccess();
 
@@ -1197,7 +1459,7 @@
             }
 
             setStatus("Menu workspace ready.", "success");
-            setNote("Create your next menu item or select one below to edit it.");
+            setNote("Manage your menu below. Click Edit Item to work inside the popup editor.");
 
             return {
                 success: true
@@ -1212,6 +1474,8 @@
             deleteCurrentProduct,
             loadProducts,
             editProductById,
+            openCreateModal,
+            closeEditorModal,
             helpers: {
                 normalizeText,
                 normalizeLowerText,
@@ -1220,6 +1484,7 @@
                 normalizeAvailability,
                 normalizeTagList,
                 formatTagList,
+                getDisplayPhotoUrl,
                 normalizeProductRecord,
                 validateProduct,
                 toProduct,
@@ -1228,7 +1493,9 @@
                 loadImageFromSource,
                 fileToOptimizedDataURL,
                 getSelectedPhotoFile,
-                clearFileInput
+                clearFileInput,
+                createMenuItemId,
+                buildMenuItemPhotoPath
             },
             state
         };
@@ -1243,6 +1510,7 @@
             normalizeAvailability,
             normalizeTagList,
             formatTagList,
+            getDisplayPhotoUrl,
             normalizeProductRecord,
             validateProduct,
             toProduct,
@@ -1252,6 +1520,8 @@
             fileToOptimizedDataURL,
             getSelectedPhotoFile,
             clearFileInput,
+            createMenuItemId,
+            buildMenuItemPhotoPath,
             createVendorProductsPage
         };
     }
