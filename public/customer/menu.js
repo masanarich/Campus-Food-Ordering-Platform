@@ -24,7 +24,7 @@ function renderMenu() {
   menuDiv.innerHTML = ""; 
 
   menuItems.forEach(item => {
-    const div = document.createElement("section");
+    const section = document.createElement("section");
 
     const btn = document.createElement("button");
     btn.textContent = "Add";
@@ -34,8 +34,8 @@ function renderMenu() {
       renderCart();
     };
 
-    div.innerHTML = `<p>${item.name} - R${item.price}</p>`;
-    div.appendChild(btn);
+    section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
+    section.appendChild(btn);
 
     menuDiv.appendChild(div);
   });
@@ -54,7 +54,7 @@ function renderCart() {
   const total = getTotal();
 
   currentCart.forEach(item => {
-    const div = document.createElement("section");
+    const section= document.createElement("section");
 
     const btn = document.createElement("button");
     btn.textContent = "Remove";
@@ -64,8 +64,8 @@ function renderCart() {
       renderCart();
     };
 
-    div.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
-    div.appendChild(btn);
+    section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
+    section.appendChild(btn);
 
     cartDiv.appendChild(div);
   });
