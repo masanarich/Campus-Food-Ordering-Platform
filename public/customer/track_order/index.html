@@ -3,47 +3,87 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Campus Food Order Tracking</title>
+    <title>Track Your Order - Campus Food</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="container">
-      <h1>Campus Food Order Tracking</h1>
-      <p class="subtitle">
-        Student side: place your order and watch progress in real time.
-      </p>
+    <header class="track-header">
+      <div class="header-content">
+        <h1 class="header-title">Order Tracker</h1>
+        <p class="header-subtitle">Real-time food order tracking for campus</p>
+      </div>
+    </header>
 
-      <section class="card">
-        <h2>Place Order</h2>
-        <form id="create-order-form" class="grid">
-          <label>
-            Student Name
-            <input id="studentName" required placeholder="e.g. Lerato" />
-          </label>
-          <label>
-            Food Item
-            <input id="itemName" required placeholder="e.g. Chicken Wrap" />
-          </label>
-          <label>
-            Vendor
-            <input id="vendorName" required placeholder="e.g. Campus Cafe" />
-          </label>
-          <button type="submit">Place Order</button>
+    <main class="container">
+      <!-- Order Form Section -->
+      <section class="form-card">
+        <h2>Place Your Order</h2>
+        <p class="section-description">Enter your details and choose your favorite meal</p>
+        <form id="create-order-form" class="order-form">
+          <div class="form-group">
+            <label for="studentName" class="form-label">
+              Your Name
+              <span class="required">*</span>
+            </label>
+            <input 
+              id="studentName" 
+              type="text"
+              required 
+              placeholder="e.g. Lerato Dlamini" 
+              class="form-input"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="itemName" class="form-label">
+              Food Item
+              <span class="required">*</span>
+            </label>
+            <input 
+              id="itemName" 
+              type="text"
+              required 
+              placeholder="e.g. Spicy Chicken Wrap" 
+              class="form-input"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="vendorName" class="form-label">
+              Vendor
+              <span class="required">*</span>
+            </label>
+            <input 
+              id="vendorName" 
+              type="text"
+              required 
+              placeholder="e.g. Campus Cafe" 
+              class="form-input"
+            />
+          </div>
+
+          <button type="submit" class="submit-btn">Place Order</button>
+          <p id="create-order-feedback" class="form-feedback"></p>
         </form>
-        <p id="create-order-feedback" class="feedback"></p>
       </section>
 
-      <section class="card">
-        <h2>Track Orders</h2>
-        <p class="hint">
-          Live status flow: <strong>Order Received</strong> ->
-          <strong>Preparing</strong> -> <strong>Ready for Pickup</strong>
-        </p>
-        <div id="order-list" class="list"></div>
+      <!-- Track Orders Section -->
+      <section class="track-section">
+        <div class="section-header">
+          <div>
+            <h2>Your Orders</h2>
+            <p class="section-description">Click on any order to see detailed progress</p>
+          </div>
+        </div>
+
+        <div id="order-list" class="order-list"></div>
+        <div id="empty-state" class="empty-state" style="display: none;">
+          <p>No orders yet. Place your first order to get started!</p>
+        </div>
       </section>
     </main>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
   </body>
-  </html>
+</html>

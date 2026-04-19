@@ -6,7 +6,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Customer dashboard for the Campus Food Ordering Platform.">
   <link rel="stylesheet" href="./index.css">
-  <meta charset="UTF-8" />
+</head>
+<body>
+  <header>
+    <h1>Campus Food Ordering Platform</h1>
+    <nav aria-label="Customer navigation">
+      <a href="./index.html" aria-current="page">Dashboard</a>
+      <a href="../authentication/profile.html">Profile</a>
+      <a href="./browse-stores.html">Browse Stores</a>
+      <a href="./my-orders.html">My Orders</a>
+      <a href="./support.html">Support</a>
+    </nav>
+  </header>
+
+  <main>
+    <section aria-labelledby="welcome-heading">
+      <h2 id="welcome-heading">Welcome to Your Dashboard</h2>
+      <p>
+        Manage your orders, track deliveries, and discover new food vendors on campus.
+        Start exploring or check on your current orders below.
+      </p>
+
+      <div class="quick-links">
+        <a href="./browse-stores.html" class="link-card">
+          <h3>Browse Vendors</h3>
+          <p>Discover all available food vendors</p>
+        </a>
+        <a href="./my-orders.html" class="link-card">
+          <h3>My Orders</h3>
+          <p>View your order history</p>
+        </a>
+        <a href="./track_order/" class="link-card">
+          <h3>Track Order</h3>
+          <p>Real-time order tracking</p>
+        </a>
+      </div>
+
+      <p id="customer-status" aria-live="polite"></p>
+    </section>
+
+    <a href="../index.html" class="back-link">Back to home</a>
+  </main>
+
+  <script>
+    // Load customer status
+    const statusEl = document.getElementById('customer-status');
+    if (statusEl) {
+      statusEl.textContent = 'Ready to place an order? Browse vendors to get started.';
+    }
+  </script>
+</body>
+</html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>404 — Page Not Found</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
