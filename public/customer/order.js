@@ -1,13 +1,4 @@
-const { db } = require("./config");
-
-const { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  updateDoc 
-} = require("firebase/firestore");
+let orders = [];
 
 const ORDER_STATUS = {
   CREATED: "CREATED",
@@ -18,85 +9,45 @@ const ORDER_STATUS = {
   CANCELLED: "CANCELLED"
 };
 
-/* =========================
-   CREATE ORDER
-========================= */
-async function createOrder(userId, vendorId, items, total) {
+function createOrder(userId, vendorId, items, total) {
   const order = {
+    orderId: String(Date.now()),
     userId,
     vendorId,
     items,
     total,
-    status: ORDER_STATUS.CREATED,
-    createdAt: Date.now()
+    status: ORDER_STATUS.CREATED
   };
 
-  const docRef = await addDoc(collection(db, "orders"), order);
-
-  return {
-    orderId: docRef.id,
-    ...order
-  };
+  orders.push(order);
+  return order;
 }
 
-/* =========================
-   GET ALL ORDERS
-========================= */
-async function getOrders() {
-  const snapshot = await getDocs(collection(db, "orders"));
-
-  return snapshot.docs.map(d => ({
-    orderId: d.id,
-    ...d.data()
-  }));
+function getOrders() {
+  return orders;
 }
 
-/* =========================
-   GET ORDER BY ID
-========================= */
-async function getOrderById(orderId) {
-  const ref = doc(db, "orders", orderId);
-  const snapshot = await getDoc(ref);
-
-  if (!snapshot.exists()) return null;
-
-  return {
-    orderId: snapshot.id,
-    ...snapshot.data()
-  };
+function getOrderById(orderId) {
+  return orders.find(o => o.orderId === orderId);
 }
 
-/* =========================
-   UPDATE STATUS
-========================= */
-async function updateOrderStatus(orderId, status) {
+function updateOrderStatus(orderId, status) {
   if (!Object.values(ORDER_STATUS).includes(status)) {
     throw new Error("Invalid order status");
   }
 
-  const ref = doc(db, "orders", orderId);
+  const order = getOrderById(orderId);
+  if (order) order.status = status;
 
-  await updateDoc(ref, { status });
-
-  return {
-    orderId,
-    status
-  };
+  return order;
 }
 
-/* =========================
-   CANCEL ORDER
-========================= */
-async function cancelOrder(orderId) {
+function cancelOrder(orderId) {
   return updateOrderStatus(orderId, ORDER_STATUS.CANCELLED);
 }
 
-/* =========================
-   CLEAR (for tests/mock reset)
-========================= */
-async function clearOrders() {
-  // Optional: for testing only (not real Firestore delete logic)
-  return true;
+function clearOrders() {
+  orders = [];
 }
 
 module.exports = {

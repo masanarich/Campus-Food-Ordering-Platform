@@ -13,11 +13,9 @@ const {
   cancelOrder
 } = require("./order");
 
-
 function viewMenu() {
   return getMenu();
 }
-
 
 function addItemToCart(itemId) {
   const menu = getMenu();
@@ -29,14 +27,12 @@ function addItemToCart(itemId) {
   return getCart();
 }
 
-
 function removeItemFromCart(itemId) {
   removeFromCart(itemId);
   return getCart();
 }
 
-
-async function placeOrder(userId, vendorId) {
+function placeOrder(userId, vendorId) {
   const items = getCart();
   const total = getTotal();
 
@@ -44,18 +40,16 @@ async function placeOrder(userId, vendorId) {
     throw new Error("Cart empty");
   }
 
-  const order = await createOrder(userId, vendorId, items, total);
+  const order = createOrder(userId, vendorId, items, total);
 
   clearCart();
 
   return order;
 }
 
-
 function cancelCustomerOrder(orderId) {
   return cancelOrder(orderId);
 }
-
 
 module.exports = {
   viewMenu,

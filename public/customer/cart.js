@@ -26,9 +26,9 @@ function clearCart() {
   return cart;
 }
 
+// IMPORTANT: keep this for tests (alias of clearCart)
 function resetCart() {
   cart = [];
-  return cart;
 }
 
 function getTotal() {
