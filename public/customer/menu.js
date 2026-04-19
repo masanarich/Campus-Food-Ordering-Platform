@@ -1,6 +1,4 @@
-// Works with browser + Jest (CommonJS style)
 
-// Import cart functions
 const {
   addToCart,
   removeFromCart,
@@ -26,7 +24,7 @@ function renderMenu() {
   menuDiv.innerHTML = ""; 
 
   menuItems.forEach(item => {
-    const div = document.createElement("div");
+    const div = document.createElement("section");
 
     const btn = document.createElement("button");
     btn.textContent = "Add";
@@ -56,7 +54,7 @@ function renderCart() {
   const total = getTotal();
 
   currentCart.forEach(item => {
-    const div = document.createElement("div");
+    const div = document.createElement("section");
 
     const btn = document.createElement("button");
     btn.textContent = "Remove";

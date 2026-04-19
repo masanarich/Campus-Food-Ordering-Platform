@@ -19,7 +19,7 @@ describe("Order Tracking System", () => {
       "user1",
       "vendor1",
       [{ id: "1", name: "Burger", price: 50 }],
-      50
+      50   
     );
 
     expect(order.status).toBe(ORDER_STATUS.CREATED);
