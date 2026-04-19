@@ -7,9 +7,10 @@
  *
  * Firestore source of truth:
  * - isAdmin
- * - isOwner
  * - vendorStatus
  * - vendorReason
+ * - adminApplicationStatus
+ * - adminApplicationReason
  * - accountStatus
  *
  * Profile photo fields:
@@ -79,6 +80,7 @@ function createAuthService(dependencies = {}) {
         const safeProfile = normaliseProfile(rawProfile);
 
         return {
+            ...rawProfile,
             ...safeProfile,
             providerPhotoURL: normalizeUrlLikeValue(rawProfile.providerPhotoURL),
             uploadedPhotoURL: normalizeUrlLikeValue(rawProfile.uploadedPhotoURL),
@@ -185,9 +187,37 @@ function createAuthService(dependencies = {}) {
         return "active";
     }
 
+    function getCanonicalAdminApplicationStatus(value, isAdmin = false) {
+        if (typeof utils.getAdminApplicationStatus === "function") {
+            return utils.getAdminApplicationStatus({
+                adminApplicationStatus: value,
+                isAdmin
+            });
+        }
+
+        const normalizedValue = typeof value === "string" ? value.trim().toLowerCase() : "";
+
+        if (normalizedValue === "suspended") {
+            return "blocked";
+        }
+
+        if (
+            normalizedValue === "none" ||
+            normalizedValue === "pending" ||
+            normalizedValue === "approved" ||
+            normalizedValue === "rejected" ||
+            normalizedValue === "blocked"
+        ) {
+            return normalizedValue;
+        }
+
+        return isAdmin === true ? "approved" : "none";
+    }
+
     function toPersistedUserProfile(profile) {
         const rawProfile = profile && typeof profile === "object" ? profile : {};
         const safeProfile = normaliseProfile(rawProfile);
+        const isAdmin = safeProfile.isAdmin === true;
 
         return {
             uid: safeProfile.uid || "",
@@ -198,10 +228,24 @@ function createAuthService(dependencies = {}) {
             providerPhotoURL: normalizeUrlLikeValue(rawProfile.providerPhotoURL),
             uploadedPhotoURL: normalizeUrlLikeValue(rawProfile.uploadedPhotoURL),
             uploadedPhotoPath: normalizeUrlLikeValue(rawProfile.uploadedPhotoPath),
-            isAdmin: safeProfile.isAdmin === true,
-            isOwner: safeProfile.isOwner === true,
+            isAdmin,
             vendorStatus: getCanonicalVendorStatus(safeProfile.vendorStatus),
             vendorReason: safeProfile.vendorReason || "",
+            vendorBusinessName: normalizeUrlLikeValue(rawProfile.vendorBusinessName),
+            vendorOwnerName: normalizeUrlLikeValue(rawProfile.vendorOwnerName),
+            vendorEmail: normalizeUrlLikeValue(rawProfile.vendorEmail),
+            vendorPhoneNumber: normalizeUrlLikeValue(rawProfile.vendorPhoneNumber),
+            vendorUniversity: normalizeUrlLikeValue(rawProfile.vendorUniversity),
+            vendorLocation: normalizeUrlLikeValue(rawProfile.vendorLocation),
+            vendorFoodType: normalizeUrlLikeValue(rawProfile.vendorFoodType),
+            vendorDescription: normalizeUrlLikeValue(rawProfile.vendorDescription),
+            adminApplicationStatus: getCanonicalAdminApplicationStatus(
+                safeProfile.adminApplicationStatus,
+                isAdmin
+            ),
+            adminApplicationReason: safeProfile.adminApplicationReason || "",
+            adminDepartment: normalizeUrlLikeValue(rawProfile.adminDepartment),
+            adminMotivation: normalizeUrlLikeValue(rawProfile.adminMotivation),
             accountStatus: getCanonicalAccountStatus(safeProfile.accountStatus),
             createdAt: safeProfile.createdAt || null,
             updatedAt: safeProfile.updatedAt || null,
@@ -233,9 +277,20 @@ function createAuthService(dependencies = {}) {
             uploadedPhotoURL: persistedProfile.uploadedPhotoURL,
             uploadedPhotoPath: persistedProfile.uploadedPhotoPath,
             isAdmin: persistedProfile.isAdmin,
-            isOwner: persistedProfile.isOwner,
             vendorStatus: persistedProfile.vendorStatus,
             vendorReason: persistedProfile.vendorReason,
+            vendorBusinessName: persistedProfile.vendorBusinessName,
+            vendorOwnerName: persistedProfile.vendorOwnerName,
+            vendorEmail: persistedProfile.vendorEmail,
+            vendorPhoneNumber: persistedProfile.vendorPhoneNumber,
+            vendorUniversity: persistedProfile.vendorUniversity,
+            vendorLocation: persistedProfile.vendorLocation,
+            vendorFoodType: persistedProfile.vendorFoodType,
+            vendorDescription: persistedProfile.vendorDescription,
+            adminApplicationStatus: persistedProfile.adminApplicationStatus,
+            adminApplicationReason: persistedProfile.adminApplicationReason,
+            adminDepartment: persistedProfile.adminDepartment,
+            adminMotivation: persistedProfile.adminMotivation,
             accountStatus: persistedProfile.accountStatus,
             updatedAt: getSafeServerTimestamp(),
             lastLoginAt: getSafeServerTimestamp()
@@ -258,10 +313,6 @@ function createAuthService(dependencies = {}) {
             payload.isAdmin = safeUpdates.isAdmin === true;
         }
 
-        if (Object.prototype.hasOwnProperty.call(safeUpdates, "isOwner")) {
-            payload.isOwner = safeUpdates.isOwner === true;
-        }
-
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "vendorStatus")) {
             payload.vendorStatus = getCanonicalVendorStatus(safeUpdates.vendorStatus);
         }
@@ -269,6 +320,29 @@ function createAuthService(dependencies = {}) {
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "vendorReason")) {
             payload.vendorReason = safeUpdates.vendorReason || "";
         }
+
+        setIfDefined(payload, "vendorBusinessName", safeUpdates.vendorBusinessName);
+        setIfDefined(payload, "vendorOwnerName", safeUpdates.vendorOwnerName);
+        setIfDefined(payload, "vendorEmail", safeUpdates.vendorEmail);
+        setIfDefined(payload, "vendorPhoneNumber", safeUpdates.vendorPhoneNumber);
+        setIfDefined(payload, "vendorUniversity", safeUpdates.vendorUniversity);
+        setIfDefined(payload, "vendorLocation", safeUpdates.vendorLocation);
+        setIfDefined(payload, "vendorFoodType", safeUpdates.vendorFoodType);
+        setIfDefined(payload, "vendorDescription", safeUpdates.vendorDescription);
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationStatus")) {
+            payload.adminApplicationStatus = getCanonicalAdminApplicationStatus(
+                safeUpdates.adminApplicationStatus,
+                payload.isAdmin === true || safeUpdates.isAdmin === true
+            );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationReason")) {
+            payload.adminApplicationReason = safeUpdates.adminApplicationReason || "";
+        }
+
+        setIfDefined(payload, "adminDepartment", safeUpdates.adminDepartment);
+        setIfDefined(payload, "adminMotivation", safeUpdates.adminMotivation);
 
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "accountStatus")) {
             payload.accountStatus = getCanonicalAccountStatus(safeUpdates.accountStatus);
@@ -520,6 +594,14 @@ function createAuthService(dependencies = {}) {
             firestoreUpdates.vendorReason = safeUpdates.vendorReason;
         }
 
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationStatus")) {
+            firestoreUpdates.adminApplicationStatus = safeUpdates.adminApplicationStatus;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "adminApplicationReason")) {
+            firestoreUpdates.adminApplicationReason = safeUpdates.adminApplicationReason;
+        }
+
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "accountStatus")) {
             firestoreUpdates.accountStatus = safeUpdates.accountStatus;
         }
@@ -733,9 +815,13 @@ function createAuthService(dependencies = {}) {
                     uploadedPhotoURL: extendedExistingProfile.uploadedPhotoURL || "",
                     uploadedPhotoPath: extendedExistingProfile.uploadedPhotoPath || "",
                     isAdmin: existingProfile.isAdmin === true,
-                    isOwner: existingProfile.isOwner === true,
                     vendorStatus: getCanonicalVendorStatus(existingProfile.vendorStatus),
                     vendorReason: existingProfile.vendorReason || "",
+                    adminApplicationStatus: getCanonicalAdminApplicationStatus(
+                        existingProfile.adminApplicationStatus,
+                        existingProfile.isAdmin === true
+                    ),
+                    adminApplicationReason: existingProfile.adminApplicationReason || "",
                     accountStatus: getCanonicalAccountStatus(existingProfile.accountStatus)
                 };
 
@@ -800,6 +886,29 @@ function createAuthService(dependencies = {}) {
         ) {
             profile = {
                 ...utils.applyVendorApplicationToProfile(profile),
+                vendorBusinessName: safeOptions.businessName || "",
+                vendorOwnerName: safeOptions.fullName || displayName,
+                vendorEmail: safeOptions.email || email,
+                vendorPhoneNumber: safeOptions.phoneNumber || phoneNumber,
+                vendorUniversity: safeOptions.university || "",
+                vendorLocation: safeOptions.location || "",
+                vendorFoodType: safeOptions.foodType || "",
+                vendorDescription: safeOptions.description || "",
+                providerPhotoURL,
+                uploadedPhotoURL: "",
+                uploadedPhotoPath: "",
+                photoURL: providerPhotoURL
+            };
+        }
+
+        if (
+            accountType === "admin" &&
+            typeof utils.applyAdminApplicationToProfile === "function"
+        ) {
+            profile = {
+                ...utils.applyAdminApplicationToProfile(profile),
+                adminDepartment: safeOptions.department || "",
+                adminMotivation: safeOptions.motivation || "",
                 providerPhotoURL,
                 uploadedPhotoURL: "",
                 uploadedPhotoPath: "",
@@ -836,7 +945,8 @@ function createAuthService(dependencies = {}) {
         email,
         password,
         displayName,
-        accountType = "customer"
+        accountType = "customer",
+        ...registrationDetails
     }) {
         try {
             const user = await createUser(email, password);
@@ -848,7 +958,8 @@ function createAuthService(dependencies = {}) {
             const profile = await ensureUserProfile(user, {
                 accountType,
                 displayName,
-                email
+                email,
+                ...registrationDetails
             });
 
             return resolveAuthResult(user, profile);

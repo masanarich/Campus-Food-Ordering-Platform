@@ -5,9 +5,9 @@
  * vendor approval flow, validation, and routing.
  *
  * Source of truth:
- * - isOwner
  * - isAdmin
  * - vendorStatus
+ * - adminApplicationStatus
  * - accountStatus
  *
  * Notes:
@@ -29,6 +29,14 @@ const ACCOUNT_STATUSES = Object.freeze({
     BLOCKED: "blocked"
 });
 
+const ADMIN_APPLICATION_STATUSES = Object.freeze({
+    NONE: "none",
+    PENDING: "pending",
+    APPROVED: "approved",
+    REJECTED: "rejected",
+    BLOCKED: "blocked"
+});
+
 const PORTAL_ROUTES = Object.freeze({
     customer: "../customer/index.html",
     vendor: "../vendor/index.html",
@@ -36,7 +44,8 @@ const PORTAL_ROUTES = Object.freeze({
     roleChoice: "../authentication/role-choice.html",
     login: "../authentication/login.html",
     pendingVendor: "../authentication/pending-vendor.html",
-    vendorApplication: "../customer/vendor-application.html"
+    vendorApplication: "../customer/vendor-application.html",
+    adminApplication: "../customer/admin-application.html"
 });
 
 function normalizeText(value) {
@@ -161,10 +170,37 @@ function getVendorReason(userData) {
     );
 }
 
-function getIsOwner(userData) {
+function getAdminApplicationStatus(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
+    const rawStatus = normalizeText(safeUser.adminApplicationStatus).toLowerCase();
 
-    return safeUser.isOwner === true || safeUser.owner === true;
+    if (rawStatus === "suspended") {
+        return ADMIN_APPLICATION_STATUSES.BLOCKED;
+    }
+
+    if (
+        rawStatus === ADMIN_APPLICATION_STATUSES.NONE ||
+        rawStatus === ADMIN_APPLICATION_STATUSES.PENDING ||
+        rawStatus === ADMIN_APPLICATION_STATUSES.APPROVED ||
+        rawStatus === ADMIN_APPLICATION_STATUSES.REJECTED ||
+        rawStatus === ADMIN_APPLICATION_STATUSES.BLOCKED
+    ) {
+        return rawStatus;
+    }
+
+    return safeUser.isAdmin === true || safeUser.admin === true
+        ? ADMIN_APPLICATION_STATUSES.APPROVED
+        : ADMIN_APPLICATION_STATUSES.NONE;
+}
+
+function getAdminApplicationReason(userData) {
+    return normalizeText(
+        (userData && (
+            userData.adminApplicationReason ||
+            userData.adminRejectionReason ||
+            userData.adminBlockReason
+        )) || ""
+    );
 }
 
 function getIsAdmin(userData) {
@@ -174,8 +210,7 @@ function getIsAdmin(userData) {
     return (
         safeUser.isAdmin === true ||
         safeUser.admin === true ||
-        legacyRoles.admin === true ||
-        getIsOwner(safeUser) === true
+        legacyRoles.admin === true
     );
 }
 
@@ -186,12 +221,11 @@ function getIsAdmin(userData) {
 function getDerivedRoles(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
     const hasIdentity = hasAuthenticatedIdentity(safeUser);
-    const isOwner = getIsOwner(safeUser);
     const isAdmin = getIsAdmin(safeUser);
     const vendorStatus = getVendorStatus(safeUser);
 
     return {
-        customer: hasIdentity || isAdmin || isOwner,
+        customer: hasIdentity || isAdmin,
         vendor: vendorStatus === VENDOR_STATUSES.APPROVED,
         admin: isAdmin
     };
@@ -208,9 +242,10 @@ function normaliseUserData(userData) {
         phoneNumber: normalizePhoneNumber(safeUser.phoneNumber),
         photoURL: normalizeText(safeUser.photoURL),
         isAdmin: getIsAdmin(safeUser),
-        isOwner: getIsOwner(safeUser),
         vendorStatus: getVendorStatus(safeUser),
         vendorReason: getVendorReason(safeUser),
+        adminApplicationStatus: getAdminApplicationStatus(safeUser),
+        adminApplicationReason: getAdminApplicationReason(safeUser),
         accountStatus: getAccountStatus(safeUser),
         createdAt: safeUser.createdAt || null,
         updatedAt: safeUser.updatedAt || null,
@@ -223,6 +258,12 @@ function normaliseUserData(userData) {
 
 function normalizeUserData(userData) {
     return normaliseUserData(userData);
+}
+
+function removeDerivedRoles(userData) {
+    const safeUser = userData && typeof userData === "object" ? userData : {};
+    const { roles, ...rest } = safeUser;
+    return rest;
 }
 
 function hasRole(userData, roleName) {
@@ -241,15 +282,7 @@ function hasRole(userData, roleName) {
         return isAdmin(user);
     }
 
-    if (normalizedRole === "owner") {
-        return isOwner(user);
-    }
-
     return false;
-}
-
-function isOwner(userData) {
-    return getIsOwner(userData) === true;
 }
 
 function isAdmin(userData) {
@@ -257,7 +290,7 @@ function isAdmin(userData) {
 
     return (
         isAccountActive(user) &&
-        (user.isAdmin === true || user.isOwner === true)
+        user.isAdmin === true
     );
 }
 
@@ -266,7 +299,7 @@ function isCustomer(userData) {
 
     return (
         isAccountActive(user) &&
-        (hasAuthenticatedIdentity(user) || user.isAdmin === true || user.isOwner === true)
+        (hasAuthenticatedIdentity(user) || user.isAdmin === true)
     );
 }
 
@@ -313,10 +346,7 @@ function canAccessVendorPortal(userData) {
         return false;
     }
 
-    return (
-        user.isOwner === true ||
-        user.vendorStatus === VENDOR_STATUSES.APPROVED
-    );
+    return user.vendorStatus === VENDOR_STATUSES.APPROVED;
 }
 
 function canAccessAdminPortal(userData) {
@@ -326,10 +356,7 @@ function canAccessAdminPortal(userData) {
         return false;
     }
 
-    return (
-        user.isOwner === true ||
-        user.isAdmin === true
-    );
+    return user.isAdmin === true;
 }
 
 function getAvailablePortals(userData) {
@@ -399,11 +426,6 @@ function canSubmitVendorApplication(userData) {
         return false;
     }
 
-    // Owner already has portal override, so no need to apply
-    if (user.isOwner === true) {
-        return false;
-    }
-
     // Admin should not apply as vendor through the normal flow
     if (user.isAdmin === true) {
         return false;
@@ -415,6 +437,23 @@ function canSubmitVendorApplication(userData) {
     );
 }
 
+function canSubmitAdminApplication(userData) {
+    const user = normaliseUserData(userData);
+
+    if (!isAccountActive(user)) {
+        return false;
+    }
+
+    if (user.isAdmin === true) {
+        return false;
+    }
+
+    return (
+        user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.NONE ||
+        user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.REJECTED
+    );
+}
+
 function shouldShowPendingVendorPage(userData) {
     const user = normaliseUserData(userData);
 
@@ -422,6 +461,16 @@ function shouldShowPendingVendorPage(userData) {
         user.vendorStatus === VENDOR_STATUSES.PENDING ||
         user.vendorStatus === VENDOR_STATUSES.REJECTED ||
         user.vendorStatus === VENDOR_STATUSES.BLOCKED
+    );
+}
+
+function shouldShowPendingAdminPage(userData) {
+    const user = normaliseUserData(userData);
+
+    return (
+        user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.PENDING ||
+        user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.REJECTED ||
+        user.adminApplicationStatus === ADMIN_APPLICATION_STATUSES.BLOCKED
     );
 }
 
@@ -453,9 +502,10 @@ function createBaseUserProfile(authUser, overrides = {}) {
             ""
         ),
         isAdmin: false,
-        isOwner: false,
         vendorStatus: VENDOR_STATUSES.NONE,
         vendorReason: "",
+        adminApplicationStatus: ADMIN_APPLICATION_STATUSES.NONE,
+        adminApplicationReason: "",
         accountStatus: ACCOUNT_STATUSES.ACTIVE,
         createdAt: now,
         updatedAt: now,
@@ -470,7 +520,7 @@ function createBaseUserProfile(authUser, overrides = {}) {
 
 /**
  * Use this for EXISTING users so auth/profile sync does not wipe out
- * manual Firestore access changes like isAdmin, isOwner, vendorStatus, etc.
+ * manual Firestore access changes like isAdmin, vendorStatus, etc.
  */
 function mergeProfileWithAuthData(existingProfile, authUser, overrides = {}) {
     const safeExisting = normaliseUserData(existingProfile);
@@ -509,9 +559,10 @@ function mergeProfileWithAuthData(existingProfile, authUser, overrides = {}) {
             ""
         ),
         isAdmin: safeExisting.isAdmin === true,
-        isOwner: safeExisting.isOwner === true,
         vendorStatus: safeExisting.vendorStatus,
         vendorReason: safeExisting.vendorReason,
+        adminApplicationStatus: safeExisting.adminApplicationStatus,
+        adminApplicationReason: safeExisting.adminApplicationReason,
         accountStatus: safeExisting.accountStatus,
         createdAt: safeExisting.createdAt || now,
         updatedAt: now,
@@ -525,7 +576,7 @@ function mergeProfileWithAuthData(existingProfile, authUser, overrides = {}) {
 }
 
 function applyVendorApplicationToProfile(profile) {
-    const safeProfile = normaliseUserData(profile);
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
         ...safeProfile,
@@ -541,7 +592,7 @@ function applyVendorApplicationToProfile(profile) {
 }
 
 function approveVendorProfile(profile) {
-    const safeProfile = normaliseUserData(profile);
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
         ...safeProfile,
@@ -557,7 +608,7 @@ function approveVendorProfile(profile) {
 }
 
 function rejectVendorProfile(profile, reason = "") {
-    const safeProfile = normaliseUserData(profile);
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
         ...safeProfile,
@@ -573,7 +624,7 @@ function rejectVendorProfile(profile, reason = "") {
 }
 
 function blockVendorProfile(profile, reason = "") {
-    const safeProfile = normaliseUserData(profile);
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
         ...safeProfile,
@@ -596,7 +647,7 @@ function suspendVendorProfile(profile, reason = "") {
 }
 
 function clearVendorProfile(profile) {
-    const safeProfile = normaliseUserData(profile);
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
 
     const updatedProfile = {
         ...safeProfile,
@@ -671,9 +722,128 @@ function mapAuthErrorCode(code) {
     }
 }
 
+function applyAdminApplicationToProfile(profile) {
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
+
+    const updatedProfile = {
+        ...safeProfile,
+        adminApplicationStatus: ADMIN_APPLICATION_STATUSES.PENDING,
+        adminApplicationReason: "",
+        updatedAt: new Date().toISOString()
+    };
+
+    return {
+        ...updatedProfile,
+        roles: getDerivedRoles(updatedProfile)
+    };
+}
+
+function approveAdminApplication(profile) {
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
+
+    const updatedProfile = {
+        ...safeProfile,
+        isAdmin: true,
+        adminApplicationStatus: ADMIN_APPLICATION_STATUSES.APPROVED,
+        adminApplicationReason: "",
+        updatedAt: new Date().toISOString()
+    };
+
+    return {
+        ...updatedProfile,
+        roles: getDerivedRoles(updatedProfile)
+    };
+}
+
+function rejectAdminApplication(profile, reason = "") {
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
+
+    const updatedProfile = {
+        ...safeProfile,
+        isAdmin: false,
+        adminApplicationStatus: ADMIN_APPLICATION_STATUSES.REJECTED,
+        adminApplicationReason: normalizeText(reason),
+        updatedAt: new Date().toISOString()
+    };
+
+    return {
+        ...updatedProfile,
+        roles: getDerivedRoles(updatedProfile)
+    };
+}
+
+function blockAdminApplication(profile, reason = "") {
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
+
+    const updatedProfile = {
+        ...safeProfile,
+        isAdmin: false,
+        adminApplicationStatus: ADMIN_APPLICATION_STATUSES.BLOCKED,
+        adminApplicationReason: normalizeText(reason),
+        updatedAt: new Date().toISOString()
+    };
+
+    return {
+        ...updatedProfile,
+        roles: getDerivedRoles(updatedProfile)
+    };
+}
+
+function clearAdminApplication(profile) {
+    const safeProfile = removeDerivedRoles(normaliseUserData(profile));
+
+    const updatedProfile = {
+        ...safeProfile,
+        isAdmin: false,
+        adminApplicationStatus: ADMIN_APPLICATION_STATUSES.NONE,
+        adminApplicationReason: "",
+        updatedAt: new Date().toISOString()
+    };
+
+    return {
+        ...updatedProfile,
+        roles: getDerivedRoles(updatedProfile)
+    };
+}
+
+function createAdminApplicationData(authUser, formData = {}) {
+    const safeFormData = formData && typeof formData === "object" ? formData : {};
+    const now = new Date().toISOString();
+
+    return {
+        uid: normalizeText((authUser && authUser.uid) || safeFormData.uid),
+        applicantName: normalizeText(
+            safeFormData.applicantName ||
+            safeFormData.fullName ||
+            (authUser && authUser.displayName) ||
+            ""
+        ),
+        email: normalizeEmail(
+            safeFormData.email ||
+            (authUser && authUser.email) ||
+            ""
+        ),
+        phoneNumber: normalizePhoneNumber(
+            safeFormData.phoneNumber ||
+            (authUser && authUser.phoneNumber) ||
+            ""
+        ),
+        motivation: normalizeText(
+            safeFormData.motivation ||
+            safeFormData.reason ||
+            safeFormData.applicationReason
+        ),
+        status: ADMIN_APPLICATION_STATUSES.PENDING,
+        reason: "",
+        submittedAt: now,
+        updatedAt: now
+    };
+}
+
 const authUtils = {
     VENDOR_STATUSES,
     ACCOUNT_STATUSES,
+    ADMIN_APPLICATION_STATUSES,
     PORTAL_ROUTES,
     normalizeText,
     normalizeEmail,
@@ -689,13 +859,14 @@ const authUtils = {
     isAccountActive,
     getVendorStatus,
     getVendorReason,
-    getIsOwner,
+    getAdminApplicationStatus,
+    getAdminApplicationReason,
     getIsAdmin,
     getDerivedRoles,
     normaliseUserData,
     normalizeUserData,
+    removeDerivedRoles,
     hasRole,
-    isOwner,
     isCustomer,
     isVendor,
     isAdmin,
@@ -714,7 +885,9 @@ const authUtils = {
     getDefaultPortalRoute,
     getPostLoginRoute,
     canSubmitVendorApplication,
+    canSubmitAdminApplication,
     shouldShowPendingVendorPage,
+    shouldShowPendingAdminPage,
     createBaseUserProfile,
     mergeProfileWithAuthData,
     applyVendorApplicationToProfile,
@@ -723,7 +896,13 @@ const authUtils = {
     blockVendorProfile,
     suspendVendorProfile,
     clearVendorProfile,
+    applyAdminApplicationToProfile,
+    approveAdminApplication,
+    rejectAdminApplication,
+    blockAdminApplication,
+    clearAdminApplication,
     createVendorApplicationData,
+    createAdminApplicationData,
     mapAuthErrorCode
 };
 

@@ -1,122 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <title>Admin Home | Campus Food Ordering Platform</title>
+    <title>Admin Dashboard | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Admin portal home page for the Campus Food Ordering Platform.">
+    <meta name="description" content="Admin dashboard for the Campus Food Ordering Platform.">
     <link rel="stylesheet" href="./index.css">
 </head>
+<body class="admin-shell">
 
-<body>
-
-    <header>
+    <header class="app-header">
         <h1>Campus Food Ordering Platform</h1>
 
-        <nav aria-label="Primary navigation">
-            <a href="../index.html" aria-current="page">Home</a>
-            <a href="../authentication/role-choice.html">Choose Portal</a>
+        <nav class="app-nav" aria-label="Admin dashboard navigation">
+            <a href="./index.html" aria-current="page">Dashboard</a>
+            <a href="./users.html">Manage Users</a>
+            <a href="./disputes.html">Disputes</a>
             <a href="../authentication/profile.html">Profile</a>
-            <a href="../authentication/reset.html">Reset Password</a>
-            <a href="../authentication/login.html">Login</a>
-            <a href="../authentication/register.html">Register</a>
         </nav>
     </header>
 
-    <main>
-
-        <section aria-labelledby="admin-home-heading">
-            <h2 id="admin-home-heading">Admin Home</h2>
+    <main class="admin-main">
+        <section class="dashboard-hero shared-section" aria-labelledby="admin-home-heading">
+            <h2 id="admin-home-heading">Admin Dashboard</h2>
 
             <p>
-                Welcome to your admin portal. View your account details, move between portals,
-                and manage platform users and vendors.
+                This is your admin workspace. From here you can manage platform access,
+                review users, and move into the other portals you are allowed to use.
             </p>
 
             <p id="admin-home-status" aria-live="polite"></p>
 
-            <menu>
-                <li>
-                    <button id="go-profile-button" type="button">
-                        Profile
-                    </button>
-                </li>
+            <section class="hero-summary" aria-label="Admin dashboard summary">
+                <article class="summary-card">
+                    <strong class="summary-label">Admin access</strong>
+                    <p id="admin-access-note">Your admin access note will appear here.</p>
+                </article>
 
-                <li>
-                    <button id="choose-portal-button" type="button">
-                        Choose Portal
-                    </button>
-                </li>
+                <article class="summary-card">
+                    <strong class="summary-label">Portal switching</strong>
+                    <p id="portal-summary">Your available portal buttons will appear here.</p>
+                </article>
+            </section>
+
+            <menu class="action-menu action-menu-primary" aria-label="Main admin actions">
+                <li><button id="go-profile-button" class="button-primary" type="button">Open Profile</button></li>
+                <li><button id="manage-users-button" class="button-primary" type="button">Manage Users</button></li>
+                <li><button id="review-disputes-button" class="button-secondary" type="button">Review Disputes</button></li>
+                <li><button id="choose-portal-button" class="button-secondary" type="button">Choose Portal</button></li>
+                <li><button id="sign-out-button" class="button-danger" type="button">Sign Out</button></li>
             </menu>
         </section>
 
-        <section aria-labelledby="profile-overview-heading">
-            <h3 id="profile-overview-heading">Profile Overview</h3>
+        <section class="shared-section profile-panel" aria-labelledby="profile-overview-heading">
+            <h3 id="profile-overview-heading">Profile Snapshot</h3>
 
-            <img id="profile-photo" src="" alt="User profile picture">
+            <section class="profile-snapshot" aria-label="Admin profile snapshot">
+                <img id="profile-photo" class="profile-avatar" src="" alt="User profile picture">
 
-            <p id="profile-photo-caption">
-                Your profile picture appears here.
-            </p>
+                <article class="profile-copy">
+                    <p id="profile-photo-caption" class="caption-text">Your profile picture appears here.</p>
 
-            <p id="profile-name-line">Name: Loading...</p>
-            <p id="profile-role-line">Role: Loading...</p>
-            <p id="profile-email-line">Email: Loading...</p>
-            <p id="profile-vendor-line">Vendor status: Loading...</p>
+                    <section class="info-list" aria-label="Admin profile details">
+                        <p><strong>Name:</strong> <output id="profile-name-line">Loading...</output></p>
+                        <p><strong>Current access:</strong> <output id="profile-role-line">Loading...</output></p>
+                        <p><strong>Email:</strong> <output id="profile-email-line">Loading...</output></p>
+                        <p><strong>Vendor access:</strong> <output id="profile-vendor-line">Loading...</output></p>
+                        <p><strong>Admin access:</strong> <output id="profile-admin-line">Loading...</output></p>
+                    </section>
+                </article>
+            </section>
         </section>
 
-        <section aria-labelledby="portal-shortcuts-heading">
+        <section class="shared-section workspace-panel" aria-labelledby="admin-workspace-heading">
+            <h3 id="admin-workspace-heading">Admin Workspace</h3>
+
+            <p id="welcome-message">Loading your admin details...</p>
+            <p id="management-summary">Your management summary will appear here.</p>
+
+            <section class="workspace-grid" aria-label="Admin workspace summary">
+                <article class="workspace-card">
+                    <h4>Users and Access</h4>
+                    <p>
+                        Review user roles, admin access, vendor approvals, and disabled accounts
+                        from one place instead of jumping around the platform.
+                    </p>
+                </article>
+
+                <article class="workspace-card">
+                    <h4>Disputes and Support</h4>
+                    <p>
+                        Keep support issues and disputes organised so customer-facing problems
+                        can flow into the admin workspace properly.
+                    </p>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section portal-panel" aria-labelledby="portal-shortcuts-heading">
             <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
 
-            <p id="portal-summary">
-                Access the portals and management tools available to your account.
+            <p>
+                Use these shortcuts when you need to check the customer or vendor experience
+                without leaving the authenticated part of the platform.
             </p>
 
-            <menu>
-
-                <li>
-                    <button id="go-customer-portal-button" type="button">
-                        Customer Portal
-                    </button>
-                </li>
-
-                <li>
-                    <button id="go-vendor-portal-button" type="button">
-                        Vendor Portal
-                    </button>
-                </li>
-
-                <li>
-                    <button id="go-admin-portal-button" type="button">
-                        Admin Portal
-                    </button>
-                </li>
-
-                <li>
-                    <a href="./users.html">
-                        <button id="manage-users-button" class="admin-action-button" type="button">
-                            Manage Users
-                        </button>
-                    </a>
-                </li>
-
+            <menu class="action-menu" aria-label="Portal shortcuts">
+                <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer Portal</button></li>
+                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button></li>
             </menu>
         </section>
-
-        <section aria-labelledby="admin-notes-heading">
-            <h3 id="admin-notes-heading">Admin Notes</h3>
-
-            <p id="welcome-message">
-                Loading your admin details...
-            </p>
-
-            <p id="admin-portal-note">
-                From this portal you can approve vendor applications, manage user roles,
-                suspend accounts, and monitor platform access.
-            </p>
-        </section>
-
     </main>
 
     <footer>
@@ -139,5 +132,4 @@
     </script>
 
 </body>
-
 </html>

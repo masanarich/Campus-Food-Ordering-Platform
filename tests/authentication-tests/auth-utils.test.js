@@ -1,6 +1,7 @@
 const {
     VENDOR_STATUSES,
     ACCOUNT_STATUSES,
+    ADMIN_APPLICATION_STATUSES,
     PORTAL_ROUTES,
     normalizeText,
     normalizeEmail,
@@ -16,13 +17,13 @@ const {
     isAccountActive,
     getVendorStatus,
     getVendorReason,
-    getIsOwner,
+    getAdminApplicationStatus,
+    getAdminApplicationReason,
     getIsAdmin,
     getDerivedRoles,
     normaliseUserData,
     normalizeUserData,
     hasRole,
-    isOwner,
     isCustomer,
     isVendor,
     isAdmin,
@@ -41,7 +42,9 @@ const {
     getDefaultPortalRoute,
     getPostLoginRoute,
     canSubmitVendorApplication,
+    canSubmitAdminApplication,
     shouldShowPendingVendorPage,
+    shouldShowPendingAdminPage,
     createBaseUserProfile,
     mergeProfileWithAuthData,
     applyVendorApplicationToProfile,
@@ -50,7 +53,13 @@ const {
     blockVendorProfile,
     suspendVendorProfile,
     clearVendorProfile,
+    applyAdminApplicationToProfile,
+    approveAdminApplication,
+    rejectAdminApplication,
+    blockAdminApplication,
+    clearAdminApplication,
     createVendorApplicationData,
+    createAdminApplicationData,
     mapAuthErrorCode
 } = require("../../public/authentication/auth-utils.js");
 
@@ -78,6 +87,16 @@ describe("auth-utils constants", () => {
         });
     });
 
+    test("exports admin application statuses", () => {
+        expect(ADMIN_APPLICATION_STATUSES).toEqual({
+            NONE: "none",
+            PENDING: "pending",
+            APPROVED: "approved",
+            REJECTED: "rejected",
+            BLOCKED: "blocked"
+        });
+    });
+
     test("exports portal routes", () => {
         expect(PORTAL_ROUTES).toEqual({
             customer: "../customer/index.html",
@@ -86,7 +105,8 @@ describe("auth-utils constants", () => {
             roleChoice: "../authentication/role-choice.html",
             login: "../authentication/login.html",
             pendingVendor: "../authentication/pending-vendor.html",
-            vendorApplication: "../customer/vendor-application.html"
+            vendorApplication: "../customer/vendor-application.html",
+            adminApplication: "../customer/admin-application.html"
         });
     });
 });
@@ -285,17 +305,44 @@ describe("auth-utils role and identity helpers", () => {
         );
     });
 
-    test("getIsOwner returns true for isOwner or owner", () => {
-        expect(getIsOwner({ isOwner: true })).toBe(true);
-        expect(getIsOwner({ owner: true })).toBe(true);
-        expect(getIsOwner({})).toBe(false);
+    test("getAdminApplicationStatus returns none by default", () => {
+        expect(getAdminApplicationStatus({})).toBe("none");
     });
 
-    test("getIsAdmin returns true for admin flags, legacy admin role, or owner", () => {
+    test("getAdminApplicationStatus returns normalized supported values", () => {
+        expect(getAdminApplicationStatus({ adminApplicationStatus: "pending" })).toBe("pending");
+        expect(getAdminApplicationStatus({ adminApplicationStatus: "approved" })).toBe("approved");
+        expect(getAdminApplicationStatus({ adminApplicationStatus: "rejected" })).toBe("rejected");
+        expect(getAdminApplicationStatus({ adminApplicationStatus: "blocked" })).toBe("blocked");
+    });
+
+    test("getAdminApplicationStatus maps existing admins to approved", () => {
+        expect(getAdminApplicationStatus({ isAdmin: true })).toBe("approved");
+        expect(getAdminApplicationStatus({ admin: true })).toBe("approved");
+    });
+
+    test("getAdminApplicationReason prefers adminApplicationReason", () => {
+        expect(
+            getAdminApplicationReason({
+                adminApplicationReason: "  Main admin reason  ",
+                adminRejectionReason: "Other reason"
+            })
+        ).toBe("Main admin reason");
+    });
+
+    test("getAdminApplicationReason falls back to admin rejection or block reason", () => {
+        expect(
+            getAdminApplicationReason({ adminRejectionReason: "Rejected for missing docs" })
+        ).toBe("Rejected for missing docs");
+        expect(getAdminApplicationReason({ adminBlockReason: "Blocked by policy" })).toBe(
+            "Blocked by policy"
+        );
+    });
+
+    test("getIsAdmin returns true for admin flags or legacy admin role", () => {
         expect(getIsAdmin({ isAdmin: true })).toBe(true);
         expect(getIsAdmin({ admin: true })).toBe(true);
         expect(getIsAdmin({ roles: { admin: true } })).toBe(true);
-        expect(getIsAdmin({ isOwner: true })).toBe(true);
         expect(getIsAdmin({})).toBe(false);
     });
 
@@ -311,18 +358,6 @@ describe("auth-utils role and identity helpers", () => {
             admin: false
         });
     });
-
-    test("getDerivedRoles returns customer and admin for owner", () => {
-        expect(
-            getDerivedRoles({
-                isOwner: true
-            })
-        ).toEqual({
-            customer: true,
-            vendor: false,
-            admin: true
-        });
-    });
 });
 
 describe("auth-utils user normalization", () => {
@@ -336,9 +371,10 @@ describe("auth-utils user normalization", () => {
             phoneNumber: "",
             photoURL: "",
             isAdmin: false,
-            isOwner: false,
             vendorStatus: "none",
             vendorReason: "",
+            adminApplicationStatus: "none",
+            adminApplicationReason: "",
             accountStatus: "active",
             createdAt: null,
             updatedAt: null,
@@ -360,9 +396,10 @@ describe("auth-utils user normalization", () => {
             photoURL: "  https://example.com/photo.jpg  ",
             roles: { admin: true },
             vendorStatus: "approved",
+            adminApplicationStatus: "pending",
             accountStatus: "inactive",
-            isOwner: true,
             rejectionReason: "  Missing docs  ",
+            adminRejectionReason: "  Waiting for review  ",
             createdAt: "yesterday",
             updatedAt: "today",
             lastLoginAt: "just now"
@@ -375,9 +412,10 @@ describe("auth-utils user normalization", () => {
             phoneNumber: "+27712345678",
             photoURL: "https://example.com/photo.jpg",
             isAdmin: true,
-            isOwner: true,
             vendorStatus: "approved",
             vendorReason: "Missing docs",
+            adminApplicationStatus: "pending",
+            adminApplicationReason: "Waiting for review",
             accountStatus: "active",
             createdAt: "yesterday",
             updatedAt: "today",
@@ -395,23 +433,17 @@ describe("auth-utils user normalization", () => {
         expect(normalizeUserData(input)).toEqual(normaliseUserData(input));
     });
 
-    test("hasRole supports customer, vendor, admin, owner and rejects unknown roles", () => {
+    test("hasRole supports customer, vendor, admin and rejects unknown roles", () => {
         const user = {
             uid: "abc123",
-            isOwner: true,
+            isAdmin: true,
             vendorStatus: "approved"
         };
 
         expect(hasRole(user, "customer")).toBe(true);
         expect(hasRole(user, "vendor")).toBe(true);
         expect(hasRole(user, "admin")).toBe(true);
-        expect(hasRole(user, "owner")).toBe(true);
         expect(hasRole(user, "unknown-role")).toBe(false);
-    });
-
-    test("isOwner returns true only for owners", () => {
-        expect(isOwner({ isOwner: true })).toBe(true);
-        expect(isOwner({})).toBe(false);
     });
 
     test("isCustomer returns true for authenticated active user", () => {
@@ -432,9 +464,8 @@ describe("auth-utils user normalization", () => {
         expect(isVendor({ uid: "abc123", vendorStatus: "approved", accountStatus: "disabled" })).toBe(false);
     });
 
-    test("isAdmin returns true only for active admin or owner", () => {
+    test("isAdmin returns true only for active admin", () => {
         expect(isAdmin({ isAdmin: true, accountStatus: "active" })).toBe(true);
-        expect(isAdmin({ isOwner: true, accountStatus: "active" })).toBe(true);
         expect(isAdmin({ isAdmin: true, accountStatus: "blocked" })).toBe(false);
     });
 
@@ -478,15 +509,7 @@ describe("auth-utils portal access and routing", () => {
         ).toBe(false);
     });
 
-    test("owner can access vendor portal", () => {
-        expect(
-            canAccessVendorPortal({
-                isOwner: true
-            })
-        ).toBe(true);
-    });
-
-    test("plain admin cannot access vendor portal unless owner", () => {
+    test("plain admin cannot access vendor portal without vendor approval", () => {
         expect(
             canAccessVendorPortal({
                 isAdmin: true,
@@ -500,14 +523,6 @@ describe("auth-utils portal access and routing", () => {
         expect(
             canAccessAdminPortal({
                 isAdmin: true
-            })
-        ).toBe(true);
-    });
-
-    test("owner can access admin portal", () => {
-        expect(
-            canAccessAdminPortal({
-                isOwner: true
             })
         ).toBe(true);
     });
@@ -547,10 +562,10 @@ describe("auth-utils portal access and routing", () => {
         ).toEqual(["customer", "admin"]);
     });
 
-    test("getAvailablePortals returns all portals for owner with approved vendor status", () => {
+    test("getAvailablePortals returns all portals for admin with approved vendor status", () => {
         expect(
             getAvailablePortals({
-                isOwner: true,
+                isAdmin: true,
                 vendorStatus: "approved"
             })
         ).toEqual(["customer", "vendor", "admin"]);
@@ -650,13 +665,38 @@ describe("auth-utils portal access and routing", () => {
         ).toBe(true);
     });
 
-    test("canSubmitVendorApplication blocks owners, admins, inactive accounts, pending, approved and blocked vendors", () => {
-        expect(canSubmitVendorApplication({ isOwner: true })).toBe(false);
+    test("canSubmitVendorApplication blocks admins, inactive accounts, pending, approved and blocked vendors", () => {
         expect(canSubmitVendorApplication({ isAdmin: true })).toBe(false);
         expect(canSubmitVendorApplication({ uid: "abc123", accountStatus: "blocked" })).toBe(false);
         expect(canSubmitVendorApplication({ uid: "abc123", vendorStatus: "pending" })).toBe(false);
         expect(canSubmitVendorApplication({ uid: "abc123", vendorStatus: "approved" })).toBe(false);
         expect(canSubmitVendorApplication({ uid: "abc123", vendorStatus: "blocked" })).toBe(false);
+    });
+
+    test("canSubmitAdminApplication allows active users with none or rejected status", () => {
+        expect(
+            canSubmitAdminApplication({
+                uid: "abc123",
+                adminApplicationStatus: "none",
+                accountStatus: "active"
+            })
+        ).toBe(true);
+
+        expect(
+            canSubmitAdminApplication({
+                uid: "abc123",
+                adminApplicationStatus: "rejected",
+                accountStatus: "active"
+            })
+        ).toBe(true);
+    });
+
+    test("canSubmitAdminApplication blocks admins, inactive accounts, pending, approved and blocked applications", () => {
+        expect(canSubmitAdminApplication({ isAdmin: true })).toBe(false);
+        expect(canSubmitAdminApplication({ uid: "abc123", accountStatus: "blocked" })).toBe(false);
+        expect(canSubmitAdminApplication({ uid: "abc123", adminApplicationStatus: "pending" })).toBe(false);
+        expect(canSubmitAdminApplication({ uid: "abc123", adminApplicationStatus: "approved" })).toBe(false);
+        expect(canSubmitAdminApplication({ uid: "abc123", adminApplicationStatus: "blocked" })).toBe(false);
     });
 
     test("shouldShowPendingVendorPage is true for pending, rejected and blocked", () => {
@@ -665,6 +705,14 @@ describe("auth-utils portal access and routing", () => {
         expect(shouldShowPendingVendorPage({ vendorStatus: "blocked" })).toBe(true);
         expect(shouldShowPendingVendorPage({ vendorStatus: "approved" })).toBe(false);
         expect(shouldShowPendingVendorPage({ vendorStatus: "none" })).toBe(false);
+    });
+
+    test("shouldShowPendingAdminPage is true for pending, rejected and blocked", () => {
+        expect(shouldShowPendingAdminPage({ adminApplicationStatus: "pending" })).toBe(true);
+        expect(shouldShowPendingAdminPage({ adminApplicationStatus: "rejected" })).toBe(true);
+        expect(shouldShowPendingAdminPage({ adminApplicationStatus: "blocked" })).toBe(true);
+        expect(shouldShowPendingAdminPage({ adminApplicationStatus: "approved" })).toBe(false);
+        expect(shouldShowPendingAdminPage({ adminApplicationStatus: "none" })).toBe(false);
     });
 });
 
@@ -690,9 +738,10 @@ describe("auth-utils profile shaping", () => {
         expect(result.phoneNumber).toBe("+27712345678");
         expect(result.photoURL).toBe("https://example.com/override.jpg");
         expect(result.isAdmin).toBe(false);
-        expect(result.isOwner).toBe(false);
         expect(result.vendorStatus).toBe("none");
         expect(result.vendorReason).toBe("");
+        expect(result.adminApplicationStatus).toBe("none");
+        expect(result.adminApplicationReason).toBe("");
         expect(result.accountStatus).toBe("active");
         expect(result.roles).toEqual({
             customer: true,
@@ -728,9 +777,10 @@ describe("auth-utils profile shaping", () => {
                 phoneNumber: "+27710000000",
                 photoURL: "https://example.com/existing.jpg",
                 isAdmin: true,
-                isOwner: false,
                 vendorStatus: "approved",
                 vendorReason: "Already approved",
+                adminApplicationStatus: "approved",
+                adminApplicationReason: "",
                 accountStatus: "blocked",
                 createdAt: "2026-01-01T10:00:00.000Z"
             },
@@ -752,9 +802,10 @@ describe("auth-utils profile shaping", () => {
         expect(result.phoneNumber).toBe("+27710000000");
         expect(result.photoURL).toBe("https://example.com/existing.jpg");
         expect(result.isAdmin).toBe(true);
-        expect(result.isOwner).toBe(false);
         expect(result.vendorStatus).toBe("approved");
         expect(result.vendorReason).toBe("Already approved");
+        expect(result.adminApplicationStatus).toBe("approved");
+        expect(result.adminApplicationReason).toBe("");
         expect(result.accountStatus).toBe("blocked");
         expect(result.createdAt).toBe("2026-01-01T10:00:00.000Z");
         expectIsoString(result.updatedAt);
@@ -777,6 +828,86 @@ describe("auth-utils profile shaping", () => {
         expect(result.vendorStatus).toBe("pending");
         expect(result.vendorReason).toBe("");
         expect(result.roles.vendor).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("applyAdminApplicationToProfile sets admin application status to pending", () => {
+        const result = applyAdminApplicationToProfile({
+            uid: "abc123",
+            email: "admin@example.com",
+            adminApplicationStatus: "none",
+            accountStatus: "active"
+        });
+
+        expect(result.isAdmin).toBe(false);
+        expect(result.adminApplicationStatus).toBe("pending");
+        expect(result.adminApplicationReason).toBe("");
+        expect(result.roles.admin).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("approveAdminApplication grants admin access", () => {
+        const result = approveAdminApplication({
+            uid: "abc123",
+            email: "admin@example.com",
+            adminApplicationStatus: "pending"
+        });
+
+        expect(result.isAdmin).toBe(true);
+        expect(result.adminApplicationStatus).toBe("approved");
+        expect(result.adminApplicationReason).toBe("");
+        expect(result.roles.admin).toBe(true);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("rejectAdminApplication rejects admin application and stores reason", () => {
+        const result = rejectAdminApplication(
+            {
+                uid: "abc123",
+                email: "admin@example.com",
+                adminApplicationStatus: "pending"
+            },
+            " Missing motivation "
+        );
+
+        expect(result.isAdmin).toBe(false);
+        expect(result.adminApplicationStatus).toBe("rejected");
+        expect(result.adminApplicationReason).toBe("Missing motivation");
+        expect(result.roles.admin).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("blockAdminApplication blocks admin application and stores reason", () => {
+        const result = blockAdminApplication(
+            {
+                uid: "abc123",
+                email: "admin@example.com",
+                adminApplicationStatus: "approved",
+                isAdmin: true
+            },
+            " Policy violation "
+        );
+
+        expect(result.isAdmin).toBe(false);
+        expect(result.adminApplicationStatus).toBe("blocked");
+        expect(result.adminApplicationReason).toBe("Policy violation");
+        expect(result.roles.admin).toBe(false);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("clearAdminApplication resets admin application state", () => {
+        const result = clearAdminApplication({
+            uid: "abc123",
+            email: "admin@example.com",
+            adminApplicationStatus: "blocked",
+            adminApplicationReason: "Old reason",
+            isAdmin: true
+        });
+
+        expect(result.isAdmin).toBe(false);
+        expect(result.adminApplicationStatus).toBe("none");
+        expect(result.adminApplicationReason).toBe("");
+        expect(result.roles.admin).toBe(false);
         expectIsoString(result.updatedAt);
     });
 
@@ -905,6 +1036,54 @@ describe("auth-utils profile shaping", () => {
         expect(result.phoneNumber).toBe("0712345678");
         expect(result.businessName).toBe("Vendor Shop");
         expect(result.businessDescription).toBe("Snacks");
+    });
+
+    test("createAdminApplicationData builds pending admin application data", () => {
+        const result = createAdminApplicationData(
+            {
+                uid: "abc123",
+                displayName: "Auth User",
+                email: "auth@example.com",
+                phoneNumber: "+27712345678"
+            },
+            {
+                motivation: "  I want to help manage vendor approvals  "
+            }
+        );
+
+        expect(result).toMatchObject({
+            uid: "abc123",
+            applicantName: "Auth User",
+            email: "auth@example.com",
+            phoneNumber: "+27712345678",
+            motivation: "I want to help manage vendor approvals",
+            status: "pending",
+            reason: ""
+        });
+        expectIsoString(result.submittedAt);
+        expectIsoString(result.updatedAt);
+    });
+
+    test("createAdminApplicationData prefers form overrides", () => {
+        const result = createAdminApplicationData(
+            {
+                uid: "abc123",
+                displayName: "Auth User",
+                email: "auth@example.com",
+                phoneNumber: "+27712345678"
+            },
+            {
+                applicantName: "Form User",
+                email: "form@example.com",
+                phoneNumber: "071 234 5678",
+                applicationReason: "Support platform operations"
+            }
+        );
+
+        expect(result.applicantName).toBe("Form User");
+        expect(result.email).toBe("form@example.com");
+        expect(result.phoneNumber).toBe("0712345678");
+        expect(result.motivation).toBe("Support platform operations");
     });
 });
 

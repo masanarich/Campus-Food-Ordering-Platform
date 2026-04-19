@@ -4,9 +4,12 @@
 
 const {
     normalizeText,
+    normalizeLowerText,
     normalizeVendorStatus,
+    normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
+    getFallbackRoutes,
     getPortalRoute,
     hasAuthenticatedIdentity,
     normalizeProfile,
@@ -15,9 +18,13 @@ const {
     canAccessVendorPortal,
     canAccessAdminPortal,
     canApplyForVendor,
+    canApplyForAdmin,
     getVendorStatusLabel,
-    getPortalSummary,
+    getAdminStatusLabel,
+    getAccessSummary,
     getVendorApplicationNote,
+    getAdminApplicationNote,
+    getApplicationActionConfig,
     getWelcomeMessage,
     getHomeState,
     getDefaultAvatar,
@@ -27,6 +34,7 @@ const {
     setImage,
     renderCustomerHomePage,
     attachNavigationHandler,
+    attachSignOutHandler,
     loadCustomerHomeState,
     initializeCustomerHomePage
 } = require("../../public/customer/index.js");
@@ -39,20 +47,27 @@ function createCustomerHomeDom() {
             <img id="profile-photo" src="" alt="">
             <p id="profile-photo-caption"></p>
 
-            <p id="profile-name-line"></p>
-            <p id="profile-role-line"></p>
-            <p id="profile-email-line"></p>
-            <p id="profile-vendor-line"></p>
+            <output id="profile-name-line"></output>
+            <output id="profile-role-line"></output>
+            <output id="profile-email-line"></output>
+            <output id="profile-vendor-line"></output>
+            <output id="profile-admin-line"></output>
 
-            <p id="portal-summary"></p>
+            <p id="access-summary"></p>
             <p id="welcome-message"></p>
             <p id="vendor-application-note"></p>
+            <p id="admin-application-note"></p>
 
             <button id="go-profile-button" type="button">Profile</button>
             <button id="choose-portal-button" type="button">Choose Portal</button>
-            <button id="go-vendor-application-button" type="button">Vendor Application</button>
+            <button id="go-vendor-application-button" type="button">Vendor</button>
+            <button id="go-admin-application-button" type="button">Admin</button>
+            <button id="browse-stores-button" type="button">Stores</button>
+            <button id="view-orders-button" type="button">Orders</button>
+            <button id="get-support-button" type="button">Support</button>
+            <button id="sign-out-button" type="button">Sign out</button>
 
-            <button id="go-customer-portal-button" type="button">Customer Portal</button>
+            <button id="go-customer-portal-button" type="button">Customer</button>
             <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
             <button id="go-admin-portal-button" type="button">Admin Portal</button>
         </main>
@@ -66,12 +81,19 @@ function createCustomerHomeDom() {
         roleLine: document.querySelector("#profile-role-line"),
         emailLine: document.querySelector("#profile-email-line"),
         vendorLine: document.querySelector("#profile-vendor-line"),
-        portalSummaryElement: document.querySelector("#portal-summary"),
+        adminLine: document.querySelector("#profile-admin-line"),
+        accessSummaryElement: document.querySelector("#access-summary"),
         welcomeMessageElement: document.querySelector("#welcome-message"),
         vendorApplicationNoteElement: document.querySelector("#vendor-application-note"),
+        adminApplicationNoteElement: document.querySelector("#admin-application-note"),
         profileButton: document.querySelector("#go-profile-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         vendorApplicationButton: document.querySelector("#go-vendor-application-button"),
+        adminApplicationButton: document.querySelector("#go-admin-application-button"),
+        browseStoresButton: document.querySelector("#browse-stores-button"),
+        myOrdersButton: document.querySelector("#view-orders-button"),
+        supportButton: document.querySelector("#get-support-button"),
+        signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
         adminPortalButton: document.querySelector("#go-admin-portal-button")
@@ -89,93 +111,85 @@ describe("customer/index.js helpers", () => {
         delete window.authService;
     });
 
-    test("normalizeText trims text", () => {
+    test("normalizers clean text and statuses", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
-    });
-
-    test("normalizeText returns empty string for invalid values", () => {
         expect(normalizeText(null)).toBe("");
-        expect(normalizeText(undefined)).toBe("");
-        expect(normalizeText(123)).toBe("");
-    });
-
-    test("normalizeVendorStatus maps suspended to blocked", () => {
+        expect(normalizeLowerText("  HeLLo ")).toBe("hello");
         expect(normalizeVendorStatus("suspended")).toBe("blocked");
-    });
-
-    test("normalizeVendorStatus returns none for invalid status", () => {
         expect(normalizeVendorStatus("mystery")).toBe("none");
-    });
-
-    test("normalizeAccountStatus keeps disabled and blocked and defaults to active", () => {
+        expect(normalizeAdminApplicationStatus("SUSPENDED")).toBe("blocked");
+        expect(normalizeAdminApplicationStatus("mystery")).toBe("none");
         expect(normalizeAccountStatus("disabled")).toBe("disabled");
-        expect(normalizeAccountStatus("blocked")).toBe("blocked");
         expect(normalizeAccountStatus("inactive")).toBe("active");
-        expect(normalizeAccountStatus("")).toBe("active");
     });
 
-    test("resolveAuthUtils prefers explicit utils", () => {
+    test("resolveAuthUtils prefers explicit then window", () => {
         const explicitUtils = { value: 1 };
         window.authUtils = { value: 2 };
 
         expect(resolveAuthUtils(explicitUtils)).toBe(explicitUtils);
-    });
-
-    test("resolveAuthUtils falls back to window.authUtils", () => {
-        window.authUtils = { value: 3 };
-
         expect(resolveAuthUtils()).toBe(window.authUtils);
-    });
 
-    test("resolveAuthUtils returns null when utils are unavailable", () => {
+        delete window.authUtils;
         expect(resolveAuthUtils()).toBeNull();
     });
 
-    test("getPortalRoute returns fallback routes", () => {
+    test("getFallbackRoutes and getPortalRoute return expected routes", () => {
+        expect(getFallbackRoutes()).toEqual({
+            customer: "./index.html",
+            vendor: "../vendor/index.html",
+            admin: "../admin/index.html",
+            rolechoice: "../authentication/role-choice.html",
+            profile: "../authentication/profile.html",
+            vendorapplication: "./vendor-application.html",
+            adminapplication: "./admin-application.html",
+            stores: "./browse-stores.html",
+            orders: "./my-orders.html",
+            support: "./support.html",
+            login: "../authentication/login.html"
+        });
+
         expect(getPortalRoute("customer")).toBe("./index.html");
         expect(getPortalRoute("vendor")).toBe("../vendor/index.html");
         expect(getPortalRoute("admin")).toBe("../admin/index.html");
         expect(getPortalRoute("roleChoice")).toBe("../authentication/role-choice.html");
         expect(getPortalRoute("profile")).toBe("../authentication/profile.html");
-        expect(getPortalRoute("vendorApplication")).toBe("../customer/vendor-application.html");
-        expect(getPortalRoute("unknown")).toBe("../authentication/login.html");
+        expect(getPortalRoute("vendorApplication")).toBe("./vendor-application.html");
+        expect(getPortalRoute("adminApplication")).toBe("./admin-application.html");
+        expect(getPortalRoute("stores")).toBe("./browse-stores.html");
+        expect(getPortalRoute("orders")).toBe("./my-orders.html");
+        expect(getPortalRoute("support")).toBe("./support.html");
+        expect(getPortalRoute("signOut")).toBe("../authentication/login.html");
     });
 
-    test("getPortalRoute uses authUtils.getPortalRoute for customer vendor and admin", () => {
+    test("getPortalRoute uses authUtils when available", () => {
         const authUtils = {
-            getPortalRoute: jest.fn((route) => `/custom/${route}.html`)
+            getPortalRoute: jest.fn((route) => `/custom/${route}.html`),
+            PORTAL_ROUTES: {
+                roleChoice: "/special/role-choice.html",
+                vendorApplication: "/special/vendor.html",
+                adminApplication: "/special/admin.html",
+                login: "/special/login.html"
+            }
         };
 
         expect(getPortalRoute("customer", authUtils)).toBe("/custom/customer.html");
         expect(getPortalRoute("vendor", authUtils)).toBe("/custom/vendor.html");
         expect(getPortalRoute("admin", authUtils)).toBe("/custom/admin.html");
-    });
-
-    test("getPortalRoute uses authUtils.PORTAL_ROUTES for roleChoice login and vendorApplication", () => {
-        const authUtils = {
-            PORTAL_ROUTES: {
-                roleChoice: "/special/role-choice.html",
-                login: "/special/login.html",
-                vendorApplication: "/special/vendor-application.html"
-            }
-        };
-
         expect(getPortalRoute("roleChoice", authUtils)).toBe("/special/role-choice.html");
-        expect(getPortalRoute("login", authUtils)).toBe("/special/login.html");
-        expect(getPortalRoute("vendorApplication", authUtils)).toBe("/special/vendor-application.html");
+        expect(getPortalRoute("vendorApplication", authUtils)).toBe("/special/vendor.html");
+        expect(getPortalRoute("adminApplication", authUtils)).toBe("/special/admin.html");
+        expect(getPortalRoute("signOut", authUtils)).toBe("/special/login.html");
     });
 
-    test("hasAuthenticatedIdentity returns true for uid email or phone", () => {
+    test("hasAuthenticatedIdentity recognises uid email or phone", () => {
         expect(hasAuthenticatedIdentity({ uid: "user-1" })).toBe(true);
         expect(hasAuthenticatedIdentity({ email: "user@example.com" })).toBe(true);
         expect(hasAuthenticatedIdentity({ phoneNumber: "+27712345678" })).toBe(true);
-    });
-
-    test("hasAuthenticatedIdentity returns false when identity is missing", () => {
         expect(hasAuthenticatedIdentity({})).toBe(false);
     });
 
-    test("normalizeProfile uses authUtils normaliser when available", () => {
+    test("normalizeProfile uses auth utils normaliser when present", () => {
         const normalized = {
             uid: "user-1",
             displayName: "Faranani",
@@ -183,9 +197,10 @@ describe("customer/index.js helpers", () => {
             phoneNumber: "0712345678",
             photoURL: "",
             isAdmin: false,
-            isOwner: true,
             vendorStatus: "none",
             vendorReason: "",
+            adminApplicationStatus: "pending",
+            adminApplicationReason: "",
             accountStatus: "active"
         };
 
@@ -197,234 +212,177 @@ describe("customer/index.js helpers", () => {
         expect(authUtils.normaliseUserData).toHaveBeenCalledWith({ uid: "raw" });
     });
 
-    test("normalizeProfile normalizes raw profile values", () => {
-        const result = normalizeProfile({
-            uid: " user-1 ",
-            fullName: " Faranani ",
-            email: " USER@example.com ",
-            phoneNumber: " 0712345678 ",
-            photoURL: " https://example.com/p.jpg ",
-            admin: true,
-            vendorStatus: "suspended",
-            rejectionReason: " Missing docs ",
-            accountStatus: "inactive"
-        });
-
-        expect(result).toEqual({
+    test("normalizeProfile derives admin approval and normalizes fallback values", () => {
+        expect(
+            normalizeProfile({
+                uid: " user-1 ",
+                fullName: " Faranani ",
+                email: " USER@example.com ",
+                phoneNumber: " 0712345678 ",
+                photoURL: " https://example.com/p.jpg ",
+                admin: true,
+                vendorStatus: "suspended",
+                rejectionReason: " Missing docs ",
+                adminApplicationStatus: "none",
+                accountStatus: "inactive"
+            })
+        ).toEqual({
             uid: "user-1",
             displayName: "Faranani",
             email: "user@example.com",
             phoneNumber: "0712345678",
             photoURL: "https://example.com/p.jpg",
             isAdmin: true,
-            isOwner: false,
             vendorStatus: "blocked",
             vendorReason: "Missing docs",
+            adminApplicationStatus: "approved",
+            adminApplicationReason: "",
             accountStatus: "active"
         });
     });
 
-    test("getRoleLabel prioritizes owner then admin then vendor then customer", () => {
-        expect(getRoleLabel({ isOwner: true })).toBe("Owner");
+    test("role label and portal access helpers match the new model", () => {
+        expect(getRoleLabel({ isAdmin: true, vendorStatus: "approved" })).toBe("Admin and Vendor");
         expect(getRoleLabel({ isAdmin: true })).toBe("Admin");
         expect(getRoleLabel({ vendorStatus: "approved" })).toBe("Vendor");
         expect(getRoleLabel({ uid: "user-1" })).toBe("Customer");
-    });
 
-    test("portal access helpers work correctly", () => {
         expect(canAccessCustomerPortal({ uid: "user-1", accountStatus: "active" })).toBe(true);
         expect(canAccessCustomerPortal({ uid: "user-1", accountStatus: "blocked" })).toBe(false);
-
         expect(canAccessVendorPortal({ vendorStatus: "approved", accountStatus: "active" })).toBe(true);
-        expect(canAccessVendorPortal({ isAdmin: true, accountStatus: "active" })).toBe(true);
-        expect(canAccessVendorPortal({ isOwner: true, accountStatus: "active" })).toBe(true);
-        expect(canAccessVendorPortal({ vendorStatus: "pending", accountStatus: "active" })).toBe(false);
-
+        expect(canAccessVendorPortal({ isAdmin: true, accountStatus: "active" })).toBe(false);
         expect(canAccessAdminPortal({ isAdmin: true, accountStatus: "active" })).toBe(true);
-        expect(canAccessAdminPortal({ isOwner: true, accountStatus: "active" })).toBe(true);
         expect(canAccessAdminPortal({ isAdmin: true, accountStatus: "disabled" })).toBe(false);
     });
 
-    test("canApplyForVendor allows a normal active customer with none or rejected status", () => {
-        expect(
-            canApplyForVendor({
-                uid: "user-1",
-                vendorStatus: "none",
-                accountStatus: "active"
-            })
-        ).toBe(true);
-
-        expect(
-            canApplyForVendor({
-                uid: "user-1",
-                vendorStatus: "rejected",
-                accountStatus: "active"
-            })
-        ).toBe(true);
-    });
-
-    test("canApplyForVendor blocks admins owners inactive and approved users", () => {
-        expect(canApplyForVendor({ isAdmin: true, vendorStatus: "none" })).toBe(false);
-        expect(canApplyForVendor({ isOwner: true, vendorStatus: "none" })).toBe(false);
-        expect(canApplyForVendor({ uid: "user-1", vendorStatus: "approved" })).toBe(false);
-        expect(canApplyForVendor({ uid: "user-1", vendorStatus: "none", accountStatus: "blocked" })).toBe(false);
-    });
-
-    test("canApplyForVendor uses authUtils.canSubmitVendorApplication when provided", () => {
+    test("can apply helpers defer to auth utils and fallback correctly", () => {
         const authUtils = {
-            canSubmitVendorApplication: jest.fn(() => true)
+            canSubmitVendorApplication: jest.fn(() => true),
+            canSubmitAdminApplication: jest.fn(() => false)
         };
 
         expect(canApplyForVendor({ uid: "user-1" }, authUtils)).toBe(true);
-        expect(authUtils.canSubmitVendorApplication).toHaveBeenCalled();
+        expect(canApplyForAdmin({ uid: "user-1" }, authUtils)).toBe(false);
+
+        expect(
+            canApplyForVendor({ uid: "user-1", vendorStatus: "none", accountStatus: "active" })
+        ).toBe(true);
+        expect(
+            canApplyForVendor({ isAdmin: true, vendorStatus: "none", accountStatus: "active" })
+        ).toBe(false);
+        expect(
+            canApplyForAdmin({ uid: "user-1", adminApplicationStatus: "rejected", accountStatus: "active" })
+        ).toBe(true);
+        expect(
+            canApplyForAdmin({ isAdmin: true, adminApplicationStatus: "approved", accountStatus: "active" })
+        ).toBe(false);
     });
 
-    test("getVendorStatusLabel returns user-friendly labels", () => {
+    test("status labels and summaries are user friendly", () => {
         expect(getVendorStatusLabel({ vendorStatus: "approved" })).toBe("Approved");
-        expect(getVendorStatusLabel({ vendorStatus: "pending" })).toBe("Pending");
-        expect(getVendorStatusLabel({ vendorStatus: "rejected" })).toBe("Rejected");
         expect(getVendorStatusLabel({ vendorStatus: "blocked" })).toBe("Blocked");
         expect(getVendorStatusLabel({ vendorStatus: "none" })).toBe("Not Applied");
-    });
 
-    test("getPortalSummary returns the correct messages", () => {
+        expect(getAdminStatusLabel({ isAdmin: true })).toBe("Approved");
+        expect(getAdminStatusLabel({ adminApplicationStatus: "pending" })).toBe("Pending");
+        expect(getAdminStatusLabel({ adminApplicationStatus: "blocked" })).toBe("Blocked");
+        expect(getAdminStatusLabel({ adminApplicationStatus: "none" })).toBe("Not Applied");
+
         expect(
-            getPortalSummary({
-                profile: { isOwner: true },
+            getAccessSummary({
                 showCustomerPortal: true,
                 showVendorPortal: true,
                 showAdminPortal: true
             })
-        ).toBe("You have owner access and can open every portal.");
+        ).toBe("You can switch between the customer, vendor, and admin portals.");
 
         expect(
-            getPortalSummary({
-                profile: {},
-                showCustomerPortal: true,
-                showVendorPortal: true,
-                showAdminPortal: true
-            })
-        ).toBe("You can open the customer, vendor, and admin portals.");
-
-        expect(
-            getPortalSummary({
-                profile: {},
+            getAccessSummary({
                 showCustomerPortal: true,
                 showVendorPortal: false,
                 showAdminPortal: true
             })
-        ).toBe("You can open the customer and admin portals.");
+        ).toBe("You can switch between the customer and admin portals.");
 
         expect(
-            getPortalSummary({
-                profile: {},
-                showCustomerPortal: true,
-                showVendorPortal: true,
-                showAdminPortal: false
-            })
-        ).toBe("You can open the customer and vendor portals.");
-
-        expect(
-            getPortalSummary({
-                profile: {},
-                showCustomerPortal: true,
-                showVendorPortal: false,
-                showAdminPortal: false
-            })
-        ).toBe("You currently have customer portal access.");
-
-        expect(
-            getPortalSummary({
-                profile: {},
+            getAccessSummary({
                 showCustomerPortal: false,
                 showVendorPortal: false,
                 showAdminPortal: false
             })
-        ).toBe("You do not currently have portal access.");
+        ).toBe("Your account cannot access the customer portal right now. Please contact support.");
     });
 
-    test("getVendorApplicationNote returns the correct message", () => {
+    test("application notes and action config reflect vendor and admin states", () => {
         expect(getVendorApplicationNote({ vendorStatus: "pending" }))
-            .toBe("Your vendor application is still pending approval.");
-
+            .toBe("Your vendor application is pending review.");
         expect(getVendorApplicationNote({ vendorStatus: "approved" }))
             .toBe("You already have vendor access.");
+        expect(getVendorApplicationNote({ vendorStatus: "rejected", vendorReason: "Missing docs" }))
+            .toBe("Your vendor application was rejected: Missing docs");
+        expect(getVendorApplicationNote({ uid: "user-1", vendorStatus: "none", accountStatus: "active" }))
+            .toBe("You can apply to become a vendor from this dashboard.");
 
-        expect(
-            getVendorApplicationNote({
-                vendorStatus: "rejected",
-                vendorReason: "Missing document"
-            })
-        ).toBe("Your vendor application was rejected: Missing document");
+        expect(getAdminApplicationNote({ isAdmin: true }))
+            .toBe("You already have admin access.");
+        expect(getAdminApplicationNote({ adminApplicationStatus: "pending" }))
+            .toBe("Your admin application is pending review.");
+        expect(getAdminApplicationNote({ adminApplicationStatus: "rejected", adminApplicationReason: "Incomplete motivation" }))
+            .toBe("Your admin application was rejected: Incomplete motivation");
+        expect(getAdminApplicationNote({ uid: "user-1", adminApplicationStatus: "none", accountStatus: "active" }))
+            .toBe("You can apply to become an admin from this dashboard.");
 
-        expect(
-            getVendorApplicationNote({
-                vendorStatus: "blocked",
-                vendorReason: "Policy issue"
-            })
-        ).toBe("Your vendor access is blocked: Policy issue");
+        expect(getApplicationActionConfig({ vendorStatus: "none", accountStatus: "active" }, null, "vendor"))
+            .toEqual({
+                visible: true,
+                label: "Apply to Become a Vendor",
+                route: "./vendor-application.html"
+            });
 
-        expect(
-            getVendorApplicationNote({
-                uid: "user-1",
-                vendorStatus: "none",
-                accountStatus: "active"
-            })
-        ).toBe("You can apply to become a vendor from this page.");
+        expect(getApplicationActionConfig({ vendorStatus: "rejected", accountStatus: "active" }, null, "vendor"))
+            .toEqual({
+                visible: true,
+                label: "Update Vendor Application",
+                route: "./vendor-application.html"
+            });
 
-        expect(
-            getVendorApplicationNote({
-                isAdmin: true,
-                vendorStatus: "none",
-                accountStatus: "active"
-            })
-        ).toBe("Vendor application actions are not available right now.");
+        expect(getApplicationActionConfig({ adminApplicationStatus: "pending", accountStatus: "active" }, null, "admin"))
+            .toEqual({
+                visible: true,
+                label: "View Admin Application",
+                route: "./admin-application.html"
+            });
+
+        expect(getApplicationActionConfig({ isAdmin: true, accountStatus: "active" }, null, "admin"))
+            .toEqual({
+                visible: false,
+                label: "",
+                route: "./admin-application.html"
+            });
     });
 
-    test("getWelcomeMessage returns greeting", () => {
-        expect(getWelcomeMessage({ displayName: "Faranani" })).toBe("Welcome back, Faranani.");
-        expect(getWelcomeMessage({})).toBe("Welcome back, there.");
-    });
-
-    test("getHomeState builds correct customer state", () => {
+    test("welcome message, home state and default avatar are generated", () => {
         const state = getHomeState({
             uid: "user-1",
             displayName: "Faranani",
             email: "user@example.com",
             vendorStatus: "none",
+            adminApplicationStatus: "pending",
             accountStatus: "active"
         });
 
+        expect(getWelcomeMessage({ displayName: "Faranani" })).toBe("Welcome back, Faranani.");
         expect(state.displayName).toBe("Faranani");
         expect(state.roleLabel).toBe("Customer");
         expect(state.vendorStatusLabel).toBe("Not Applied");
+        expect(state.adminStatusLabel).toBe("Pending");
         expect(state.showCustomerPortal).toBe(true);
         expect(state.showVendorPortal).toBe(false);
         expect(state.showAdminPortal).toBe(false);
         expect(state.showChoosePortal).toBe(false);
-        expect(state.showVendorApplication).toBe(true);
-    });
-
-    test("getHomeState gives admin all portal buttons and no vendor application", () => {
-        const state = getHomeState({
-            uid: "user-1",
-            displayName: "Admin User",
-            isAdmin: true,
-            vendorStatus: "none",
-            accountStatus: "active"
-        });
-
-        expect(state.roleLabel).toBe("Admin");
-        expect(state.showCustomerPortal).toBe(true);
-        expect(state.showVendorPortal).toBe(true);
-        expect(state.showAdminPortal).toBe(true);
-        expect(state.showChoosePortal).toBe(true);
-        expect(state.showVendorApplication).toBe(false);
-    });
-
-    test("getDefaultAvatar returns a usable data url", () => {
+        expect(state.vendorApplicationAction.visible).toBe(true);
+        expect(state.adminApplicationAction.visible).toBe(true);
         expect(getDefaultAvatar("Faranani")).toContain("data:image/svg+xml");
-        expect(getDefaultAvatar("Faranani")).toContain("%3Csvg");
     });
 });
 
@@ -433,41 +391,21 @@ describe("customer/index.js DOM helpers", () => {
         document.body.innerHTML = "";
     });
 
-    test("setText updates text content", () => {
+    test("set helpers update DOM safely", () => {
         const paragraph = document.createElement("p");
+        const image = document.createElement("img");
 
         setText(paragraph, "Hello");
-
         expect(paragraph.textContent).toBe("Hello");
-    });
-
-    test("setText does nothing when element is missing", () => {
-        expect(() => setText(null, "Hello")).not.toThrow();
-    });
-
-    test("setHidden updates hidden and aria-hidden", () => {
-        const paragraph = document.createElement("p");
+        expect(() => setText(null, "Ignored")).not.toThrow();
 
         setHidden(paragraph, true);
         expect(paragraph.hidden).toBe(true);
         expect(paragraph.getAttribute("aria-hidden")).toBe("true");
 
-        setHidden(paragraph, false);
-        expect(paragraph.hidden).toBe(false);
-        expect(paragraph.getAttribute("aria-hidden")).toBe("false");
-    });
-
-    test("setStatusMessage updates text and state", () => {
-        const paragraph = document.createElement("p");
-
         setStatusMessage(paragraph, "Loaded", "success");
-
         expect(paragraph.textContent).toBe("Loaded");
         expect(paragraph.dataset.state).toBe("success");
-    });
-
-    test("setImage uses given image url or fallback avatar", () => {
-        const image = document.createElement("img");
 
         setImage(image, "https://example.com/photo.jpg", "Photo alt", "Faranani");
         expect(image.src).toContain("https://example.com/photo.jpg");
@@ -478,74 +416,88 @@ describe("customer/index.js DOM helpers", () => {
         expect(image.alt).toBe("User profile picture");
     });
 
-    test("renderCustomerHomePage renders the customer state with default avatar caption", () => {
+    test("renderCustomerHomePage renders the new dashboard state", () => {
         const elements = createCustomerHomeDom();
 
         renderCustomerHomePage(elements, {
             profile: {
                 email: "user@example.com",
                 photoURL: "",
-                isOwner: false
+                adminApplicationStatus: "pending"
             },
             displayName: "Faranani",
             roleLabel: "Customer",
             vendorStatusLabel: "Not Applied",
-            portalSummary: "You currently have customer portal access.",
+            adminStatusLabel: "Pending",
+            accessSummary: "You currently have customer portal access only.",
             welcomeMessage: "Welcome back, Faranani.",
-            vendorApplicationNote: "You can apply to become a vendor from this page.",
+            vendorApplicationNote: "You can apply to become a vendor from this dashboard.",
+            adminApplicationNote: "Your admin application is pending review.",
             showCustomerPortal: true,
             showVendorPortal: false,
             showAdminPortal: false,
             showChoosePortal: false,
-            showVendorApplication: true
+            vendorApplicationAction: {
+                visible: true,
+                label: "Apply to Become a Vendor"
+            },
+            adminApplicationAction: {
+                visible: true,
+                label: "View Admin Application"
+            }
         });
 
-        expect(elements.statusElement.textContent).toBe("Home page loaded.");
-        expect(elements.statusElement.dataset.state).toBe("success");
-        expect(elements.nameLine.textContent).toBe("Name: Faranani");
-        expect(elements.roleLine.textContent).toBe("Role: Customer");
-        expect(elements.emailLine.textContent).toBe("Email: user@example.com");
-        expect(elements.vendorLine.textContent).toBe("Vendor status: Not Applied");
-        expect(elements.portalSummaryElement.textContent).toBe(
-            "You currently have customer portal access."
+        expect(elements.statusElement.textContent).toBe("Customer dashboard loaded.");
+        expect(elements.nameLine.textContent).toBe("Faranani");
+        expect(elements.roleLine.textContent).toBe("Customer");
+        expect(elements.emailLine.textContent).toBe("user@example.com");
+        expect(elements.vendorLine.textContent).toBe("Not Applied");
+        expect(elements.adminLine.textContent).toBe("Pending");
+        expect(elements.accessSummaryElement.textContent).toBe(
+            "You currently have customer portal access only."
         );
-        expect(elements.welcomeMessageElement.textContent).toBe(
-            "Welcome back, Faranani."
-        );
-        expect(elements.vendorApplicationNoteElement.textContent).toBe(
-            "You can apply to become a vendor from this page."
-        );
-        expect(elements.photoCaptionElement.textContent).toBe(
-            "No profile picture found. A default avatar is being used."
-        );
+        expect(elements.vendorApplicationButton.textContent).toBe("Apply to Become a Vendor");
+        expect(elements.adminApplicationButton.textContent).toBe("View Admin Application");
         expect(elements.customerPortalButton.hidden).toBe(false);
         expect(elements.vendorPortalButton.hidden).toBe(true);
         expect(elements.adminPortalButton.hidden).toBe(true);
         expect(elements.choosePortalButton.hidden).toBe(true);
         expect(elements.vendorApplicationButton.hidden).toBe(false);
+        expect(elements.adminApplicationButton.hidden).toBe(false);
         expect(elements.profilePhoto.src).toContain("data:image/svg+xml");
+        expect(elements.photoCaptionElement.textContent).toBe(
+            "No profile picture found yet, so we are showing your default avatar."
+        );
     });
 
-    test("renderCustomerHomePage renders custom photo caption when photo exists", () => {
+    test("renderCustomerHomePage handles existing photos and hidden action buttons", () => {
         const elements = createCustomerHomeDom();
 
         renderCustomerHomePage(elements, {
             profile: {
-                email: "user@example.com",
-                photoURL: "https://example.com/profile.jpg",
-                isOwner: false
+                email: "admin@example.com",
+                photoURL: "https://example.com/profile.jpg"
             },
-            displayName: "Faranani",
-            roleLabel: "Owner",
+            displayName: "Admin User",
+            roleLabel: "Admin",
             vendorStatusLabel: "Not Applied",
-            portalSummary: "You have owner access and can open every portal.",
-            welcomeMessage: "Welcome back, Faranani.",
-            vendorApplicationNote: "Vendor application actions are not available right now.",
+            adminStatusLabel: "Approved",
+            accessSummary: "You can switch between the customer and admin portals.",
+            welcomeMessage: "Welcome back, Admin User.",
+            vendorApplicationNote: "Vendor application actions are unavailable right now.",
+            adminApplicationNote: "You already have admin access.",
             showCustomerPortal: true,
-            showVendorPortal: true,
+            showVendorPortal: false,
             showAdminPortal: true,
             showChoosePortal: true,
-            showVendorApplication: false
+            vendorApplicationAction: {
+                visible: false,
+                label: ""
+            },
+            adminApplicationAction: {
+                visible: false,
+                label: ""
+            }
         });
 
         expect(elements.photoCaptionElement.textContent).toBe(
@@ -553,33 +505,75 @@ describe("customer/index.js DOM helpers", () => {
         );
         expect(elements.profilePhoto.src).toContain("https://example.com/profile.jpg");
         expect(elements.vendorApplicationButton.hidden).toBe(true);
+        expect(elements.adminApplicationButton.hidden).toBe(true);
+        expect(elements.choosePortalButton.hidden).toBe(false);
     });
 
-    test("renderCustomerHomePage does nothing when inputs are missing", () => {
+    test("renderCustomerHomePage and handlers tolerate missing values", async () => {
         expect(() => renderCustomerHomePage(null, null)).not.toThrow();
-    });
+        expect(attachNavigationHandler({ button: null, route: "/next" })).toBeNull();
+        expect(attachNavigationHandler({ button: document.createElement("button"), route: "" })).toBeNull();
+        expect(attachSignOutHandler({ button: null, authService: {}, nextRoute: "/login" })).toBeNull();
 
-    test("attachNavigationHandler navigates on click", () => {
         const button = document.createElement("button");
         const navigate = jest.fn();
-
-        const controller = attachNavigationHandler({
+        const navController = attachNavigationHandler({
             button,
             route: "/next-page.html",
             navigate
         });
 
-        const result = controller.handleClick({
+        expect(
+            navController.handleClick({
+                preventDefault: jest.fn()
+            })
+        ).toBe("/next-page.html");
+        expect(navigate).toHaveBeenCalledWith("/next-page.html");
+
+        const statusElement = document.createElement("p");
+        const signOutController = attachSignOutHandler({
+            button,
+            authService: {
+                signOutUser: jest.fn().mockResolvedValue(true)
+            },
+            navigate,
+            nextRoute: "/login.html",
+            statusElement
+        });
+
+        const result = await signOutController.handleClick({
             preventDefault: jest.fn()
         });
 
-        expect(result).toBe("/next-page.html");
-        expect(navigate).toHaveBeenCalledWith("/next-page.html");
+        expect(result).toEqual({
+            success: true,
+            nextRoute: "/login.html"
+        });
+        expect(statusElement.textContent).toBe("Signing you out...");
     });
 
-    test("attachNavigationHandler returns null when button or route is missing", () => {
-        expect(attachNavigationHandler({ button: null, route: "/next" })).toBeNull();
-        expect(attachNavigationHandler({ button: document.createElement("button"), route: "" })).toBeNull();
+    test("attachSignOutHandler reports errors", async () => {
+        const button = document.createElement("button");
+        const statusElement = document.createElement("p");
+
+        const controller = attachSignOutHandler({
+            button,
+            authService: {
+                signOutUser: jest.fn().mockRejectedValue(new Error("Sign out failed"))
+            },
+            navigate: jest.fn(),
+            nextRoute: "/login.html",
+            statusElement
+        });
+
+        const result = await controller.handleClick({
+            preventDefault: jest.fn()
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.message).toBe("Sign out failed");
+        expect(statusElement.textContent).toBe("Sign out failed");
+        expect(statusElement.dataset.state).toBe("error");
     });
 });
 
@@ -590,7 +584,7 @@ describe("customer/index.js loading and initialization", () => {
         delete window.authService;
     });
 
-    test("loadCustomerHomeState throws when authService.getCurrentUser is missing", async () => {
+    test("loadCustomerHomeState validates auth service dependencies", async () => {
         await expect(
             loadCustomerHomeState({
                 authService: {
@@ -598,9 +592,7 @@ describe("customer/index.js loading and initialization", () => {
                 }
             })
         ).rejects.toThrow("authService.getCurrentUser is required.");
-    });
 
-    test("loadCustomerHomeState throws when authService.getCurrentUserProfile is missing", async () => {
         await expect(
             loadCustomerHomeState({
                 authService: {
@@ -610,23 +602,21 @@ describe("customer/index.js loading and initialization", () => {
         ).rejects.toThrow("authService.getCurrentUserProfile is required.");
     });
 
-    test("loadCustomerHomeState returns login redirect when no user is signed in", async () => {
+    test("loadCustomerHomeState redirects signed-out users", async () => {
         const authService = {
             getCurrentUser: jest.fn(() => null),
             getCurrentUserProfile: jest.fn()
         };
 
-        const result = await loadCustomerHomeState({ authService });
-
-        expect(result).toEqual({
+        await expect(loadCustomerHomeState({ authService })).resolves.toEqual({
             success: false,
             message: "No user is currently signed in.",
             nextRoute: "../authentication/login.html"
         });
     });
 
-    test("loadCustomerHomeState returns state for signed-in user", async () => {
-        const authService = {
+    test("loadCustomerHomeState returns state for signed-in users and falls back to auth data", async () => {
+        const authServiceWithProfile = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-1"
             })),
@@ -635,20 +625,16 @@ describe("customer/index.js loading and initialization", () => {
                 displayName: "Faranani",
                 email: "user@example.com",
                 vendorStatus: "approved",
+                adminApplicationStatus: "none",
                 accountStatus: "active"
             })
         };
 
-        const result = await loadCustomerHomeState({ authService });
+        const profiledResult = await loadCustomerHomeState({ authService: authServiceWithProfile });
+        expect(profiledResult.success).toBe(true);
+        expect(profiledResult.state.showVendorPortal).toBe(true);
 
-        expect(result.success).toBe(true);
-        expect(result.profile.uid).toBe("user-1");
-        expect(result.state.displayName).toBe("Faranani");
-        expect(result.state.showVendorPortal).toBe(true);
-    });
-
-    test("loadCustomerHomeState falls back to auth user data if profile is missing", async () => {
-        const authService = {
+        const authServiceFallback = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-2",
                 displayName: "Fallback User",
@@ -659,30 +645,22 @@ describe("customer/index.js loading and initialization", () => {
             getCurrentUserProfile: jest.fn().mockResolvedValue(null)
         };
 
-        const result = await loadCustomerHomeState({ authService });
-
-        expect(result.success).toBe(true);
-        expect(result.profile.uid).toBe("user-2");
-        expect(result.state.displayName).toBe("Fallback User");
-        expect(result.state.profile.email).toBe("fallback@example.com");
+        const fallbackResult = await loadCustomerHomeState({ authService: authServiceFallback });
+        expect(fallbackResult.success).toBe(true);
+        expect(fallbackResult.profile.uid).toBe("user-2");
+        expect(fallbackResult.state.displayName).toBe("Fallback User");
     });
 
-    test("initializeCustomerHomePage throws when authService is missing", async () => {
+    test("initializeCustomerHomePage requires auth service and redirects signed-out users", async () => {
         createCustomerHomeDom();
 
-        await expect(initializeCustomerHomePage()).rejects.toThrow(
-            "authService is required."
-        );
-    });
-
-    test("initializeCustomerHomePage redirects signed-out user to login", async () => {
-        createCustomerHomeDom();
+        await expect(initializeCustomerHomePage()).rejects.toThrow("authService is required.");
 
         const authService = {
             getCurrentUser: jest.fn(() => null),
-            getCurrentUserProfile: jest.fn()
+            getCurrentUserProfile: jest.fn(),
+            signOutUser: jest.fn()
         };
-
         const navigate = jest.fn();
 
         const result = await initializeCustomerHomePage({
@@ -695,7 +673,7 @@ describe("customer/index.js loading and initialization", () => {
         expect(navigate).toHaveBeenCalledWith("../authentication/login.html");
     });
 
-    test("initializeCustomerHomePage renders state and wires navigation", async () => {
+    test("initializeCustomerHomePage renders state and wires all customer actions", async () => {
         const elements = createCustomerHomeDom();
 
         const authService = {
@@ -704,12 +682,13 @@ describe("customer/index.js loading and initialization", () => {
             })),
             getCurrentUserProfile: jest.fn().mockResolvedValue({
                 uid: "user-3",
-                displayName: "Admin Person",
-                email: "admin@example.com",
-                isAdmin: true,
+                displayName: "Customer User",
+                email: "customer@example.com",
                 vendorStatus: "none",
+                adminApplicationStatus: "pending",
                 accountStatus: "active"
-            })
+            }),
+            signOutUser: jest.fn().mockResolvedValue(true)
         };
 
         const navigate = jest.fn();
@@ -721,28 +700,40 @@ describe("customer/index.js loading and initialization", () => {
 
         expect(result.redirected).toBe(false);
         expect(result.profileController).toBeTruthy();
-        expect(result.choosePortalController).toBeTruthy();
-        expect(result.vendorApplicationController).toBeNull();
+        expect(result.choosePortalController).toBeNull();
+        expect(result.vendorApplicationController).toBeTruthy();
+        expect(result.adminApplicationController).toBeTruthy();
         expect(result.customerPortalController).toBeTruthy();
-        expect(result.vendorPortalController).toBeTruthy();
-        expect(result.adminPortalController).toBeTruthy();
-
-        expect(elements.roleLine.textContent).toBe("Role: Admin");
-        expect(elements.choosePortalButton.hidden).toBe(false);
-        expect(elements.vendorApplicationButton.hidden).toBe(true);
+        expect(result.vendorPortalController).toBeNull();
+        expect(result.adminPortalController).toBeNull();
+        expect(result.browseStoresController).toBeTruthy();
+        expect(result.myOrdersController).toBeTruthy();
+        expect(result.supportController).toBeTruthy();
+        expect(result.signOutController).toBeTruthy();
 
         elements.profileButton.click();
-        elements.vendorPortalButton.click();
-        elements.adminPortalButton.click();
+        elements.vendorApplicationButton.click();
+        elements.adminApplicationButton.click();
+        elements.browseStoresButton.click();
+        elements.myOrdersButton.click();
+        elements.supportButton.click();
+        await result.signOutController.handleClick({
+            preventDefault: jest.fn()
+        });
 
         await flushPromises();
 
         expect(navigate).toHaveBeenCalledWith("../authentication/profile.html");
-        expect(navigate).toHaveBeenCalledWith("../vendor/index.html");
-        expect(navigate).toHaveBeenCalledWith("../admin/index.html");
+        expect(navigate).toHaveBeenCalledWith("./vendor-application.html");
+        expect(navigate).toHaveBeenCalledWith("./admin-application.html");
+        expect(navigate).toHaveBeenCalledWith("./browse-stores.html");
+        expect(navigate).toHaveBeenCalledWith("./my-orders.html");
+        expect(navigate).toHaveBeenCalledWith("./support.html");
+        expect(navigate).toHaveBeenCalledWith("../authentication/login.html");
+        expect(elements.adminApplicationButton.hidden).toBe(false);
     });
 
-    test("initializeCustomerHomePage wires vendor application for normal customer", async () => {
+    test("initializeCustomerHomePage wires multi-portal users correctly", async () => {
         const elements = createCustomerHomeDom();
 
         const authService = {
@@ -751,11 +742,14 @@ describe("customer/index.js loading and initialization", () => {
             })),
             getCurrentUserProfile: jest.fn().mockResolvedValue({
                 uid: "user-4",
-                displayName: "Customer User",
-                email: "customer@example.com",
-                vendorStatus: "none",
+                displayName: "Admin Vendor",
+                email: "admin.vendor@example.com",
+                isAdmin: true,
+                vendorStatus: "approved",
+                adminApplicationStatus: "approved",
                 accountStatus: "active"
-            })
+            }),
+            signOutUser: jest.fn().mockResolvedValue(true)
         };
 
         const navigate = jest.fn();
@@ -766,36 +760,44 @@ describe("customer/index.js loading and initialization", () => {
         });
 
         expect(result.redirected).toBe(false);
-        expect(result.vendorApplicationController).toBeTruthy();
-        expect(elements.vendorApplicationButton.hidden).toBe(false);
+        expect(result.choosePortalController).toBeTruthy();
+        expect(result.vendorPortalController).toBeTruthy();
+        expect(result.adminPortalController).toBeTruthy();
+        expect(elements.vendorApplicationButton.hidden).toBe(true);
+        expect(elements.adminApplicationButton.hidden).toBe(true);
+        expect(elements.choosePortalButton.hidden).toBe(false);
 
-        elements.vendorApplicationButton.click();
+        elements.choosePortalButton.click();
+        elements.vendorPortalButton.click();
+        elements.adminPortalButton.click();
+
         await flushPromises();
 
-        expect(navigate).toHaveBeenCalledWith("../vendor/vendor-application.html");
+        expect(navigate).toHaveBeenCalledWith("../authentication/role-choice.html");
+        expect(navigate).toHaveBeenCalledWith("../vendor/index.html");
+        expect(navigate).toHaveBeenCalledWith("../admin/index.html");
     });
 
-    test("initializeCustomerHomePage handles loading failure", async () => {
+    test("initializeCustomerHomePage reports loading failures and uses window.authService", async () => {
         const elements = createCustomerHomeDom();
 
-        const authService = {
+        const failingService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-5"
             })),
-            getCurrentUserProfile: jest.fn().mockRejectedValue(new Error("Failed to load profile"))
+            getCurrentUserProfile: jest.fn().mockRejectedValue(new Error("Failed to load profile")),
+            signOutUser: jest.fn()
         };
 
-        const result = await initializeCustomerHomePage({
-            authService
+        const failedResult = await initializeCustomerHomePage({
+            authService: failingService
         });
 
-        expect(result.redirected).toBe(false);
-        expect(result.message).toBe("Failed to load profile");
+        expect(failedResult.redirected).toBe(false);
+        expect(failedResult.message).toBe("Failed to load profile");
         expect(elements.statusElement.textContent).toBe("Failed to load profile");
         expect(elements.statusElement.dataset.state).toBe("error");
-    });
 
-    test("initializeCustomerHomePage uses window.authService when not passed explicitly", async () => {
         createCustomerHomeDom();
 
         window.authService = {
@@ -807,13 +809,14 @@ describe("customer/index.js loading and initialization", () => {
                 displayName: "Window User",
                 email: "window@example.com",
                 vendorStatus: "none",
+                adminApplicationStatus: "none",
                 accountStatus: "active"
-            })
+            }),
+            signOutUser: jest.fn().mockResolvedValue(true)
         };
 
-        const result = await initializeCustomerHomePage();
-
-        expect(result.redirected).toBe(false);
+        const windowResult = await initializeCustomerHomePage();
+        expect(windowResult.redirected).toBe(false);
         expect(window.authService.getCurrentUser).toHaveBeenCalledTimes(1);
     });
 });

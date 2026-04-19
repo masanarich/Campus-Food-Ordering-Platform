@@ -3,77 +3,114 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Vendor Home | Campus Food Ordering Platform</title>
+    <title>Vendor Dashboard | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Vendor portal home page for the Campus Food Ordering Platform.">
+    <meta name="description" content="Vendor dashboard for the Campus Food Ordering Platform.">
     <link rel="stylesheet" href="./index.css">
 </head>
 
-<body>
+<body class="vendor-shell">
 
-    <header>
+    <header class="app-header">
         <h1>Campus Food Ordering Platform</h1>
 
-        <nav aria-label="Primary navigation">
-            <a href="../index.html" aria-current="page">Home</a>
-            <a href="../authentication/role-choice.html">Choose Portal</a>
+        <nav class="app-nav" aria-label="Vendor dashboard navigation">
+            <a href="./index.html" aria-current="page">Dashboard</a>
+            <a href="./shop.html">Shop Details</a>
+            <a href="./products.html">Manage Menu</a>
             <a href="../authentication/profile.html">Profile</a>
-            <a href="../authentication/reset.html">Reset Password</a>
-            <a href="../authentication/login.html">Login</a>
-            <a href="../authentication/register.html">Register</a>
         </nav>
     </header>
 
-    <main>
+    <main class="vendor-main">
 
-        <section aria-labelledby="vendor-home-heading">
-            <h2 id="vendor-home-heading">Vendor Home</h2>
+        <section class="shared-section vendor-hero" aria-labelledby="vendor-home-heading">
+            <h2 id="vendor-home-heading">Vendor Dashboard</h2>
             <p>
-                Welcome to your vendor portal. View your account details, move between portals,
-                and continue working from your vendor space.
+                Run your shop from here. Review your vendor access, keep your shop details organised,
+                and jump straight into managing your menu items.
             </p>
 
             <p id="vendor-home-status" aria-live="polite"></p>
 
-            <button id="go-profile-button" type="button">Profile</button>
-            <button id="choose-portal-button" type="button">Choose Portal</button>
-            <button id="go-products-button" type="button"
-                onclick="window.location.href='./products.html'">Products</button>
+            <section class="hero-summary" aria-label="Vendor summary">
+                <article class="summary-card">
+                    <strong class="summary-label">Vendor access</strong>
+                    <p id="vendor-portal-note">Vendor account information will appear here.</p>
+                </article>
+
+                <article class="summary-card">
+                    <strong class="summary-label">Portal switching</strong>
+                    <p id="portal-summary">Your available portal buttons will appear here.</p>
+                </article>
+            </section>
+
+            <menu class="action-menu action-menu-primary" aria-label="Main vendor actions">
+                <li><button id="go-profile-button" class="button-primary" type="button">Open Profile</button></li>
+                <li><button id="go-shop-button" class="button-primary" type="button">Shop Details</button></li>
+                <li><button id="go-products-button" class="button-primary" type="button">Manage Menu</button></li>
+                <li><button id="choose-portal-button" class="button-secondary" type="button">Choose Portal</button></li>
+                <li><button id="sign-out-button" class="button-danger" type="button">Sign Out</button></li>
+            </menu>
         </section>
 
-        <section aria-labelledby="profile-overview-heading">
-            <h3 id="profile-overview-heading">Profile Overview</h3>
+        <section class="shared-section profile-panel" aria-labelledby="profile-overview-heading">
+            <h3 id="profile-overview-heading">Vendor Snapshot</h3>
 
-            <img id="profile-photo" src="" alt="User profile picture">
+            <section class="profile-snapshot" aria-label="Vendor profile snapshot">
+                <img id="profile-photo" class="profile-avatar" src="" alt="User profile picture">
 
-            <p id="profile-photo-caption">Your profile picture appears here.</p>
-            <p id="profile-name-line">Name: Loading...</p>
-            <p id="profile-role-line">Role: Loading...</p>
-            <p id="profile-email-line">Email: Loading...</p>
-            <p id="profile-vendor-line">Vendor status: Loading...</p>
+                <article class="profile-copy">
+                    <p id="profile-photo-caption" class="caption-text">Your profile picture appears here.</p>
+
+                    <section class="info-list" aria-label="Vendor profile details">
+                        <p><strong>Name:</strong> <output id="profile-name-line">Loading...</output></p>
+                        <p><strong>Current access:</strong> <output id="profile-role-line">Loading...</output></p>
+                        <p><strong>Email:</strong> <output id="profile-email-line">Loading...</output></p>
+                        <p><strong>Vendor status:</strong> <output id="profile-vendor-line">Loading...</output></p>
+                    </section>
+                </article>
+            </section>
         </section>
 
-        <section aria-labelledby="portal-shortcuts-heading">
-            <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
-
-            <p id="portal-summary">
-                Your available portal buttons will appear here.
-            </p>
-
-            <button id="go-customer-portal-button" type="button">Customer Portal</button>
-            <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
-            <button id="go-admin-portal-button" type="button">Admin Portal</button>
-            <button id="go-products-shortcut-button" type="button"
-                onclick="window.location.href='./products.html'">Manage Products</button>
-        </section>
-
-        <section aria-labelledby="vendor-notes-heading">
-            <h3 id="vendor-notes-heading">Vendor Notes</h3>
+        <section class="shared-section workspace-panel" aria-labelledby="vendor-workspace-heading">
+            <h3 id="vendor-workspace-heading">Shop Workspace</h3>
 
             <p id="welcome-message">Loading your vendor details...</p>
-            <p id="vendor-portal-note">
-                Vendor account information will appear here.
+            <p id="vendor-workspace-note">Your shop and menu workspace summary will appear here.</p>
+
+            <section class="workspace-grid" aria-label="Vendor workspace summary">
+                <article class="workspace-card">
+                    <h4>Shop Details</h4>
+                    <p>
+                        Keep your shop name, location, and customer-facing information in one place
+                        so your store stays clear and trustworthy.
+                    </p>
+                </article>
+
+                <article class="workspace-card">
+                    <h4>Menu Management</h4>
+                    <p>
+                        Add items, prices, descriptions, and photos, then update availability as your
+                        menu changes during the day.
+                    </p>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section portal-panel" aria-labelledby="portal-shortcuts-heading">
+            <h3 id="portal-shortcuts-heading">Portal Shortcuts</h3>
+
+            <p>
+                Use these shortcuts when you need to move between the customer, vendor, and admin
+                experience without leaving the signed-in part of the platform.
             </p>
+
+            <menu class="action-menu" aria-label="Portal shortcuts">
+                <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer Portal</button></li>
+                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button></li>
+                <li><button id="go-admin-portal-button" class="button-secondary" type="button">Admin Portal</button></li>
+            </menu>
         </section>
 
     </main>

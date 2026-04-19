@@ -41,6 +41,16 @@ jobs:
             grep -q "<!DOCTYPE html>" "$file"
           done
 
+      - name: Fail on non-semantic div or span tags in public HTML
+        run: |
+          if grep -RInE --include="*.html" "<[[:space:]]*/?[[:space:]]*(div|span)\b" public; then
+            echo ""
+            echo "Non-semantic <div> or <span> tags were found in public HTML files."
+            echo "Replace them with semantic elements before merging."
+            exit 1
+          fi
+          echo "No <div> or <span> tags found in public HTML files."
+
       - name: Check all CSS files are not empty
         run: |
           find public -name "*.css" | while read file; do

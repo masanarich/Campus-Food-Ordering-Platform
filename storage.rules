@@ -1,10 +1,48 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function isActiveAccount() {
+      return signedIn() &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function canManageOwnProfile(userId) {
+      return signedIn() &&
+        request.auth.uid == userId &&
+        isActiveAccount();
+    }
+
+    function canManageOwnMenu(vendorUid) {
+      return signedIn() &&
+        request.auth.uid == vendorUid &&
+        isActiveAccount() &&
+        (
+          currentUserDoc().data.vendorStatus == "approved" ||
+          currentUserDoc().data.isAdmin == true
+        );
+    }
+
+    match /profilePhotos/{userId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if canManageOwnProfile(userId);
+    }
+
+    match /menuItemPhotos/{vendorUid}/{productId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if canManageOwnMenu(vendorUid);
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

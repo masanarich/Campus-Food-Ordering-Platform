@@ -1,13 +1,12 @@
 /**
  * admin/index.js
  *
- * Admin portal landing page logic.
+ * Admin dashboard logic for authenticated admin users.
  * This file:
- * - reads the signed-in user and profile
- * - renders name, role, profile picture, email, and vendor status
- * - shows portal navigation buttons
- * - allows only admins and owners into the admin portal
- * - redirects users without admin access to a safer route
+ * - loads the signed-in user's profile
+ * - renders account and access summaries
+ * - separates admin tools from portal switching
+ * - supports sign out
  */
 
 function normalizeText(value) {
@@ -20,6 +19,30 @@ function normalizeLowerText(value) {
 
 function normalizeVendorStatus(status) {
     const value = normalizeLowerText(status);
+
+    if (value === "suspended") {
+        return "blocked";
+    }
+
+    if (
+        value === "none" ||
+        value === "pending" ||
+        value === "approved" ||
+        value === "rejected" ||
+        value === "blocked"
+    ) {
+        return value;
+    }
+
+    return "none";
+}
+
+function normalizeAdminApplicationStatus(status, isAdmin = false) {
+    const value = normalizeLowerText(status);
+
+    if (isAdmin === true) {
+        return "approved";
+    }
 
     if (value === "suspended") {
         return "blocked";
@@ -67,6 +90,8 @@ function getFallbackRoutes() {
         admin: "./index.html",
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
+        users: "./users.html",
+        disputes: "./disputes.html",
         login: "../authentication/login.html"
     };
 }
@@ -104,29 +129,17 @@ function getPortalRoute(routeName, authUtils) {
             return authUtils.PORTAL_ROUTES.roleChoice || routes.rolechoice;
         }
 
-        if (key === "login") {
+        if (key === "login" || key === "signout") {
             return authUtils.PORTAL_ROUTES.login || routes.login;
         }
     }
 
-    if (key === "customer") {
-        return routes.customer;
+    if (Object.prototype.hasOwnProperty.call(routes, key)) {
+        return routes[key];
     }
 
-    if (key === "vendor") {
-        return routes.vendor;
-    }
-
-    if (key === "admin") {
-        return routes.admin;
-    }
-
-    if (key === "rolechoice") {
-        return routes.rolechoice;
-    }
-
-    if (key === "profile") {
-        return routes.profile;
+    if (key === "signout") {
+        return routes.login;
     }
 
     return routes.login;
@@ -152,11 +165,7 @@ function normalizeProfile(profile, authUtils) {
     }
 
     const safeProfile = profile && typeof profile === "object" ? profile : {};
-    const isOwner = safeProfile.isOwner === true || safeProfile.owner === true;
-    const isAdmin =
-        safeProfile.isAdmin === true ||
-        safeProfile.admin === true ||
-        isOwner === true;
+    const isAdmin = safeProfile.isAdmin === true || safeProfile.admin === true;
 
     return {
         uid: normalizeText(safeProfile.uid),
@@ -165,12 +174,20 @@ function normalizeProfile(profile, authUtils) {
         phoneNumber: normalizeText(safeProfile.phoneNumber),
         photoURL: normalizeText(safeProfile.photoURL),
         isAdmin,
-        isOwner,
         vendorStatus: normalizeVendorStatus(safeProfile.vendorStatus),
         vendorReason: normalizeText(
             safeProfile.vendorReason ||
             safeProfile.rejectionReason ||
             safeProfile.blockReason
+        ),
+        adminApplicationStatus: normalizeAdminApplicationStatus(
+            safeProfile.adminApplicationStatus,
+            isAdmin
+        ),
+        adminApplicationReason: normalizeText(
+            safeProfile.adminApplicationReason ||
+            safeProfile.adminRejectionReason ||
+            safeProfile.adminBlockReason
         ),
         accountStatus: normalizeAccountStatus(safeProfile.accountStatus)
     };
@@ -179,8 +196,8 @@ function normalizeProfile(profile, authUtils) {
 function getRoleLabel(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
-    if (safeProfile.isOwner === true) {
-        return "Owner";
+    if (safeProfile.isAdmin === true && safeProfile.vendorStatus === "approved") {
+        return "Admin and Vendor";
     }
 
     if (safeProfile.isAdmin === true) {
@@ -197,38 +214,48 @@ function getRoleLabel(profile, authUtils) {
 function canAccessCustomerPortal(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
+    if (
+        authUtils &&
+        typeof authUtils.canAccessCustomerPortal === "function"
+    ) {
+        return authUtils.canAccessCustomerPortal(safeProfile);
+    }
+
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            hasAuthenticatedIdentity(safeProfile) ||
-            safeProfile.isAdmin === true ||
-            safeProfile.isOwner === true
-        )
+        hasAuthenticatedIdentity(safeProfile)
     );
 }
 
 function canAccessVendorPortal(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
+    if (
+        authUtils &&
+        typeof authUtils.canAccessVendorPortal === "function"
+    ) {
+        return authUtils.canAccessVendorPortal(safeProfile);
+    }
+
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            safeProfile.isOwner === true ||
-            safeProfile.isAdmin === true ||
-            safeProfile.vendorStatus === "approved"
-        )
+        safeProfile.vendorStatus === "approved"
     );
 }
 
 function canAccessAdminPortal(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
+    if (
+        authUtils &&
+        typeof authUtils.canAccessAdminPortal === "function"
+    ) {
+        return authUtils.canAccessAdminPortal(safeProfile);
+    }
+
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            safeProfile.isOwner === true ||
-            safeProfile.isAdmin === true
-        )
+        safeProfile.isAdmin === true
     );
 }
 
@@ -254,13 +281,31 @@ function getVendorStatusLabel(profile, authUtils) {
     return "Not Applied";
 }
 
+function getAdminStatusLabel(profile, authUtils) {
+    const safeProfile = normalizeProfile(profile, authUtils);
+
+    if (safeProfile.isAdmin === true) {
+        return "Approved";
+    }
+
+    if (safeProfile.adminApplicationStatus === "pending") {
+        return "Pending";
+    }
+
+    if (safeProfile.adminApplicationStatus === "rejected") {
+        return "Rejected";
+    }
+
+    if (safeProfile.adminApplicationStatus === "blocked") {
+        return "Blocked";
+    }
+
+    return "Not Applied";
+}
+
 function getPortalSummary(state) {
     if (!state) {
         return "";
-    }
-
-    if (state.profile.isOwner === true) {
-        return "You have owner access and can open every portal.";
     }
 
     if (
@@ -268,33 +313,39 @@ function getPortalSummary(state) {
         state.showVendorPortal &&
         state.showAdminPortal
     ) {
-        return "You can open the customer, vendor, and admin portals.";
+        return "You can switch between the customer, vendor, and admin portals.";
     }
 
     if (state.showCustomerPortal && state.showAdminPortal) {
-        return "You can open the customer and admin portals.";
+        return "You can switch between the customer and admin portals.";
     }
 
     if (state.showVendorPortal && state.showAdminPortal) {
-        return "You can open the vendor and admin portals.";
+        return "You can switch between the vendor and admin portals.";
     }
 
     if (state.showAdminPortal) {
-        return "You currently have admin portal access.";
+        return "You currently have admin portal access only.";
     }
 
     return "You do not currently have portal access.";
 }
 
-function getAdminPortalNote(profile, authUtils) {
+function getManagementSummary(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
 
-    if (safeProfile.isOwner === true) {
-        return "You are using the admin portal with owner access.";
+    if (safeProfile.vendorStatus === "approved") {
+        return "Manage users, review applications, and keep an eye on platform issues while still having vendor access.";
     }
 
+    return "Manage users, review applications, and prepare to handle customer support disputes from this portal.";
+}
+
+function getAdminAccessNote(profile, authUtils) {
+    const safeProfile = normalizeProfile(profile, authUtils);
+
     if (safeProfile.isAdmin === true) {
-        return "You are using the admin portal with admin access.";
+        return "Your admin access is approved and active.";
     }
 
     return "Admin access is not available right now.";
@@ -319,10 +370,11 @@ function getHomeState(profile, authUtils) {
         displayName,
         roleLabel: getRoleLabel(safeProfile, authUtils),
         vendorStatusLabel: getVendorStatusLabel(safeProfile, authUtils),
+        adminStatusLabel: getAdminStatusLabel(safeProfile, authUtils),
         welcomeMessage: getWelcomeMessage(safeProfile, authUtils),
-        adminPortalNote: getAdminPortalNote(safeProfile, authUtils),
+        managementSummary: getManagementSummary(safeProfile, authUtils),
+        adminAccessNote: getAdminAccessNote(safeProfile, authUtils),
         portalSummary: getPortalSummary({
-            profile: safeProfile,
             showCustomerPortal,
             showVendorPortal,
             showAdminPortal
@@ -330,7 +382,10 @@ function getHomeState(profile, authUtils) {
         showCustomerPortal,
         showVendorPortal,
         showAdminPortal,
-        showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1
+        showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
+        manageUsersRoute: getPortalRoute("users", authUtils),
+        disputesRoute: getPortalRoute("disputes", authUtils),
+        signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
 
@@ -405,25 +460,27 @@ function renderAdminHomePage(elements, state) {
         return;
     }
 
-    setStatusMessage(elements.statusElement, "Home page loaded.", "success");
+    setStatusMessage(elements.statusElement, "Admin dashboard loaded.", "success");
 
-    setText(elements.nameLine, `Name: ${state.displayName}`);
-    setText(elements.roleLine, `Role: ${state.roleLabel}`);
+    setText(elements.nameLine, state.displayName);
+    setText(elements.roleLine, state.roleLabel);
     setText(
         elements.emailLine,
-        `Email: ${normalizeText(state.profile.email) || "No email available"}`
+        normalizeText(state.profile.email) || "No email available"
     );
-    setText(elements.vendorLine, `Vendor status: ${state.vendorStatusLabel}`);
+    setText(elements.vendorLine, state.vendorStatusLabel);
+    setText(elements.adminLine, state.adminStatusLabel);
     setText(elements.portalSummaryElement, state.portalSummary);
     setText(elements.welcomeMessageElement, state.welcomeMessage);
-    setText(elements.adminPortalNoteElement, state.adminPortalNote);
+    setText(elements.managementSummaryElement, state.managementSummary);
+    setText(elements.adminAccessNoteElement, state.adminAccessNote);
 
     if (elements.photoCaptionElement) {
         setText(
             elements.photoCaptionElement,
             normalizeText(state.profile.photoURL)
                 ? "Your current profile picture is shown here."
-                : "No profile picture found. A default avatar is being used."
+                : "No profile picture was found, so a default avatar is being shown."
         );
     }
 
@@ -436,7 +493,6 @@ function renderAdminHomePage(elements, state) {
 
     setHidden(elements.customerPortalButton, !state.showCustomerPortal);
     setHidden(elements.vendorPortalButton, !state.showVendorPortal);
-    setHidden(elements.adminPortalButton, !state.showAdminPortal);
     setHidden(elements.choosePortalButton, !state.showChoosePortal);
 }
 
@@ -470,6 +526,59 @@ function attachNavigationHandler(options = {}) {
     };
 }
 
+function attachSignOutHandler(options = {}) {
+    const button = options.button;
+    const authService = options.authService;
+    const navigate =
+        typeof options.navigate === "function"
+            ? options.navigate
+            : function fallbackNavigate(nextRoute) {
+                window.location.href = nextRoute;
+            };
+    const nextRoute = options.nextRoute;
+    const statusElement = options.statusElement || null;
+
+    if (!button || !authService || typeof authService.signOutUser !== "function" || !nextRoute) {
+        return null;
+    }
+
+    async function handleClick(event) {
+        if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+        }
+
+        setStatusMessage(statusElement, "Signing you out...", "loading");
+
+        try {
+            await authService.signOutUser();
+            navigate(nextRoute);
+            return {
+                success: true,
+                nextRoute
+            };
+        } catch (error) {
+            const message =
+                error && error.message
+                    ? error.message
+                    : "Unable to sign out right now.";
+
+            setStatusMessage(statusElement, message, "error");
+
+            return {
+                success: false,
+                error,
+                message
+            };
+        }
+    }
+
+    button.addEventListener("click", handleClick);
+
+    return {
+        handleClick
+    };
+}
+
 async function loadAdminHomeState(dependencies = {}) {
     const authService = dependencies.authService;
     const authUtils = resolveAuthUtils(dependencies.authUtils);
@@ -493,7 +602,6 @@ async function loadAdminHomeState(dependencies = {}) {
     }
 
     const profile = await authService.getCurrentUserProfile(user.uid);
-
     const fallbackProfile = {
         uid: user.uid,
         displayName: user.displayName || "",
@@ -501,7 +609,6 @@ async function loadAdminHomeState(dependencies = {}) {
         phoneNumber: user.phoneNumber || "",
         photoURL: user.photoURL || ""
     };
-
     const state = getHomeState(profile || fallbackProfile, authUtils);
 
     if (!state.showAdminPortal) {
@@ -524,7 +631,6 @@ async function initializeAdminHomePage(options = {}) {
     const authService =
         options.authService ||
         (typeof window !== "undefined" ? window.authService : undefined);
-
     const authUtils = resolveAuthUtils(options.authUtils);
 
     if (!authService) {
@@ -546,17 +652,21 @@ async function initializeAdminHomePage(options = {}) {
         roleLine: document.querySelector("#profile-role-line"),
         emailLine: document.querySelector("#profile-email-line"),
         vendorLine: document.querySelector("#profile-vendor-line"),
+        adminLine: document.querySelector("#profile-admin-line"),
         portalSummaryElement: document.querySelector("#portal-summary"),
         welcomeMessageElement: document.querySelector("#welcome-message"),
-        adminPortalNoteElement: document.querySelector("#admin-portal-note"),
+        managementSummaryElement: document.querySelector("#management-summary"),
+        adminAccessNoteElement: document.querySelector("#admin-access-note"),
         profileButton: document.querySelector("#go-profile-button"),
+        manageUsersButton: document.querySelector("#manage-users-button"),
+        reviewDisputesButton: document.querySelector("#review-disputes-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
+        signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
-        vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
-        adminPortalButton: document.querySelector("#go-admin-portal-button")
+        vendorPortalButton: document.querySelector("#go-vendor-portal-button")
     };
 
-    setStatusMessage(elements.statusElement, "Loading your home page...", "loading");
+    setStatusMessage(elements.statusElement, "Loading your admin dashboard...", "loading");
 
     try {
         const result = await loadAdminHomeState({
@@ -567,7 +677,7 @@ async function initializeAdminHomePage(options = {}) {
         if (!result.success) {
             setStatusMessage(
                 elements.statusElement,
-                result.message || "Unable to load your home page right now.",
+                result.message || "Unable to load your admin dashboard right now.",
                 "error"
             );
 
@@ -589,10 +699,22 @@ async function initializeAdminHomePage(options = {}) {
             navigate
         });
 
+        const manageUsersController = attachNavigationHandler({
+            button: elements.manageUsersButton,
+            route: result.state.manageUsersRoute,
+            navigate
+        });
+
+        const reviewDisputesController = attachNavigationHandler({
+            button: elements.reviewDisputesButton,
+            route: result.state.disputesRoute,
+            navigate
+        });
+
         const choosePortalController = result.state.showChoosePortal
             ? attachNavigationHandler({
                 button: elements.choosePortalButton,
-                route: getPortalRoute("rolechoice", authUtils),
+                route: getPortalRoute("roleChoice", authUtils),
                 navigate
             })
             : null;
@@ -613,28 +735,30 @@ async function initializeAdminHomePage(options = {}) {
             })
             : null;
 
-        const adminPortalController = result.state.showAdminPortal
-            ? attachNavigationHandler({
-                button: elements.adminPortalButton,
-                route: getPortalRoute("admin", authUtils),
-                navigate
-            })
-            : null;
+        const signOutController = attachSignOutHandler({
+            button: elements.signOutButton,
+            authService,
+            navigate,
+            nextRoute: result.state.signOutRoute,
+            statusElement: elements.statusElement
+        });
 
         return {
             redirected: false,
             state: result.state,
             profileController,
+            manageUsersController,
+            reviewDisputesController,
             choosePortalController,
             customerPortalController,
             vendorPortalController,
-            adminPortalController
+            signOutController
         };
     } catch (error) {
         const message =
             error && error.message
                 ? error.message
-                : "Unable to load your home page right now.";
+                : "Unable to load your admin dashboard right now.";
 
         setStatusMessage(elements.statusElement, message, "error");
 
@@ -649,6 +773,7 @@ async function initializeAdminHomePage(options = {}) {
 const adminHomePage = {
     normalizeText,
     normalizeVendorStatus,
+    normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
     getPortalRoute,
@@ -659,8 +784,10 @@ const adminHomePage = {
     canAccessVendorPortal,
     canAccessAdminPortal,
     getVendorStatusLabel,
+    getAdminStatusLabel,
     getPortalSummary,
-    getAdminPortalNote,
+    getManagementSummary,
+    getAdminAccessNote,
     getWelcomeMessage,
     getHomeState,
     getDefaultAvatar,
@@ -671,6 +798,7 @@ const adminHomePage = {
     setImage,
     renderAdminHomePage,
     attachNavigationHandler,
+    attachSignOutHandler,
     loadAdminHomeState,
     initializeAdminHomePage
 };
