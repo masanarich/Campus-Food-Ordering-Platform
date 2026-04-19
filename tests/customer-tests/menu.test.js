@@ -1,14 +1,3 @@
-
-
-
-/*const {
-  addToCart,
-  removeFromCart,
-  getCart,
-  getTotal,
-  clearCart
-} = require("../../public/customer/cart");*/
-
 const {
   renderMenu,
   renderCart,
@@ -21,82 +10,59 @@ const {
   resetCart
 } = require("../../public/customer/cart");
 
-const menuItems = [
-  { id: "1", name: "Burger", price: 50 },
-  { id: "2", name: "Pizza", price: 80 },
-  { id: "3", name: "Chips", price: 30 }
-];
+describe("Menu + Cart UI", () => {
 
-function renderCart() {
-  const cartDiv = document.getElementById("cart");
-  const totalDiv = document.getElementById("total");
-
-  if (!cartDiv || !totalDiv) return;
-
-  cartDiv.innerHTML = "";
-
-  const currentCart = getCart();
-
-  currentCart.forEach(item => {
-    const section = document.createElement("section");
-
-    const btn = document.createElement("button");
-    btn.textContent = "Remove";
-
-    btn.onclick = () => {
-      removeFromCart(item.id);
-      renderCart();
-    };
-
-    section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
-    section.appendChild(btn);
-
-    cartDiv.appendChild(section);
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <section id="menu"></section>
+      <section id="cart"></section>
+      <section id="total"></section>
+    `;
+    resetCart();
   });
 
-  totalDiv.innerText = "Total: R" + getTotal();
-}
+  test("renders menu items", () => {
+    renderMenu();
 
-function renderMenu() {
-  const menuDiv = document.getElementById("menu");
-  if (!menuDiv) return;
-
-  menuDiv.innerHTML = "";
-
-  menuItems.forEach(item => {
-    const section = document.createElement("section");
-
-    const btn = document.createElement("button");
-    btn.textContent = "Add";
-
-    btn.onclick = () => {
-      addToCart(item);
-      renderCart();
-    };
-
-    section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
-    section.appendChild(btn);
-
-    menuDiv.appendChild(section);
+    const menuDiv = document.getElementById("menu");
+    expect(menuDiv.children.length).toBeGreaterThan(0);
   });
-}
 
-function getMenu() {
-  return menuItems;
-}
+  test("adds item to cart via UI", () => {
+    renderMenu();
 
-function cancelOrder() {
-  clearCart();
-  renderCart();
+    const firstButton = document.querySelector("#menu button");
+    firstButton.click();
 
-  if (typeof window !== "undefined") {
-    alert("Order cancelled");
-  }
-}
+    expect(getCart().length).toBe(1);
+  });
 
-module.exports = {
-  renderMenu,
-  renderCart,
-  getMenu,
-  cancelOrder
-};
+  test("renders cart correctly", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+
+    renderCart();
+
+    const cartDiv = document.getElementById("cart");
+    expect(cartDiv.children.length).toBe(1);
+  });
+
+  test("removes item from cart via UI", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+
+    renderCart();
+
+    const removeBtn = document.querySelector("#cart button");
+    removeBtn.click();
+
+    expect(getCart().length).toBe(0);
+  });
+
+  test("cancelOrder clears cart", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+
+    cancelOrder();
+
+    expect(getCart().length).toBe(0);
+  });
+
+});

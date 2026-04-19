@@ -4,7 +4,7 @@ const {
   getCart,
   getTotal,
   clearCart
-} = require("./cart");
+} = require("../../public/customer/cart");
 
 const menuItems = [
   { id: "1", name: "Burger", price: 50 },
