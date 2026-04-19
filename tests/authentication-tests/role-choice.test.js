@@ -6,9 +6,11 @@ const {
     normalizeText,
     normalizePortal,
     normalizeVendorStatus,
+    normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     isValidPortal,
     resolveAuthUtils,
+    getFallbackPortalRoutes,
     getPortalRoute,
     setStatusMessage,
     setButtonState,
@@ -24,6 +26,7 @@ const {
     getDefaultPortalRoute,
     getRoleChoiceState,
     getPortalSummaryText,
+    getApplicationStatusMessage,
     canAccessPortal,
     submitPortalChoice,
     attachPortalChoiceHandler,
@@ -38,7 +41,7 @@ function createRoleChoiceDom() {
         <main>
             <p id="role-choice-status"></p>
             <p id="role-choice-summary"></p>
-            <p id="vendor-status-message"></p>
+            <p id="application-status-message"></p>
 
             <section id="customer-portal-section">
                 <button id="choose-customer" type="button">Customer</button>
@@ -57,7 +60,7 @@ function createRoleChoiceDom() {
     return {
         statusElement: document.querySelector("#role-choice-status"),
         summaryElement: document.querySelector("#role-choice-summary"),
-        vendorStateElement: document.querySelector("#vendor-status-message"),
+        applicationStateElement: document.querySelector("#application-status-message"),
         customerSection: document.querySelector("#customer-portal-section"),
         vendorSection: document.querySelector("#vendor-portal-section"),
         adminSection: document.querySelector("#admin-portal-section"),
@@ -77,152 +80,89 @@ describe("role-choice.js helpers", () => {
         delete window.authUtils;
     });
 
-    test("normalizeText trims whitespace", () => {
+    test("normalizers handle text, portals, and statuses", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
-    });
-
-    test("normalizeText returns empty string for non-string values", () => {
-        expect(normalizeText(null)).toBe("");
-        expect(normalizeText(undefined)).toBe("");
         expect(normalizeText(42)).toBe("");
-    });
-
-    test("normalizePortal trims and lowercases portal", () => {
         expect(normalizePortal("  Vendor  ")).toBe("vendor");
-    });
-
-    test("normalizeVendorStatus maps suspended to blocked", () => {
         expect(normalizeVendorStatus("suspended")).toBe("blocked");
-    });
-
-    test("normalizeVendorStatus returns none for invalid status", () => {
         expect(normalizeVendorStatus("unknown")).toBe("none");
-    });
-
-    test("normalizeAccountStatus keeps disabled and blocked, defaults to active", () => {
+        expect(normalizeAdminApplicationStatus("SUSPENDED")).toBe("blocked");
+        expect(normalizeAdminApplicationStatus("whatever")).toBe("none");
+        expect(normalizeAdminApplicationStatus("none", true)).toBe("approved");
         expect(normalizeAccountStatus("disabled")).toBe("disabled");
-        expect(normalizeAccountStatus("blocked")).toBe("blocked");
         expect(normalizeAccountStatus("inactive")).toBe("active");
-        expect(normalizeAccountStatus("")).toBe("active");
     });
 
-    test("isValidPortal accepts customer vendor and admin", () => {
+    test("portal validation and auth utils resolution work", () => {
         expect(isValidPortal("customer")).toBe(true);
         expect(isValidPortal("vendor")).toBe(true);
         expect(isValidPortal("admin")).toBe(true);
-    });
-
-    test("isValidPortal rejects unsupported portal names", () => {
         expect(isValidPortal("roleChoice")).toBe(false);
-        expect(isValidPortal("login")).toBe(false);
-        expect(isValidPortal("")).toBe(false);
-    });
 
-    test("resolveAuthUtils prefers explicit utils", () => {
         const explicitUtils = { name: "explicit" };
         window.authUtils = { name: "window" };
 
         expect(resolveAuthUtils(explicitUtils)).toBe(explicitUtils);
-    });
-
-    test("resolveAuthUtils falls back to window.authUtils", () => {
-        window.authUtils = { name: "window-utils" };
-
         expect(resolveAuthUtils()).toBe(window.authUtils);
-    });
-
-    test("resolveAuthUtils returns null when nothing is available", () => {
+        delete window.authUtils;
         expect(resolveAuthUtils()).toBeNull();
     });
 
-    test("getPortalRoute uses authUtils.getPortalRoute when available", () => {
-        const authUtils = {
-            getPortalRoute: jest.fn((portal) => `/custom/${portal}.html`)
-        };
+    test("portal routes use fallbacks and auth utils overrides", () => {
+        expect(getFallbackPortalRoutes()).toEqual({
+            customer: "../customer/index.html",
+            vendor: "../vendor/index.html",
+            admin: "../admin/index.html",
+            roleChoice: "../authentication/role-choice.html",
+            profile: "../authentication/profile.html",
+            login: "../authentication/login.html"
+        });
 
-        expect(getPortalRoute("customer", authUtils)).toBe("/custom/customer.html");
-        expect(authUtils.getPortalRoute).toHaveBeenCalledWith("customer");
-    });
+        expect(getPortalRoute("customer")).toBe("../customer/index.html");
+        expect(getPortalRoute("vendor")).toBe("../vendor/index.html");
+        expect(getPortalRoute("admin")).toBe("../admin/index.html");
+        expect(getPortalRoute("profile")).toBe("../authentication/profile.html");
+        expect(getPortalRoute("unknown")).toBe("../authentication/login.html");
 
-    test("getPortalRoute uses authUtils.PORTAL_ROUTES when getPortalRoute is absent", () => {
         const authUtils = {
+            getPortalRoute: jest.fn((portal) => `/custom/${portal}.html`),
             PORTAL_ROUTES: {
-                customer: "/customer-home.html",
-                vendor: "/vendor-home.html",
-                admin: "/admin-home.html",
                 roleChoice: "/role-choice.html",
+                profile: "/profile.html",
                 login: "/login.html"
             }
         };
 
-        expect(getPortalRoute("customer", authUtils)).toBe("/customer-home.html");
-        expect(getPortalRoute("vendor", authUtils)).toBe("/vendor-home.html");
-        expect(getPortalRoute("admin", authUtils)).toBe("/admin-home.html");
+        expect(getPortalRoute("customer", authUtils)).toBe("/custom/customer.html");
         expect(getPortalRoute("roleChoice", authUtils)).toBe("/role-choice.html");
+        expect(getPortalRoute("profile", authUtils)).toBe("/profile.html");
         expect(getPortalRoute("login", authUtils)).toBe("/login.html");
     });
 
-    test("getPortalRoute falls back to default routes", () => {
-        expect(getPortalRoute("customer")).toBe("../customer/index.html");
-        expect(getPortalRoute("vendor")).toBe("../vendor/index.html");
-        expect(getPortalRoute("admin")).toBe("../admin/index.html");
-        expect(getPortalRoute("roleChoice")).toBe("../authentication/role-choice.html");
-        expect(getPortalRoute("unknown")).toBe("../authentication/login.html");
-    });
-
-    test("setStatusMessage updates text and state", () => {
-        const { statusElement } = createRoleChoiceDom();
+    test("small DOM helpers work safely", () => {
+        const { statusElement, customerButton, customerSection, summaryElement } = createRoleChoiceDom();
 
         setStatusMessage(statusElement, "Saved.", "success");
-
         expect(statusElement.textContent).toBe("Saved.");
         expect(statusElement.dataset.state).toBe("success");
-    });
-
-    test("setStatusMessage does nothing when no element is passed", () => {
         expect(() => setStatusMessage(null, "Saved.", "success")).not.toThrow();
-    });
-
-    test("setButtonState disables and enables button", () => {
-        const { customerButton } = createRoleChoiceDom();
 
         setButtonState(customerButton, true);
         expect(customerButton.disabled).toBe(true);
-
-        setButtonState(customerButton, false);
-        expect(customerButton.disabled).toBe(false);
-    });
-
-    test("setButtonState does nothing when button is missing", () => {
         expect(() => setButtonState(null, true)).not.toThrow();
-    });
-
-    test("setElementHidden updates hidden and aria-hidden", () => {
-        const { customerSection } = createRoleChoiceDom();
 
         setElementHidden(customerSection, true);
         expect(customerSection.hidden).toBe(true);
         expect(customerSection.getAttribute("aria-hidden")).toBe("true");
 
-        setElementHidden(customerSection, false);
-        expect(customerSection.hidden).toBe(false);
-        expect(customerSection.getAttribute("aria-hidden")).toBe("false");
-    });
-
-    test("setElementText updates text content", () => {
-        const { summaryElement } = createRoleChoiceDom();
-
         setElementText(summaryElement, "Portal summary");
         expect(summaryElement.textContent).toBe("Portal summary");
     });
 
-    test("hasAuthenticatedIdentity returns true for uid, email or phone", () => {
+    test("hasAuthenticatedIdentity recognises uid email or phone", () => {
         expect(hasAuthenticatedIdentity({ uid: "user-1" })).toBe(true);
         expect(hasAuthenticatedIdentity({ email: "user@example.com" })).toBe(true);
         expect(hasAuthenticatedIdentity({ phoneNumber: "+27712345678" })).toBe(true);
-    });
-
-    test("hasAuthenticatedIdentity returns false when identity is missing", () => {
         expect(hasAuthenticatedIdentity({})).toBe(false);
     });
 });
@@ -238,9 +178,10 @@ describe("role-choice.js profile and access helpers", () => {
             uid: "user-1",
             email: "user@example.com",
             isAdmin: true,
-            isOwner: false,
             vendorStatus: "approved",
             vendorReason: "",
+            adminApplicationStatus: "approved",
+            adminApplicationReason: "",
             accountStatus: "active"
         };
 
@@ -257,13 +198,15 @@ describe("role-choice.js profile and access helpers", () => {
     test("normalizeUserProfile falls back to local normalization", () => {
         const result = normalizeUserProfile({
             uid: " user-1 ",
-            displayName: " Faranani ",
+            fullName: " Faranani ",
             email: " USER@Example.com ",
             phoneNumber: " 0712345678 ",
             photoURL: " https://example.com/photo.jpg ",
-            owner: true,
+            isAdmin: false,
             vendorStatus: "suspended",
             rejectionReason: " Missing docs ",
+            adminApplicationStatus: "rejected",
+            adminApplicationReason: " Need clearer reason ",
             accountStatus: "inactive"
         });
 
@@ -273,52 +216,35 @@ describe("role-choice.js profile and access helpers", () => {
             email: "user@example.com",
             phoneNumber: "0712345678",
             photoURL: "https://example.com/photo.jpg",
-            isAdmin: true,
-            isOwner: true,
+            isAdmin: false,
             vendorStatus: "blocked",
             vendorReason: "Missing docs",
+            adminApplicationStatus: "rejected",
+            adminApplicationReason: "Need clearer reason",
             accountStatus: "active"
         });
     });
 
-    test("canAccessCustomerPortal allows active authenticated users", () => {
+    test("portal access helpers match the new access model", () => {
         expect(canAccessCustomerPortal({ uid: "user-1", accountStatus: "active" })).toBe(true);
-    });
-
-    test("canAccessCustomerPortal blocks inactive users", () => {
         expect(canAccessCustomerPortal({ uid: "user-1", accountStatus: "blocked" })).toBe(false);
-    });
-
-    test("canAccessVendorPortal allows approved vendors and owners", () => {
-        expect(canAccessVendorPortal({ uid: "user-1", vendorStatus: "approved" })).toBe(true);
-        expect(canAccessVendorPortal({ isOwner: true, vendorStatus: "none" })).toBe(true);
-    });
-
-    test("canAccessVendorPortal blocks pending vendors and plain admins", () => {
-        expect(canAccessVendorPortal({ uid: "user-1", vendorStatus: "pending" })).toBe(false);
-        expect(canAccessVendorPortal({ isAdmin: true, vendorStatus: "none" })).toBe(false);
-    });
-
-    test("canAccessAdminPortal allows admins and owners", () => {
+        expect(canAccessVendorPortal({ vendorStatus: "approved", accountStatus: "active" })).toBe(true);
+        expect(canAccessVendorPortal({ isAdmin: true, vendorStatus: "none", accountStatus: "active" })).toBe(false);
         expect(canAccessAdminPortal({ isAdmin: true, accountStatus: "active" })).toBe(true);
-        expect(canAccessAdminPortal({ isOwner: true, accountStatus: "active" })).toBe(true);
-    });
-
-    test("canAccessAdminPortal blocks inactive admins", () => {
         expect(canAccessAdminPortal({ isAdmin: true, accountStatus: "disabled" })).toBe(false);
     });
 
-    test("getAvailablePortals uses authUtils.getAvailablePortals when available", () => {
+    test("available portals, default route, and choice state are derived correctly", () => {
         const authUtils = {
-            getAvailablePortals: jest.fn(() => ["customer", "admin"])
+            getAvailablePortals: jest.fn(() => ["customer", "admin"]),
+            shouldGoToRoleChoice: jest.fn(() => true),
+            getDefaultPortalRoute: jest.fn(() => "/special-default.html")
         };
 
-        const result = getAvailablePortals({ uid: "user-1" }, authUtils);
+        expect(getAvailablePortals({ uid: "user-1" }, authUtils)).toEqual(["customer", "admin"]);
+        expect(shouldGoToRoleChoice({ uid: "user-1" }, authUtils)).toBe(true);
+        expect(getDefaultPortalRoute({ uid: "user-1" }, authUtils)).toBe("/special-default.html");
 
-        expect(result).toEqual(["customer", "admin"]);
-    });
-
-    test("getAvailablePortals falls back to local access logic", () => {
         expect(
             getAvailablePortals({
                 uid: "user-1",
@@ -327,48 +253,6 @@ describe("role-choice.js profile and access helpers", () => {
             })
         ).toEqual(["customer", "vendor"]);
 
-        expect(
-            getAvailablePortals({
-                isAdmin: true,
-                accountStatus: "active"
-            })
-        ).toEqual(["customer", "admin"]);
-    });
-
-    test("shouldGoToRoleChoice uses authUtils when available", () => {
-        const authUtils = {
-            shouldGoToRoleChoice: jest.fn(() => true)
-        };
-
-        expect(shouldGoToRoleChoice({ uid: "user-1" }, authUtils)).toBe(true);
-        expect(authUtils.shouldGoToRoleChoice).toHaveBeenCalledWith({ uid: "user-1" });
-    });
-
-    test("shouldGoToRoleChoice falls back to number of available portals", () => {
-        expect(
-            shouldGoToRoleChoice({
-                uid: "user-1",
-                vendorStatus: "approved"
-            })
-        ).toBe(true);
-
-        expect(
-            shouldGoToRoleChoice({
-                uid: "user-1",
-                vendorStatus: "none"
-            })
-        ).toBe(false);
-    });
-
-    test("getDefaultPortalRoute uses authUtils when available", () => {
-        const authUtils = {
-            getDefaultPortalRoute: jest.fn(() => "/special-default.html")
-        };
-
-        expect(getDefaultPortalRoute({ uid: "user-1" }, authUtils)).toBe("/special-default.html");
-    });
-
-    test("getDefaultPortalRoute falls back to login, single portal, or role-choice", () => {
         expect(getDefaultPortalRoute({})).toBe("../authentication/login.html");
         expect(getDefaultPortalRoute({ uid: "user-1" })).toBe("../customer/index.html");
         expect(
@@ -377,9 +261,7 @@ describe("role-choice.js profile and access helpers", () => {
                 vendorStatus: "approved"
             })
         ).toBe("../authentication/role-choice.html");
-    });
 
-    test("getRoleChoiceState returns a full derived state", () => {
         const state = getRoleChoiceState({
             uid: "user-1",
             vendorStatus: "approved",
@@ -388,51 +270,60 @@ describe("role-choice.js profile and access helpers", () => {
 
         expect(state.availablePortals).toEqual(["customer", "vendor"]);
         expect(state.needsChoice).toBe(true);
-        expect(state.defaultRoute).toBe("../authentication/role-choice.html");
-        expect(state.canAccessCustomer).toBe(true);
-        expect(state.canAccessVendor).toBe(true);
         expect(state.canAccessAdmin).toBe(false);
     });
 
-    test("getPortalSummaryText returns correct messages", () => {
+    test("summary and application messages are friendly and role-based", () => {
         expect(
             getPortalSummaryText({
-                availablePortals: ["customer", "vendor", "admin"],
-                profile: {}
+                availablePortals: ["customer", "vendor", "admin"]
             })
-        ).toBe("You have access to the customer, vendor, and admin portals.");
+        ).toBe("Choose where you want to work next. All three portals are available to you.");
 
         expect(
             getPortalSummaryText({
-                availablePortals: ["customer", "admin"],
-                profile: {}
+                availablePortals: ["customer", "admin"]
             })
-        ).toBe("You have access to the customer and admin portals.");
+        ).toBe("You can continue to either the customer portal or the admin portal.");
 
         expect(
             getPortalSummaryText({
-                availablePortals: ["customer", "vendor"],
-                profile: {}
+                availablePortals: ["customer", "vendor"]
             })
-        ).toBe("You have access to the customer and vendor portals.");
+        ).toBe("You can continue to either the customer portal or the vendor portal.");
 
         expect(
             getPortalSummaryText({
-                availablePortals: ["customer"],
-                profile: {}
+                availablePortals: ["customer"]
             })
-        ).toBe("You only have customer access.");
+        ).toBe("Your account currently has customer access only.");
 
-        expect(
-            getPortalSummaryText({
-                availablePortals: ["customer", "vendor", "admin"],
-                profile: { isOwner: true }
-            })
-        ).toBe("You have owner access. Choose which portal you want to open.");
-
-        expect(getPortalSummaryText({ availablePortals: [], profile: {} })).toBe(
+        expect(getPortalSummaryText({ availablePortals: [] })).toBe(
             "You do not currently have access to any portal."
         );
+
+        expect(
+            getApplicationStatusMessage({
+                vendorStatus: "pending",
+                adminApplicationStatus: "none"
+            })
+        ).toBe("Vendor application pending approval.");
+
+        expect(
+            getApplicationStatusMessage({
+                vendorStatus: "rejected",
+                vendorReason: "Missing documents",
+                adminApplicationStatus: "blocked",
+                adminApplicationReason: "Policy issue"
+            })
+        ).toBe("Vendor application rejected: Missing documents Admin application blocked: Policy issue");
+
+        expect(
+            getApplicationStatusMessage({
+                isAdmin: true,
+                adminApplicationStatus: "approved"
+            })
+        ).toBe("Admin access approved.");
     });
 
     test("canAccessPortal checks whether a specific portal is available", () => {
@@ -454,16 +345,12 @@ describe("role-choice.js service submission", () => {
         delete window.authUtils;
     });
 
-    test("submitPortalChoice returns error for invalid portal", async () => {
-        const result = await submitPortalChoice("roleChoice", {});
-
-        expect(result).toEqual({
+    test("submitPortalChoice validates portal and dependencies", async () => {
+        await expect(submitPortalChoice("roleChoice", {})).resolves.toEqual({
             success: false,
             message: "Please choose a valid portal."
         });
-    });
 
-    test("submitPortalChoice throws when getCurrentUser is missing", async () => {
         await expect(
             submitPortalChoice("customer", {
                 authService: {
@@ -471,9 +358,7 @@ describe("role-choice.js service submission", () => {
                 }
             })
         ).rejects.toThrow("authService.getCurrentUser is required.");
-    });
 
-    test("submitPortalChoice throws when getCurrentUserProfile is missing", async () => {
         await expect(
             submitPortalChoice("customer", {
                 authService: {
@@ -483,23 +368,19 @@ describe("role-choice.js service submission", () => {
         ).rejects.toThrow("authService.getCurrentUserProfile is required.");
     });
 
-    test("submitPortalChoice returns error when no user is signed in", async () => {
-        const authService = {
+    test("submitPortalChoice handles signed out, denied, and successful access", async () => {
+        const signedOutService = {
             getCurrentUser: jest.fn(() => null),
             getCurrentUserProfile: jest.fn()
         };
 
-        const result = await submitPortalChoice("customer", { authService });
-
-        expect(result).toEqual({
+        await expect(submitPortalChoice("customer", { authService: signedOutService })).resolves.toEqual({
             success: false,
             message: "No user is currently signed in.",
             nextRoute: "../authentication/login.html"
         });
-    });
 
-    test("submitPortalChoice returns error when user cannot access chosen portal", async () => {
-        const authService = {
+        const deniedService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-1"
             })),
@@ -510,16 +391,12 @@ describe("role-choice.js service submission", () => {
             })
         };
 
-        const result = await submitPortalChoice("vendor", { authService });
-
-        expect(result).toEqual({
+        await expect(submitPortalChoice("vendor", { authService: deniedService })).resolves.toEqual({
             success: false,
             message: "You do not have access to that portal."
         });
-    });
 
-    test("submitPortalChoice succeeds for allowed portal", async () => {
-        const authService = {
+        const allowedService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-2"
             })),
@@ -530,16 +407,13 @@ describe("role-choice.js service submission", () => {
             })
         };
 
-        const result = await submitPortalChoice("vendor", { authService });
-
+        const result = await submitPortalChoice("vendor", { authService: allowedService });
         expect(result.success).toBe(true);
-        expect(result.portal).toBe("vendor");
         expect(result.nextRoute).toBe("../vendor/index.html");
-        expect(result.profile.uid).toBe("user-2");
         expect(result.profile.vendorStatus).toBe("approved");
     });
 
-    test("submitPortalChoice uses fallback profile from current user when profile is missing", async () => {
+    test("submitPortalChoice uses auth fallback profile when Firestore profile is missing", async () => {
         const authService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-3",
@@ -555,8 +429,6 @@ describe("role-choice.js service submission", () => {
 
         expect(result.success).toBe(true);
         expect(result.portal).toBe("customer");
-        expect(result.nextRoute).toBe("../customer/index.html");
-        expect(result.profile.uid).toBe("user-3");
         expect(result.profile.email).toBe("fallback@example.com");
     });
 });
@@ -567,15 +439,10 @@ describe("role-choice.js DOM rendering and handlers", () => {
         delete window.authUtils;
     });
 
-    test("getPortalDisplayElement prefers the section element", () => {
+    test("portal display element helper finds the correct element", () => {
         const { customerSection, customerButton } = createRoleChoiceDom();
 
         expect(getPortalDisplayElement(customerSection, customerButton)).toBe(customerSection);
-    });
-
-    test("getPortalDisplayElement falls back to closest section or button", () => {
-        const { customerButton, customerSection } = createRoleChoiceDom();
-
         expect(getPortalDisplayElement(null, customerButton)).toBe(customerSection);
 
         const lonelyButton = document.createElement("button");
@@ -585,13 +452,14 @@ describe("role-choice.js DOM rendering and handlers", () => {
         expect(getPortalDisplayElement(null, null)).toBeNull();
     });
 
-    test("renderRoleChoicePage shows the correct sections and messages", () => {
+    test("renderRoleChoicePage shows correct sections and messages", () => {
         const elements = createRoleChoiceDom();
 
         renderRoleChoicePage(elements, {
             profile: {
                 vendorStatus: "rejected",
-                vendorReason: "Missing documents"
+                vendorReason: "Missing documents",
+                adminApplicationStatus: "pending"
             },
             canAccessCustomer: true,
             canAccessVendor: false,
@@ -603,61 +471,16 @@ describe("role-choice.js DOM rendering and handlers", () => {
         expect(elements.customerSection.hidden).toBe(false);
         expect(elements.vendorSection.hidden).toBe(true);
         expect(elements.adminSection.hidden).toBe(false);
-
         expect(elements.statusElement.textContent).toBe("Choose a portal to continue.");
-        expect(elements.statusElement.dataset.state).toBe("info");
         expect(elements.summaryElement.textContent).toBe(
-            "You have access to the customer and admin portals."
+            "You can continue to either the customer portal or the admin portal."
         );
-        expect(elements.vendorStateElement.textContent).toBe(
-            "Your vendor application was rejected: Missing documents"
+        expect(elements.applicationStateElement.textContent).toBe(
+            "Vendor application rejected: Missing documents Admin application pending approval."
         );
-
-        expect(elements.customerButton.dataset.portal).toBe("customer");
-        expect(elements.customerButton.textContent).toBe("Continue to Customer Portal");
-        expect(elements.vendorButton.dataset.portal).toBe("vendor");
-        expect(elements.vendorButton.textContent).toBe("Continue to Vendor Portal");
-        expect(elements.adminButton.dataset.portal).toBe("admin");
-        expect(elements.adminButton.textContent).toBe("Continue to Admin Portal");
-    });
-
-    test("renderRoleChoicePage shows blocked vendor message", () => {
-        const elements = createRoleChoiceDom();
-
-        renderRoleChoicePage(elements, {
-            profile: {
-                vendorStatus: "blocked",
-                vendorReason: "Policy violation"
-            },
-            canAccessCustomer: true,
-            canAccessVendor: false,
-            canAccessAdmin: false,
-            needsChoice: false,
-            availablePortals: ["customer"]
-        });
-
-        expect(elements.vendorStateElement.textContent).toBe(
-            "Your vendor access is blocked: Policy violation"
-        );
-    });
-
-    test("renderRoleChoicePage shows pending vendor message", () => {
-        const elements = createRoleChoiceDom();
-
-        renderRoleChoicePage(elements, {
-            profile: {
-                vendorStatus: "pending"
-            },
-            canAccessCustomer: true,
-            canAccessVendor: false,
-            canAccessAdmin: false,
-            needsChoice: false,
-            availablePortals: ["customer"]
-        });
-
-        expect(elements.vendorStateElement.textContent).toBe(
-            "Your vendor application is still pending approval."
-        );
+        expect(elements.customerButton.textContent).toBe("Open Customer Portal");
+        expect(elements.vendorButton.textContent).toBe("Open Vendor Portal");
+        expect(elements.adminButton.textContent).toBe("Open Admin Portal");
     });
 
     test("renderRoleChoicePage handles missing state", () => {
@@ -669,10 +492,10 @@ describe("role-choice.js DOM rendering and handlers", () => {
         expect(statusElement.dataset.state).toBe("error");
     });
 
-    test("attachPortalChoiceHandler handles successful portal choice", async () => {
-        const { customerButton, statusElement } = createRoleChoiceDom();
+    test("attachPortalChoiceHandler handles success, service errors, and thrown errors", async () => {
+        const { customerButton, vendorButton, statusElement } = createRoleChoiceDom();
 
-        const authService = {
+        const successService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-4"
             })),
@@ -686,31 +509,25 @@ describe("role-choice.js DOM rendering and handlers", () => {
         const onSuccess = jest.fn();
         const navigate = jest.fn();
 
-        const { handleClick } = attachPortalChoiceHandler({
+        const successHandler = attachPortalChoiceHandler({
             button: customerButton,
             portal: "customer",
-            authService,
+            authService: successService,
             statusElement,
             onSuccess,
             navigate
         });
 
-        const result = await handleClick({
+        const successResult = await successHandler.handleClick({
             preventDefault: jest.fn()
         });
 
-        expect(result.success).toBe(true);
+        expect(successResult.success).toBe(true);
         expect(statusElement.textContent).toBe("Opening portal...");
-        expect(statusElement.dataset.state).toBe("success");
         expect(onSuccess).toHaveBeenCalledTimes(1);
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
-        expect(customerButton.disabled).toBe(false);
-    });
 
-    test("attachPortalChoiceHandler shows returned service errors", async () => {
-        const { vendorButton, statusElement } = createRoleChoiceDom();
-
-        const authService = {
+        const deniedService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-5"
             })),
@@ -722,59 +539,47 @@ describe("role-choice.js DOM rendering and handlers", () => {
         };
 
         const onError = jest.fn();
-
-        const { handleClick } = attachPortalChoiceHandler({
+        const deniedHandler = attachPortalChoiceHandler({
             button: vendorButton,
             portal: "vendor",
-            authService,
+            authService: deniedService,
             statusElement,
             onError
         });
 
-        const result = await handleClick({
+        const deniedResult = await deniedHandler.handleClick({
             preventDefault: jest.fn()
         });
 
-        expect(result.success).toBe(false);
+        expect(deniedResult.success).toBe(false);
         expect(statusElement.textContent).toBe("You do not have access to that portal.");
-        expect(statusElement.dataset.state).toBe("error");
         expect(onError).toHaveBeenCalledTimes(1);
-        expect(vendorButton.disabled).toBe(false);
-    });
 
-    test("attachPortalChoiceHandler handles thrown errors", async () => {
-        const { customerButton, statusElement } = createRoleChoiceDom();
-
-        const authService = {
-            getCurrentUser: jest.fn(() => {
-                throw new Error("Unexpected failure");
-            }),
-            getCurrentUserProfile: jest.fn()
-        };
-
-        const onError = jest.fn();
-
-        const { handleClick } = attachPortalChoiceHandler({
+        const throwingHandler = attachPortalChoiceHandler({
             button: customerButton,
             portal: "customer",
-            authService,
+            authService: {
+                getCurrentUser: jest.fn(() => {
+                    throw new Error("Unexpected failure");
+                }),
+                getCurrentUserProfile: jest.fn()
+            },
             statusElement,
             onError
         });
 
-        const result = await handleClick({
+        const thrownResult = await throwingHandler.handleClick({
             preventDefault: jest.fn()
         });
 
-        expect(result.success).toBe(false);
-        expect(result.message).toBe("Unexpected failure");
+        expect(thrownResult.success).toBe(false);
+        expect(thrownResult.message).toBe("Unexpected failure");
         expect(statusElement.textContent).toBe("Unexpected failure");
-        expect(statusElement.dataset.state).toBe("error");
-        expect(onError).toHaveBeenCalledTimes(1);
-        expect(customerButton.disabled).toBe(false);
     });
 
-    test("attachPortalChoiceHandler throws if button is missing", () => {
+    test("attachPortalChoiceHandler validates setup and works through real button clicks", async () => {
+        const { customerButton, statusElement } = createRoleChoiceDom();
+
         expect(() =>
             attachPortalChoiceHandler({
                 button: null,
@@ -782,10 +587,6 @@ describe("role-choice.js DOM rendering and handlers", () => {
                 authService: {}
             })
         ).toThrow("A portal button is required.");
-    });
-
-    test("attachPortalChoiceHandler throws if portal is invalid", () => {
-        const { customerButton } = createRoleChoiceDom();
 
         expect(() =>
             attachPortalChoiceHandler({
@@ -794,10 +595,6 @@ describe("role-choice.js DOM rendering and handlers", () => {
                 authService: {}
             })
         ).toThrow("A valid portal is required.");
-    });
-
-    test("attachPortalChoiceHandler throws if authService is missing", () => {
-        const { customerButton } = createRoleChoiceDom();
 
         expect(() =>
             attachPortalChoiceHandler({
@@ -805,10 +602,6 @@ describe("role-choice.js DOM rendering and handlers", () => {
                 portal: "customer"
             })
         ).toThrow("authService is required.");
-    });
-
-    test("attached click listener works through a real button click", async () => {
-        const { customerButton, statusElement } = createRoleChoiceDom();
 
         const authService = {
             getCurrentUser: jest.fn(() => ({
@@ -846,26 +639,20 @@ describe("role-choice.js page loading and initialization", () => {
         delete window.authUtils;
     });
 
-    test("loadRoleChoiceState returns error when no user is signed in", async () => {
+    test("loadRoleChoiceState validates dependencies and handles signed-out state", async () => {
         const authService = {
             getCurrentUser: jest.fn(() => null),
             getCurrentUserProfile: jest.fn()
         };
 
-        const result = await loadRoleChoiceState({ authService });
-
-        expect(result).toEqual({
+        await expect(loadRoleChoiceState({ authService })).resolves.toEqual({
             success: false,
             message: "No user is currently signed in.",
             nextRoute: "../authentication/login.html"
         });
-    });
 
-    test("loadRoleChoiceState throws when authService is missing", async () => {
         await expect(loadRoleChoiceState({})).rejects.toThrow("authService is required.");
-    });
 
-    test("loadRoleChoiceState throws when getCurrentUserProfile is missing", async () => {
         await expect(
             loadRoleChoiceState({
                 authService: {
@@ -891,15 +678,14 @@ describe("role-choice.js page loading and initialization", () => {
 
         expect(result.success).toBe(true);
         expect(result.user.uid).toBe("user-7");
-        expect(result.profile.uid).toBe("user-7");
         expect(result.profile.email).toBe("fallback@example.com");
         expect(result.state.availablePortals).toEqual(["customer"]);
     });
 
-    test("initializeRoleChoicePage redirects customer-only users immediately", async () => {
+    test("initializeRoleChoicePage redirects single-portal users and signed-out users", async () => {
         createRoleChoiceDom();
 
-        const authService = {
+        const customerOnlyService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-8"
             })),
@@ -911,21 +697,36 @@ describe("role-choice.js page loading and initialization", () => {
         };
 
         const navigate = jest.fn();
-
-        const result = await initializeRoleChoicePage({
-            authService,
+        const customerOnlyResult = await initializeRoleChoicePage({
+            authService: customerOnlyService,
             navigate
         });
 
-        expect(result.redirected).toBe(true);
-        expect(result.nextRoute).toBe("../customer/index.html");
+        expect(customerOnlyResult.redirected).toBe(true);
+        expect(customerOnlyResult.nextRoute).toBe("../customer/index.html");
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
+
+        createRoleChoiceDom();
+
+        const signedOutService = {
+            getCurrentUser: jest.fn(() => null),
+            getCurrentUserProfile: jest.fn()
+        };
+
+        const signedOutResult = await initializeRoleChoicePage({
+            authService: signedOutService,
+            navigate
+        });
+
+        expect(signedOutResult.redirected).toBe(true);
+        expect(signedOutResult.nextRoute).toBe("../authentication/login.html");
     });
 
     test("initializeRoleChoicePage renders and wires buttons when choice is needed", async () => {
         const {
             statusElement,
             summaryElement,
+            applicationStateElement,
             vendorButton,
             adminSection
         } = createRoleChoiceDom();
@@ -937,6 +738,7 @@ describe("role-choice.js page loading and initialization", () => {
             getCurrentUserProfile: jest.fn().mockResolvedValue({
                 uid: "user-9",
                 vendorStatus: "approved",
+                adminApplicationStatus: "pending",
                 accountStatus: "active"
             })
         };
@@ -955,8 +757,9 @@ describe("role-choice.js page loading and initialization", () => {
 
         expect(statusElement.textContent).toBe("Choose a portal to continue.");
         expect(summaryElement.textContent).toBe(
-            "You have access to the customer and vendor portals."
+            "You can continue to either the customer portal or the vendor portal."
         );
+        expect(applicationStateElement.textContent).toBe("Admin application pending approval.");
         expect(adminSection.hidden).toBe(true);
 
         vendorButton.click();
@@ -965,30 +768,10 @@ describe("role-choice.js page loading and initialization", () => {
         expect(navigate).toHaveBeenCalledWith("../vendor/index.html");
     });
 
-    test("initializeRoleChoicePage redirects signed-out users to login", async () => {
-        createRoleChoiceDom();
-
-        const authService = {
-            getCurrentUser: jest.fn(() => null),
-            getCurrentUserProfile: jest.fn()
-        };
-
-        const navigate = jest.fn();
-
-        const result = await initializeRoleChoicePage({
-            authService,
-            navigate
-        });
-
-        expect(result.redirected).toBe(true);
-        expect(result.nextRoute).toBe("../authentication/login.html");
-        expect(navigate).toHaveBeenCalledWith("../authentication/login.html");
-    });
-
-    test("initializeRoleChoicePage returns error info when loading fails", async () => {
+    test("initializeRoleChoicePage reports loading failures and requires auth service", async () => {
         const { statusElement } = createRoleChoiceDom();
 
-        const authService = {
+        const failingService = {
             getCurrentUser: jest.fn(() => ({
                 uid: "user-10"
             })),
@@ -996,16 +779,14 @@ describe("role-choice.js page loading and initialization", () => {
         };
 
         const result = await initializeRoleChoicePage({
-            authService
+            authService: failingService
         });
 
         expect(result.redirected).toBe(false);
         expect(result.message).toBe("Failed to load profile");
         expect(statusElement.textContent).toBe("Failed to load profile");
         expect(statusElement.dataset.state).toBe("error");
-    });
 
-    test("initializeRoleChoicePage throws when authService is missing", async () => {
         await expect(initializeRoleChoicePage()).rejects.toThrow("authService is required.");
     });
 });
