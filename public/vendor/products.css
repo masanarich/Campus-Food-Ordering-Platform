@@ -230,6 +230,47 @@
     min-width: 8.8rem;
 }
 
+#products-list .product-card-actions .button-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    border-color: transparent;
+    color: var(--accent-contrast);
+    text-align: center;
+}
+
+#products-list .product-card-actions .button-primary:hover,
+#products-list .product-card-actions .button-primary:focus {
+    background: linear-gradient(135deg, #d67826, #8e4309);
+    color: var(--accent-contrast);
+}
+
+#products-list .product-card-actions .button-secondary {
+    background: var(--surface-strong);
+    border-color: var(--border-strong);
+    color: var(--text);
+    text-align: center;
+}
+
+#products-list .product-card-actions .button-secondary:hover,
+#products-list .product-card-actions .button-secondary:focus {
+    background: var(--accent-soft);
+    border-color: rgba(198, 107, 29, 0.32);
+    color: var(--accent-dark);
+}
+
+#products-list .product-card-actions .button-danger {
+    background: var(--danger-soft);
+    border-color: rgba(139, 47, 36, 0.2);
+    color: var(--danger-text);
+    text-align: center;
+}
+
+#products-list .product-card-actions .button-danger:hover,
+#products-list .product-card-actions .button-danger:focus {
+    background: #f9d6cf;
+    border-color: rgba(139, 47, 36, 0.3);
+    color: #78251b;
+}
+
 .products-modal {
     width: min(1100px, calc(100vw - 2rem));
     max-height: calc(100vh - 2rem);
