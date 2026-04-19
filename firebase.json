@@ -35,5 +35,23 @@
       "\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js",
       "\\.\\./\\.\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js"
     }
+  },
+  "emulators": {
+    "apphosting": {
+      "port": 8080,
+      "rootDirectory": "./",
+      "startCommand": "npm run dev"
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "database": {
+      "port": 9000
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
   }
+  
 }

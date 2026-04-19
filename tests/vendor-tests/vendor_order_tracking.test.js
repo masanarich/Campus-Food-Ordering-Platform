@@ -4,7 +4,10 @@
  * Tests for public/vendor/order_tracking/order_trackingv.js
  */
 
-const { onSnapshot, updateDoc } = require("../__mocks__/firebase-firestore.js");
+import { connectFirestoreEmulator } from "firebase/firestore";
+import { db } from "../../public/authentication/config.js";
+
+connectFirestoreEmulator(db, "localhost", 8080);
 
 beforeEach(() => {
   jest.resetModules();
