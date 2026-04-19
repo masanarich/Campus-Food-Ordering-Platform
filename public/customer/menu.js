@@ -37,7 +37,7 @@ function renderMenu() {
     section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
     section.appendChild(btn);
 
-    menuDiv.appendChild(div);
+    menuDiv.appendChild(section);
   });
 }
 
@@ -67,7 +67,7 @@ function renderCart() {
     section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
     section.appendChild(btn);
 
-    cartDiv.appendChild(div);
+    cartDiv.appendChild(section);
   });
 
   totalDiv.innerText = "Total: R" + total;
