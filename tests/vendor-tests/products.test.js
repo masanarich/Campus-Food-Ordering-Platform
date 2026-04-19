@@ -94,7 +94,7 @@ function createDom() {
         </dialog>
 
         <section>
-            <div id="editing-state-pill"></div>
+            <p id="editing-state-pill"></p>
             <output id="product-name-output"></output>
             <output id="product-category-output"></output>
             <output id="product-description-output"></output>

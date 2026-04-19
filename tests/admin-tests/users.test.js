@@ -46,11 +46,11 @@ function createDom() {
                 <output id="users-pending-admin-count">0</output>
                 <output id="users-disabled-count">0</output>
                 <output id="users-current-filter">All</output>
-                <span id="users-range-summary"></span>
-                <span id="users-page-indicator"></span>
+                <output id="users-range-summary"></output>
+                <output id="users-page-indicator"></output>
                 <button id="previous-page-button" type="button">Previous</button>
                 <button id="next-page-button" type="button">Next</button>
-                <div id="users-empty-state" hidden></div>
+                <section id="users-empty-state" hidden></section>
                 <ul id="users-list"></ul>
             </section>
         </main>
@@ -59,12 +59,12 @@ function createDom() {
         <button id="modal-close-button" type="button">Close</button>
         <h3 id="modal-user-name"></h3>
         <p id="modal-user-email"></p>
-        <span id="modal-user-uid"></span>
-        <span id="modal-user-role"></span>
-        <span id="modal-user-vendor-status"></span>
-        <span id="modal-user-admin-status"></span>
-        <span id="modal-user-account-status"></span>
-        <span id="modal-user-phone"></span>
+        <output id="modal-user-uid"></output>
+        <output id="modal-user-role"></output>
+        <output id="modal-user-vendor-status"></output>
+        <output id="modal-user-admin-status"></output>
+        <output id="modal-user-account-status"></output>
+        <output id="modal-user-phone"></output>
         <textarea id="modal-review-note"></textarea>
         <p id="modal-warning"></p>
         <p id="modal-action-status"></p>

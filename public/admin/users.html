@@ -26,35 +26,35 @@
 
     <main class="admin-main admin-users-main">
         <section class="page-hero shared-section users-hero" aria-labelledby="users-heading">
-            <div class="hero-top-row">
-                <div>
+            <header class="hero-top-row">
+                <section>
                     <h2 id="users-heading">Manage Users</h2>
                     <p>
                         Review customers, approve vendor and admin applications, disable accounts,
                         and keep platform access under control from one admin workspace.
                     </p>
-                </div>
+                </section>
 
                 <button id="back-button" class="button-primary" type="button">Back to Admin Dashboard</button>
-            </div>
+            </header>
 
             <p id="users-status" aria-live="polite">Loading users...</p>
 
-            <div class="hero-controls">
+            <section class="hero-controls" aria-label="User search and pagination controls">
                 <label class="search-field" for="user-search">
-                    <span>Search users</span>
+                    <strong>Search users</strong>
                     <input id="user-search" type="search" placeholder="Search by name, email, UID, phone, or status">
                 </label>
 
                 <label class="page-size-field" for="page-size-select">
-                    <span>Users per page</span>
+                    <strong>Users per page</strong>
                     <select id="page-size-select">
                         <option value="12">12</option>
                         <option value="24" selected>24</option>
                         <option value="48">48</option>
                     </select>
                 </label>
-            </div>
+            </section>
 
             <menu class="filter-menu users-filter-menu" aria-label="User filters">
                 <li><button id="filter-all" type="button" data-filter="all" aria-pressed="true">All</button></li>
@@ -76,64 +76,64 @@
         <section class="shared-section users-summary-section" aria-labelledby="users-overview-heading">
             <h3 id="users-overview-heading">Overview</h3>
 
-            <div class="stats-grid">
+            <section class="stats-grid" aria-label="User overview statistics">
                 <article class="stats-card">
-                    <span class="stats-label">Total users</span>
+                    <strong class="stats-label">Total users</strong>
                     <output id="users-total-count">0</output>
                 </article>
 
                 <article class="stats-card">
-                    <span class="stats-label">Visible users</span>
+                    <strong class="stats-label">Visible users</strong>
                     <output id="users-visible-count">0</output>
                 </article>
 
                 <article class="stats-card">
-                    <span class="stats-label">Pending vendor</span>
+                    <strong class="stats-label">Pending vendor</strong>
                     <output id="users-pending-vendor-count">0</output>
                 </article>
 
                 <article class="stats-card">
-                    <span class="stats-label">Pending admin</span>
+                    <strong class="stats-label">Pending admin</strong>
                     <output id="users-pending-admin-count">0</output>
                 </article>
 
                 <article class="stats-card">
-                    <span class="stats-label">Disabled</span>
+                    <strong class="stats-label">Disabled</strong>
                     <output id="users-disabled-count">0</output>
                 </article>
 
                 <article class="stats-card">
-                    <span class="stats-label">Current filter</span>
+                    <strong class="stats-label">Current filter</strong>
                     <output id="users-current-filter">All</output>
                 </article>
-            </div>
+            </section>
         </section>
 
         <section class="shared-section users-results-section" aria-labelledby="users-results-heading">
-            <div class="results-header">
-                <div>
+            <header class="results-header">
+                <section>
                     <h3 id="users-results-heading">Accounts</h3>
                     <p>Each account has one main manage action so the page stays clean even when the user list grows.
                     </p>
-                </div>
+                </section>
 
-                <div class="pagination-summary">
-                    <span id="users-range-summary">Showing 0 of 0</span>
-                </div>
-            </div>
+                <p class="pagination-summary">
+                    <output id="users-range-summary">Showing 0 of 0</output>
+                </p>
+            </header>
 
-            <div id="users-empty-state" class="users-empty-state" hidden>
+            <section id="users-empty-state" class="users-empty-state" hidden>
                 <h4>No matching users</h4>
                 <p>Try another search term or switch to a different filter.</p>
-            </div>
+            </section>
 
-            <div class="users-table-scroll">
+            <section class="users-table-scroll">
                 <ul id="users-list" class="users-list users-list-rows" aria-live="polite"></ul>
-            </div>
+            </section>
 
             <menu class="pagination-controls" aria-label="Users pagination">
                 <li><button id="previous-page-button" class="button-secondary" type="button">Previous</button></li>
-                <li><span id="users-page-indicator">Page 1 of 1</span></li>
+                <li><output id="users-page-indicator">Page 1 of 1</output></li>
                 <li><button id="next-page-button" class="button-secondary" type="button">Next</button></li>
             </menu>
         </section>
@@ -141,30 +141,30 @@
 
     <dialog id="user-modal" class="user-modal">
         <form method="dialog" class="user-modal-card">
-            <div class="user-modal-head">
-                <div>
+            <header class="user-modal-head">
+                <section>
                     <h3 id="modal-user-name">User</h3>
                     <p id="modal-user-email">email@example.com</p>
-                </div>
+                </section>
 
                 <button id="modal-close-button" class="button-secondary modal-close-button" type="button"
                     aria-label="Close manage user modal">
                     Close
                 </button>
-            </div>
+            </header>
 
-            <div class="user-modal-body">
+            <section class="user-modal-body">
                 <section class="modal-block" aria-labelledby="modal-account-heading">
                     <h4 id="modal-account-heading">Account Snapshot</h4>
 
-                    <div class="modal-kv-grid">
-                        <p><strong>UID:</strong> <span id="modal-user-uid">-</span></p>
-                        <p><strong>Main role:</strong> <span id="modal-user-role">-</span></p>
-                        <p><strong>Vendor status:</strong> <span id="modal-user-vendor-status">-</span></p>
-                        <p><strong>Admin status:</strong> <span id="modal-user-admin-status">-</span></p>
-                        <p><strong>Account status:</strong> <span id="modal-user-account-status">-</span></p>
-                        <p><strong>Phone:</strong> <span id="modal-user-phone">-</span></p>
-                    </div>
+                    <section class="modal-kv-grid">
+                        <p><strong>UID:</strong> <output id="modal-user-uid">-</output></p>
+                        <p><strong>Main role:</strong> <output id="modal-user-role">-</output></p>
+                        <p><strong>Vendor status:</strong> <output id="modal-user-vendor-status">-</output></p>
+                        <p><strong>Admin status:</strong> <output id="modal-user-admin-status">-</output></p>
+                        <p><strong>Account status:</strong> <output id="modal-user-account-status">-</output></p>
+                        <p><strong>Phone:</strong> <output id="modal-user-phone">-</output></p>
+                    </section>
                 </section>
 
                 <section class="modal-block" aria-labelledby="modal-review-note-heading">
@@ -172,7 +172,7 @@
                     <p>This note is used when you reject or block vendor and admin applications.</p>
 
                     <label class="review-note-field" for="modal-review-note">
-                        <span>Reason or explanation</span>
+                        <strong>Reason or explanation</strong>
                         <textarea id="modal-review-note" rows="4" maxlength="500"
                             placeholder="Explain why the application was rejected, blocked, or changed."></textarea>
                     </label>
@@ -221,7 +221,7 @@
                                 Account</button></li>
                     </menu>
                 </section>
-            </div>
+            </section>
         </form>
     </dialog>
 

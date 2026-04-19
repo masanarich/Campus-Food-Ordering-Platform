@@ -251,6 +251,10 @@ footer {
     margin-bottom: 0.5rem;
 }
 
+.info-list output {
+    display: inline;
+}
+
 .summary-card p,
 .workspace-card p {
     margin: 0;

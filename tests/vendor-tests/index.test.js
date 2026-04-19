@@ -41,10 +41,10 @@ function createVendorHomeDom() {
             <img id="profile-photo" src="" alt="">
             <p id="profile-photo-caption"></p>
 
-            <span id="profile-name-line"></span>
-            <span id="profile-role-line"></span>
-            <span id="profile-email-line"></span>
-            <span id="profile-vendor-line"></span>
+            <output id="profile-name-line"></output>
+            <output id="profile-role-line"></output>
+            <output id="profile-email-line"></output>
+            <output id="profile-vendor-line"></output>
 
             <p id="portal-summary"></p>
             <p id="welcome-message"></p>

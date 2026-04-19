@@ -31,17 +31,17 @@
 
             <p id="admin-home-status" aria-live="polite"></p>
 
-            <div class="hero-summary" aria-label="Admin dashboard summary">
+            <section class="hero-summary" aria-label="Admin dashboard summary">
                 <article class="summary-card">
-                    <span class="summary-label">Admin access</span>
+                    <strong class="summary-label">Admin access</strong>
                     <p id="admin-access-note">Your admin access note will appear here.</p>
                 </article>
 
                 <article class="summary-card">
-                    <span class="summary-label">Portal switching</span>
+                    <strong class="summary-label">Portal switching</strong>
                     <p id="portal-summary">Your available portal buttons will appear here.</p>
                 </article>
-            </div>
+            </section>
 
             <menu class="action-menu action-menu-primary" aria-label="Main admin actions">
                 <li><button id="go-profile-button" class="button-primary" type="button">Open Profile</button></li>
@@ -55,21 +55,21 @@
         <section class="shared-section profile-panel" aria-labelledby="profile-overview-heading">
             <h3 id="profile-overview-heading">Profile Snapshot</h3>
 
-            <div class="profile-snapshot">
+            <section class="profile-snapshot" aria-label="Admin profile snapshot">
                 <img id="profile-photo" class="profile-avatar" src="" alt="User profile picture">
 
-                <div class="profile-copy">
+                <article class="profile-copy">
                     <p id="profile-photo-caption" class="caption-text">Your profile picture appears here.</p>
 
-                    <div class="info-list">
-                        <p><strong>Name:</strong> <span id="profile-name-line">Loading...</span></p>
-                        <p><strong>Current access:</strong> <span id="profile-role-line">Loading...</span></p>
-                        <p><strong>Email:</strong> <span id="profile-email-line">Loading...</span></p>
-                        <p><strong>Vendor access:</strong> <span id="profile-vendor-line">Loading...</span></p>
-                        <p><strong>Admin access:</strong> <span id="profile-admin-line">Loading...</span></p>
-                    </div>
-                </div>
-            </div>
+                    <section class="info-list" aria-label="Admin profile details">
+                        <p><strong>Name:</strong> <output id="profile-name-line">Loading...</output></p>
+                        <p><strong>Current access:</strong> <output id="profile-role-line">Loading...</output></p>
+                        <p><strong>Email:</strong> <output id="profile-email-line">Loading...</output></p>
+                        <p><strong>Vendor access:</strong> <output id="profile-vendor-line">Loading...</output></p>
+                        <p><strong>Admin access:</strong> <output id="profile-admin-line">Loading...</output></p>
+                    </section>
+                </article>
+            </section>
         </section>
 
         <section class="shared-section workspace-panel" aria-labelledby="admin-workspace-heading">
@@ -78,7 +78,7 @@
             <p id="welcome-message">Loading your admin details...</p>
             <p id="management-summary">Your management summary will appear here.</p>
 
-            <div class="workspace-grid">
+            <section class="workspace-grid" aria-label="Admin workspace summary">
                 <article class="workspace-card">
                     <h4>Users and Access</h4>
                     <p>
@@ -94,7 +94,7 @@
                         can flow into the admin workspace properly.
                     </p>
                 </article>
-            </div>
+            </section>
         </section>
 
         <section class="shared-section portal-panel" aria-labelledby="portal-shortcuts-heading">

@@ -68,15 +68,15 @@ function createRegisterFormDom() {
 
             <p id="register-role-hint"></p>
 
-            <div data-register-row="fullName" hidden>
+            <section data-register-row="fullName" hidden>
                 <input name="fullName" value="" />
                 <p data-error-for="fullName"></p>
-            </div>
+            </section>
 
-            <div data-register-row="phoneNumber" hidden>
+            <section data-register-row="phoneNumber" hidden>
                 <input name="phoneNumber" value="" />
                 <p data-error-for="phoneNumber"></p>
-            </div>
+            </section>
 
             <section id="vendor-register-fields" hidden>
                 <input name="businessName" value="" />

@@ -756,19 +756,19 @@
                 photo.src = displayPhotoUrl;
                 article.appendChild(photo);
             } else {
-                const photoFallback = document.createElement("div");
+                const photoFallback = document.createElement("p");
                 photoFallback.className = "product-card-photo-fallback";
                 photoFallback.textContent = "No product image uploaded yet";
                 article.appendChild(photoFallback);
             }
 
-            const content = document.createElement("div");
+            const content = document.createElement("section");
             content.className = "product-card-content";
 
-            const topRow = document.createElement("div");
+            const topRow = document.createElement("header");
             topRow.className = "product-card-top";
 
-            const titleWrap = document.createElement("div");
+            const titleWrap = document.createElement("section");
 
             const title = document.createElement("h4");
             title.textContent = product.name || "Unnamed Item";
@@ -780,7 +780,7 @@
             titleWrap.appendChild(title);
             titleWrap.appendChild(category);
 
-            const price = document.createElement("div");
+            const price = document.createElement("p");
             price.className = "product-card-price";
             price.textContent = formatPrice(product.price);
 
@@ -791,7 +791,7 @@
             description.className = "product-card-description";
             description.textContent = product.description || "No description available.";
 
-            const badges = document.createElement("div");
+            const badges = document.createElement("ul");
             badges.className = "product-card-badges";
 
             [
@@ -810,7 +810,7 @@
                     className: "product-badge product-badge-info"
                 }
             ].forEach(function appendBadge(config) {
-                const badge = document.createElement("span");
+                const badge = document.createElement("li");
                 badge.className = config.className;
                 badge.textContent = config.text;
                 badges.appendChild(badge);

@@ -311,7 +311,7 @@
     }
 
     function createBadge(text, className) {
-        const badge = document.createElement("span");
+        const badge = document.createElement("li");
         badge.className = className;
         badge.textContent = text;
         return badge;
@@ -349,7 +349,7 @@
         const article = document.createElement("article");
         article.className = "user-row-card";
 
-        const identity = document.createElement("div");
+        const identity = document.createElement("section");
         identity.className = "user-identity";
 
         const name = document.createElement("h4");
@@ -366,14 +366,14 @@
         identity.appendChild(email);
         identity.appendChild(uid);
 
-        const meta = document.createElement("div");
+        const meta = document.createElement("ul");
         meta.className = "user-meta";
         meta.appendChild(createBadge(getUserRoleLabel(user), "user-badge user-badge-role"));
         meta.appendChild(createBadge(`Vendor: ${getVendorStatusLabel(user)}`, "user-badge user-badge-vendor"));
         meta.appendChild(createBadge(`Admin: ${getAdminStatusLabel(user)}`, "user-badge user-badge-admin"));
         meta.appendChild(createBadge(`Account: ${getAccountStatusLabel(user)}`, "user-badge user-badge-account"));
 
-        const actions = document.createElement("div");
+        const actions = document.createElement("menu");
         actions.className = "user-row-actions";
 
         const manageButton = document.createElement("button");
@@ -384,7 +384,9 @@
         manageButton.textContent = actionConfig.label;
         manageButton.disabled = actionConfig.disabled;
 
-        actions.appendChild(manageButton);
+        const actionItem = document.createElement("li");
+        actionItem.appendChild(manageButton);
+        actions.appendChild(actionItem);
 
         article.appendChild(identity);
         article.appendChild(meta);
