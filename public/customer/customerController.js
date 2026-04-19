@@ -1,41 +1,44 @@
-const { getMenu } = require("./menu");
-const {
+import {
+  getMenu
+} from "./menu.js";
+
+import {
   addToCart,
   removeFromCart,
   getCart,
   getTotal,
   clearCart
-} = require("./cart");
+} from "./cart.js";
 
-const {
+import {
   createOrder,
   cancelOrder
-} = require("./order");
+} from "./order.js";
 
 
-function viewMenu() {
+export function viewMenu() {
   return getMenu();
 }
 
 
-function addItemToCart(itemId) {
+export function addItemToCart(itemId) {
   const menu = getMenu();
   const item = menu.find(i => i.id === itemId);
 
   if (!item) throw new Error("Item not found");
 
   addToCart(item);
-  return getCart();   
+  return getCart();
 }
 
 
-function removeItemFromCart(itemId) {
+export function removeItemFromCart(itemId) {
   removeFromCart(itemId);
-  return getCart();  
+  return getCart();
 }
 
 
-function placeOrder(userId, vendorId) {
+export function placeOrder(userId, vendorId) {
   const items = getCart();
   const total = getTotal();
 
@@ -45,20 +48,12 @@ function placeOrder(userId, vendorId) {
 
   const order = createOrder(userId, vendorId, items, total);
 
-  clearCart();  
+  clearCart();
 
   return order;
 }
 
 
-function cancelCustomerOrder(orderId) {
+export function cancelCustomerOrder(orderId) {
   return cancelOrder(orderId);
 }
-
-module.exports = {
-  viewMenu,
-  addItemToCart,
-  removeItemFromCart,
-  placeOrder,
-  cancelCustomerOrder
-};

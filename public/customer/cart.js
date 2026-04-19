@@ -1,10 +1,10 @@
 let cart = [];
 
-function getCart() {
+export function getCart() {
   return cart;
 }
 
-function addToCart(item) {
+export function addToCart(item) {
   const existing = cart.find(i => i.id === item.id);
 
   if (existing) {
@@ -16,7 +16,7 @@ function addToCart(item) {
   return cart;
 }
 
-function removeFromCart(id) {
+export function removeFromCart(id) {
   const index = cart.findIndex(item => item.id === id);
 
   if (index !== -1) {
@@ -26,25 +26,16 @@ function removeFromCart(id) {
   return cart;
 }
 
-function clearCart() {
+export function clearCart() {
   cart = [];
   return cart;
 }
 
-function resetCart() {
+export function resetCart() {
   cart = [];
   return cart;
 }
 
-function getTotal() {
+export function getTotal() {
   return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 }
-
-module.exports = {
-  addToCart,
-  removeFromCart,
-  clearCart,
-  getCart,
-  getTotal,
-  resetCart
-};

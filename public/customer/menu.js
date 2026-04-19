@@ -1,14 +1,13 @@
-
-const {
+import { db } from "./config.js";
+import {
   addToCart,
   removeFromCart,
   clearCart,
   getCart,
   getTotal
-} = (typeof window !== "undefined" && window.cart)
-  ? window.cart
-  : require("./cart");
+} from "./cart.js";
 
+console.log("Firestore ready:", db);
 
 const menuItems = [
   { id: "1", name: "Burger", price: 50 },
@@ -16,12 +15,11 @@ const menuItems = [
   { id: "3", name: "Chips", price: 30 }
 ];
 
-
-function renderMenu() {
+export function renderMenu() {
   const menuDiv = document.getElementById("menu");
   if (!menuDiv) return;
 
-  menuDiv.innerHTML = ""; 
+  menuDiv.innerHTML = "";
 
   menuItems.forEach(item => {
     const section = document.createElement("section");
@@ -41,20 +39,19 @@ function renderMenu() {
   });
 }
 
-
-function renderCart() {
+export function renderCart() {
   const cartDiv = document.getElementById("cart");
   const totalDiv = document.getElementById("total");
 
   if (!cartDiv || !totalDiv) return;
 
-  cartDiv.innerHTML = ""; 
+  cartDiv.innerHTML = "";
 
   const currentCart = getCart();
   const total = getTotal();
 
   currentCart.forEach(item => {
-    const section= document.createElement("section");
+    const section = document.createElement("section");
 
     const btn = document.createElement("button");
     btn.textContent = "Remove";
@@ -73,13 +70,11 @@ function renderCart() {
   totalDiv.innerText = "Total: R" + total;
 }
 
-
-function getMenu() {
+export function getMenu() {
   return menuItems;
 }
 
-
-function cancelOrder() {
+export function cancelOrder() {
   clearCart();
   renderCart();
 
@@ -88,7 +83,7 @@ function cancelOrder() {
   }
 }
 
-async function placeOrder() {
+export async function placeOrder() {
   const order = {
     userId: "student1",
     vendorId: "vendor1",
@@ -114,18 +109,7 @@ async function placeOrder() {
   }
 }
 
-
 if (typeof window !== "undefined") {
   renderMenu();
   renderCart();
 }
-
-
-module.exports = {
-  renderMenu,
-  renderCart,
-  cancelOrder,
-  placeOrder,
-  menuItems,
-  getMenu
-};

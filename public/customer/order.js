@@ -1,6 +1,11 @@
-let orders = [];
+import { db } from "./config.js";
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc } 
+from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-const ORDER_STATUS = {
+/* =========================
+   ORDER STATUS ENUM
+========================= */
+export const ORDER_STATUS = {
   CREATED: "CREATED",
   PENDING: "PENDING",
   PREPARING: "PREPARING",
@@ -9,9 +14,11 @@ const ORDER_STATUS = {
   CANCELLED: "CANCELLED"
 };
 
-function createOrder(userId, vendorId, items, total) {
+/* =========================
+   FIREBASE CREATE ORDER
+========================= */
+export async function createOrder(userId, vendorId, items, total) {
   const order = {
-    orderId: Date.now().toString(),
     userId,
     vendorId,
     items,
@@ -20,44 +27,62 @@ function createOrder(userId, vendorId, items, total) {
     createdAt: Date.now()
   };
 
-  orders.push(order);
-  return order;
+  const docRef = await addDoc(collection(db, "orders"), order);
+
+  return {
+    orderId: docRef.id,
+    ...order
+  };
 }
 
-function getOrders() {
-  return orders;
+/* =========================
+   GET ALL ORDERS
+========================= */
+export async function getOrders() {
+  const snapshot = await getDocs(collection(db, "orders"));
+
+  return snapshot.docs.map(doc => ({
+    orderId: doc.id,
+    ...doc.data()
+  }));
 }
 
-function getOrderById(orderId) {
-  return orders.find(o => o.orderId === orderId);
+/* =========================
+   GET ORDER BY ID
+========================= */
+export async function getOrderById(orderId) {
+  const ref = doc(db, "orders", orderId);
+  const snapshot = await getDoc(ref);
+
+  if (!snapshot.exists()) return null;
+
+  return {
+    orderId: snapshot.id,
+    ...snapshot.data()
+  };
 }
 
-function updateOrderStatus(orderId, status) {
-  const order = getOrderById(orderId);
-  if (!order) return null;
-
+/* =========================
+   UPDATE ORDER STATUS
+========================= */
+export async function updateOrderStatus(orderId, status) {
   if (!Object.values(ORDER_STATUS).includes(status)) {
     throw new Error("Invalid order status");
   }
 
-  order.status = status;
-  return order;
+  const ref = doc(db, "orders", orderId);
+
+  await updateDoc(ref, { status });
+
+  return {
+    orderId,
+    status
+  };
 }
 
-function cancelOrder(orderId) {
+/* =========================
+   CANCEL ORDER
+========================= */
+export async function cancelOrder(orderId) {
   return updateOrderStatus(orderId, ORDER_STATUS.CANCELLED);
 }
-
-function clearOrders() {
-  orders = [];
-}
-
-module.exports = {
-  ORDER_STATUS,
-  createOrder,
-  getOrders,
-  getOrderById,
-  updateOrderStatus,
-  cancelOrder,
-  clearOrders
-};
