@@ -117,6 +117,11 @@
             errors.category = "Please use a longer category name.";
         }
 
+        // validate photo URL if provided (backwards compatible with older tests)
+        if (normalizeText(safeValues.photoUrl) !== "" && !isValidPhotoUrl(safeValues.photoUrl)) {
+            errors.photoUrl = "Please enter a valid photo URL starting with http:// or https://";
+        }
+
         return {
             isValid: Object.keys(errors).length === 0,
             errors
@@ -229,6 +234,9 @@
             price: parsePrice(safeValues.price),
             photoURL: normalizeText(safeValues.photoURL || safeValues.photoDataUrl),
             photoPath: normalizeText(safeValues.photoPath),
+            photoDataUrl: normalizeText(safeValues.photoDataUrl),
+            // keep compatibility: accept photoUrl in tests and expose it on product
+            photoUrl: normalizeText(safeValues.photoUrl) || normalizeText(safeValues.photoDataUrl),
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true,
             dietaryTags: normalizeTagList(safeValues.dietaryTags),
@@ -266,6 +274,12 @@
 
     function buildMenuItemPhotoPath(vendorUid, productId, file) {
         return `menuItemPhotos/${normalizeText(vendorUid)}/${normalizeText(productId)}/cover.${getFileExtension(file)}`;
+    }
+
+    function isValidPhotoUrl(value) {
+        const v = normalizeText(value);
+        if (v === "") return true;
+        return /^https?:\/\/.+/.test(v);
     }
 
     function createVendorProductsPage(dependencies = {}) {
@@ -1507,6 +1521,8 @@
             normalizeLowerText,
             parsePrice,
             formatPrice,
+            // backwards-compatible helper name
+            isValidPhotoUrl,
             normalizeAvailability,
             normalizeTagList,
             formatTagList,
