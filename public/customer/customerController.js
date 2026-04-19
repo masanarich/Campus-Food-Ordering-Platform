@@ -1,27 +1,25 @@
-import {
-  getMenu
-} from "./menu.js";
+const { getMenu } = require("./menu");
 
-import {
+const {
   addToCart,
   removeFromCart,
   getCart,
   getTotal,
   clearCart
-} from "./cart.js";
+} = require("./cart");
 
-import {
+const {
   createOrder,
   cancelOrder
-} from "./order.js";
+} = require("./order");
 
 
-export function viewMenu() {
+function viewMenu() {
   return getMenu();
 }
 
 
-export function addItemToCart(itemId) {
+function addItemToCart(itemId) {
   const menu = getMenu();
   const item = menu.find(i => i.id === itemId);
 
@@ -32,13 +30,13 @@ export function addItemToCart(itemId) {
 }
 
 
-export function removeItemFromCart(itemId) {
+function removeItemFromCart(itemId) {
   removeFromCart(itemId);
   return getCart();
 }
 
 
-export function placeOrder(userId, vendorId) {
+async function placeOrder(userId, vendorId) {
   const items = getCart();
   const total = getTotal();
 
@@ -46,7 +44,7 @@ export function placeOrder(userId, vendorId) {
     throw new Error("Cart empty");
   }
 
-  const order = createOrder(userId, vendorId, items, total);
+  const order = await createOrder(userId, vendorId, items, total);
 
   clearCart();
 
@@ -54,6 +52,15 @@ export function placeOrder(userId, vendorId) {
 }
 
 
-export function cancelCustomerOrder(orderId) {
+function cancelCustomerOrder(orderId) {
   return cancelOrder(orderId);
 }
+
+
+module.exports = {
+  viewMenu,
+  addItemToCart,
+  removeItemFromCart,
+  placeOrder,
+  cancelCustomerOrder
+};

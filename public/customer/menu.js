@@ -1,11 +1,12 @@
-import { db } from "./config.js";
-import {
+const { db } = require("./config");
+
+const {
   addToCart,
   removeFromCart,
   clearCart,
   getCart,
   getTotal
-} from "./cart.js";
+} = require("./cart");
 
 console.log("Firestore ready:", db);
 
@@ -15,7 +16,7 @@ const menuItems = [
   { id: "3", name: "Chips", price: 30 }
 ];
 
-export function renderMenu() {
+function renderMenu() {
   const menuDiv = document.getElementById("menu");
   if (!menuDiv) return;
 
@@ -39,7 +40,7 @@ export function renderMenu() {
   });
 }
 
-export function renderCart() {
+function renderCart() {
   const cartDiv = document.getElementById("cart");
   const totalDiv = document.getElementById("total");
 
@@ -70,11 +71,11 @@ export function renderCart() {
   totalDiv.innerText = "Total: R" + total;
 }
 
-export function getMenu() {
+function getMenu() {
   return menuItems;
 }
 
-export function cancelOrder() {
+function cancelOrder() {
   clearCart();
   renderCart();
 
@@ -83,7 +84,7 @@ export function cancelOrder() {
   }
 }
 
-export async function placeOrder() {
+async function placeOrder() {
   const order = {
     userId: "student1",
     vendorId: "vendor1",
@@ -113,3 +114,11 @@ if (typeof window !== "undefined") {
   renderMenu();
   renderCart();
 }
+
+module.exports = {
+  renderMenu,
+  renderCart,
+  getMenu,
+  cancelOrder,
+  placeOrder
+};

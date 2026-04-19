@@ -1,11 +1,15 @@
-import { db } from "./config.js";
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc } 
-from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+const { db } = require("./config");
 
-/* =========================
-   ORDER STATUS ENUM
-========================= */
-export const ORDER_STATUS = {
+const { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  updateDoc 
+} = require("firebase/firestore");
+
+const ORDER_STATUS = {
   CREATED: "CREATED",
   PENDING: "PENDING",
   PREPARING: "PREPARING",
@@ -15,9 +19,9 @@ export const ORDER_STATUS = {
 };
 
 /* =========================
-   FIREBASE CREATE ORDER
+   CREATE ORDER
 ========================= */
-export async function createOrder(userId, vendorId, items, total) {
+async function createOrder(userId, vendorId, items, total) {
   const order = {
     userId,
     vendorId,
@@ -38,19 +42,19 @@ export async function createOrder(userId, vendorId, items, total) {
 /* =========================
    GET ALL ORDERS
 ========================= */
-export async function getOrders() {
+async function getOrders() {
   const snapshot = await getDocs(collection(db, "orders"));
 
-  return snapshot.docs.map(doc => ({
-    orderId: doc.id,
-    ...doc.data()
+  return snapshot.docs.map(d => ({
+    orderId: d.id,
+    ...d.data()
   }));
 }
 
 /* =========================
    GET ORDER BY ID
 ========================= */
-export async function getOrderById(orderId) {
+async function getOrderById(orderId) {
   const ref = doc(db, "orders", orderId);
   const snapshot = await getDoc(ref);
 
@@ -63,9 +67,9 @@ export async function getOrderById(orderId) {
 }
 
 /* =========================
-   UPDATE ORDER STATUS
+   UPDATE STATUS
 ========================= */
-export async function updateOrderStatus(orderId, status) {
+async function updateOrderStatus(orderId, status) {
   if (!Object.values(ORDER_STATUS).includes(status)) {
     throw new Error("Invalid order status");
   }
@@ -83,6 +87,24 @@ export async function updateOrderStatus(orderId, status) {
 /* =========================
    CANCEL ORDER
 ========================= */
-export async function cancelOrder(orderId) {
+async function cancelOrder(orderId) {
   return updateOrderStatus(orderId, ORDER_STATUS.CANCELLED);
 }
+
+/* =========================
+   CLEAR (for tests/mock reset)
+========================= */
+async function clearOrders() {
+  // Optional: for testing only (not real Firestore delete logic)
+  return true;
+}
+
+module.exports = {
+  createOrder,
+  getOrders,
+  getOrderById,
+  updateOrderStatus,
+  cancelOrder,
+  clearOrders,
+  ORDER_STATUS
+};
