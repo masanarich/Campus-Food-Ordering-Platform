@@ -514,3 +514,11 @@
     }, 8000);
 
 })();
+if (typeof module !== "undefined") {
+    module.exports = {
+        updateOrderStatus,
+        renderOrders,
+        selectOrder,
+        orderTotal
+    };
+}
