@@ -241,6 +241,7 @@ button:disabled,
   z-index: 10;
 
   /* light glass header like homepage */
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   background: rgba(233, 246, 238, 0.82);
   border-bottom: 1px solid rgba(15, 23, 42, 0.10);
@@ -661,6 +662,7 @@ textarea:focus {
 
   .auth-header {
     position: static;
+    -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: transparent;
     border-bottom: none;

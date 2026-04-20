@@ -9,10 +9,6 @@
 import {
   auth,
   db,
-<<<<<<< HEAD
-  storage,
-=======
->>>>>>> 18e586b (fixed something)
   googleProvider,
   appleProvider
 } from "./config.js";
@@ -24,11 +20,6 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
-<<<<<<< HEAD
-  updatePassword,
-  deleteUser,
-=======
->>>>>>> 18e586b (fixed something)
   sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
@@ -37,30 +28,11 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-<<<<<<< HEAD
-  deleteDoc,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
-
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject
-} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
-
-const authUtils =
-  typeof window !== "undefined" ? window.authUtils : undefined;
-
-const authCore =
-  typeof window !== "undefined" ? window.authCore : undefined;
-=======
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 const authUtils = typeof window !== "undefined" ? window.authUtils : undefined;
 const authCore = typeof window !== "undefined" ? window.authCore : undefined;
->>>>>>> 18e586b (fixed something)
 
 if (!authUtils) {
   throw new Error(
@@ -74,12 +46,6 @@ if (!authCore || typeof authCore.createAuthService !== "function") {
   );
 }
 
-<<<<<<< HEAD
-const authService = authCore.createAuthService({
-  auth,
-  db,
-  storage,
-=======
 const {
   createBaseUserProfile,
   applyVendorApplicationToProfile,
@@ -92,7 +58,6 @@ const { createAuthService } = authCore;
 const authService = createAuthService({
   auth,
   db,
->>>>>>> 18e586b (fixed something)
   googleProvider,
   appleProvider,
   authFns: {
@@ -102,11 +67,6 @@ const authService = createAuthService({
     signOut: firebaseSignOut,
     onAuthStateChanged,
     updateProfile,
-<<<<<<< HEAD
-    updatePassword,
-    deleteUser,
-=======
->>>>>>> 18e586b (fixed something)
     sendPasswordResetEmail
   },
   firestoreFns: {
@@ -114,18 +74,6 @@ const authService = createAuthService({
     getDoc,
     setDoc,
     updateDoc,
-<<<<<<< HEAD
-    deleteDoc,
-    serverTimestamp
-  },
-  storageFns: {
-    ref,
-    uploadBytes,
-    getDownloadURL,
-    deleteObject
-  },
-  utils: authUtils
-=======
     serverTimestamp
   },
   utils: {
@@ -134,7 +82,6 @@ const authService = createAuthService({
     getDefaultPortalRoute,
     mapAuthErrorCode
   }
->>>>>>> 18e586b (fixed something)
 });
 
 export { authService };
