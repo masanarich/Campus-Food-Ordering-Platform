@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Shop Details | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Shop details workspace for vendor users on the Campus Food Ordering Platform.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./shop.css">
+</head>
+
+<body class="vendor-shell">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor shop navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./shop.html" aria-current="page">Shop Details</a>
+            <a href="./products.html">Manage Menu</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="shared-section shop-placeholder-section" aria-labelledby="shop-heading">
+            <h2 id="shop-heading">Shop Details</h2>
+            <p>
+                This workspace is ready for the shop-details feature. For now, use the button below
+                to return to your vendor dashboard.
+            </p>
+
+            <p id="shop-status" aria-live="polite">Shop details placeholder loaded.</p>
+
+            <menu class="action-menu" aria-label="Shop placeholder actions">
+                <li><button id="back-to-dashboard-button" class="button-primary" type="button">Back to Vendor Dashboard</button></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="./shop.js"></script>
+</body>
+
+</html>

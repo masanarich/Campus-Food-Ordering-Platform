@@ -1,32 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>User Profile | Campus Food Ordering Platform</title>
+  <title>Your Profile | Campus Food Ordering Platform</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
-
 <body>
-
   <header>
     <h1>Campus Food Ordering Platform</h1>
 
-    <nav aria-label="Profile navigation">
-      <a href="../index.html">Home</a>
+    <nav aria-label="Signed-in profile navigation">
+      <a href="../customer/index.html">Customer Dashboard</a>
       <a href="./role-choice.html">Choose Portal</a>
       <a href="./profile.html" aria-current="page">Profile</a>
-      <a href="./reset.html">Reset Password</a>
-      <a href="./login.html">Login</a>
-      <a href="./register.html">Register</a>
+      <a href="../customer/browse-stores.html">Browse Stores</a>
+      <a href="../customer/support.html">Support</a>
     </nav>
   </header>
 
   <main>
-
-    <section>
-      <h2>Your Profile</h2>
+    <section aria-labelledby="profile-page-heading">
+      <h2 id="profile-page-heading">Your Profile</h2>
+      <p>Review your account details, access level, application status, and profile photo from one place.</p>
       <p id="profile-status" aria-live="polite">Loading profile...</p>
 
       <menu>
@@ -37,41 +33,57 @@
 
     <section>
       <article>
+        <h3>Edit Profile Details</h3>
+        <p>Update the personal details you want the platform to use for your signed-in profile.</p>
+
+        <form id="profile-edit-form" novalidate>
+          <p>
+            <label for="profile-display-name-input">Display name</label>
+          </p>
+          <p>
+            <input id="profile-display-name-input" type="text" maxlength="120"
+              placeholder="e.g. Faranani Maduwa" aria-describedby="profile-display-name-error">
+          </p>
+          <p id="profile-display-name-error" class="form-error" aria-live="polite"></p>
+
+          <p>
+            <label for="profile-phone-input">Phone number</label>
+          </p>
+          <p>
+            <input id="profile-phone-input" type="tel" maxlength="30"
+              placeholder="e.g. 0712345678 or +27712345678" aria-describedby="profile-phone-error">
+          </p>
+          <p id="profile-phone-error" class="form-error" aria-live="polite"></p>
+
+          <menu>
+            <li><button id="save-profile-button" type="submit">Save Profile Details</button></li>
+          </menu>
+        </form>
+      </article>
+
+      <article>
         <h3>Profile Overview</h3>
 
         <figure>
           <img id="profile-photo" alt="Profile picture" hidden width="140" height="140">
-          <figcaption>Your profile picture appears here.</figcaption>
+          <figcaption id="profile-photo-caption">Your profile picture appears here.</figcaption>
         </figure>
 
-        <p>
-          <strong>Name:</strong>
-          <output id="profile-name">-</output>
-        </p>
-
-        <p>
-          <strong>Email:</strong>
-          <output id="profile-email">-</output>
-        </p>
-
-        <p>
-          <strong>Main Role:</strong>
-          <output id="profile-role">-</output>
-        </p>
-
-        <p>
-          <strong>Portal Access:</strong>
-          <output id="profile-access">-</output>
-        </p>
+        <p><strong>Name:</strong> <output id="profile-name">-</output></p>
+        <p><strong>Email:</strong> <output id="profile-email">-</output></p>
+        <p><strong>Phone:</strong> <output id="profile-phone">-</output></p>
+        <p><strong>Main role:</strong> <output id="profile-role">-</output></p>
+        <p><strong>Portal access:</strong> <output id="profile-access">-</output></p>
+        <p><strong>Account status:</strong> <output id="profile-account-status">-</output></p>
       </article>
 
       <article>
         <h3>Photo Management</h3>
+        <p>Upload a profile photo so the platform feels more personal when you move between portals.</p>
 
         <p>
           <label for="profile-photo-input">Choose a profile photo from your device</label>
         </p>
-
         <p>
           <input id="profile-photo-input" type="file" accept="image/*">
         </p>
@@ -82,55 +94,53 @@
         </menu>
 
         <p id="profile-photo-message" aria-live="polite">
-          Upload and remove photo actions will appear here.
+          Photo upload and removal updates will appear here.
         </p>
       </article>
     </section>
 
     <section>
       <article>
-        <h3>Account Details</h3>
-
-        <p>
-          <strong>Vendor Status:</strong>
-          <output id="profile-vendor-status">-</output>
-        </p>
-
-        <p>
-          <strong>Vendor Reason:</strong>
-          <output id="profile-vendor-reason">-</output>
-        </p>
+        <h3>Role Applications</h3>
+        <p><strong>Vendor application:</strong> <output id="profile-vendor-status">-</output></p>
+        <p><strong>Vendor note:</strong> <output id="profile-vendor-note">-</output></p>
+        <p><strong>Admin application:</strong> <output id="profile-admin-status">-</output></p>
+        <p><strong>Admin note:</strong> <output id="profile-admin-note">-</output></p>
       </article>
 
       <article>
-        <h3>Security and Account</h3>
+        <h3>Quick Links</h3>
+        <p>Use these shortcuts to move around the signed-in parts of the platform.</p>
+        <menu>
+          <li><a class="button-link" href="../customer/index.html">Customer Dashboard</a></li>
+          <li><a class="button-link secondary" href="./role-choice.html">Choose Portal</a></li>
+          <li><a class="button-link secondary" href="../customer/vendor-application.html">Vendor Application</a></li>
+          <li><a class="button-link secondary" href="../customer/admin-application.html">Admin Application</a></li>
+        </menu>
+      </article>
+    </section>
+
+    <section>
+      <article>
+        <h3>Danger Zone</h3>
+        <p>Deleting your account removes your access permanently. Only continue if you are absolutely sure.</p>
+
+        <p>
+          <label for="delete-account-confirm-checkbox">
+            <input id="delete-account-confirm-checkbox" type="checkbox">
+            I understand that deleting my account is permanent and cannot be undone.
+          </label>
+        </p>
 
         <menu>
-          <li><button id="reset-password-button" type="button">Send Password Reset Email</button></li>
-          <li><a href="./reset.html">Change Password</a></li>
           <li><button id="delete-account-button" type="button">Delete Account</button></li>
         </menu>
 
         <p id="profile-account-message" aria-live="polite">
-          Account action messages will appear here.
+          Account deletion updates will appear here.
         </p>
       </article>
     </section>
-
-    <section>
-      <article>
-        <h3>Membership and Access</h3>
-
-        <menu>
-          <li><button id="leave-vendor-button" type="button">Stop Being a Vendor</button></li>
-          <li><a href="../customer/index.html">Go to Customer Portal</a></li>
-          <li><a href="../vendor/index.html">Go to Vendor Portal</a></li>
-          <li><a href="../admin/index.html">Go to Admin Portal</a></li>
-          <li><a href="./role-choice.html">Choose Portal</a></li>
-        </menu>
-      </article>
-    </section>
-
   </main>
 
   <footer>
@@ -151,7 +161,5 @@
       authUtils: window.authUtils
     });
   </script>
-
 </body>
-
 </html>
