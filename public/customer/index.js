@@ -76,12 +76,14 @@ function getFallbackRoutes() {
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
         vendorapplication: "../vendor/vendor-application.html",
+        login: "../authentication/login.html",
+        stores: "../Approved_vendors/index.html",
+        vendorapplication: "./vendor-application.html",
         adminapplication: "./admin-application.html",
-        stores: "./browse-stores.html",
+        /*stores: "./browse-stores.html",*/
         orders: "./my-orders.html",
         support: "./support.html",
-        login: "../authentication/login.html",
-        stores: "../Approved_vendors/index.html"
+        login: "../authentication/login.html"
     };
 }
 
@@ -850,12 +852,12 @@ async function initializeCustomerHomePage(options = {}) {
         profileButton: document.querySelector("#go-profile-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         vendorApplicationButton: document.querySelector("#go-vendor-application-button"),
+        browseVendorsButton: document.querySelector("#browse-vendors"),
         adminApplicationButton: document.querySelector("#go-admin-application-button"),
         browseStoresButton: document.querySelector("#browse-stores-button"),
         myOrdersButton: document.querySelector("#view-orders-button"),
         supportButton: document.querySelector("#get-support-button"),
         signOutButton: document.querySelector("#sign-out-button"),
-        browseVendorsButton: document.querySelector("#browse-vendors"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
         adminPortalButton: document.querySelector("#go-admin-portal-button")
@@ -906,6 +908,7 @@ async function initializeCustomerHomePage(options = {}) {
         const vendorApplicationController = result.state.vendorApplicationAction.visible
             ? attachNavigationHandler({
                 button: elements.vendorApplicationButton,
+                route: "../vendor/vendor-application.html",
                 route: result.state.vendorApplicationAction.route,
                 navigate
             })
@@ -985,6 +988,7 @@ async function initializeCustomerHomePage(options = {}) {
             customerPortalController,
             vendorPortalController,
             adminPortalController,
+            browseVendorsController,
             browseStoresController,
             myOrdersController,
             supportController,

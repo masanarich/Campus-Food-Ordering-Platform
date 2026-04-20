@@ -1,16 +1,10 @@
-// Works with browser + Jest (CommonJS style)
-
-// Import cart functions
-const {
+/*const {
   addToCart,
   removeFromCart,
-  clearCart,
   getCart,
-  getTotal
-} = (typeof window !== "undefined" && window.cart)
-  ? window.cart
-  : require("./cart");
-
+  getTotal,
+  clearCart
+} = require("../../public/customer/cart");
 
 const menuItems = [
   { id: "1", name: "Burger", price: 50 },
@@ -18,45 +12,18 @@ const menuItems = [
   { id: "3", name: "Chips", price: 30 }
 ];
 
-
-function renderMenu() {
-  const menuDiv = document.getElementById("menu");
-  if (!menuDiv) return;
-
-  menuDiv.innerHTML = ""; 
-
-  menuItems.forEach(item => {
-    const div = document.createElement("div");
-
-    const btn = document.createElement("button");
-    btn.textContent = "Add";
-
-    btn.onclick = () => {
-      addToCart(item);
-      renderCart();
-    };
-
-    div.innerHTML = `<p>${item.name} - R${item.price}</p>`;
-    div.appendChild(btn);
-
-    menuDiv.appendChild(div);
-  });
-}
-
-
 function renderCart() {
   const cartDiv = document.getElementById("cart");
   const totalDiv = document.getElementById("total");
 
   if (!cartDiv || !totalDiv) return;
 
-  cartDiv.innerHTML = ""; 
+  cartDiv.innerHTML = "";
 
   const currentCart = getCart();
-  const total = getTotal();
 
   currentCart.forEach(item => {
-    const div = document.createElement("div");
+    const section = document.createElement("section");
 
     const btn = document.createElement("button");
     btn.textContent = "Remove";
@@ -66,20 +33,42 @@ function renderCart() {
       renderCart();
     };
 
-    div.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
-    div.appendChild(btn);
+    section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
+    section.appendChild(btn);
 
-    cartDiv.appendChild(div);
+    cartDiv.appendChild(section);
   });
 
-  totalDiv.innerText = "Total: R" + total;
+  totalDiv.innerText = "Total: R" + getTotal();
 }
 
+function renderMenu() {
+  const menuDiv = document.getElementById("menu");
+  if (!menuDiv) return;
+
+  menuDiv.innerHTML = "";
+
+  menuItems.forEach(item => {
+    const section = document.createElement("section");
+
+    const btn = document.createElement("button");
+    btn.textContent = "Add";
+
+    btn.onclick = () => {
+      addToCart(item);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
+    section.appendChild(btn);
+
+    menuDiv.appendChild(section);
+  });
+}
 
 function getMenu() {
   return menuItems;
 }
-
 
 function cancelOrder() {
   clearCart();
@@ -90,44 +79,98 @@ function cancelOrder() {
   }
 }
 
-async function placeOrder() {
-  const order = {
-    userId: "student1",
-    vendorId: "vendor1",
-    items: getCart(),
-    total: getTotal()
-  };
-
-  const response = await fetch("http://localhost:3000/orders", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(order)
-  });
-
-  if (response.ok) {
-    clearCart();
-    renderCart();
-
-    if (typeof window !== "undefined") {
-      alert("Order placed successfully!");
-    }
-  }
-}
-
-
-if (typeof window !== "undefined") {
-  renderMenu();
-  renderCart();
-}
-
-
 module.exports = {
   renderMenu,
   renderCart,
-  cancelOrder,
-  placeOrder,
-  menuItems,
-  getMenu
+  getMenu,
+  cancelOrder
+};*/
+const menuItems = [
+  { id: "1", name: "Burger", price: 50 },
+  { id: "2", name: "Pizza", price: 80 },
+  { id: "3", name: "Chips", price: 30 }
+];
+
+window.onload = function () {
+  renderMenu();
+  renderCart();
 };
+
+// ---------------- MENU ----------------
+function renderMenu() {
+  const menuDiv = document.getElementById("menu");
+  menuDiv.innerHTML = "";
+
+  menuItems.forEach(item => {
+    const section = document.createElement("section");
+
+    const btn = document.createElement("button");
+    btn.textContent = "Add";
+
+    btn.onclick = () => {
+      addToCart(item);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
+    section.appendChild(btn);
+
+    menuDiv.appendChild(section);
+  });
+}
+
+// ---------------- CART ----------------
+function renderCart() {
+  const cartDiv = document.getElementById("cart");
+  const totalDiv = document.getElementById("total");
+
+  cartDiv.innerHTML = "";
+
+  const currentCart = getCart();
+
+  if (currentCart.length === 0) {
+    cartDiv.innerHTML = "<p>Your cart is empty</p>";
+    totalDiv.innerText = "Total: R0";
+    return;
+  }
+
+  currentCart.forEach(item => {
+    const section = document.createElement("section");
+
+    const btn = document.createElement("button");
+    btn.textContent = "Remove";
+
+    btn.onclick = () => {
+      removeFromCart(item.id);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
+    section.appendChild(btn);
+
+    cartDiv.appendChild(section);
+  });
+
+  totalDiv.innerText = "Total: R" + getTotal();
+}
+
+// ---------------- ACTIONS ----------------
+function placeOrder() {
+  const cart = getCart();
+
+  if (cart.length === 0) {
+    alert("Cart is empty");
+    return;
+  }
+
+  alert("Order placed! Total: R" + getTotal());
+
+  clearCart();
+  renderCart();
+}
+
+function cancelOrder() {
+  clearCart();
+  renderCart();
+  alert("Order cancelled");
+}

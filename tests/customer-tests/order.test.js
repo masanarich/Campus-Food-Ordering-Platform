@@ -31,7 +31,8 @@ describe("Order Tracking System", () => {
 
     updateOrderStatus(order.orderId, ORDER_STATUS.PREPARING);
 
-    expect(getOrderById(order.orderId).status).toBe(ORDER_STATUS.PREPARING);
+    expect(getOrderById(order.orderId).status)
+      .toBe(ORDER_STATUS.PREPARING);
   });
 
   test("cancels order", () => {
@@ -39,7 +40,8 @@ describe("Order Tracking System", () => {
 
     cancelOrder(order.orderId);
 
-    expect(getOrderById(order.orderId).status).toBe(ORDER_STATUS.CANCELLED);
+    expect(getOrderById(order.orderId).status)
+      .toBe(ORDER_STATUS.CANCELLED);
   });
 
   test("rejects invalid status", () => {

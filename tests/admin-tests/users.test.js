@@ -600,7 +600,8 @@ describe("public/admin/users.js page coverage", () => {
         await usersPage.initialize(deps);
         await flushPromises();
 
-        expect(deps.navigate).toHaveBeenCalledWith("../authentication/login.html");
+        expect(window.location.assign).toHaveBeenCalledWith("../authentication/login.html");
+        expect(window.location.href).toContain("../authentication/login.html");
     });
 
     test("users without admin access are blocked", async () => {

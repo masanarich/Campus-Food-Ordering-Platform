@@ -7,7 +7,11 @@ const {
 } = require("../../public/customer/customerController");
 
 const { getCart } = require("../../public/customer/cart");
-const { getOrders, clearOrders } = require("../../public/customer/order");
+
+const {
+  getOrders,
+  clearOrders
+} = require("../../public/customer/order");
 
 describe("Customer Controller Integration Tests", () => {
 
@@ -40,17 +44,17 @@ describe("Customer Controller Integration Tests", () => {
     const order = placeOrder("user1", "vendor1");
 
     expect(order.userId).toBe("user1");
-    expect(getCart().length).toBe(0); // IMPORTANT
+    expect(getCart().length).toBe(0);
   });
 
   test("cancels order", () => {
-  addItemToCart("1"); // REQUIRED
+    addItemToCart("1");
 
-  const order = placeOrder("user1", "vendor1");
+    const order = placeOrder("user1", "vendor1");
 
-  const result = cancelCustomerOrder(order.orderId);
+    const result = cancelCustomerOrder(order.orderId);
 
-  expect(result).toBeDefined();
-    });
+    expect(result).toBeDefined();
+  });
 
 });

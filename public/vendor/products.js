@@ -256,7 +256,10 @@
             category: normalizeText(safeValues.category),
             description: normalizeText(safeValues.description),
             price: parsePrice(safeValues.price),
-            photoUrl: safeValues.photoURL || normalizeText(safeValues.photoURL || safeValues.photoUrl),
+
+            photoUrl: safeValues.photoDataUrl || normalizeText(safeValues.photoUrl),
+
+            photoURL: normalizeText(safeValues.photoURL || safeValues.photoDataUrl),
             photoPath: normalizeText(safeValues.photoPath),
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true,
@@ -1054,7 +1057,8 @@
             };
         }
 
-        async /*function deleteStoredPhoto(photoPath) {
+        /*function saveCurrentProduct() {
+        async function deleteStoredPhoto(photoPath) {
             const safePhotoPath = normalizeText(photoPath);
 
             if (!safePhotoPath) {
@@ -1152,6 +1156,30 @@
                 return { success: false };
             }
 
+            return {
+                success: true,
+                action,
+                product
+            };
+            state.products.push(product);
+            product.id=Date.now().toString();
+        }*/
+       async function saveCurrentProduct() {
+
+        const values = collectFormValues();
+        const validation = validateProduct(values);
+
+        if (!validation.isValid) {
+            showValidationErrors(validation.errors);
+
+            const firstError = Object.values(validation.errors)[0];
+            setStatus(firstError, "error");
+            setNote("Please correct the highlighted fields and try again.");
+
+            return {
+                success: false,
+                errors: validation.errors
+            };
             clearFieldErrors();
 
             const existingProduct = getCurrentEditingProduct();
@@ -1242,6 +1270,43 @@
                 return { success: false, error: error };
             }
         }
+
+        clearFieldErrors();
+
+        const product = toProduct(values);
+        product.id = product.id || Date.now().toString();
+
+        const action = upsertProduct(product);
+
+        state.products = state.products || [];
+
+        const existingIndex = state.products.findIndex(p => p.id === product.id);
+
+        if (existingIndex >= 0) {
+            state.products[existingIndex] = product;
+        } else {
+            state.products.push(product);
+        }
+
+        saveProducts();
+        fillForm(product);
+        updateSummary(product);
+        renderProductsList();
+
+        if (action === "created") {
+            setStatus("Product created successfully.", "success");
+            setNote("Your new menu item has been added.");
+        } else {
+            setStatus("Product updated successfully.", "success");
+            setNote("Your menu item changes have been saved.");
+        }
+
+        return {
+            success: true,
+            action,
+            product
+        };
+    }
 
         function validateSingleField(fieldName) {
             const values = collectFormValues();
@@ -1549,12 +1614,13 @@
             fileToOptimizedDataURL,
             getSelectedPhotoFile,
             clearFileInput,
-            createMenuItemId,
-            buildMenuItemPhotoPath,
             createVendorProductsPage,
             isValidPhotoUrl,
             validateProduct,
-            toProduct
+            toProduct,
+            createMenuItemId,
+            buildMenuItemPhotoPath,
+            createVendorProductsPage
         };
     }
 

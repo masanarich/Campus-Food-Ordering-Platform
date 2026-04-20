@@ -1,6 +1,6 @@
-(function attachUsersPage(globalScope) {
+function attachUsersPage(globalScope) {
     "use strict";
-
+}
     const DEFAULT_FILTER = "all";
     const DEFAULT_PAGE_SIZE = 24;
 
@@ -934,6 +934,9 @@
     }
 
     function goBack() {
+        if (typeof window !== "undefined") {
+            window.location.href = "./index.html";
+        }
         navigateTo("./index.html");
     }
 
@@ -941,6 +944,9 @@
         return new Promise(function resolveGuard(resolve) {
             state.authService.observeAuthState(async function onAuthStateChanged(user) {
                 try {
+                    if (typeof window !== "undefined") {
+                        window.location.assign("../authentication/login.html");
+                }
                     if (!user) {
                         navigateTo("../authentication/login.html");
                         resolve(false);
@@ -1056,6 +1062,7 @@
         });
     }
 
+    async function initialize(dependencies = {}) {
     async function initialize(dependencies) {
         state.authService = dependencies.authService;
         state.authUtils = dependencies.authUtils;
@@ -1066,6 +1073,12 @@
         state.currentPage = 1;
         state.activeFilter = DEFAULT_FILTER;
         state.searchQuery = "";
+
+        try {
+            state.authService = dependencies.authService;
+            state.authUtils = dependencies.authUtils;
+            state.db = dependencies.db;
+            state.firestoreFns = dependencies.firestoreFns;
 
             bindEvents();
             setPressedFilterButton();
@@ -1122,4 +1135,4 @@
     if (typeof module !== "undefined" && module.exports) {
         module.exports = exportedHelpers;
     }
-})(typeof window !== "undefined" ? window : globalThis);
+})(typeof window !== "undefined" ? window : globalThis);*/

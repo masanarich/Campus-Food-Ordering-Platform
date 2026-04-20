@@ -1,8 +1,3 @@
-/**
- * @jest-environment jsdom
- */
-
-global.alert = jest.fn();
 const {
   renderMenu,
   renderCart,
@@ -19,9 +14,9 @@ describe("Menu + Cart UI", () => {
 
   beforeEach(() => {
     document.body.innerHTML = `
-      <div id="menu"></div>
-      <div id="cart"></div>
-      <div id="total"></div>
+      <section id="menu"></section>
+      <section id="cart"></section>
+      <section id="total"></section>
     `;
     resetCart();
   });
