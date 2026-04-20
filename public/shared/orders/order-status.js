@@ -50,7 +50,7 @@
             shortLabel: "Pending",
             description: "The order was placed and is waiting for the vendor to respond.",
             tone: "info",
-            actionLabel: "Mark as Received"
+            actionLabel: "Accept Order"
         }),
         [ORDER_STATUSES.ACCEPTED]: Object.freeze({
             label: "Accepted",
@@ -98,6 +98,7 @@
 
     const ORDER_STATUS_ALIASES = Object.freeze({
         pending: ORDER_STATUSES.PENDING,
+        placed: ORDER_STATUSES.PENDING,
         received: ORDER_STATUSES.PENDING,
         created: ORDER_STATUSES.PENDING,
         orderreceived: ORDER_STATUSES.PENDING,
@@ -199,7 +200,7 @@
             return ORDER_STATUS_ALIASES[fallbackKey];
         }
 
-        return "";
+        return ORDER_STATUSES.PENDING;
     }
 
     function normalizeOrderActorRole(role) {
@@ -233,7 +234,8 @@
     }
 
     function isKnownOrderStatus(status) {
-        return normalizeOrderStatus(status).length > 0;
+        const normalized = normalizeStatusKey(status);
+        return Object.prototype.hasOwnProperty.call(ORDER_STATUS_ALIASES, normalized);
     }
 
     function isTerminalOrderStatus(status) {
@@ -247,12 +249,12 @@
 
         if (!metadata) {
             return {
-                key: "",
-                label: "Unknown Status",
-                shortLabel: "Unknown",
-                description: "The order status is not recognized yet.",
+                key: ORDER_STATUSES.PENDING,
+                label: "Order Received",
+                shortLabel: "Pending",
+                description: "The order was placed and is waiting for the vendor to respond.",
                 tone: "info",
-                actionLabel: "Update Order"
+                actionLabel: "Accept Order"
             };
         }
 
@@ -294,7 +296,7 @@
         const normalizedStatus = normalizeOrderStatus(currentStatus);
         const normalizedRole = normalizeOrderActorRole(actorRole);
 
-        if (!normalizedStatus || !normalizedRole) {
+        if (!normalizedRole) {
             return [];
         }
 
