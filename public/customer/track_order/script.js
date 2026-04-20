@@ -21,7 +21,8 @@ function renderOrders() {
 
   orderList.innerHTML = orders
     .map((order) => {
-      const timeline = order.timeline
+      const orderId = order.orderId || order.id;
+      const timeline = (order.timeline || [])
         .map(
           (entry) => `<li><strong>${entry.status}</strong> at ${formatTime(entry.timestamp)}</li>`
         )
@@ -33,14 +34,14 @@ function renderOrders() {
           : "";
 
       return `
-      <article class="order ${readyClass}" onclick="window.location.href='./order-detail.html?orderId=${order.orderId}'" style="cursor: pointer; transition: all 0.3s ease;">
+      <article class="order ${readyClass}" onclick="window.location.href='./order-detail.html?orderId=${orderId}'" style="cursor: pointer; transition: all 0.3s ease;">
         <header>
-          <span class="order-id">Order #${order.orderId} - ${order.itemName}</span>
-          <span class="order-status">${order.status}</span>
+          <span class="order-id">Order #${orderId} - ${order.itemName || 'N/A'}</span>
+          <span class="order-status">${order.status || 'Unknown'}</span>
         </header>
-        <p><strong>Student:</strong> ${order.studentName} | <strong>Vendor:</strong> ${order.vendorName}</p>
+        <p><strong>Student:</strong> ${order.studentName || 'N/A'} | <strong>Vendor:</strong> ${order.vendorName || 'N/A'}</p>
         ${readyNote}
-        <ol class="timeline">${timeline}</ol>
+        <ol class="timeline">${timeline || '<li>No timeline available</li>'}</ol>
         <p class="view-details">Click to view detailed progress →</p>
       </article>`;
     })
@@ -60,10 +61,34 @@ function renderOrders() {
 }
 
 async function loadOrders() {
-  const res = await fetch("/api/orders");
-  const data = await res.json();
-  data.orders.forEach((order) => ordersById.set(order.orderId, order));
-  renderOrders();
+  try {
+    console.log("Loading orders for customer ID 1...");
+    const res = await fetch("/api/orders/customer/1");
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    
+    const data = await res.json();
+    console.log("Orders fetched:", data);
+    
+    if (!data.orders || !Array.isArray(data.orders)) {
+      console.error("Invalid response format:", data);
+      throw new Error("Invalid response format");
+    }
+    
+    // Handle both Firestore documents (with 'id') and in-memory orders (with 'orderId')
+    data.orders.forEach((order) => {
+      const orderId = order.orderId || order.id || Math.random().toString();
+      console.log("Adding order:", orderId, order);
+      ordersById.set(orderId, order);
+    });
+    
+    renderOrders();
+  } catch (error) {
+    console.error("Error in loadOrders:", error);
+    orderList.innerHTML = `<p>Could not load orders: ${error.message}</p>`;
+  }
 }
 
 createOrderForm.addEventListener("submit", async (event) => {
@@ -90,14 +115,41 @@ createOrderForm.addEventListener("submit", async (event) => {
   createOrderForm.reset();
 });
 
-socket.on("bootstrap-orders", (orders) => {
-  orders.forEach((order) => ordersById.set(order.orderId, order));
+socket.on("bootstrap-orders", (data) => {
+  console.log("Received bootstrap-orders event:", data);
+  console.log("Data type:", typeof data);
+  console.log("Is array:", Array.isArray(data));
+  
+  let ordersArray = [];
+  
+  // Handle different possible formats
+  if (Array.isArray(data)) {
+    ordersArray = data;
+  } else if (data && typeof data === 'object' && data.orders) {
+    ordersArray = data.orders;
+  } else if (data && typeof data === 'object' && data.firestoreOrders) {
+    // Old format with firestoreOrders and inMemoryOrders
+    ordersArray = [...(data.firestoreOrders || []), ...(data.inMemoryOrders || [])];
+  }
+  
+  console.log("Processing orders array:", ordersArray);
+  
+  ordersArray.forEach((order) => {
+    const orderId = order.orderId || order.id;
+    console.log("Adding order:", orderId, order);
+    ordersById.set(orderId, order);
+  });
+  
   renderOrders();
 });
 
 socket.on("order-updated", (order) => {
-  ordersById.set(order.orderId, order);
-  renderOrders();
+  console.log("Received order-updated event:", order);
+  if (order) {
+    const orderId = order.orderId || order.id;
+    ordersById.set(orderId, order);
+    renderOrders();
+  }
 });
 
 socket.on("order-ready", ({ orderId, message }) => {

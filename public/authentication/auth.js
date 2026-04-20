@@ -8,7 +8,7 @@
 
 import {
   auth,
-  db,
+  db, 
   googleProvider,
   appleProvider
 } from "./config.js";

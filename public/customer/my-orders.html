@@ -4,24 +4,197 @@
   <meta charset="UTF-8">
   <title>My Orders | Campus Food Ordering Platform</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Placeholder page for customer orders.">
+  <meta name="description" content="View your order history and track live orders.">
   <link rel="stylesheet" href="./index.css">
+  <style>
+    .orders-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .orders-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .order-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      background-color: #fff;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .order-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 10px;
+    }
+
+    .order-id {
+      font-weight: bold;
+      color: #333;
+      font-size: 18px;
+    }
+
+    .order-status {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .status-pending {
+      background-color: #ffeaa7;
+      color: #d63031;
+    }
+
+    .status-preparing {
+      background-color: #fab1a0;
+      color: #d63031;
+    }
+
+    .status-ready {
+      background-color: #55efc4;
+      color: #00b894;
+    }
+
+    .order-details {
+      margin: 15px 0;
+    }
+
+    .order-details p {
+      margin: 8px 0;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .detail-label {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .order-items {
+      background-color: #f9f9f9;
+      border-left: 4px solid #0984e3;
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 4px;
+    }
+
+    .order-items h4 {
+      margin-top: 0;
+      color: #0984e3;
+    }
+
+    .item {
+      padding: 8px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+    .item-name {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .item-details {
+      font-size: 14px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .order-total {
+      font-size: 18px;
+      font-weight: bold;
+      color: #0984e3;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 2px solid #e0e0e0;
+    }
+
+    .order-timestamp {
+      font-size: 13px;
+      color: #999;
+      margin-top: 10px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .no-orders {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      font-size: 16px;
+    }
+
+    .error-message {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 12px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+
+    .vendor-badge {
+      display: inline-block;
+      background-color: #e0e0e0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+  </style>
 </head>
 <body>
   <header>
     <h1>Campus Food Ordering Platform</h1>
+    <nav>
+      <a href="./index.html">Dashboard</a>
+      <a href="./my-orders.html">My Orders</a>
+      <a href="./browse-stores.html">Browse Stores</a>
+    </nav>
   </header>
 
   <main>
-    <section aria-labelledby="my-orders-heading">
-      <h2 id="my-orders-heading">My Orders</h2>
-      <p>This feature will show a customer order history and live order tracking in a later sprint.</p>
-      <p><a href="./index.html">Back to Customer Dashboard</a></p>
-    </section>
+    <div class="orders-container">
+      <section aria-labelledby="my-orders-heading">
+        <h2 id="my-orders-heading">My Orders</h2>
+        <div id="error-container"></div>
+        <div id="orders-content">
+          <div class="loading">Loading your orders...</div>
+        </div>
+        <p><a href="./index.html">Back to Customer Dashboard</a></p>
+      </section>
+    </div>
   </main>
 
   <footer>
     <p>Campus Food Ordering Platform © 2026</p>
   </footer>
+
+  <script type="module" src="./my-orders.js"></script>
 </body>
 </html>
