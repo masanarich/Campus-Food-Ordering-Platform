@@ -256,12 +256,11 @@
             category: normalizeText(safeValues.category),
             description: normalizeText(safeValues.description),
             price: parsePrice(safeValues.price),
-<<<<<<< HEAD
+
             photoUrl: safeValues.photoDataUrl || normalizeText(safeValues.photoUrl),
-=======
+
             photoURL: normalizeText(safeValues.photoURL || safeValues.photoDataUrl),
             photoPath: normalizeText(safeValues.photoPath),
->>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true,
             dietaryTags: normalizeTagList(safeValues.dietaryTags),
