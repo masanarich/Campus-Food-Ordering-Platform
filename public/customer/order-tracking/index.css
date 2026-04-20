@@ -1,9 +1,201 @@
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 2rem;
+@import url("../order-management/order-management.css");
+
+.customer-portal[data-page="customer-order-tracking"],
+.customer-portal[data-page="customer-order-detail"],
+.customer-portal[data-page="customer-order-notifications"] {
+    background:
+        radial-gradient(circle at top left, rgba(197, 106, 26, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(108, 138, 107, 0.12), transparent 26%),
+        linear-gradient(180deg, #fcf8f3 0%, #f6efe7 46%, #efe3d3 100%);
 }
 
-main {
-    max-width: 720px;
+.customer-portal .page-hero h2 {
+    max-width: 11ch;
+}
+
+.customer-portal .tracking-order-card,
+.customer-portal .tracking-notification-card,
+.customer-portal .order-detail-overview,
+.customer-portal .order-detail-items,
+.customer-portal .order-detail-timeline,
+.customer-portal .order-detail-help {
+    position: relative;
+    overflow: hidden;
+    padding: 1.45rem;
+    border: 1px solid rgba(130, 88, 67, 0.18);
+    border-radius: 1.35rem;
+    background: rgba(255, 252, 248, 0.94);
+    box-shadow: 0 18px 34px rgba(64, 35, 20, 0.08);
+}
+
+.customer-portal .tracking-order-card::before,
+.customer-portal .tracking-notification-card::before,
+.customer-portal .order-detail-overview::before,
+.customer-portal .order-detail-items::before,
+.customer-portal .order-detail-timeline::before,
+.customer-portal .order-detail-help::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 0.32rem;
+    background: linear-gradient(90deg, rgba(197, 106, 26, 0.9), rgba(121, 160, 117, 0.82));
+}
+
+.customer-portal .tracking-order-card + .tracking-order-card,
+.customer-portal .tracking-notification-card + .tracking-notification-card {
+    margin-top: 1rem;
+}
+
+.customer-portal .tracking-order-heading,
+.customer-portal .tracking-notification-heading,
+.customer-portal .order-detail-title,
+.customer-portal .order-section-heading {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: #2f1b12;
+}
+
+.customer-portal .order-section-heading {
+    font-size: 1.25rem;
+}
+
+.customer-portal .tracking-order-status,
+.customer-portal .tracking-notification-state,
+.customer-portal .order-detail-state,
+.customer-portal .order-timeline-state,
+.customer-portal .order-item-name,
+.customer-portal .order-timeline-label {
+    font-weight: 700;
+    color: #2f1b12;
+}
+
+.customer-portal .tracking-order-items,
+.customer-portal .tracking-order-total,
+.customer-portal .tracking-notification-message,
+.customer-portal .order-item-meta,
+.customer-portal .order-timeline-meta,
+.customer-portal .order-timeline-note,
+.customer-portal .order-detail-caption,
+.customer-portal .loading-message,
+.customer-portal .empty-state-message {
+    color: #73584d;
+}
+
+.customer-portal .tracking-order-actions,
+.customer-portal .tracking-notification-actions {
+    margin-top: 1rem;
+}
+
+.customer-portal [data-tone="success"] {
+    color: #1c6c47;
+}
+
+.customer-portal [data-tone="error"] {
+    color: #8d2f24;
+}
+
+.customer-portal [data-tone="loading"],
+.customer-portal [data-tone="info"] {
+    color: #5b4699;
+}
+
+.customer-portal #order-tracking-status,
+.customer-portal #order-tracking-notifications-status,
+.customer-portal #order-tracking-detail-status {
+    min-height: 1.5rem;
+    margin: 1rem 0 0.2rem;
+    padding: 1rem 1.15rem;
+    border: 1px solid transparent;
+    border-radius: 1rem;
+    font-weight: 700;
+}
+
+.customer-portal #order-tracking-status[data-state="success"],
+.customer-portal #order-tracking-notifications-status[data-state="success"],
+.customer-portal #order-tracking-detail-status[data-state="success"] {
+    background: #e2f1e5;
+    color: #1c6c47;
+    border-color: rgba(28, 108, 71, 0.16);
+}
+
+.customer-portal #order-tracking-status[data-state="error"],
+.customer-portal #order-tracking-notifications-status[data-state="error"],
+.customer-portal #order-tracking-detail-status[data-state="error"] {
+    background: #fde6e2;
+    color: #8d2f24;
+    border-color: rgba(141, 47, 36, 0.16);
+}
+
+.customer-portal #order-tracking-status[data-state="info"],
+.customer-portal #order-tracking-status[data-state="loading"],
+.customer-portal #order-tracking-notifications-status[data-state="info"],
+.customer-portal #order-tracking-notifications-status[data-state="loading"],
+.customer-portal #order-tracking-detail-status[data-state="info"],
+.customer-portal #order-tracking-detail-status[data-state="loading"] {
+    background: #efe7ff;
+    color: #5b4699;
+    border-color: rgba(91, 70, 153, 0.14);
+}
+
+.customer-portal .order-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.2rem;
+}
+
+.customer-portal .order-detail-overview,
+.customer-portal .order-detail-items {
+    grid-column: span 6;
+}
+
+.customer-portal .order-detail-timeline,
+.customer-portal .order-detail-help {
+    grid-column: 1 / -1;
+}
+
+.customer-portal .order-summary-list,
+.customer-portal .order-items-list,
+.customer-portal .order-timeline-list {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.customer-portal .order-summary-list > li + li,
+.customer-portal .order-items-list > li + li,
+.customer-portal .order-timeline-list > li + li {
+    margin-top: 0.75rem;
+}
+
+.customer-portal .order-timeline-list {
+    list-style: decimal;
+}
+
+.customer-portal .order-detail-caption {
+    margin-bottom: 0.9rem;
+}
+
+.customer-portal .order-detail-help .order-detail-caption {
+    max-width: 60ch;
+}
+
+.customer-portal #tracked-orders-container,
+.customer-portal #notifications-container,
+.customer-portal #order-detail-summary,
+.customer-portal #order-detail-items,
+.customer-portal #order-detail-timeline {
+    min-height: 4rem;
+}
+
+@media (max-width: 980px) {
+    .customer-portal .order-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .customer-portal .order-detail-overview,
+    .customer-portal .order-detail-items,
+    .customer-portal .order-detail-timeline,
+    .customer-portal .order-detail-help {
+        grid-column: auto;
+    }
 }

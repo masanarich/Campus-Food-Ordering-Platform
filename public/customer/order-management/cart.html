@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cart | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Review, update, and organize your cart before checkout.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./order-management.css">
+</head>
+<body class="customer-portal" data-page="customer-cart">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./browse-vendors.html">Browse Vendors</a>
+            <a href="./cart.html" aria-current="page">Cart</a>
+            <a href="./checkout.html">Checkout</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="cart-heading">
+            <h2 id="cart-heading">Your Cart</h2>
+
+            <p>
+                Review your items by vendor, update quantities, remove anything you no longer want,
+                and continue to checkout when you are ready.
+            </p>
+
+            <p id="cart-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Cart page actions">
+                <li id="cart-back-button-host"></li>
+                <li><a href="../index.html" class="button-secondary">Home</a></li>
+                <li><a href="./browse-vendors.html" class="button-secondary">Browse Vendors</a></li>
+                <li><a href="./checkout.html" class="button-primary" id="checkout-link">Checkout</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section" aria-labelledby="cart-items-heading">
+            <h3 id="cart-items-heading">Items in Cart</h3>
+
+            <section id="cart-items-container" aria-live="polite">
+                <p class="loading-message">Loading cart...</p>
+            </section>
+        </section>
+
+        <section class="shared-section" aria-labelledby="cart-summary-heading">
+            <h3 id="cart-summary-heading">Summary</h3>
+
+            <section id="cart-summary" aria-live="polite"></section>
+
+            <menu class="action-menu" aria-label="Cart management actions">
+                <li><button type="button" class="button-secondary cart-clear-button" id="clear-cart-button">Clear Cart</button></li>
+                <li><a href="./checkout.html" class="button-primary">Go to Checkout</a></li>
+                <li><a href="../order-tracking/index.html" class="button-secondary">View My Orders</a></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./cart.js"></script>
+    <script>
+        (async function initializeCustomerCartPage() {
+            if (window.customerOrderManagementCart && typeof window.customerOrderManagementCart.init === "function") {
+                await window.customerOrderManagementCart.init();
+            }
+        })();
+    </script>
+</body>
+</html>

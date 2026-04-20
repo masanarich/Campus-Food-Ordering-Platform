@@ -4,6 +4,8 @@
     "use strict";
 
     const MODULE_NAME = "customer/order-management/browse-menu";
+    const CART_STORAGE_KEY = "campus-food-cart";
+    let initInFlight = null;
 
     // ==========================================
     // DEPENDENCY RESOLUTION
@@ -27,11 +29,104 @@
         return null;
     }
 
+    function getStorageArea() {
+        if (globalScope.__campusFoodTestLocalStorage) {
+            return globalScope.__campusFoodTestLocalStorage;
+        }
+
+        if (typeof globalThis !== "undefined" && globalThis.__campusFoodTestLocalStorage) {
+            return globalThis.__campusFoodTestLocalStorage;
+        }
+
+        if (typeof globalThis !== "undefined" && globalThis.localStorage) {
+            return globalThis.localStorage;
+        }
+
+        if (globalScope.localStorage) {
+            return globalScope.localStorage;
+        }
+
+        return null;
+    }
+
+    function normalizeText(value) {
+        return typeof value === "string" ? value.trim() : "";
+    }
+
+    function normalizeLowerText(value) {
+        return normalizeText(value).toLowerCase();
+    }
+
+    function normalizePrice(value) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    }
+
+    function normalizePositiveQuantity(value, fallbackValue = 1) {
+        const parsed = Number.parseInt(value, 10);
+
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed;
+        }
+
+        return fallbackValue;
+    }
+
+    function decodeText(value) {
+        const safeValue = normalizeText(value);
+
+        if (!safeValue) {
+            return "";
+        }
+
+        try {
+            return decodeURIComponent(safeValue);
+        } catch (error) {
+            return safeValue;
+        }
+    }
+
+    function getLocationSearch(options = {}) {
+        if (typeof options.search === "string") {
+            return options.search;
+        }
+
+        return globalScope.location?.search || "";
+    }
+
+    function normalizeMenuItemRecord(docSnapshot, vendorUid, vendorName) {
+        const data = docSnapshot && typeof docSnapshot.data === "function"
+            ? (docSnapshot.data() || {})
+            : {};
+        const itemId = normalizeText(docSnapshot && docSnapshot.id) || normalizeText(data.menuItemId || data.id);
+        const availabilityValue = normalizeLowerText(data.availability);
+        const availableFlag =
+            availabilityValue
+                ? availabilityValue !== "unavailable"
+                : data.available !== false;
+
+        return {
+            menuItemId: itemId,
+            id: itemId,
+            vendorUid: normalizeText(data.vendorUid) || normalizeText(vendorUid),
+            vendorName: normalizeText(data.vendorName) || decodeText(vendorName),
+            name: normalizeText(data.name) || "Unknown Item",
+            category: normalizeText(data.category) || "Other",
+            description: normalizeText(data.description),
+            price: normalizePrice(data.price),
+            photoURL: normalizeText(data.photoURL || data.photoDataUrl || data.photoUrl),
+            available: availableFlag,
+            soldOut: data.soldOut === true,
+            allergens: Array.isArray(data.allergens) ? data.allergens : [],
+            dietary: Array.isArray(data.dietary)
+                ? data.dietary
+                : (Array.isArray(data.dietaryTags) ? data.dietaryTags : [])
+        };
+    }
+
     // ==========================================
     // CART MANAGEMENT (localStorage)
     // ==========================================
-
-    const CART_STORAGE_KEY = "campus-food-cart";
 
     /**
      * Get cart from localStorage
@@ -39,9 +134,12 @@
      */
     function getCart() {
         try {
-            const cartJson = globalScope.localStorage?.getItem(CART_STORAGE_KEY);
+            const storageArea = getStorageArea();
+            const cartJson = storageArea?.getItem(CART_STORAGE_KEY);
             if (!cartJson) return [];
-            return JSON.parse(cartJson);
+
+            const parsedCart = JSON.parse(cartJson);
+            return Array.isArray(parsedCart) ? parsedCart : [];
         } catch (error) {
             console.error(`${MODULE_NAME}: Error reading cart:`, error);
             return [];
@@ -54,7 +152,13 @@
      */
     function saveCart(cart) {
         try {
-            globalScope.localStorage?.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+            const storageArea = getStorageArea();
+
+            if (!storageArea || typeof storageArea.setItem !== "function") {
+                return false;
+            }
+
+            storageArea.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
             return true;
         } catch (error) {
             console.error(`${MODULE_NAME}: Error saving cart:`, error);
@@ -70,27 +174,32 @@
      */
     function addToCart(item, quantity = 1) {
         const cart = getCart();
+        const safeItem = item && typeof item === "object" ? item : {};
+        const safeQuantity = normalizePositiveQuantity(quantity, 1);
 
         // Check if item already in cart
         const existingIndex = cart.findIndex(
-            cartItem => cartItem.menuItemId === item.menuItemId &&
-                        cartItem.vendorUid === item.vendorUid
+            cartItem => cartItem.menuItemId === (safeItem.menuItemId || safeItem.id) &&
+                        cartItem.vendorUid === safeItem.vendorUid
         );
 
         if (existingIndex >= 0) {
             // Update quantity
-            cart[existingIndex].quantity += quantity;
+            cart[existingIndex].quantity = normalizePositiveQuantity(
+                cart[existingIndex].quantity,
+                0
+            ) + safeQuantity;
         } else {
             // Add new item
             cart.push({
-                menuItemId: item.menuItemId || item.id,
-                vendorUid: item.vendorUid,
-                vendorName: item.vendorName,
-                name: item.name,
-                category: item.category || "Other",
-                price: item.price,
-                quantity: quantity,
-                photoURL: item.photoURL || "",
+                menuItemId: safeItem.menuItemId || safeItem.id,
+                vendorUid: normalizeText(safeItem.vendorUid),
+                vendorName: normalizeText(safeItem.vendorName),
+                name: normalizeText(safeItem.name) || "Unknown Item",
+                category: normalizeText(safeItem.category) || "Other",
+                price: normalizePrice(safeItem.price),
+                quantity: safeQuantity,
+                photoURL: normalizeText(safeItem.photoURL),
                 notes: ""
             });
         }
@@ -105,7 +214,9 @@
      */
     function getCartItemCount() {
         const cart = getCart();
-        return cart.reduce((total, item) => total + item.quantity, 0);
+        return cart.reduce((total, item) => {
+            return total + normalizePositiveQuantity(item && item.quantity, 0);
+        }, 0);
     }
 
     // ==========================================
@@ -121,9 +232,11 @@
      * @returns {Promise<Object>} Result with menu items
      */
     async function fetchVendorMenu(options = {}) {
-        const vendorUid = options.vendorUid;
+        const vendorUid = normalizeText(options.vendorUid);
+        const vendorName = options.vendorName;
         const orderService = options.orderService || resolveOrderService();
         const firestoreFns = options.firestoreFns || globalScope.firestoreFns || {};
+        const db = options.db || resolveFirestore();
 
         if (!vendorUid) {
             return {
@@ -133,26 +246,31 @@
             };
         }
 
-        // Use orderService if available
+        // Use orderService if available and it returns the expected response shape.
         if (orderService && orderService.getVendorMenuItems) {
             try {
                 const result = await orderService.getVendorMenuItems({
                     vendorUid,
+                    vendorName,
+                    db,
                     firestoreFns
                 });
-                return result;
+
+                if (
+                    result &&
+                    typeof result === "object" &&
+                    Array.isArray(result.menuItems) &&
+                    typeof result.success === "boolean"
+                ) {
+                    return result;
+                }
             } catch (error) {
                 console.error(`${MODULE_NAME}: Error fetching menu via orderService:`, error);
-                return {
-                    success: false,
-                    menuItems: [],
-                    error: { code: "fetch-error", message: error.message }
-                };
             }
         }
 
         // Fallback to direct Firestore query
-        if (!firestoreFns.collection || !firestoreFns.getDocs || !firestoreFns.query) {
+        if (!firestoreFns.collection || !firestoreFns.getDocs) {
             return {
                 success: false,
                 menuItems: [],
@@ -161,7 +279,6 @@
         }
 
         try {
-            const db = options.db || resolveFirestore();
             if (!db) {
                 return {
                     success: false,
@@ -170,26 +287,22 @@
                 };
             }
 
-            const menuRef = firestoreFns.collection(db, `users/${vendorUid}/menuItems`);
-            const querySnapshot = await firestoreFns.getDocs(menuRef);
+            const menuCollectionRef = firestoreFns.collection(db, "users", vendorUid, "menuItems");
+            const querySnapshot = await firestoreFns.getDocs(menuCollectionRef);
             const menuItems = [];
+            const iterate = typeof querySnapshot?.forEach === "function"
+                ? querySnapshot.forEach.bind(querySnapshot)
+                : function iterateDocs(callback) {
+                    const docs = Array.isArray(querySnapshot?.docs) ? querySnapshot.docs : [];
+                    docs.forEach(callback);
+                };
 
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                menuItems.push({
-                    menuItemId: doc.id,
-                    id: doc.id,
-                    vendorUid: data.vendorUid || vendorUid,
-                    vendorName: data.vendorName || "",
-                    name: data.name || "Unknown Item",
-                    category: data.category || "Other",
-                    description: data.description || "",
-                    price: data.price || 0,
-                    photoURL: data.photoURL || "",
-                    available: data.available !== false,
-                    allergens: data.allergens || [],
-                    dietary: data.dietary || []
-                });
+            iterate((docSnapshot) => {
+                const menuItem = normalizeMenuItemRecord(docSnapshot, vendorUid, vendorName);
+
+                if (menuItem.available && menuItem.soldOut !== true) {
+                    menuItems.push(menuItem);
+                }
             });
 
             return {
@@ -217,17 +330,18 @@
      * @returns {HTMLElement} Article element
      */
     function createMenuItemCard(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
         const article = globalScope.document.createElement("article");
-        article.className = item.available ? "menu-item-card" : "menu-item-card unavailable";
-        article.setAttribute("data-menu-item-id", item.menuItemId || item.id);
+        article.className = safeItem.available ? "menu-item-card" : "menu-item-card unavailable";
+        article.setAttribute("data-menu-item-id", safeItem.menuItemId || safeItem.id);
 
         // Item image
         const figure = globalScope.document.createElement("figure");
         figure.className = "menu-item-image-container";
 
         const img = globalScope.document.createElement("img");
-        img.src = item.photoURL || "/images/default-food.png";
-        img.alt = item.name;
+        img.src = normalizeText(safeItem.photoURL) || "/images/default-food.png";
+        img.alt = normalizeText(safeItem.name) || "Menu item";
         img.className = "menu-item-image";
         img.loading = "lazy";
 
@@ -239,27 +353,27 @@
 
         const heading = globalScope.document.createElement("h3");
         heading.className = "menu-item-name";
-        heading.textContent = item.name;
+        heading.textContent = normalizeText(safeItem.name) || "Unknown Item";
 
         const category = globalScope.document.createElement("p");
         category.className = "menu-item-category";
-        category.textContent = item.category;
+        category.textContent = normalizeText(safeItem.category) || "Other";
 
         section.appendChild(heading);
         section.appendChild(category);
 
-        if (item.description) {
+        if (normalizeText(safeItem.description)) {
             const description = globalScope.document.createElement("p");
             description.className = "menu-item-description";
-            description.textContent = item.description;
+            description.textContent = normalizeText(safeItem.description);
             section.appendChild(description);
         }
 
         // Dietary info
-        if (item.dietary && item.dietary.length > 0) {
+        if (Array.isArray(safeItem.dietary) && safeItem.dietary.length > 0) {
             const dietary = globalScope.document.createElement("p");
             dietary.className = "menu-item-dietary";
-            dietary.textContent = item.dietary.join(", ");
+            dietary.textContent = safeItem.dietary.join(", ");
             section.appendChild(dietary);
         }
 
@@ -270,12 +384,12 @@
         const price = globalScope.document.createElement("p");
         price.className = "menu-item-price";
         const priceStrong = globalScope.document.createElement("strong");
-        priceStrong.textContent = `R${item.price.toFixed(2)}`;
+        priceStrong.textContent = `R${normalizePrice(safeItem.price).toFixed(2)}`;
         price.appendChild(priceStrong);
 
         footer.appendChild(price);
 
-        if (item.available) {
+        if (safeItem.available) {
             const quantitySection = globalScope.document.createElement("section");
             quantitySection.className = "quantity-controls";
 
@@ -286,7 +400,7 @@
 
             const quantityInput = globalScope.document.createElement("input");
             quantityInput.type = "number";
-            quantityInput.id = `quantity-${item.menuItemId || item.id}`;
+            quantityInput.id = `quantity-${safeItem.menuItemId || safeItem.id}`;
             quantityInput.className = "quantity-input";
             quantityInput.min = "1";
             quantityInput.max = "99";
@@ -296,7 +410,7 @@
             addButton.type = "button";
             addButton.className = "button-primary add-to-cart-button";
             addButton.textContent = "Add to Cart";
-            addButton.setAttribute("data-menu-item-id", item.menuItemId || item.id);
+            addButton.setAttribute("data-menu-item-id", safeItem.menuItemId || safeItem.id);
 
             quantitySection.appendChild(quantityLabel);
             quantitySection.appendChild(quantityInput);
@@ -381,8 +495,8 @@
      */
     function setStatusMessage(element, message, state = "info") {
         if (!element) return;
-        element.textContent = message;
-        element.setAttribute("data-state", state);
+        element.textContent = normalizeText(message);
+        element.setAttribute("data-state", normalizeText(state) || "info");
     }
 
     /**
@@ -442,7 +556,7 @@
         if (!card) return;
 
         const quantityInput = card.querySelector(".quantity-input");
-        const quantity = quantityInput ? parseInt(quantityInput.value, 10) : 1;
+        const quantity = quantityInput ? normalizePositiveQuantity(quantityInput.value, 1) : 1;
 
         if (quantity < 1 || quantity > 99) {
             alert("Please enter a valid quantity (1-99)");
@@ -471,11 +585,11 @@
 
         const item = {
             menuItemId,
-            vendorUid,
-            vendorName: decodeURIComponent(vendorName),
-            name,
-            category,
-            price
+            vendorUid: normalizeText(vendorUid),
+            vendorName: decodeText(vendorName),
+            name: normalizeText(name),
+            category: normalizeText(category) || "Other",
+            price: normalizePrice(price)
         };
 
         const result = addToCart(item, quantity);
@@ -521,14 +635,19 @@
      * @returns {Promise<Object>} Initialization result
      */
     async function init(options = {}) {
+        if (initInFlight) {
+            return initInFlight;
+        }
+
+        initInFlight = (async function runInit() {
         const containerSelector = options.containerSelector || "#menu-container";
         const statusSelector = options.statusSelector || "#browse-menu-status";
         const cartBadgeSelector = options.cartBadgeSelector || "#cart-badge";
         const vendorNameSelector = options.vendorNameSelector || "#vendor-name-heading";
 
         // Get vendor info from URL
-        const urlParams = new URLSearchParams(globalScope.location?.search || "");
-        const vendorUid = options.vendorUid || urlParams.get("vendorUid");
+        const urlParams = new URLSearchParams(getLocationSearch(options));
+        const vendorUid = normalizeText(options.vendorUid || urlParams.get("vendorUid"));
         const vendorName = options.vendorName || urlParams.get("vendorName");
 
         if (!vendorUid) {
@@ -548,7 +667,7 @@
 
         // Set vendor name
         if (vendorNameElement && vendorName) {
-            vendorNameElement.textContent = decodeURIComponent(vendorName);
+            vendorNameElement.textContent = decodeText(vendorName);
         }
 
         // Update cart badge
@@ -563,6 +682,7 @@
         // Fetch menu
         const result = await fetchVendorMenu({
             vendorUid,
+            vendorName,
             orderService: options.orderService,
             firestoreFns: options.firestoreFns,
             db: options.db
@@ -607,8 +727,15 @@
             menuItemCount: result.count,
             menuItems: result.menuItems,
             vendorUid,
-            vendorName
+            vendorName: decodeText(vendorName)
         };
+        })();
+
+        try {
+            return await initInFlight;
+        } finally {
+            initInFlight = null;
+        }
     }
 
     // ==========================================
@@ -618,6 +745,8 @@
     const customerBrowseMenu = {
         init,
         fetchVendorMenu,
+        normalizeMenuItemRecord,
+        getLocationSearch,
         renderMenuItems,
         createMenuItemCard,
         setStatusMessage,

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Browse menu items from campus vendors and add them to your cart.">
     <link rel="stylesheet" href="../index.css">
-    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./order-management.css">
 </head>
 <body class="customer-portal">
 
@@ -28,10 +28,7 @@
     <main class="customer-main">
         <section class="page-hero shared-section" aria-labelledby="vendor-name-heading">
             <nav class="breadcrumb" aria-label="Breadcrumb navigation">
-                <ul>
-                    <li><a href="./browse-vendors.html">Vendors</a></li>
-                    <li aria-current="page">Menu</li>
-                </ul>
+                <p><a href="./browse-vendors.html">Vendors</a> / <strong aria-current="page">Menu</strong></p>
             </nav>
 
             <h2 id="vendor-name-heading">Menu</h2>
@@ -62,6 +59,7 @@
         <p>Campus Food Ordering Platform &copy; 2026 | <a href="../support.html">Support</a></p>
     </footer>
 
+    <script src="./browse-menu.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
         import {
@@ -84,37 +82,38 @@
         window.db = db;
         window.auth = auth;
 
-        // Load order service if available
-        if (window.orderService) {
-            console.log("Order service loaded");
-        }
-    </script>
-    <script src="../../shared/orders/order-service.js"></script>
-    <script src="./browse-menu.js"></script>
-    <script>
-        // Initialize browse menu page
-        (async function() {
-            if (typeof customerBrowseMenu !== "undefined") {
-                try {
-                    const result = await customerBrowseMenu.init();
-                    console.log("Browse menu initialized:", result);
+        if (window.customerBrowseMenu && typeof window.customerBrowseMenu.init === "function") {
+            try {
+                const result = await window.customerBrowseMenu.init({
+                    db,
+                    auth,
+                    firestoreFns: window.firestoreFns
+                });
 
-                    if (!result.success) {
-                        console.error("Failed to initialize:", result.error);
+                if (!result.success) {
+                    const statusElement = document.getElementById("browse-menu-status");
 
-                        // Show helpful error message
-                        const statusElement = document.getElementById("browse-menu-status");
-                        if (statusElement && result.error.includes("vendor")) {
-                            statusElement.innerHTML =
-                                'No vendor selected. <a href="./browse-vendors.html">Browse Vendors</a>';
-                            statusElement.setAttribute("data-state", "error");
-                        }
+                    if (statusElement && typeof result.error === "string" && result.error.includes("vendor")) {
+                        statusElement.textContent = "No vendor selected. Please return to browse vendors.";
+                        statusElement.setAttribute("data-state", "error");
                     }
-                } catch (error) {
-                    console.error("Failed to initialize browse menu:", error);
+                }
+            } catch (error) {
+                console.error("Failed to initialize browse menu:", error);
+
+                const statusElement = document.getElementById("browse-menu-status");
+                const menuContainer = document.getElementById("menu-container");
+
+                if (statusElement) {
+                    statusElement.textContent = "Failed to load vendor menu.";
+                    statusElement.setAttribute("data-state", "error");
+                }
+
+                if (menuContainer) {
+                    menuContainer.innerHTML = "<p class=\"empty-state-message\">Menu data is unavailable right now.</p>";
                 }
             }
-        })();
+        }
     </script>
 </body>
 </html>

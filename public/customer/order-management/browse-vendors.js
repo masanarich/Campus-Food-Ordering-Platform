@@ -1,402 +1,681 @@
-// public/customer/order-management/browse-vendors.js
-
 (function attachCustomerBrowseVendors(globalScope) {
     "use strict";
 
     const MODULE_NAME = "customer/order-management/browse-vendors";
+    let initInFlight = null;
 
-    // ==========================================
-    // DEPENDENCY RESOLUTION
-    // ==========================================
+    function normalizeText(value) {
+        return typeof value === "string" ? value.trim() : "";
+    }
 
-    function resolveFirestore(explicit) {
-        if (explicit) return explicit;
-        if (globalScope.db) return globalScope.db;
+    function normalizeLowerText(value) {
+        return normalizeText(value).toLowerCase();
+    }
+
+    function resolveFirestore(explicitDb) {
+        if (explicitDb) {
+            return explicitDb;
+        }
+
+        if (globalScope.db) {
+            return globalScope.db;
+        }
+
         return null;
     }
 
-    function resolveAuth(explicit) {
-        if (explicit) return explicit;
-        if (globalScope.auth) return globalScope.auth;
+    function resolveAuth(explicitAuth) {
+        if (explicitAuth) {
+            return explicitAuth;
+        }
+
+        if (globalScope.auth) {
+            return globalScope.auth;
+        }
+
         return null;
     }
 
-    // ==========================================
-    // VENDOR DATA FETCHING
-    // ==========================================
+    function resolveAuthFns(explicitAuthFns) {
+        if (explicitAuthFns && typeof explicitAuthFns === "object") {
+            return explicitAuthFns;
+        }
 
-    /**
-     * Fetch all approved active vendors from Firestore
-     * @param {Object} options - Configuration options
-     * @param {Object} options.db - Firestore database instance
-     * @param {Function} options.firestoreFns - Firestore functions (collection, getDocs, query, where, orderBy)
-     * @returns {Promise<Object>} Result object with vendors array
-     */
+        if (globalScope.authFns && typeof globalScope.authFns === "object") {
+            return globalScope.authFns;
+        }
+
+        return {};
+    }
+
+    function resolveFirestoreFns(explicitFirestoreFns) {
+        if (explicitFirestoreFns && typeof explicitFirestoreFns === "object") {
+            return explicitFirestoreFns;
+        }
+
+        if (globalScope.firestoreFns && typeof globalScope.firestoreFns === "object") {
+            return globalScope.firestoreFns;
+        }
+
+        return {};
+    }
+
+    function getFallbackRoutes() {
+        return {
+            home: "../index.html",
+            cart: "./cart.html",
+            orders: "../order-tracking/index.html",
+            profile: "../../authentication/profile.html",
+            vendorMenu: "./browse-menu.html"
+        };
+    }
+
+    function sortVendors(vendors) {
+        return (Array.isArray(vendors) ? vendors.slice() : []).sort(function compareVendors(a, b) {
+            const aName = normalizeLowerText(a && (a.businessName || a.displayName));
+            const bName = normalizeLowerText(b && (b.businessName || b.displayName));
+
+            if (aName < bName) {
+                return -1;
+            }
+
+            if (aName > bName) {
+                return 1;
+            }
+
+            return 0;
+        });
+    }
+
+    function normalizeVendorRecord(docSnapshot) {
+        const safeData = docSnapshot && typeof docSnapshot.data === "function"
+            ? (docSnapshot.data() || {})
+            : {};
+
+        const displayName = normalizeText(safeData.displayName);
+        const vendorBusinessName = normalizeText(safeData.vendorBusinessName);
+        const businessName = normalizeText(safeData.businessName);
+        const vendorDescription = normalizeText(safeData.vendorDescription);
+        const vendorLocation = normalizeText(safeData.vendorLocation);
+        const vendorEmail = normalizeText(safeData.vendorEmail);
+        const vendorPhoneNumber = normalizeText(safeData.vendorPhoneNumber);
+        const vendorFoodType = normalizeText(safeData.vendorFoodType);
+        const vendorUniversity = normalizeText(safeData.vendorUniversity);
+        const accountStatus = normalizeLowerText(safeData.accountStatus) || "active";
+
+        return {
+            uid: normalizeText(docSnapshot && docSnapshot.id) || normalizeText(safeData.uid),
+            displayName: displayName || "Unknown Vendor",
+            email: normalizeText(safeData.email),
+            photoURL: normalizeText(
+                safeData.uploadedPhotoURL ||
+                safeData.photoURL ||
+                safeData.providerPhotoURL
+            ),
+            vendorStatus: normalizeLowerText(safeData.vendorStatus),
+            accountStatus,
+            businessName: vendorBusinessName || businessName || displayName || "Unknown Vendor",
+            description: vendorDescription,
+            location: vendorLocation || vendorUniversity || "Campus",
+            vendorEmail: vendorEmail || normalizeText(safeData.email),
+            vendorPhoneNumber,
+            foodType: vendorFoodType,
+            university: vendorUniversity,
+            rating: Number.isFinite(Number(safeData.rating)) ? Number(safeData.rating) : 0,
+            totalOrders: Number.isFinite(Number(safeData.totalOrders)) ? Number(safeData.totalOrders) : 0,
+            isAdmin: safeData.isAdmin === true
+        };
+    }
+
+    function mapFetchError(error) {
+        const code = normalizeText(error && error.code) || "fetch-error";
+        const message = normalizeText(error && error.message);
+
+        if (code === "failed-precondition" || message.toLowerCase().includes("requires an index")) {
+            return {
+                code: "vendors-query-not-ready",
+                message: "Vendor data could not be loaded right now. Please try again shortly."
+            };
+        }
+
+        if (code === "permission-denied") {
+            return {
+                code: "vendors-permission-denied",
+                message: "You do not have permission to view vendor records right now."
+            };
+        }
+
+        return {
+            code: code || "fetch-error",
+            message: message || "Failed to fetch vendors."
+        };
+    }
+
+    function waitForAuthReady(auth, authFns, timeoutMs = 5000) {
+        if (!auth || !authFns || typeof authFns.onAuthStateChanged !== "function") {
+            return Promise.resolve(null);
+        }
+
+        return new Promise(function resolveAuthState(resolve) {
+            let settled = false;
+            let unsubscribe = function noop() {
+                return undefined;
+            };
+
+            function finish(user) {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+                unsubscribe();
+                resolve(user || null);
+            }
+
+            unsubscribe = authFns.onAuthStateChanged(auth, function handleAuthState(user) {
+                finish(user);
+            }, function handleAuthError() {
+                finish(null);
+            });
+
+            globalScope.setTimeout(function handleTimeout() {
+                finish(auth.currentUser || null);
+            }, timeoutMs);
+        });
+    }
+
     async function fetchApprovedVendors(options = {}) {
         const db = options.db || resolveFirestore(options.firestore);
-        const fns = options.firestoreFns || globalScope.firestoreFns || {};
+        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
 
         if (!db) {
             return {
                 success: false,
                 vendors: [],
-                error: { code: "no-db", message: "Firestore database not available" }
+                error: {
+                    code: "no-db",
+                    message: "Firestore database not available."
+                }
             };
         }
 
-        if (!fns.collection || !fns.getDocs || !fns.query || !fns.where || !fns.orderBy) {
-            return {
-                success: false,
-                vendors: [],
-                error: { code: "no-firestore-fns", message: "Firestore functions not available" }
-            };
-        }
-
-        try {
-            const usersRef = fns.collection(db, "users");
-            const vendorsQuery = fns.query(
-                usersRef,
-                fns.where("vendorStatus", "==", "approved"),
-                fns.where("accountStatus", "==", "active"),
-                fns.orderBy("displayName", "asc")
-            );
-
-            const querySnapshot = await fns.getDocs(vendorsQuery);
-            const vendors = [];
-
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                vendors.push({
-                    uid: doc.id,
-                    displayName: data.displayName || "Unknown Vendor",
-                    email: data.email || "",
-                    photoURL: data.photoURL || "",
-                    vendorStatus: data.vendorStatus,
-                    accountStatus: data.accountStatus,
-                    // Additional vendor info if available
-                    businessName: data.businessName || data.displayName || "Unknown",
-                    description: data.description || "",
-                    location: data.location || "Campus",
-                    rating: data.rating || 0,
-                    totalOrders: data.totalOrders || 0
-                });
-            });
-
-            return {
-                success: true,
-                vendors,
-                count: vendors.length
-            };
-        } catch (error) {
-            console.error(`${MODULE_NAME}: Error fetching vendors:`, error);
+        if (
+            typeof firestoreFns.collection !== "function" ||
+            typeof firestoreFns.getDocs !== "function"
+        ) {
             return {
                 success: false,
                 vendors: [],
                 error: {
-                    code: error.code || "fetch-error",
-                    message: error.message || "Failed to fetch vendors"
+                    code: "no-firestore-fns",
+                    message: "Firestore functions not available."
                 }
+            };
+        }
+
+        try {
+            const usersRef = firestoreFns.collection(db, "users");
+            const approvedUsersQuery =
+                typeof firestoreFns.query === "function" &&
+                typeof firestoreFns.where === "function"
+                    ? firestoreFns.query(
+                        usersRef,
+                        firestoreFns.where("vendorStatus", "==", "approved"),
+                        firestoreFns.where("accountStatus", "==", "active")
+                    )
+                    : usersRef;
+            const querySnapshot = await firestoreFns.getDocs(approvedUsersQuery);
+            const vendors = [];
+            const iterate = typeof querySnapshot.forEach === "function"
+                ? querySnapshot.forEach.bind(querySnapshot)
+                : function iterateDocs(callback) {
+                    const docs = Array.isArray(querySnapshot && querySnapshot.docs)
+                        ? querySnapshot.docs
+                        : [];
+                    docs.forEach(callback);
+                };
+
+            iterate(function forEachVendor(docSnapshot) {
+                const vendor = normalizeVendorRecord(docSnapshot);
+                const isAccountAccessible =
+                    vendor.accountStatus !== "disabled" &&
+                    vendor.accountStatus !== "blocked";
+
+                if (vendor.vendorStatus === "approved" && isAccountAccessible) {
+                    vendors.push(vendor);
+                }
+            });
+
+            return {
+                success: true,
+                vendors: sortVendors(vendors),
+                count: vendors.length
+            };
+        } catch (error) {
+            const mappedError = mapFetchError(error);
+
+            return {
+                success: false,
+                vendors: [],
+                error: mappedError
             };
         }
     }
 
-    // ==========================================
-    // UI RENDERING
-    // ==========================================
+    function createBackButton(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const button = globalScope.document.createElement("button");
+        const fallbackRoute = normalizeText(safeOptions.fallbackRoute) || getFallbackRoutes().home;
 
-    /**
-     * Create vendor card element
-     * @param {Object} vendor - Vendor data
-     * @returns {HTMLElement} Article element containing vendor card
-     */
+        button.type = "button";
+        button.className = "button-secondary browse-vendors-back-button";
+        button.textContent = normalizeText(safeOptions.label) || "Back";
+
+        button.addEventListener("click", function handleBackClick() {
+            if (globalScope.history && typeof globalScope.history.back === "function" && globalScope.history.length > 1) {
+                globalScope.history.back();
+                return;
+            }
+
+            globalScope.location.href = fallbackRoute;
+        });
+
+        return button;
+    }
+
     function createVendorCard(vendor) {
+        const safeVendor = vendor && typeof vendor === "object" ? vendor : {};
+
         const article = globalScope.document.createElement("article");
         article.className = "vendor-card";
-        article.setAttribute("data-vendor-uid", vendor.uid);
-
-        // Vendor image
-        const figure = globalScope.document.createElement("figure");
-        figure.className = "vendor-image-container";
-
-        const img = globalScope.document.createElement("img");
-        img.src = vendor.photoURL || "/images/default-vendor.png";
-        img.alt = `${vendor.businessName} logo`;
-        img.className = "vendor-image";
-        img.loading = "lazy";
-
-        figure.appendChild(img);
-
-        // Vendor info
-        const section = globalScope.document.createElement("section");
-        section.className = "vendor-info";
+        article.setAttribute("data-vendor-uid", normalizeText(safeVendor.uid));
 
         const heading = globalScope.document.createElement("h3");
         heading.className = "vendor-name";
-        heading.textContent = vendor.businessName;
+        heading.textContent = normalizeText(safeVendor.businessName) || "Unknown Vendor";
 
-        const location = globalScope.document.createElement("p");
-        location.className = "vendor-location";
-        location.textContent = vendor.location;
+        const image = globalScope.document.createElement("img");
+        image.className = "vendor-image";
+        image.loading = "lazy";
+        image.src = normalizeText(safeVendor.photoURL) || "../assets/default-avatar.png";
+        image.alt = `${normalizeText(safeVendor.businessName) || "Vendor"} profile picture`;
 
-        const description = globalScope.document.createElement("p");
-        description.className = "vendor-description";
-        description.textContent = vendor.description || "Delicious food awaits you!";
+        const ownerLine = globalScope.document.createElement("p");
+        ownerLine.className = "vendor-owner-line";
+        ownerLine.textContent = normalizeText(safeVendor.displayName)
+            ? `Owner: ${safeVendor.displayName}`
+            : "Owner information unavailable";
 
-        section.appendChild(heading);
-        section.appendChild(location);
-        if (vendor.description) {
-            section.appendChild(description);
-        }
+        const locationLine = globalScope.document.createElement("p");
+        locationLine.className = "vendor-location";
+        locationLine.textContent = normalizeText(safeVendor.location) || "Campus";
 
-        // Vendor stats (if available)
-        if (vendor.rating || vendor.totalOrders) {
-            const stats = globalScope.document.createElement("section");
-            stats.className = "vendor-stats";
+        const foodTypeLine = globalScope.document.createElement("p");
+        foodTypeLine.className = "vendor-food-type";
+        foodTypeLine.textContent = normalizeText(safeVendor.foodType)
+            ? `Food Type: ${safeVendor.foodType}`
+            : "Food Type: General";
 
-            if (vendor.rating) {
-                const ratingP = globalScope.document.createElement("p");
-                ratingP.className = "vendor-rating";
-                const ratingStrong = globalScope.document.createElement("strong");
-                ratingStrong.textContent = `${vendor.rating.toFixed(1)}`;
-                ratingP.appendChild(ratingStrong);
-                ratingP.appendChild(globalScope.document.createTextNode(" / 5.0"));
-                stats.appendChild(ratingP);
+        const descriptionLine = globalScope.document.createElement("p");
+        descriptionLine.className = "vendor-description";
+        descriptionLine.textContent = normalizeText(safeVendor.description) || "Browse this vendor to view available meals and items.";
+
+        const hasStats =
+            Number.isFinite(Number(safeVendor.rating)) && Number(safeVendor.rating) > 0 ||
+            Number.isFinite(Number(safeVendor.totalOrders)) && Number(safeVendor.totalOrders) > 0;
+        let statsSection = null;
+
+        if (hasStats) {
+            statsSection = globalScope.document.createElement("section");
+            statsSection.className = "vendor-stats";
+
+            if (Number.isFinite(Number(safeVendor.rating)) && Number(safeVendor.rating) > 0) {
+                const ratingLine = globalScope.document.createElement("p");
+                ratingLine.className = "vendor-rating";
+                ratingLine.innerHTML = `Rating: <strong>${Number(safeVendor.rating).toFixed(1)}</strong>`;
+                statsSection.appendChild(ratingLine);
             }
 
-            if (vendor.totalOrders) {
-                const ordersP = globalScope.document.createElement("p");
-                ordersP.className = "vendor-orders";
-                ordersP.textContent = `${vendor.totalOrders} orders`;
-                stats.appendChild(ordersP);
+            if (Number.isFinite(Number(safeVendor.totalOrders)) && Number(safeVendor.totalOrders) > 0) {
+                const ordersLine = globalScope.document.createElement("p");
+                ordersLine.className = "vendor-orders";
+                ordersLine.textContent = `${Number(safeVendor.totalOrders)} orders completed`;
+                statsSection.appendChild(ordersLine);
             }
-
-            section.appendChild(stats);
         }
 
-        // Action button
         const footer = globalScope.document.createElement("footer");
         footer.className = "vendor-card-footer";
 
-        const button = globalScope.document.createElement("button");
-        button.type = "button";
-        button.className = "button-primary vendor-browse-button";
-        button.textContent = "View Menu";
-        button.setAttribute("data-vendor-uid", vendor.uid);
-        button.setAttribute("data-vendor-name", vendor.businessName);
+        const viewMenuButton = globalScope.document.createElement("button");
+        viewMenuButton.type = "button";
+        viewMenuButton.className = "button-primary vendor-browse-button";
+        viewMenuButton.textContent = "View Menu";
+        viewMenuButton.setAttribute("data-vendor-uid", normalizeText(safeVendor.uid));
+        viewMenuButton.setAttribute("data-vendor-name", normalizeText(safeVendor.businessName));
 
-        footer.appendChild(button);
+        footer.appendChild(viewMenuButton);
 
-        // Assemble card
-        article.appendChild(figure);
-        article.appendChild(section);
+        article.appendChild(heading);
+        article.appendChild(image);
+        article.appendChild(ownerLine);
+        article.appendChild(locationLine);
+        article.appendChild(foodTypeLine);
+        article.appendChild(descriptionLine);
+        if (statsSection) {
+            article.appendChild(statsSection);
+        }
         article.appendChild(footer);
 
         return article;
     }
 
-    /**
-     * Render vendors to container
-     * @param {Array} vendors - Array of vendor objects
-     * @param {HTMLElement} container - Container element
-     */
-    function renderVendors(vendors, container) {
+    function renderEmptyState(container, message) {
         if (!container) {
-            console.error(`${MODULE_NAME}: No container element provided`);
             return;
         }
 
-        // Clear existing content
         container.innerHTML = "";
 
-        if (!vendors || vendors.length === 0) {
-            const emptyMessage = globalScope.document.createElement("p");
-            emptyMessage.className = "empty-state-message";
-            emptyMessage.textContent = "No vendors available at the moment. Please check back later.";
-            container.appendChild(emptyMessage);
+        const paragraph = globalScope.document.createElement("p");
+        paragraph.className = "empty-state-message";
+        paragraph.textContent = normalizeText(message) || "No vendors are available right now.";
+
+        container.appendChild(paragraph);
+    }
+
+    function renderVendors(vendors, container) {
+        if (!container) {
             return;
         }
 
-        // Create vendor cards
-        vendors.forEach((vendor) => {
-            const card = createVendorCard(vendor);
-            container.appendChild(card);
+        container.innerHTML = "";
+
+        const safeVendors = Array.isArray(vendors) ? vendors : [];
+
+        if (safeVendors.length === 0) {
+            renderEmptyState(container, "No approved vendors are available right now.");
+            return;
+        }
+
+        safeVendors.forEach(function appendVendor(vendor) {
+            container.appendChild(createVendorCard(vendor));
         });
     }
 
-    /**
-     * Display status message
-     * @param {HTMLElement} element - Status element
-     * @param {String} message - Status message
-     * @param {String} state - State type (success, error, info, loading)
-     */
     function setStatusMessage(element, message, state = "info") {
-        if (!element) return;
-
-        element.textContent = message;
-        element.setAttribute("data-state", state);
-    }
-
-    /**
-     * Display loading state
-     * @param {HTMLElement} container - Container element
-     * @param {Boolean} isLoading - Loading state
-     */
-    function setLoadingState(container, isLoading) {
-        if (!container) return;
-
-        if (isLoading) {
-            container.innerHTML = "<p class=\"loading-message\">Loading vendors...</p>";
-            container.setAttribute("data-loading", "true");
-        } else {
-            container.removeAttribute("data-loading");
-        }
-    }
-
-    // ==========================================
-    // EVENT HANDLERS
-    // ==========================================
-
-    /**
-     * Handle vendor browse button click
-     * @param {Event} event - Click event
-     */
-    function handleVendorBrowseClick(event) {
-        const button = event.target.closest(".vendor-browse-button");
-        if (!button) return;
-
-        const vendorUid = button.getAttribute("data-vendor-uid");
-        const vendorName = button.getAttribute("data-vendor-name");
-
-        if (!vendorUid) {
-            console.error(`${MODULE_NAME}: No vendor UID found on button`);
+        if (!element) {
             return;
         }
 
-        // Navigate to browse menu page with vendor ID
-        const url = new URL("./browse-menu.html", globalScope.location.href);
-        url.searchParams.set("vendorUid", vendorUid);
-        if (vendorName) {
-            url.searchParams.set("vendorName", encodeURIComponent(vendorName));
+        element.textContent = normalizeText(message);
+        element.setAttribute("data-state", normalizeText(state) || "info");
+    }
+
+    function setLoadingState(container, isLoading) {
+        if (!container) {
+            return;
         }
 
-        globalScope.location.href = url.toString();
+        if (isLoading) {
+            container.setAttribute("data-loading", "true");
+            container.innerHTML = "";
+
+            const paragraph = globalScope.document.createElement("p");
+            paragraph.className = "loading-message";
+            paragraph.textContent = "Loading vendors...";
+            container.appendChild(paragraph);
+            return;
+        }
+
+        container.removeAttribute("data-loading");
     }
 
-    /**
-     * Setup event listeners
-     * @param {HTMLElement} container - Vendors container
-     */
-    function setupEventListeners(container) {
-        if (!container) return;
+    function buildVendorMenuUrl(vendorUid, vendorName) {
+        const routes = getFallbackRoutes();
+        const url = new URL(routes.vendorMenu, globalScope.location.href);
 
-        // Delegate click events for vendor buttons
-        container.addEventListener("click", handleVendorBrowseClick);
+        url.searchParams.set("vendorUid", normalizeText(vendorUid));
+
+        if (normalizeText(vendorName)) {
+            url.searchParams.set("vendorName", normalizeText(vendorName));
+        }
+
+        return url.toString();
     }
 
-    // ==========================================
-    // INITIALIZATION
-    // ==========================================
+    function handleVendorBrowseClick(event) {
+        const button = event && event.target && typeof event.target.closest === "function"
+            ? event.target.closest(".vendor-browse-button")
+            : null;
 
-    /**
-     * Initialize browse vendors page
-     * @param {Object} options - Configuration options
-     * @param {Object} options.db - Firestore database
-     * @param {Object} options.auth - Firebase auth
-     * @param {Object} options.firestoreFns - Firestore functions
-     * @param {String} options.containerSelector - Container CSS selector
-     * @param {String} options.statusSelector - Status element CSS selector
-     * @returns {Promise<Object>} Initialization result
-     */
+        if (!button) {
+            return null;
+        }
+
+        const vendorUid = normalizeText(button.getAttribute("data-vendor-uid"));
+        const vendorName = normalizeText(button.getAttribute("data-vendor-name"));
+
+        if (!vendorUid) {
+            return null;
+        }
+
+        const nextUrl = buildVendorMenuUrl(vendorUid, vendorName);
+        globalScope.location.href = nextUrl;
+
+        return nextUrl;
+    }
+
+    function setupEventListeners(options = {}) {
+        const safeOptions = options && typeof options === "object" && !("nodeType" in options)
+            ? options
+            : { container: options };
+        const container = safeOptions.container || null;
+        const refreshButton = safeOptions.refreshButton || null;
+        const backButtonHost = safeOptions.backButtonHost || null;
+        const onRefresh = typeof safeOptions.onRefresh === "function" ? safeOptions.onRefresh : null;
+
+        if (container) {
+            container.addEventListener("click", handleVendorBrowseClick);
+        }
+
+        if (refreshButton && onRefresh) {
+            refreshButton.addEventListener("click", onRefresh);
+        }
+
+        if (backButtonHost && !backButtonHost.querySelector(".browse-vendors-back-button")) {
+            backButtonHost.appendChild(createBackButton({
+                fallbackRoute: getFallbackRoutes().home
+            }));
+        }
+    }
+
     async function init(options = {}) {
+        if (initInFlight) {
+            return initInFlight;
+        }
+
+        initInFlight = (async function runInit() {
         const db = options.db || resolveFirestore();
         const auth = options.auth || resolveAuth();
+        const authFns = resolveAuthFns(options.authFns);
+        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
         const containerSelector = options.containerSelector || "#vendors-container";
         const statusSelector = options.statusSelector || "#browse-vendors-status";
+        const refreshButtonSelector = options.refreshButtonSelector || "#refresh-vendors-button";
+        const backButtonHostSelector = options.backButtonHostSelector || "#browse-vendors-back-button-host";
 
         if (!db) {
-            console.error(`${MODULE_NAME}: Firestore not available`);
-            return { success: false, error: "Firestore not available" };
-        }
-
-        if (!auth) {
-            console.warn(`${MODULE_NAME}: Auth not available - user may not be authenticated`);
+            return {
+                success: false,
+                error: "Firestore not available."
+            };
         }
 
         const container = globalScope.document.querySelector(containerSelector);
         const statusElement = globalScope.document.querySelector(statusSelector);
+        const refreshButton = globalScope.document.querySelector(refreshButtonSelector);
+        const backButtonHost = globalScope.document.querySelector(backButtonHostSelector);
 
         if (!container) {
-            console.error(`${MODULE_NAME}: Container element not found: ${containerSelector}`);
-            return { success: false, error: "Container not found" };
+            return {
+                success: false,
+                error: "Container not found."
+            };
         }
 
-        // Show loading state
+        if (refreshButton) {
+            refreshButton.disabled = true;
+            refreshButton.textContent = "Refreshing...";
+        }
+
         setLoadingState(container, true);
-        if (statusElement) {
-            setStatusMessage(statusElement, "Loading vendors...", "loading");
+        setStatusMessage(statusElement, "Loading approved vendors...", "loading");
+
+        await waitForAuthReady(auth, authFns);
+
+        if (auth && !auth.currentUser) {
+            setLoadingState(container, false);
+            renderEmptyState(container, "Please sign in to browse approved vendors.");
+            setStatusMessage(statusElement, "Please sign in to browse approved vendors.", "error");
+
+            if (refreshButton) {
+                refreshButton.disabled = false;
+                refreshButton.textContent = "Refresh Vendors";
+            }
+
+            setupEventListeners({
+                container,
+                refreshButton,
+                backButtonHost,
+                onRefresh: function onRefreshClick() {
+                    return init(options);
+                }
+            });
+
+            return {
+                success: false,
+                error: "Please sign in to browse approved vendors."
+            };
         }
 
-        // Fetch vendors
         const result = await fetchApprovedVendors({
             db,
-            firestoreFns: options.firestoreFns
+            auth,
+            authFns,
+            firestoreFns
         });
 
         setLoadingState(container, false);
 
-        if (!result.success) {
-            const errorMessage = result.error?.message || "Failed to load vendors";
-            if (statusElement) {
-                setStatusMessage(statusElement, errorMessage, "error");
-            }
-            renderVendors([], container);
-            return { success: false, error: errorMessage };
+        if (refreshButton) {
+            refreshButton.disabled = false;
+            refreshButton.textContent = "Refresh Vendors";
         }
 
-        // Render vendors
+        if (!result.success) {
+            renderEmptyState(container, "Vendor data is unavailable right now.");
+            setStatusMessage(
+                statusElement,
+                result.error && result.error.message
+                    ? result.error.message
+                    : "Failed to load vendors.",
+                "error"
+            );
+
+            setupEventListeners({
+                container,
+                refreshButton,
+                backButtonHost,
+                onRefresh: function onRefreshClick() {
+                    return init(options);
+                }
+            });
+
+            return {
+                success: false,
+                error: result.error && result.error.message
+                    ? result.error.message
+                    : "Failed to load vendors."
+            };
+        }
+
         renderVendors(result.vendors, container);
 
-        if (statusElement) {
-            const message = result.count > 0
-                ? `Found ${result.count} vendor${result.count === 1 ? "" : "s"}`
-                : "No vendors available";
-            const state = result.count > 0 ? "success" : "info";
-            setStatusMessage(statusElement, message, state);
+        if (result.count === 0) {
+            setStatusMessage(statusElement, "No approved vendors are available right now.", "info");
+        } else if (result.count === 1) {
+            setStatusMessage(statusElement, "Found 1 approved vendor.", "success");
+        } else {
+            setStatusMessage(statusElement, `Found ${result.count} approved vendors.`, "success");
         }
 
-        // Setup event listeners
-        setupEventListeners(container);
+        setupEventListeners({
+            container,
+            refreshButton,
+            backButtonHost,
+            onRefresh: function onRefreshClick() {
+                return init(options);
+            }
+        });
 
         return {
             success: true,
             vendorCount: result.count,
             vendors: result.vendors
         };
+        })();
+
+        try {
+            return await initInFlight;
+        } finally {
+            initInFlight = null;
+        }
     }
 
-    // ==========================================
-    // MODULE EXPORTS
-    // ==========================================
-
     const customerBrowseVendors = {
-        init,
+        MODULE_NAME,
+        normalizeText,
+        normalizeLowerText,
+        resolveFirestore,
+        resolveAuth,
+        resolveAuthFns,
+        resolveFirestoreFns,
+        getFallbackRoutes,
+        sortVendors,
+        normalizeVendorRecord,
+        mapFetchError,
+        waitForAuthReady,
         fetchApprovedVendors,
-        renderVendors,
+        createBackButton,
         createVendorCard,
+        renderEmptyState,
+        renderVendors,
         setStatusMessage,
         setLoadingState,
+        buildVendorMenuUrl,
         handleVendorBrowseClick,
-        setupEventListeners
+        setupEventListeners,
+        init
     };
 
-    // Export for Node.js (testing)
     if (typeof module !== "undefined" && module.exports) {
         module.exports = customerBrowseVendors;
     }
 
-    // Export to global scope (browser)
     if (typeof globalScope !== "undefined") {
         globalScope.customerBrowseVendors = customerBrowseVendors;
     }
 
+    if (typeof window !== "undefined" && window.document) {
+        window.addEventListener("DOMContentLoaded", function autoInitBrowseVendors() {
+            const pageRoot = window.document.querySelector("[data-page='browse-vendors']");
+
+            if (!pageRoot) {
+                return;
+            }
+
+            customerBrowseVendors.init();
+        });
+    }
 })(typeof window !== "undefined" ? window : globalThis);

@@ -1,18 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Vendor Order Notifications | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Review vendor-facing order notifications and open each order for action.">
+    <link rel="stylesheet" href="../index.css">
     <link rel="stylesheet" href="./index.css">
 </head>
-<body>
-    <main>
-        <h1>Vendor Order Notifications</h1>
-        <p id="vendor-order-notifications-status">Waiting to initialize...</p>
-        <p><a href="./index.html">Back to Vendor Orders</a></p>
+
+<body class="vendor-shell" data-page="vendor-order-notifications">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor notification navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./index.html">Manage Orders</a>
+            <a href="./notifications.html" aria-current="page">Notifications</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="shared-section vendor-notifications-hero" aria-labelledby="vendor-notifications-heading">
+            <h2 id="vendor-notifications-heading">Vendor Order Notifications</h2>
+
+            <p>
+                Review new order alerts and status-related updates for your store, then open the
+                related order whenever you need to take action.
+            </p>
+
+            <p id="vendor-order-notifications-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Vendor notification shortcuts">
+                <li><a href="./index.html">Manage Orders</a></li>
+                <li><a href="../products.html">Manage Menu</a></li>
+                <li><a href="../index.html">Home</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section vendor-notifications-list" aria-labelledby="vendor-notifications-list-heading">
+            <h3 id="vendor-notifications-list-heading">Recent Vendor Notifications</h3>
+            <section id="vendor-notifications-container" aria-live="polite">
+                <p class="loading-message">Loading your notifications...</p>
+            </section>
+        </section>
     </main>
 
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../../authentication/auth-utils.js"></script>
+    <script src="../../authentication/auth-core.js"></script>
+    <script src="../../shared/orders/order-queries.js"></script>
+    <script src="../../shared/orders/order-service.js"></script>
     <script src="./notifications.js"></script>
+    <script type="module">
+        import { authService } from "../../authentication/auth.js";
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+
+        if (window.vendorOrderNotificationsPage && typeof window.vendorOrderNotificationsPage.init === "function") {
+            await window.vendorOrderNotificationsPage.init({
+                db,
+                auth,
+                authService,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                orderService: window.orderService
+            });
+        }
+    </script>
 </body>
+
 </html>
