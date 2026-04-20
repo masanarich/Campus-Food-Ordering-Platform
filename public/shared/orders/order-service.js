@@ -44,7 +44,8 @@
         if (
             explicitOrderModel &&
             typeof explicitOrderModel.createOrderRecordsFromCart === "function" &&
-            typeof explicitOrderModel.normalizeOrderRecord === "function"
+            typeof explicitOrderModel.normalizeOrderRecord === "function" &&
+            typeof explicitOrderModel.createOrderTimelineEntry === "function"
         ) {
             return explicitOrderModel;
         }
@@ -53,7 +54,8 @@
             typeof globalScope !== "undefined" &&
             globalScope.orderModel &&
             typeof globalScope.orderModel.createOrderRecordsFromCart === "function" &&
-            typeof globalScope.orderModel.normalizeOrderRecord === "function"
+            typeof globalScope.orderModel.normalizeOrderRecord === "function" &&
+            typeof globalScope.orderModel.createOrderTimelineEntry === "function"
         ) {
             return globalScope.orderModel;
         }
@@ -65,7 +67,8 @@
                 if (
                     requiredOrderModel &&
                     typeof requiredOrderModel.createOrderRecordsFromCart === "function" &&
-                    typeof requiredOrderModel.normalizeOrderRecord === "function"
+                    typeof requiredOrderModel.normalizeOrderRecord === "function" &&
+                    typeof requiredOrderModel.createOrderTimelineEntry === "function"
                 ) {
                     return requiredOrderModel;
                 }
@@ -241,7 +244,7 @@
                     return generatedId;
                 }
             } catch (error) {
-                // Fall back to a deterministic string when Firestore auto IDs are unavailable.
+                // Fall back to deterministic string below.
             }
         }
 
@@ -330,6 +333,37 @@
         );
     }
 
+    function buildOrderUpdatePatch(orderRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+
+        const patch = {
+            status: normalizeLowerText(safeOrder.status),
+            updatedAt:
+                safeOptions.updatedAt !== undefined
+                    ? safeOptions.updatedAt
+                    : safeOrder.updatedAt
+        };
+
+        if (Array.isArray(safeOrder.timeline)) {
+            patch.timeline = safeOrder.timeline;
+        }
+
+        if ("notes" in safeOrder) {
+            patch.notes = normalizeText(safeOrder.notes);
+        }
+
+        if ("customerConfirmedCollected" in safeOrder) {
+            patch.customerConfirmedCollected = safeOrder.customerConfirmedCollected === true;
+        }
+
+        if ("vendorConfirmedCollected" in safeOrder) {
+            patch.vendorConfirmedCollected = safeOrder.vendorConfirmedCollected === true;
+        }
+
+        return patch;
+    }
+
     function prepareCreateOrders(options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
@@ -380,6 +414,7 @@
                 orderModel
             });
         });
+
         const invalidOrders = validationResults
             .map(function mapResult(result, index) {
                 if (result.isValid) {
@@ -480,12 +515,14 @@
                     orderRecord,
                     orderQueries
                 });
+
                 const payload = buildOrderWritePayload(orderRecord, {
                     orderStatus: safeOptions.orderStatus,
                     orderModel: safeOptions.orderModel,
                     createdByRole: safeOptions.createdByRole || "customer",
                     orderId
                 });
+
                 const docRef = orderQueries.getOrderDocRef(
                     safeOptions.db,
                     orderId,
@@ -523,12 +560,14 @@
                 orderRecord,
                 orderQueries
             });
+
             const payload = buildOrderWritePayload(orderRecord, {
                 orderStatus: safeOptions.orderStatus,
                 orderModel: safeOptions.orderModel,
                 createdByRole: safeOptions.createdByRole || "customer",
                 orderId
             });
+
             const docRef = orderQueries.getOrderDocRef(
                 safeOptions.db,
                 orderId,
@@ -926,7 +965,7 @@
         const safeOptions = options && typeof options === "object" ? options : {};
         const firestoreFns = safeOptions.firestoreFns || {};
         const orderQueries = resolveOrderQueries(safeOptions.orderQueries);
-        const order = safeOptions.order && typeof safeOptions.order === "object"
+        const order = safeOptions.order && typeof options.order === "object"
             ? safeOptions.order
             : null;
 
@@ -952,20 +991,26 @@
             firestoreFns
         );
 
-        if (typeof firestoreFns.setDoc === "function") {
-            await firestoreFns.setDoc(docRef, order, { merge: true });
+        const patch = buildOrderUpdatePatch(order, {
+            updatedAt: order.updatedAt
+        });
+
+        if (typeof firestoreFns.updateDoc === "function") {
+            await firestoreFns.updateDoc(docRef, patch);
 
             return createServiceResult(true, {
                 order,
+                patch,
                 docRef
             });
         }
 
-        if (typeof firestoreFns.updateDoc === "function") {
-            await firestoreFns.updateDoc(docRef, order);
+        if (typeof firestoreFns.setDoc === "function") {
+            await firestoreFns.setDoc(docRef, patch, { merge: true });
 
             return createServiceResult(true, {
                 order,
+                patch,
                 docRef
             });
         }
@@ -974,7 +1019,7 @@
             order,
             error: createServiceError(
                 "orders/update-write-unavailable",
-                "Firestore setDoc or updateDoc is required before saving order updates."
+                "Firestore updateDoc or setDoc is required before saving order updates."
             )
         });
     }
@@ -1016,7 +1061,8 @@
                 timelineEntry: updatePlan.timelineEntry,
                 alreadyConfirmed: updatePlan.alreadyConfirmed,
                 statusChanged: updatePlan.statusChanged,
-                docRef: persistedResult.docRef
+                docRef: persistedResult.docRef,
+                patch: persistedResult.patch || null
             });
         } catch (error) {
             return createServiceResult(false, {
@@ -1069,7 +1115,8 @@
                 timelineEntry: updatePlan.timelineEntry,
                 alreadyConfirmed: updatePlan.alreadyConfirmed,
                 statusChanged: updatePlan.statusChanged,
-                docRef: persistedResult.docRef
+                docRef: persistedResult.docRef,
+                patch: persistedResult.patch || null
             });
         } catch (error) {
             return createServiceResult(false, {
@@ -1098,6 +1145,7 @@
         resolveTimestampValue,
         createOrderId,
         buildOrderWritePayload,
+        buildOrderUpdatePatch,
         prepareCreateOrders,
         persistOrders,
         createOrders,

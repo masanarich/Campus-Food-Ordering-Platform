@@ -2,6 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() {
       return request.auth != null;
     }
@@ -14,14 +15,25 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function isActiveAccount() {
+    function currentUserExists() {
       return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveAccount() {
+      return currentUserExists() &&
         currentUserDoc().data.accountStatus == "active";
     }
 
     function isAdmin() {
-      return signedIn() &&
+      return currentUserExists() &&
         currentUserDoc().data.isAdmin == true &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function isApprovedVendor() {
+      return currentUserExists() &&
+        currentUserDoc().data.vendorStatus == "approved" &&
         currentUserDoc().data.accountStatus == "active";
     }
 
@@ -29,8 +41,8 @@ service cloud.firestore {
       return isSelf(userId) &&
         isActiveAccount() &&
         (
-          currentUserDoc().data.vendorStatus == "approved" ||
-          currentUserDoc().data.isAdmin == true
+          isApprovedVendor() ||
+          isAdmin()
         );
     }
 
@@ -107,9 +119,6 @@ service cloud.firestore {
       allow create: if isSelf(userId) &&
         request.resource.data.uid == userId;
 
-      // Signed-in users need to browse vendor profiles from the users collection.
-      // This is intentionally permissive for the course project so customer pages
-      // can query approved vendors directly from Firestore.
       allow get, list: if signedIn() || isAdmin();
 
       allow update: if isAdmin() || selfCanUpdateOwnProfile(userId);
@@ -157,145 +166,46 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Orders collection
-    match /orders/{orderId} {
-      function isOrderCustomerData(data) {
-        return signedIn() &&
-          request.auth.uid == data.customerUid &&
-          isActiveAccount();
-      }
+match /orders/{orderId} {
+      // Allow creation if the user is logged in
+      allow create: if request.auth != null;
 
-      function isOrderVendorData(data) {
-        return signedIn() &&
-          request.auth.uid == data.vendorUid &&
-          isActiveAccount() &&
-          currentUserDoc().data.vendorStatus == "approved";
-      }
+      // Allow reading if they are the customer, vendor, or admin
+      allow read: if request.auth != null && (
+        resource.data.customerUid == request.auth.uid || 
+        resource.data.vendorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
 
-      function isOrderParticipantData(data) {
-        return isOrderCustomerData(data) || isOrderVendorData(data) || isAdmin();
-      }
+      // Allow any update (Accept, Reject, Ready) if they are a participant
+      allow update: if request.auth != null && (
+        resource.data.customerUid == request.auth.uid || 
+        resource.data.vendorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
 
-      function isValidOrderCreation() {
-        return signedIn() &&
-          isActiveAccount() &&
-          request.resource.data.customerUid == request.auth.uid &&
-          request.resource.data.vendorUid is string &&
-          request.resource.data.vendorUid != "" &&
-          request.resource.data.orderId is string &&
-          request.resource.data.orderId == orderId &&
-          request.resource.data.status == "pending" &&
-          request.resource.data.itemCount > 0 &&
-          request.resource.data.total > 0 &&
-          request.resource.data.items is list &&
-          request.resource.data.items.size() > 0 &&
-          request.resource.data.timeline is list &&
-          request.resource.data.timeline.size() > 0 &&
-          request.resource.data.createdAt is timestamp &&
-          request.resource.data.updatedAt is timestamp;
-      }
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
 
-      function immutableOrderFieldsPreserved() {
-        return request.resource.data.orderId == resource.data.orderId &&
-          request.resource.data.customerUid == resource.data.customerUid &&
-          request.resource.data.customerName == resource.data.customerName &&
-          request.resource.data.customerEmail == resource.data.customerEmail &&
-          request.resource.data.vendorUid == resource.data.vendorUid &&
-          request.resource.data.vendorName == resource.data.vendorName &&
-          request.resource.data.items == resource.data.items &&
-          request.resource.data.itemCount == resource.data.itemCount &&
-          request.resource.data.subtotal == resource.data.subtotal &&
-          request.resource.data.total == resource.data.total &&
-          request.resource.data.createdAt == resource.data.createdAt;
-      }
+    match /notifications/{notificationId} {
 
-      function onlyAllowedOrderFieldsChanged() {
-        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          "status",
-          "timeline",
-          "updatedAt",
-          "notes",
-          "customerConfirmedCollected",
-          "vendorConfirmedCollected"
-        ]);
-      }
-
-      function validOrderUpdateShape() {
-        return immutableOrderFieldsPreserved() &&
-          onlyAllowedOrderFieldsChanged() &&
-          request.resource.data.timeline is list &&
-          request.resource.data.timeline.size() >= resource.data.timeline.size() &&
-          request.resource.data.updatedAt != resource.data.updatedAt;
-      }
-
-      function isValidStatusTransition() {
-        let oldStatus = resource.data.status;
-        let newStatus = request.resource.data.status;
-        let actorUid = request.auth.uid;
-        let isVendor = actorUid == resource.data.vendorUid;
-        let isCustomer = actorUid == resource.data.customerUid;
-
-        // Vendor transitions
-        let vendorCanTransition = isVendor && (
-          (oldStatus == "pending" && (newStatus == "accepted" || newStatus == "rejected")) ||
-          (oldStatus == "accepted" && newStatus == "preparing") ||
-          (oldStatus == "preparing" && newStatus == "ready")
-        );
-
-        // Customer transitions
-        let customerCanTransition = isCustomer && (
-          (oldStatus == "pending" && newStatus == "cancelled") ||
-          (oldStatus == "ready" && newStatus == "completed")
-        );
-
-        return vendorCanTransition || customerCanTransition || isAdmin();
-      }
-
-      function isValidCollectionConfirmation() {
-        let actorUid = request.auth.uid;
-        let isVendor = actorUid == resource.data.vendorUid;
-        let isCustomer = actorUid == resource.data.customerUid;
-        let oldStatus = resource.data.status;
-        let newStatus = request.resource.data.status;
-
-        // Can only confirm when status is "ready" or "completed"
-        return (oldStatus == "ready" || oldStatus == "completed") &&
+      function validReadFlagOnCreate() {
+        return
           (
-            (newStatus == "ready" || newStatus == "completed") &&
-            (
-              (isVendor &&
-                request.resource.data.customerConfirmedCollected == resource.data.customerConfirmedCollected &&
-                request.resource.data.vendorConfirmedCollected == true) ||
-              (isCustomer &&
-                request.resource.data.vendorConfirmedCollected == resource.data.vendorConfirmedCollected &&
-                request.resource.data.customerConfirmedCollected == true)
-            )
+            ("read" in request.resource.data && request.resource.data.read is bool) ||
+            ("isRead" in request.resource.data && request.resource.data.isRead is bool)
           );
       }
 
-      function canUpdateOrder() {
-        return validOrderUpdateShape() && (
-          isValidStatusTransition() ||
-          isValidCollectionConfirmation()
-        );
+      function isUnreadOnCreate() {
+        return
+          (
+            ("read" in request.resource.data && request.resource.data.read == false) ||
+            ("isRead" in request.resource.data && request.resource.data.isRead == false)
+          );
       }
 
-      // Create: Only customers can create orders for themselves
-      allow create: if isValidOrderCreation();
-
-      // Read: customer, vendor, or admin can only read participating orders
-      allow read: if isOrderParticipantData(resource.data);
-
-      // Update: Customer or vendor can update with restrictions
-      allow update: if (isOrderCustomerData(resource.data) || isOrderVendorData(resource.data) || isAdmin()) &&
-        canUpdateOrder();
-
-      // Delete: Admin only (for data management)
-      allow delete: if isAdmin();
-    }
-
-    // Notifications collection
-    match /notifications/{notificationId} {
       function isValidNotificationCreation() {
         return signedIn() &&
           isActiveAccount() &&
@@ -305,14 +215,13 @@ service cloud.firestore {
           request.resource.data.type is string &&
           request.resource.data.title is string &&
           request.resource.data.message is string &&
-          request.resource.data.read == false &&
-          request.resource.data.createdAt is timestamp;
-      }
-
-      function canUpdateNotification() {
-        return isNotificationRecipientData(resource.data) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]) &&
-          request.resource.data.read is bool;
+          validReadFlagOnCreate() &&
+          isUnreadOnCreate() &&
+          request.resource.data.createdAt is timestamp &&
+          (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp) &&
+          (!("orderId" in request.resource.data) || request.resource.data.orderId is string) &&
+          (!("vendorUid" in request.resource.data) || request.resource.data.vendorUid is string) &&
+          (!("customerUid" in request.resource.data) || request.resource.data.customerUid is string);
       }
 
       function canCreateNotification() {
@@ -320,23 +229,30 @@ service cloud.firestore {
           (
             !("orderId" in request.resource.data) ||
             (
-              request.resource.data.orderId is string &&
               request.resource.data.orderId != "" &&
               isOrderParticipantById(request.resource.data.orderId)
             )
           );
       }
 
-      // Create: allow authenticated order participants or admins to create related notifications
+      function canUpdateNotification() {
+        return isNotificationRecipientData(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "read",
+            "isRead",
+            "updatedAt"
+          ]) &&
+          (!("read" in request.resource.data) || request.resource.data.read is bool) &&
+          (!("isRead" in request.resource.data) || request.resource.data.isRead is bool) &&
+          (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
+      }
+
       allow create: if canCreateNotification();
 
-      // Read: Only recipient can view their notifications
       allow read: if isNotificationRecipientData(resource.data) || isAdmin();
 
-      // Update: Only recipient can mark as read
       allow update: if canUpdateNotification();
 
-      // Delete: Recipient or admin can delete
       allow delete: if isNotificationRecipientData(resource.data) || isAdmin();
     }
 
