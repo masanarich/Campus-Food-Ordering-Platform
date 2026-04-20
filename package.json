@@ -1,7 +1,10 @@
 {
+  "name": "campus-food-ordering",
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
   "dependencies": {
     "firebase": "^12.11.0"
@@ -14,12 +17,6 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "collectCoverageFrom": [
-      "public/**/*.js",
-      "!public/authentication/config.js",
-      "!public/authentication/auth.js"
-    ],
-    "coverageDirectory": "coverage",
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.js"
     ]

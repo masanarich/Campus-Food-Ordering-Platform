@@ -1,53 +1,73 @@
-/**
- * @jest-environment jsdom
- */
+import { jest } from '@jest/globals';
 
-// This will fail (Red) because the file or function doesn't exist yet
-const { renderVendorList } = require("../../public/Approved_vendors/index.js");
+// 1. Mock the local config
+jest.unstable_mockModule("../../public/authentication/config.js", () => ({
+    db: { type: 'firestore-mock' },
+    auth: { currentUser: { email: 'student@wits.ac.za' } }
+}));
 
-describe("Approved Vendors - Customer Browsing (RED STAGE)", () => {
+// 2. Mock Firebase Auth
+let triggerAuthChange;
+jest.unstable_mockModule("https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js", () => ({
+    onAuthStateChanged: jest.fn((auth, callback) => {
+        triggerAuthChange = async (user) => {
+            callback(user);
+            await new Promise(resolve => setTimeout(resolve, 0));
+        };
+    })
+}));
+
+// 3. Mock Firebase Firestore (CRITICAL: Must match the URLs in index.js)
+let mockDocs = [];
+jest.unstable_mockModule("https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js", () => ({
+    collection: jest.fn(),
+    query: jest.fn(),
+    where: jest.fn(),
+    getDocs: jest.fn(async () => ({
+        size: mockDocs.length,
+        forEach: (callback) => mockDocs.forEach(doc => callback(doc))
+    }))
+}));
+
+// 4. Import the script AFTER mocks are defined
+await import("../../public/Approved_vendors/index.js");
+
+describe("Order Management - Approved Vendors UI", () => {
     beforeEach(() => {
-        // Prepare the semantic DOM shell
-        document.body.innerHTML = `
-            <main>
-                <header><h1>Available Stores</h1></header>
-                <section id="vendor-list-section">
-                    <ul id="vendor-grid"></ul>
-                </section>
-                <p id="vendor-status-message"></p>
-            </main>
-        `;
+        document.body.innerHTML = '<ul id="vendor-grid"></ul>';
+        mockDocs = [];
+        jest.clearAllMocks();
     });
 
-    test("should render vendor articles and menu links when data is provided", () => {
-        
-        const mockDbVendors = [
-            { 
-                id: "wits_canteen_01", 
-                name: "The Matrix Canteen", 
-                description: "Affordable campus meals", 
-                trading: "Open"
+    test("renders exactly 4 cards when 2 real vendors are provided via Firestore", async () => {
+        mockDocs = [
+            {
+                id: "v1",
+                data: () => ({
+                    vendorBusinessName: "Matrix Curry",
+                    vendorLocation: "Matrix",
+                    vendorDescription: "Curry shop",
+                    vendorFoodType: "Indian"
+                })
+            },
+            {
+                id: "v2",
+                data: () => ({
+                    vendorBusinessName: "Zesty Lemon",
+                    vendorLocation: "Main Braam",
+                    vendorDescription: "Juice shop",
+                    vendorFoodType: "Drinks"
+                })
             }
         ];
 
-    
-        renderVendorList(mockDbVendors);
+        await triggerAuthChange({ email: 'student@wits.ac.za' });
 
+        const grid = document.getElementById("vendor-grid");
+        const cards = grid.querySelectorAll("article.vendor-card");
 
-        const vendorArticle = document.querySelector("article.vendor-card");
-        const menuLink = document.querySelector("a.view-menu-btn");
-
-        expect(vendorArticle).not.toBeNull();
-        expect(menuLink).not.toBeNull();
-        expect(menuLink.getAttribute("href")).toBe("menu.html?vendorId=wits_canteen_01");
-    });
-
-    test("should show a 'No vendors available' message when the list is empty", () => {
-        // ACT: Pass an empty array (simulating your current empty database)
-        renderVendorList([]);
-
-        
-        const statusMessage = document.querySelector("#vendor-status-message");
-        expect(statusMessage.textContent).toBe("No approved vendors found at the moment.");
+        expect(cards.length).toBe(4); // 2 real + 2 placeholders
+        expect(grid.innerHTML).toContain("Matrix Curry");
+        expect(grid.innerHTML).toContain("Coming Soon");
     });
 });

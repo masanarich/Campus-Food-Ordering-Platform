@@ -1,18 +1,139 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveAccount() {
+      return signedIn() &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        currentUserDoc().data.isAdmin == true &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function canManageOwnVendorResources(userId) {
+      return isSelf(userId) &&
+        isActiveAccount() &&
+        (
+          currentUserDoc().data.vendorStatus == "approved" ||
+          currentUserDoc().data.isAdmin == true
+        );
+    }
+
+    function isOwnPendingVendorSubmission(before, after) {
+      let oldStatus = before.vendorStatus;
+      let newStatus = after.vendorStatus;
+
+      return (
+        oldStatus == newStatus ||
+        (
+          (oldStatus == "none" || oldStatus == "rejected") &&
+          newStatus == "pending" &&
+          after.vendorReason == ""
+        )
+      );
+    }
+
+    function isOwnPendingAdminSubmission(before, after) {
+      let oldStatus = before.adminApplicationStatus;
+      let newStatus = after.adminApplicationStatus;
+
+      return (
+        oldStatus == newStatus ||
+        (
+          before.isAdmin == false &&
+          (oldStatus == "none" || oldStatus == "rejected") &&
+          newStatus == "pending" &&
+          after.isAdmin == false &&
+          after.adminApplicationReason == ""
+        )
+      );
+    }
+
+    function selfCanUpdateOwnProfile(userId) {
+      return isSelf(userId) &&
+        request.resource.data.uid == userId &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.isAdmin == resource.data.isAdmin &&
+        request.resource.data.accountStatus == resource.data.accountStatus &&
+        isOwnPendingVendorSubmission(resource.data, request.resource.data) &&
+        isOwnPendingAdminSubmission(resource.data, request.resource.data);
+    }
+
+    function validApplicationOwner(docId) {
+      return signedIn() &&
+        request.auth.uid == docId &&
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow create: if isSelf(userId) &&
+        request.resource.data.uid == userId;
+
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow update: if isAdmin() || selfCanUpdateOwnProfile(userId);
+
+      allow delete: if isSelf(userId) || isAdmin();
+
+      match /menuItems/{productId} {
+        allow get, list: if signedIn();
+
+        allow create: if canManageOwnVendorResources(userId) &&
+          request.resource.data.vendorUid == userId;
+
+        allow update: if canManageOwnVendorResources(userId) &&
+          request.resource.data.vendorUid == userId &&
+          request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if canManageOwnVendorResources(userId);
+      }
+    }
+
+    match /vendorApplications/{userId} {
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create, update: if (
+        validApplicationOwner(userId) &&
+        request.resource.data.vendorStatus == "pending" &&
+        request.resource.data.vendorReason == ""
+      ) || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    match /adminApplications/{userId} {
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create, update: if (
+        validApplicationOwner(userId) &&
+        request.resource.data.isAdmin == false &&
+        request.resource.data.adminApplicationStatus == "pending" &&
+        request.resource.data.adminApplicationReason == ""
+      ) || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 5, 2);
+      allow read, write: if false;
     }
   }
 }

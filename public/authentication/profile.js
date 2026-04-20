@@ -1,30 +1,19 @@
 /**
  * profile.js
  *
- * Profile page logic for the Campus Food Ordering Platform.
+ * Signed-in profile page logic for the Campus Food Ordering Platform.
  * This file:
- * - loads the signed-in user's profile
- * - renders profile details into the page
- * - supports back navigation based on where the user came from
- * - supports sign out
- * - supports password reset email for the signed-in user
- * - supports leaving vendor status
- * - supports profile photo preview, upload fallback, and removal
- * - supports deleting the current account
- * - uses injected services so it stays easy to test
- * - can be used in the browser through initializeProfilePage(...)
+ * - loads the authenticated user's profile
+ * - renders account, access, and application information
+ * - supports back navigation and sign out
+ * - supports profile photo preview, upload, and removal
+ * - supports account deletion with explicit confirmation
  *
- * Canonical profile fields:
- * - isOwner
+ * Canonical access fields:
  * - isAdmin
  * - vendorStatus
+ * - adminApplicationStatus
  * - accountStatus
- *
- * Note:
- * - This version supports a browser-side image upload fallback by converting
- *   the chosen file into a compressed data URL and saving it as photoURL.
- * - That is okay for a small student project/demo, but Firebase Storage
- *   would be the better production approach later.
  */
 
 function normalizeText(value) {
@@ -33,6 +22,30 @@ function normalizeText(value) {
 
 function normalizeVendorStatus(status) {
     const value = normalizeText(status).toLowerCase();
+
+    if (value === "suspended") {
+        return "blocked";
+    }
+
+    if (
+        value === "none" ||
+        value === "pending" ||
+        value === "approved" ||
+        value === "rejected" ||
+        value === "blocked"
+    ) {
+        return value;
+    }
+
+    return "none";
+}
+
+function normalizeAdminApplicationStatus(status, isAdmin = false) {
+    const value = normalizeText(status).toLowerCase();
+
+    if (isAdmin === true) {
+        return "approved";
+    }
 
     if (value === "suspended") {
         return "blocked";
@@ -83,11 +96,7 @@ function normalizeUserProfile(profile, authUtils) {
     }
 
     const safeProfile = profile && typeof profile === "object" ? profile : {};
-    const isOwner = safeProfile.isOwner === true || safeProfile.owner === true;
-    const isAdmin =
-        safeProfile.isAdmin === true ||
-        safeProfile.admin === true ||
-        isOwner === true;
+    const isAdmin = safeProfile.isAdmin === true || safeProfile.admin === true;
 
     return {
         uid: normalizeText(safeProfile.uid),
@@ -95,13 +104,21 @@ function normalizeUserProfile(profile, authUtils) {
         email: normalizeText(safeProfile.email).toLowerCase(),
         phoneNumber: normalizeText(safeProfile.phoneNumber),
         photoURL: normalizeText(safeProfile.photoURL),
-        isOwner,
         isAdmin,
         vendorStatus: normalizeVendorStatus(safeProfile.vendorStatus),
         vendorReason: normalizeText(
             safeProfile.vendorReason ||
             safeProfile.rejectionReason ||
             safeProfile.blockReason
+        ),
+        adminApplicationStatus: normalizeAdminApplicationStatus(
+            safeProfile.adminApplicationStatus,
+            isAdmin
+        ),
+        adminApplicationReason: normalizeText(
+            safeProfile.adminApplicationReason ||
+            safeProfile.adminRejectionReason ||
+            safeProfile.adminBlockReason
         ),
         accountStatus: normalizeAccountStatus(safeProfile.accountStatus)
     };
@@ -152,7 +169,6 @@ function setImageSource(imageElement, src, fallbackAlt = "Profile picture") {
     }
 
     const normalizedSource = normalizeText(src);
-
     imageElement.alt = fallbackAlt;
 
     if (normalizedSource) {
@@ -186,8 +202,8 @@ function hasAuthenticatedIdentity(profile) {
 function getRoleLabel(profile, authUtils) {
     const safeProfile = normalizeUserProfile(profile, authUtils);
 
-    if (safeProfile.isOwner === true) {
-        return "Owner";
+    if (safeProfile.isAdmin === true && safeProfile.vendorStatus === "approved") {
+        return "Admin and Vendor";
     }
 
     if (safeProfile.isAdmin === true) {
@@ -203,25 +219,46 @@ function getRoleLabel(profile, authUtils) {
 
 function getVendorStatusLabel(profile, authUtils) {
     const safeProfile = normalizeUserProfile(profile, authUtils);
-    const status = safeProfile.vendorStatus;
 
-    if (status === "pending") {
+    if (safeProfile.vendorStatus === "pending") {
         return "Pending";
     }
 
-    if (status === "approved") {
+    if (safeProfile.vendorStatus === "approved") {
         return "Approved";
     }
 
-    if (status === "rejected") {
+    if (safeProfile.vendorStatus === "rejected") {
         return "Rejected";
     }
 
-    if (status === "blocked") {
+    if (safeProfile.vendorStatus === "blocked") {
         return "Blocked";
     }
 
-    return "None";
+    return "Not Applied";
+}
+
+function getAdminStatusLabel(profile, authUtils) {
+    const safeProfile = normalizeUserProfile(profile, authUtils);
+
+    if (safeProfile.isAdmin === true) {
+        return "Approved";
+    }
+
+    if (safeProfile.adminApplicationStatus === "pending") {
+        return "Pending";
+    }
+
+    if (safeProfile.adminApplicationStatus === "rejected") {
+        return "Rejected";
+    }
+
+    if (safeProfile.adminApplicationStatus === "blocked") {
+        return "Blocked";
+    }
+
+    return "Not Applied";
 }
 
 function getDisplayName(profile, user) {
@@ -248,6 +285,18 @@ function getEmail(profile, user) {
     return "";
 }
 
+function getPhoneNumber(profile, user) {
+    if (profile && normalizeText(profile.phoneNumber)) {
+        return profile.phoneNumber;
+    }
+
+    if (user && normalizeText(user.phoneNumber)) {
+        return user.phoneNumber;
+    }
+
+    return "";
+}
+
 function getPhotoURL(profile, user) {
     if (profile && normalizeText(profile.photoURL)) {
         return profile.photoURL;
@@ -269,24 +318,15 @@ function getAvailablePortals(profile, authUtils) {
 
     const portals = [];
 
-    if (
-        safeProfile.accountStatus === "active" &&
-        (hasAuthenticatedIdentity(safeProfile) || safeProfile.isAdmin || safeProfile.isOwner)
-    ) {
+    if (safeProfile.accountStatus === "active" && hasAuthenticatedIdentity(safeProfile)) {
         portals.push("customer");
     }
 
-    if (
-        safeProfile.accountStatus === "active" &&
-        (safeProfile.isOwner === true || safeProfile.vendorStatus === "approved")
-    ) {
+    if (safeProfile.accountStatus === "active" && safeProfile.vendorStatus === "approved") {
         portals.push("vendor");
     }
 
-    if (
-        safeProfile.accountStatus === "active" &&
-        (safeProfile.isOwner === true || safeProfile.isAdmin === true)
-    ) {
+    if (safeProfile.accountStatus === "active" && safeProfile.isAdmin === true) {
         portals.push("admin");
     }
 
@@ -295,6 +335,7 @@ function getAvailablePortals(profile, authUtils) {
 
 function capitalize(value) {
     const text = normalizeText(value);
+
     if (!text) {
         return "";
     }
@@ -320,39 +361,195 @@ function getPortalAccessLabel(profile, authUtils) {
     return "None";
 }
 
-function canLeaveVendor(profile, authUtils) {
+function getVendorStatusNote(profile, authUtils) {
     const safeProfile = normalizeUserProfile(profile, authUtils);
 
-    if (safeProfile.isOwner === true) {
-        return false;
+    if (safeProfile.vendorStatus === "pending") {
+        return "Your vendor application is pending review.";
     }
 
-    return safeProfile.vendorStatus !== "none";
+    if (safeProfile.vendorStatus === "approved") {
+        return "Your vendor access is active.";
+    }
+
+    if (safeProfile.vendorStatus === "rejected") {
+        return safeProfile.vendorReason
+            ? `Vendor application rejected: ${safeProfile.vendorReason}`
+            : "Vendor application rejected.";
+    }
+
+    if (safeProfile.vendorStatus === "blocked") {
+        return safeProfile.vendorReason
+            ? `Vendor access blocked: ${safeProfile.vendorReason}`
+            : "Vendor access is blocked.";
+    }
+
+    return "You have not applied for vendor access yet.";
+}
+
+function getAdminStatusNote(profile, authUtils) {
+    const safeProfile = normalizeUserProfile(profile, authUtils);
+
+    if (safeProfile.isAdmin === true) {
+        return "Your admin access is active.";
+    }
+
+    if (safeProfile.adminApplicationStatus === "pending") {
+        return "Your admin application is pending review.";
+    }
+
+    if (safeProfile.adminApplicationStatus === "rejected") {
+        return safeProfile.adminApplicationReason
+            ? `Admin application rejected: ${safeProfile.adminApplicationReason}`
+            : "Admin application rejected.";
+    }
+
+    if (safeProfile.adminApplicationStatus === "blocked") {
+        return safeProfile.adminApplicationReason
+            ? `Admin application blocked: ${safeProfile.adminApplicationReason}`
+            : "Admin application is blocked.";
+    }
+
+    return "You have not applied for admin access yet.";
 }
 
 function canRemovePhoto(profile, user) {
     return normalizeText(getPhotoURL(profile, user)).length > 0;
 }
 
+function getProfileFormValues(formElements = {}) {
+    return {
+        displayName: normalizeText(
+            formElements.displayNameInput && formElements.displayNameInput.value
+        ),
+        phoneNumber: normalizeText(
+            formElements.phoneInput && formElements.phoneInput.value
+        )
+    };
+}
+
+function validatePhoneNumber(phoneNumber, authUtils) {
+    const normalizedPhoneNumber = normalizeText(phoneNumber).replace(/\s+/g, "");
+
+    if (!normalizedPhoneNumber) {
+        return "";
+    }
+
+    if (
+        authUtils &&
+        typeof authUtils.isValidPhoneNumber === "function" &&
+        !authUtils.isValidPhoneNumber(normalizedPhoneNumber)
+    ) {
+        return "Please enter a valid phone number.";
+    }
+
+    if (!/^\+?[0-9]{10,15}$/.test(normalizedPhoneNumber)) {
+        return "Please enter a valid phone number.";
+    }
+
+    return "";
+}
+
+function validateProfileForm(values, authUtils) {
+    const safeValues = values && typeof values === "object" ? values : {};
+    const errors = {};
+
+    if (!normalizeText(safeValues.displayName)) {
+        errors.displayName = "Please enter your name.";
+    }
+
+    const phoneError = validatePhoneNumber(safeValues.phoneNumber, authUtils);
+    if (phoneError) {
+        errors.phoneNumber = phoneError;
+    }
+
+    return {
+        isValid: Object.keys(errors).length === 0,
+        errors
+    };
+}
+
+function setFieldError(field, errorElement, message) {
+    if (field) {
+        if (message) {
+            field.setAttribute("aria-invalid", "true");
+        } else {
+            field.removeAttribute("aria-invalid");
+        }
+    }
+
+    if (errorElement) {
+        errorElement.textContent = message || "";
+        errorElement.hidden = !message;
+    }
+}
+
+function clearProfileFormErrors(formElements = {}) {
+    setFieldError(
+        formElements.displayNameInput,
+        formElements.displayNameErrorElement,
+        ""
+    );
+    setFieldError(
+        formElements.phoneInput,
+        formElements.phoneErrorElement,
+        ""
+    );
+}
+
+function showProfileFormErrors(formElements = {}, errors = {}) {
+    clearProfileFormErrors(formElements);
+    setFieldError(
+        formElements.displayNameInput,
+        formElements.displayNameErrorElement,
+        errors.displayName || ""
+    );
+    setFieldError(
+        formElements.phoneInput,
+        formElements.phoneErrorElement,
+        errors.phoneNumber || ""
+    );
+}
+
+function populateProfileForm(formElements = {}, profile = {}, user = null) {
+    if (formElements.displayNameInput) {
+        formElements.displayNameInput.value = getDisplayName(profile, user);
+    }
+
+    if (formElements.phoneInput) {
+        formElements.phoneInput.value = getPhoneNumber(profile, user);
+    }
+}
+
 function renderProfile(profileElements, profile, user, authUtils) {
     const elements = profileElements || {};
     const safeProfile = normalizeUserProfile(profile, authUtils);
+    const displayName = getDisplayName(safeProfile, user);
 
-    setTextContent(elements.nameElement, getDisplayName(safeProfile, user));
+    setTextContent(elements.nameElement, displayName);
     setTextContent(elements.emailElement, getEmail(safeProfile, user));
+    setTextContent(elements.phoneElement, getPhoneNumber(safeProfile, user), "Not provided");
     setTextContent(elements.roleElement, getRoleLabel(safeProfile, authUtils));
-    setTextContent(elements.vendorStatusElement, getVendorStatusLabel(safeProfile, authUtils));
     setTextContent(elements.accessElement, getPortalAccessLabel(safeProfile, authUtils));
-    setTextContent(elements.vendorReasonElement, safeProfile.vendorReason, "None");
+    setTextContent(elements.accountStatusElement, capitalize(safeProfile.accountStatus));
+    setTextContent(elements.vendorStatusElement, getVendorStatusLabel(safeProfile, authUtils));
+    setTextContent(elements.adminStatusElement, getAdminStatusLabel(safeProfile, authUtils));
+    setTextContent(elements.vendorNoteElement, getVendorStatusNote(safeProfile, authUtils), "None");
+    setTextContent(elements.adminNoteElement, getAdminStatusNote(safeProfile, authUtils), "None");
 
     setImageSource(
         elements.photoElement,
         getPhotoURL(safeProfile, user),
-        `${getDisplayName(safeProfile, user) || "User"} profile picture`
+        `${displayName || "User"} profile picture`
     );
 
-    if (elements.leaveVendorButton) {
-        setElementHidden(elements.leaveVendorButton, !canLeaveVendor(safeProfile, authUtils));
+    if (elements.photoCaptionElement) {
+        setTextContent(
+            elements.photoCaptionElement,
+            canRemovePhoto(safeProfile, user)
+                ? "Your current profile picture is shown here."
+                : "No profile picture has been uploaded yet."
+        );
     }
 
     if (elements.removePhotoButton) {
@@ -360,9 +557,72 @@ function renderProfile(profileElements, profile, user, authUtils) {
     }
 }
 
+async function saveCurrentUserProfile(dependencies = {}) {
+    const authService = dependencies.authService;
+    const authUtils = resolveAuthUtils(dependencies.authUtils);
+    const profileUpdates = dependencies.profileUpdates || {};
+
+    if (!authService || typeof authService.getCurrentUser !== "function") {
+        throw new Error("authService.getCurrentUser is required.");
+    }
+
+    const user = await waitForAuthenticatedUser(authService);
+
+    if (!user || !user.uid) {
+        return {
+            success: false,
+            message: "No user is currently signed in."
+        };
+    }
+
+    const safeUpdates = {
+        displayName: normalizeText(profileUpdates.displayName),
+        phoneNumber: normalizeText(profileUpdates.phoneNumber)
+    };
+
+    const validation = validateProfileForm(safeUpdates, authUtils);
+    if (!validation.isValid) {
+        const firstError = Object.values(validation.errors)[0] || "Please correct the highlighted fields.";
+        return {
+            success: false,
+            message: firstError,
+            errors: validation.errors
+        };
+    }
+
+    if (typeof authService.updateCurrentUserProfile === "function") {
+        const profile = await authService.updateCurrentUserProfile(safeUpdates);
+        return {
+            success: true,
+            message: "Profile details updated.",
+            profile
+        };
+    }
+
+    if (typeof authService.updateUserProfile === "function") {
+        await authService.updateUserProfile(user.uid, safeUpdates);
+        return {
+            success: true,
+            message: "Profile details updated.",
+            profile: {
+                uid: user.uid,
+                ...safeUpdates
+            }
+        };
+    }
+
+    throw new Error("A supported profile update method is required.");
+}
+
 function getFallbackRoutes(authUtils) {
     if (authUtils && authUtils.PORTAL_ROUTES) {
-        return authUtils.PORTAL_ROUTES;
+        return {
+            customer: authUtils.PORTAL_ROUTES.customer || "../customer/index.html",
+            vendor: authUtils.PORTAL_ROUTES.vendor || "../vendor/index.html",
+            admin: authUtils.PORTAL_ROUTES.admin || "../admin/index.html",
+            roleChoice: authUtils.PORTAL_ROUTES.roleChoice || "../authentication/role-choice.html",
+            login: authUtils.PORTAL_ROUTES.login || "../authentication/login.html"
+        };
     }
 
     return {
@@ -429,6 +689,7 @@ function getBackRouteFromReferrer(authUtils) {
     }
 
     const referrer = normalizeText(document.referrer);
+
     if (!referrer) {
         return "";
     }
@@ -474,17 +735,15 @@ function getBackRouteFromReferrer(authUtils) {
 }
 
 function getDefaultBackRoute(profile, authUtils) {
-    const safeProfile = normalizeUserProfile(profile, authUtils);
     const routes = getFallbackRoutes(authUtils);
-    const portals = getAvailablePortals(safeProfile, authUtils);
+    const portals = getAvailablePortals(profile, authUtils);
 
     if (portals.length > 1) {
         return routes.roleChoice;
     }
 
     if (portals.length === 1) {
-        const onlyPortal = portals[0];
-        return mapBackTargetToRoute(onlyPortal, authUtils) || routes.customer;
+        return mapBackTargetToRoute(portals[0], authUtils) || routes.customer;
     }
 
     return routes.login;
@@ -492,6 +751,7 @@ function getDefaultBackRoute(profile, authUtils) {
 
 function getBackRoute(profile, authUtils, explicitBackRoute = "") {
     const explicitRoute = mapBackTargetToRoute(explicitBackRoute, authUtils);
+
     if (explicitRoute) {
         return explicitRoute;
     }
@@ -535,6 +795,7 @@ function waitForAuthenticatedUser(authService) {
     }
 
     const currentUser = authService.getCurrentUser();
+
     if (currentUser) {
         return Promise.resolve(currentUser);
     }
@@ -544,7 +805,9 @@ function waitForAuthenticatedUser(authService) {
     }
 
     return new Promise((resolve) => {
-        const unsubscribe = authService.observeAuthState((user) => {
+        let unsubscribe = null;
+
+        unsubscribe = authService.observeAuthState((user) => {
             if (typeof unsubscribe === "function") {
                 unsubscribe();
             }
@@ -601,107 +864,8 @@ async function signOutCurrentUser(dependencies) {
     await authService.signOutUser();
 
     return {
-        success: true
-    };
-}
-
-async function sendSelfPasswordReset(dependencies) {
-    const authService = dependencies && dependencies.authService;
-    const authUtils = resolveAuthUtils(dependencies && dependencies.authUtils);
-
-    if (!authService || typeof authService.sendPasswordResetEmail !== "function") {
-        throw new Error("authService.sendPasswordResetEmail is required.");
-    }
-
-    const result = await loadCurrentUserProfile({
-        authService,
-        authUtils
-    });
-
-    if (!result.success) {
-        return result;
-    }
-
-    const email = getEmail(result.profile, result.user);
-
-    if (!normalizeText(email)) {
-        return {
-            success: false,
-            message: "No email address is available for this account."
-        };
-    }
-
-    await authService.sendPasswordResetEmail({ email });
-
-    return {
         success: true,
-        message: "Password reset email sent."
-    };
-}
-
-async function leaveVendorAccess(dependencies) {
-    const authService = dependencies && dependencies.authService;
-    const authUtils = resolveAuthUtils(dependencies && dependencies.authUtils);
-
-    if (!authService || typeof authService.getCurrentUser !== "function") {
-        throw new Error("authService.getCurrentUser is required.");
-    }
-
-    if (!authService || typeof authService.getCurrentUserProfile !== "function") {
-        throw new Error("authService.getCurrentUserProfile is required.");
-    }
-
-    if (!authService || typeof authService.updateUserProfile !== "function") {
-        throw new Error("authService.updateUserProfile is required.");
-    }
-
-    const user = await waitForAuthenticatedUser(authService);
-
-    if (!user || !user.uid) {
-        return {
-            success: false,
-            message: "No user is currently signed in."
-        };
-    }
-
-    const existingProfile = await authService.getCurrentUserProfile(user.uid);
-    const safeProfile = normalizeUserProfile(existingProfile || {
-        uid: user.uid,
-        displayName: user.displayName || "",
-        email: user.email || "",
-        phoneNumber: user.phoneNumber || "",
-        photoURL: user.photoURL || ""
-    }, authUtils);
-
-    if (safeProfile.isOwner === true) {
-        return {
-            success: false,
-            message: "Owner access cannot be removed from the profile page."
-        };
-    }
-
-    if (safeProfile.vendorStatus === "none") {
-        return {
-            success: false,
-            message: "You are not currently marked as a vendor."
-        };
-    }
-
-    await authService.updateUserProfile(user.uid, {
-        vendorStatus: "none",
-        vendorReason: ""
-    });
-
-    const updatedProfile = normalizeUserProfile({
-        ...safeProfile,
-        vendorStatus: "none",
-        vendorReason: ""
-    }, authUtils);
-
-    return {
-        success: true,
-        message: "Vendor access removed.",
-        profile: updatedProfile
+        message: "You have been signed out."
     };
 }
 
@@ -725,83 +889,65 @@ function readFileAsDataURL(file) {
     });
 }
 
-function loadImageFromSource(src) {
-    return new Promise((resolve, reject) => {
-        const image = new Image();
-
-        image.onload = function handleLoad() {
-            resolve(image);
-        };
-
-        image.onerror = function handleError() {
-            reject(new Error("Unable to process the selected image."));
-        };
-
-        image.src = src;
-    });
-}
-
-async function fileToOptimizedDataURL(file, options = {}) {
-    const safeOptions = options && typeof options === "object" ? options : {};
-    const maxWidth = Number.isFinite(safeOptions.maxWidth) ? safeOptions.maxWidth : 512;
-    const maxHeight = Number.isFinite(safeOptions.maxHeight) ? safeOptions.maxHeight : 512;
-    const quality = Number.isFinite(safeOptions.quality) ? safeOptions.quality : 0.82;
-
-    const originalDataUrl = await readFileAsDataURL(file);
-    const image = await loadImageFromSource(originalDataUrl);
-
-    const originalWidth = image.naturalWidth || image.width || maxWidth;
-    const originalHeight = image.naturalHeight || image.height || maxHeight;
-
-    let targetWidth = originalWidth;
-    let targetHeight = originalHeight;
-
-    const widthRatio = maxWidth / targetWidth;
-    const heightRatio = maxHeight / targetHeight;
-    const ratio = Math.min(widthRatio, heightRatio, 1);
-
-    targetWidth = Math.max(1, Math.round(targetWidth * ratio));
-    targetHeight = Math.max(1, Math.round(targetHeight * ratio));
-
-    const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-
-    const context = canvas.getContext("2d");
-
-    if (!context) {
-        return originalDataUrl;
-    }
-
-    context.drawImage(image, 0, 0, targetWidth, targetHeight);
-
-    const targetType =
-        file.type === "image/png" || file.type === "image/webp"
-            ? file.type
-            : "image/jpeg";
-
-    return canvas.toDataURL(targetType, quality);
-}
-
 function getSelectedPhotoFile(fileInput) {
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
         return null;
     }
 
-    return fileInput.files[0];
+    return fileInput.files[0] || null;
 }
 
 async function previewSelectedPhoto(options = {}) {
-    const {
-        fileInput,
-        profileElements,
-        photoMessageElement
-    } = options;
+    const fileInput = options.fileInput;
+    const profileElements = options.profileElements || {};
+    const photoMessageElement = options.photoMessageElement || null;
+    const file = getSelectedPhotoFile(fileInput);
+
+    if (!file) {
+        const message = "Choose a photo first.";
+        setStatusMessage(photoMessageElement, message, "error");
+        return {
+            success: false,
+            message
+        };
+    }
+
+    if (!isImageFile(file)) {
+        const message = "Please choose a valid image file.";
+        setStatusMessage(photoMessageElement, message, "error");
+        return {
+            success: false,
+            message
+        };
+    }
+
+    const dataUrl = await readFileAsDataURL(file);
+
+    setImageSource(profileElements.photoElement, dataUrl, "Profile picture preview");
+
+    if (profileElements.photoCaptionElement) {
+        setTextContent(profileElements.photoCaptionElement, "This is a preview of the photo you selected.");
+    }
+
+    setStatusMessage(photoMessageElement, "Photo preview updated.", "success");
+
+    return {
+        success: true,
+        dataUrl
+    };
+}
+
+async function uploadSelectedPhoto(options = {}) {
+    const authService = options.authService;
+    const fileInput = options.fileInput;
+
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
 
     const file = getSelectedPhotoFile(fileInput);
 
     if (!file) {
-        setStatusMessage(photoMessageElement, "Choose a photo first.", "error");
         return {
             success: false,
             message: "Choose a photo first."
@@ -809,103 +955,59 @@ async function previewSelectedPhoto(options = {}) {
     }
 
     if (!isImageFile(file)) {
-        setStatusMessage(photoMessageElement, "Please choose an image file.", "error");
         return {
             success: false,
-            message: "Please choose an image file."
+            message: "Please choose a valid image file."
         };
     }
 
-    const previewDataUrl = await fileToOptimizedDataURL(file);
+    if (typeof authService.uploadCurrentUserPhoto === "function") {
+        const profile = await authService.uploadCurrentUserPhoto(file);
+        return {
+            success: true,
+            message: "Profile photo updated.",
+            profile
+        };
+    }
 
-    setImageSource(
-        profileElements && profileElements.photoElement,
-        previewDataUrl,
-        "Selected profile picture preview"
-    );
+    if (typeof authService.setCurrentUserPhotoURL === "function") {
+        const dataUrl = await readFileAsDataURL(file);
+        const profile = await authService.setCurrentUserPhotoURL(dataUrl);
 
-    setStatusMessage(photoMessageElement, "Photo preview ready. Click Upload Photo to save it.", "info");
+        return {
+            success: true,
+            message: "Profile photo updated.",
+            profile
+        };
+    }
 
-    return {
-        success: true,
-        previewDataUrl
-    };
+    throw new Error("A supported photo upload method is required.");
 }
 
-async function uploadSelectedPhoto(dependencies = {}) {
-    const authService = dependencies && dependencies.authService;
-    const authUtils = resolveAuthUtils(dependencies && dependencies.authUtils);
-    const fileInput = dependencies && dependencies.fileInput;
-
-    if (!authService || typeof authService.setCurrentUserPhotoURL !== "function") {
-        throw new Error("authService.setCurrentUserPhotoURL is required.");
-    }
-
-    const file = getSelectedPhotoFile(fileInput);
-
-    if (!file) {
-        return {
-            success: false,
-            message: "Choose a photo first."
-        };
-    }
-
-    if (!isImageFile(file)) {
-        return {
-            success: false,
-            message: "Please choose an image file."
-        };
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-        return {
-            success: false,
-            message: "Please choose an image smaller than 5 MB."
-        };
-    }
-
-    const photoDataUrl = await fileToOptimizedDataURL(file, {
-        maxWidth: 512,
-        maxHeight: 512,
-        quality: 0.82
-    });
-
-    const updatedProfile = await authService.setCurrentUserPhotoURL(photoDataUrl);
-
-    return {
-        success: true,
-        message: "Profile photo updated.",
-        profile: normalizeUserProfile(updatedProfile, authUtils)
-    };
-}
-
-async function removeCurrentUserPhotoAction(dependencies = {}) {
-    const authService = dependencies && dependencies.authService;
-    const authUtils = resolveAuthUtils(dependencies && dependencies.authUtils);
+async function removeCurrentUserPhotoAction(options = {}) {
+    const authService = options.authService;
 
     if (!authService || typeof authService.removeCurrentUserPhoto !== "function") {
         throw new Error("authService.removeCurrentUserPhoto is required.");
     }
 
-    const updatedProfile = await authService.removeCurrentUserPhoto();
+    const profile = await authService.removeCurrentUserPhoto();
 
     return {
         success: true,
         message: "Profile photo removed.",
-        profile: normalizeUserProfile(updatedProfile, authUtils)
+        profile
     };
 }
 
-async function deleteCurrentUserAccountAction(dependencies = {}) {
-    const authService = dependencies && dependencies.authService;
+async function deleteCurrentUserAccountAction(options = {}) {
+    const authService = options.authService;
 
     if (!authService || typeof authService.deleteCurrentUserAccount !== "function") {
         throw new Error("authService.deleteCurrentUserAccount is required.");
     }
 
-    await authService.deleteCurrentUserAccount({
-        deleteProfile: true
-    });
+    await authService.deleteCurrentUserAccount();
 
     return {
         success: true,
@@ -913,13 +1015,12 @@ async function deleteCurrentUserAccountAction(dependencies = {}) {
     };
 }
 
-async function initializeProfileView(options) {
-    const {
-        authService,
-        authUtils,
-        statusElement,
-        profileElements
-    } = options || {};
+async function initializeProfileView(options = {}) {
+    const authService = options.authService;
+    const authUtils = resolveAuthUtils(options.authUtils);
+    const statusElement = options.statusElement;
+    const profileElements = options.profileElements || {};
+    const formElements = options.formElements || {};
 
     setStatusMessage(statusElement, "Loading profile...", "loading");
 
@@ -930,11 +1031,12 @@ async function initializeProfileView(options) {
         });
 
         if (!result.success) {
-            setStatusMessage(statusElement, result.message, "error");
+            setStatusMessage(statusElement, result.message || "Unable to load profile.", "error");
             return result;
         }
 
         renderProfile(profileElements, result.profile, result.user, authUtils);
+        populateProfileForm(formElements, result.profile, result.user);
         setStatusMessage(statusElement, "Profile loaded.", "success");
 
         return result;
@@ -942,7 +1044,7 @@ async function initializeProfileView(options) {
         const message = getFriendlyErrorMessage(
             error,
             authUtils,
-            "Unable to load profile right now. Please try again."
+            "Unable to load profile."
         );
 
         setStatusMessage(statusElement, message, "error");
@@ -978,31 +1080,143 @@ function attachSignOutHandler(options) {
         }
 
         setButtonState(button, true);
-        clearStatusMessage(statusElement);
+        setStatusMessage(statusElement, "Signing you out...", "loading");
 
         try {
             const result = await signOutCurrentUser({
                 authService
             });
 
-            setStatusMessage(statusElement, "Signed out successfully.", "success");
             setButtonState(button, false);
+            setStatusMessage(statusElement, result.message || "You have been signed out.", "success");
 
             if (typeof onSuccess === "function") {
                 onSuccess(result);
             }
 
             if (typeof navigate === "function") {
-                navigate("../index.html");
+                navigate("../authentication/login.html");
             }
 
             return result;
         } catch (error) {
-            const message = normalizeText(error && error.message) ||
-                "Unable to sign out right now. Please try again.";
-
-            setStatusMessage(statusElement, message, "error");
             setButtonState(button, false);
+            const message = normalizeText(error && error.message) || "Unable to sign out right now.";
+            setStatusMessage(statusElement, message, "error");
+
+            if (typeof onError === "function") {
+                onError(error);
+            }
+
+            return {
+                success: false,
+                message
+            };
+        }
+    }
+
+    button.addEventListener("click", handleClick);
+
+    return {
+        handleClick
+    };
+}
+
+function attachSaveProfileHandler(options) {
+    const {
+        button,
+        authService,
+        authUtils,
+        statusElement,
+        formElements,
+        refreshProfile,
+        onSuccess,
+        onError
+    } = options || {};
+
+    if (!button) {
+        return null;
+    }
+
+    if (!authService) {
+        throw new Error("authService is required.");
+    }
+
+    async function handleClick(event) {
+        if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+        }
+
+        const values = getProfileFormValues(formElements);
+        const validation = validateProfileForm(values, authUtils);
+
+        if (!validation.isValid) {
+            showProfileFormErrors(formElements, validation.errors);
+            const message = Object.values(validation.errors)[0] || "Please correct the highlighted fields.";
+            setStatusMessage(statusElement, message, "error");
+
+            if (typeof onError === "function") {
+                onError({
+                    success: false,
+                    message,
+                    errors: validation.errors
+                });
+            }
+
+            return {
+                success: false,
+                message,
+                errors: validation.errors
+            };
+        }
+
+        clearProfileFormErrors(formElements);
+        setButtonState(button, true);
+        setStatusMessage(statusElement, "Saving profile details...", "loading");
+
+        try {
+            const result = await saveCurrentUserProfile({
+                authService,
+                authUtils,
+                profileUpdates: values
+            });
+
+            setButtonState(button, false);
+
+            if (!result.success) {
+                if (result.errors) {
+                    showProfileFormErrors(formElements, result.errors);
+                }
+
+                setStatusMessage(statusElement, result.message || "Unable to save profile details.", "error");
+
+                if (typeof onError === "function") {
+                    onError(result);
+                }
+
+                return result;
+            }
+
+            if (typeof refreshProfile === "function") {
+                await refreshProfile();
+            }
+
+            setStatusMessage(statusElement, result.message || "Profile details updated.", "success");
+
+            if (typeof onSuccess === "function") {
+                onSuccess(result);
+            }
+
+            return result;
+        } catch (error) {
+            const message = getFriendlyErrorMessage(
+                error,
+                authUtils,
+                "Unable to save profile details."
+            );
+
+            setButtonState(button, false);
+            setStatusMessage(statusElement, message, "error");
 
             if (typeof onError === "function") {
                 onError(error);
@@ -1028,7 +1242,7 @@ function attachBackHandler(options) {
         statusElement,
         navigate,
         resolveBackRoute,
-        onError
+        onSuccess
     } = options || {};
 
     if (!button) {
@@ -1040,222 +1254,24 @@ function attachBackHandler(options) {
             event.preventDefault();
         }
 
-        setButtonState(button, true);
+        setStatusMessage(statusElement, "Going back...", "info");
+        const nextRoute =
+            typeof resolveBackRoute === "function"
+                ? await resolveBackRoute()
+                : "../customer/index.html";
 
-        try {
-            const nextRoute =
-                typeof resolveBackRoute === "function"
-                    ? await resolveBackRoute()
-                    : "../authentication/role-choice.html";
-
-            setButtonState(button, false);
-
-            if (typeof navigate === "function") {
-                navigate(nextRoute || "../authentication/role-choice.html");
-            }
-
-            return {
-                success: true,
-                nextRoute
-            };
-        } catch (error) {
-            const message = normalizeText(error && error.message) ||
-                "Unable to go back right now.";
-
-            setButtonState(button, false);
-            setStatusMessage(statusElement, message, "error");
-
-            if (typeof onError === "function") {
-                onError(error);
-            }
-
-            return {
-                success: false,
-                message
-            };
-        }
-    }
-
-    button.addEventListener("click", handleClick);
-
-    return {
-        handleClick
-    };
-}
-
-function attachResetPasswordHandler(options) {
-    const {
-        button,
-        authService,
-        authUtils,
-        statusElement,
-        onSuccess,
-        onError
-    } = options || {};
-
-    if (!button) {
-        throw new Error("A reset password button is required.");
-    }
-
-    if (!authService) {
-        throw new Error("authService is required.");
-    }
-
-    async function handleClick(event) {
-        if (event && typeof event.preventDefault === "function") {
-            event.preventDefault();
+        if (typeof onSuccess === "function") {
+            onSuccess(nextRoute);
         }
 
-        setButtonState(button, true);
-        clearStatusMessage(statusElement);
-
-        try {
-            const result = await sendSelfPasswordReset({
-                authService,
-                authUtils
-            });
-
-            setButtonState(button, false);
-
-            if (!result.success) {
-                setStatusMessage(
-                    statusElement,
-                    result.message || "Unable to send password reset email.",
-                    "error"
-                );
-
-                if (typeof onError === "function") {
-                    onError(result);
-                }
-
-                return result;
-            }
-
-            setStatusMessage(
-                statusElement,
-                result.message || "Password reset email sent.",
-                "success"
-            );
-
-            if (typeof onSuccess === "function") {
-                onSuccess(result);
-            }
-
-            return result;
-        } catch (error) {
-            const message = getFriendlyErrorMessage(
-                error,
-                authUtils,
-                "Unable to send password reset email."
-            );
-
-            setButtonState(button, false);
-            setStatusMessage(statusElement, message, "error");
-
-            if (typeof onError === "function") {
-                onError(error);
-            }
-
-            return {
-                success: false,
-                message
-            };
-        }
-    }
-
-    button.addEventListener("click", handleClick);
-
-    return {
-        handleClick
-    };
-}
-
-function attachLeaveVendorHandler(options) {
-    const {
-        button,
-        authService,
-        authUtils,
-        statusElement,
-        profileElements,
-        refreshProfile,
-        onSuccess,
-        onError
-    } = options || {};
-
-    if (!button) {
-        throw new Error("A leave vendor button is required.");
-    }
-
-    if (!authService) {
-        throw new Error("authService is required.");
-    }
-
-    async function handleClick(event) {
-        if (event && typeof event.preventDefault === "function") {
-            event.preventDefault();
+        if (typeof navigate === "function") {
+            navigate(nextRoute);
         }
 
-        setButtonState(button, true);
-        clearStatusMessage(statusElement);
-
-        try {
-            const result = await leaveVendorAccess({
-                authService,
-                authUtils
-            });
-
-            setButtonState(button, false);
-
-            if (!result.success) {
-                setStatusMessage(
-                    statusElement,
-                    result.message || "Unable to update vendor access.",
-                    "error"
-                );
-
-                if (typeof onError === "function") {
-                    onError(result);
-                }
-
-                return result;
-            }
-
-            if (typeof refreshProfile === "function") {
-                await refreshProfile();
-            } else {
-                renderProfile(profileElements, result.profile || {}, null, authUtils);
-            }
-
-            setStatusMessage(
-                statusElement,
-                result.message || "Vendor access removed.",
-                "success"
-            );
-
-            if (typeof onSuccess === "function") {
-                onSuccess(result);
-            }
-
-            return result;
-        } catch (error) {
-            const message = getFriendlyErrorMessage(
-                error,
-                authUtils,
-                "Unable to update vendor access."
-            );
-
-            setButtonState(button, false);
-            setStatusMessage(statusElement, message, "error");
-
-            if (typeof onError === "function") {
-                onError(error);
-            }
-
-            return {
-                success: false,
-                message
-            };
-        }
+        return {
+            success: true,
+            nextRoute
+        };
     }
 
     button.addEventListener("click", handleClick);
@@ -1298,7 +1314,6 @@ function attachPhotoInputPreviewHandler(options) {
         } catch (error) {
             const message = normalizeText(error && error.message) ||
                 "Unable to preview the selected image.";
-
             setStatusMessage(photoMessageElement, message, "error");
 
             if (typeof onError === "function") {
@@ -1351,7 +1366,6 @@ function attachUploadPhotoHandler(options) {
         try {
             const result = await uploadSelectedPhoto({
                 authService,
-                authUtils,
                 fileInput
             });
 
@@ -1449,8 +1463,7 @@ function attachRemovePhotoHandler(options) {
 
         try {
             const result = await removeCurrentUserPhotoAction({
-                authService,
-                authUtils
+                authService
             });
 
             setButtonState(button, false);
@@ -1507,6 +1520,7 @@ function attachDeleteAccountHandler(options) {
         authService,
         authUtils,
         accountMessageElement,
+        confirmationCheckbox,
         navigate,
         confirmAction,
         onSuccess,
@@ -1533,8 +1547,17 @@ function attachDeleteAccountHandler(options) {
             event.preventDefault();
         }
 
+        if (confirmationCheckbox && confirmationCheckbox.checked !== true) {
+            const message = "Please confirm that you understand account deletion is permanent.";
+            setStatusMessage(accountMessageElement, message, "error");
+            return {
+                success: false,
+                message
+            };
+        }
+
         const confirmed = await resolvedConfirm(
-            "Are you sure you want to delete your account? This action cannot be undone."
+            "Delete your account permanently? This action cannot be undone."
         );
 
         if (!confirmed) {
@@ -1549,8 +1572,7 @@ function attachDeleteAccountHandler(options) {
 
         try {
             const result = await deleteCurrentUserAccountAction({
-                authService,
-                authUtils
+                authService
             });
 
             setButtonState(button, false);
@@ -1597,6 +1619,27 @@ function attachDeleteAccountHandler(options) {
     };
 }
 
+function attachDeleteConfirmationToggle(options = {}) {
+    const checkbox = options.checkbox;
+    const button = options.button;
+
+    if (!checkbox || !button) {
+        return null;
+    }
+
+    function syncButtonState() {
+        setButtonState(button, checkbox.checked !== true);
+        return checkbox.checked === true;
+    }
+
+    checkbox.addEventListener("change", syncButtonState);
+    syncButtonState();
+
+    return {
+        syncButtonState
+    };
+}
+
 function initializeProfilePage(options = {}) {
     const authService =
         options.authService ||
@@ -1608,21 +1651,31 @@ function initializeProfilePage(options = {}) {
         statusSelector = "#profile-status",
         nameSelector = "#profile-name",
         emailSelector = "#profile-email",
+        phoneSelector = "#profile-phone",
         roleSelector = "#profile-role",
-        vendorStatusSelector = "#profile-vendor-status",
         accessSelector = "#profile-access",
-        vendorReasonSelector = "#profile-vendor-reason",
+        accountStatusSelector = "#profile-account-status",
+        vendorStatusSelector = "#profile-vendor-status",
+        adminStatusSelector = "#profile-admin-status",
+        vendorNoteSelector = "#profile-vendor-note",
+        adminNoteSelector = "#profile-admin-note",
         photoSelector = "#profile-photo",
+        photoCaptionSelector = "#profile-photo-caption",
+        profileEditFormSelector = "#profile-edit-form",
+        displayNameInputSelector = "#profile-display-name-input",
+        displayNameErrorSelector = "#profile-display-name-error",
+        phoneInputSelector = "#profile-phone-input",
+        phoneErrorSelector = "#profile-phone-error",
+        saveProfileButtonSelector = "#save-profile-button",
         photoInputSelector = "#profile-photo-input",
         photoMessageSelector = "#profile-photo-message",
         accountMessageSelector = "#profile-account-message",
         signOutButtonSelector = "#signout-button",
         backButtonSelector = "#profile-back-button, #back-button, [data-profile-back]",
-        resetPasswordButtonSelector = "#reset-password-button, [data-profile-reset-password]",
-        leaveVendorButtonSelector = "#leave-vendor-button, [data-profile-leave-vendor]",
         uploadPhotoButtonSelector = "#upload-photo-button, [data-profile-upload-photo]",
         removePhotoButtonSelector = "#remove-photo-button, [data-profile-remove-photo]",
         deleteAccountButtonSelector = "#delete-account-button, [data-profile-delete-account]",
+        deleteConfirmationCheckboxSelector = "#delete-account-confirm-checkbox",
         backRoute = "",
         navigate,
         confirmAction
@@ -1635,24 +1688,36 @@ function initializeProfilePage(options = {}) {
     const statusElement = document.querySelector(statusSelector);
     const photoMessageElement = document.querySelector(photoMessageSelector);
     const accountMessageElement = document.querySelector(accountMessageSelector);
+    const deleteConfirmationCheckbox = document.querySelector(deleteConfirmationCheckboxSelector);
 
     const profileElements = {
         nameElement: document.querySelector(nameSelector),
         emailElement: document.querySelector(emailSelector),
+        phoneElement: document.querySelector(phoneSelector),
         roleElement: document.querySelector(roleSelector),
-        vendorStatusElement: document.querySelector(vendorStatusSelector),
         accessElement: document.querySelector(accessSelector),
-        vendorReasonElement: document.querySelector(vendorReasonSelector),
+        accountStatusElement: document.querySelector(accountStatusSelector),
+        vendorStatusElement: document.querySelector(vendorStatusSelector),
+        adminStatusElement: document.querySelector(adminStatusSelector),
+        vendorNoteElement: document.querySelector(vendorNoteSelector),
+        adminNoteElement: document.querySelector(adminNoteSelector),
         photoElement: document.querySelector(photoSelector),
-        leaveVendorButton: document.querySelector(leaveVendorButtonSelector),
+        photoCaptionElement: document.querySelector(photoCaptionSelector),
         removePhotoButton: document.querySelector(removePhotoButtonSelector)
     };
 
+    const formElements = {
+        form: document.querySelector(profileEditFormSelector),
+        displayNameInput: document.querySelector(displayNameInputSelector),
+        displayNameErrorElement: document.querySelector(displayNameErrorSelector),
+        phoneInput: document.querySelector(phoneInputSelector),
+        phoneErrorElement: document.querySelector(phoneErrorSelector)
+    };
+
     const photoInput = document.querySelector(photoInputSelector);
+    const saveProfileButton = document.querySelector(saveProfileButtonSelector);
     const signOutButton = document.querySelector(signOutButtonSelector);
     const backButton = document.querySelector(backButtonSelector);
-    const resetPasswordButton = document.querySelector(resetPasswordButtonSelector);
-    const leaveVendorButton = profileElements.leaveVendorButton;
     const uploadPhotoButton = document.querySelector(uploadPhotoButtonSelector);
     const removePhotoButton = profileElements.removePhotoButton;
     const deleteAccountButton = document.querySelector(deleteAccountButtonSelector);
@@ -1671,7 +1736,8 @@ function initializeProfilePage(options = {}) {
             authService,
             authUtils,
             statusElement,
-            profileElements
+            profileElements,
+            formElements
         });
 
         latestProfileResult = result;
@@ -1679,6 +1745,17 @@ function initializeProfilePage(options = {}) {
     }
 
     const profilePromise = refreshProfile();
+
+    const saveProfileController = saveProfileButton
+        ? attachSaveProfileHandler({
+            button: saveProfileButton,
+            authService,
+            authUtils,
+            statusElement,
+            formElements,
+            refreshProfile
+        })
+        : null;
 
     const signOutController = signOutButton
         ? attachSignOutHandler({
@@ -1700,26 +1777,6 @@ function initializeProfilePage(options = {}) {
 
                 return getBackRoute(profile || {}, authUtils, backRoute);
             }
-        })
-        : null;
-
-    const resetPasswordController = resetPasswordButton
-        ? attachResetPasswordHandler({
-            button: resetPasswordButton,
-            authService,
-            authUtils,
-            statusElement
-        })
-        : null;
-
-    const leaveVendorController = leaveVendorButton
-        ? attachLeaveVendorHandler({
-            button: leaveVendorButton,
-            authService,
-            authUtils,
-            statusElement,
-            profileElements,
-            refreshProfile
         })
         : null;
 
@@ -1755,25 +1812,33 @@ function initializeProfilePage(options = {}) {
         })
         : null;
 
+    const deleteConfirmationController = deleteAccountButton
+        ? attachDeleteConfirmationToggle({
+            checkbox: deleteConfirmationCheckbox,
+            button: deleteAccountButton
+        })
+        : null;
+
     const deleteAccountController = deleteAccountButton
         ? attachDeleteAccountHandler({
             button: deleteAccountButton,
             authService,
             authUtils,
             accountMessageElement,
+            confirmationCheckbox: deleteConfirmationCheckbox,
             navigate: resolvedNavigate,
             confirmAction
         })
         : null;
 
     return {
+        saveProfileController,
         signOutController,
         backController,
-        resetPasswordController,
-        leaveVendorController,
         photoPreviewController,
         uploadPhotoController,
         removePhotoController,
+        deleteConfirmationController,
         deleteAccountController,
         profilePromise,
         refreshProfile
@@ -1783,6 +1848,7 @@ function initializeProfilePage(options = {}) {
 const profilePage = {
     normalizeText,
     normalizeVendorStatus,
+    normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
     normalizeUserProfile,
@@ -1796,14 +1862,24 @@ const profilePage = {
     hasAuthenticatedIdentity,
     getRoleLabel,
     getVendorStatusLabel,
+    getAdminStatusLabel,
     getDisplayName,
     getEmail,
+    getPhoneNumber,
     getPhotoURL,
     getAvailablePortals,
     capitalize,
     getPortalAccessLabel,
-    canLeaveVendor,
+    getVendorStatusNote,
+    getAdminStatusNote,
     canRemovePhoto,
+    getProfileFormValues,
+    validatePhoneNumber,
+    validateProfileForm,
+    setFieldError,
+    clearProfileFormErrors,
+    showProfileFormErrors,
+    populateProfileForm,
     renderProfile,
     getFallbackRoutes,
     mapBackTargetToRoute,
@@ -1815,25 +1891,22 @@ const profilePage = {
     waitForAuthenticatedUser,
     loadCurrentUserProfile,
     signOutCurrentUser,
-    sendSelfPasswordReset,
-    leaveVendorAccess,
+    saveCurrentUserProfile,
     isImageFile,
     readFileAsDataURL,
-    loadImageFromSource,
-    fileToOptimizedDataURL,
     getSelectedPhotoFile,
     previewSelectedPhoto,
     uploadSelectedPhoto,
     removeCurrentUserPhotoAction,
     deleteCurrentUserAccountAction,
     initializeProfileView,
+    attachSaveProfileHandler,
     attachSignOutHandler,
     attachBackHandler,
-    attachResetPasswordHandler,
-    attachLeaveVendorHandler,
     attachPhotoInputPreviewHandler,
     attachUploadPhotoHandler,
     attachRemovePhotoHandler,
+    attachDeleteConfirmationToggle,
     attachDeleteAccountHandler,
     initializeProfilePage
 };
