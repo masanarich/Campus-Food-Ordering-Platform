@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Users | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description"
+        content="Manage users, applications, and account access in the Campus Food Ordering Platform admin portal.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./users.css">
+</head>
+
+<body class="admin-shell">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Admin users navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./users.html" aria-current="page">Manage Users</a>
+            <a href="./disputes.html">Disputes</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="admin-main admin-users-main">
+        <section class="page-hero shared-section users-hero" aria-labelledby="users-heading">
+            <header class="hero-top-row">
+                <section>
+                    <h2 id="users-heading">Manage Users</h2>
+                    <p>
+                        Review customers, approve vendor and admin applications, disable accounts,
+                        and keep platform access under control from one admin workspace.
+                    </p>
+                </section>
+
+                <button id="back-button" class="button-primary" type="button">Back to Admin Dashboard</button>
+            </header>
+
+            <p id="users-status" aria-live="polite">Loading users...</p>
+
+            <section class="hero-controls" aria-label="User search and pagination controls">
+                <label class="search-field" for="user-search">
+                    <strong>Search users</strong>
+                    <input id="user-search" type="search" placeholder="Search by name, email, UID, phone, or status">
+                </label>
+
+                <label class="page-size-field" for="page-size-select">
+                    <strong>Users per page</strong>
+                    <select id="page-size-select">
+                        <option value="12">12</option>
+                        <option value="24" selected>24</option>
+                        <option value="48">48</option>
+                    </select>
+                </label>
+            </section>
+
+            <menu class="filter-menu users-filter-menu" aria-label="User filters">
+                <li><button id="filter-all" type="button" data-filter="all" aria-pressed="true">All</button></li>
+                <li><button id="filter-customer" type="button" data-filter="customer"
+                        aria-pressed="false">Customers</button></li>
+                <li><button id="filter-vendor" type="button" data-filter="vendor" aria-pressed="false">Vendors</button>
+                </li>
+                <li><button id="filter-admin" type="button" data-filter="admin" aria-pressed="false">Admins</button>
+                </li>
+                <li><button id="filter-pending-vendor" type="button" data-filter="pending-vendor"
+                        aria-pressed="false">Pending Vendor</button></li>
+                <li><button id="filter-pending-admin" type="button" data-filter="pending-admin"
+                        aria-pressed="false">Pending Admin</button></li>
+                <li><button id="filter-disabled" type="button" data-filter="disabled"
+                        aria-pressed="false">Disabled</button></li>
+            </menu>
+        </section>
+
+        <section class="shared-section users-summary-section" aria-labelledby="users-overview-heading">
+            <h3 id="users-overview-heading">Overview</h3>
+
+            <section class="stats-grid" aria-label="User overview statistics">
+                <article class="stats-card">
+                    <strong class="stats-label">Total users</strong>
+                    <output id="users-total-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Visible users</strong>
+                    <output id="users-visible-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Pending vendor</strong>
+                    <output id="users-pending-vendor-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Pending admin</strong>
+                    <output id="users-pending-admin-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Disabled</strong>
+                    <output id="users-disabled-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Current filter</strong>
+                    <output id="users-current-filter">All</output>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section users-results-section" aria-labelledby="users-results-heading">
+            <header class="results-header">
+                <section>
+                    <h3 id="users-results-heading">Accounts</h3>
+                    <p>Each account has one main manage action so the page stays clean even when the user list grows.
+                    </p>
+                </section>
+
+                <p class="pagination-summary">
+                    <output id="users-range-summary">Showing 0 of 0</output>
+                </p>
+            </header>
+
+            <section id="users-empty-state" class="users-empty-state" hidden>
+                <h4>No matching users</h4>
+                <p>Try another search term or switch to a different filter.</p>
+            </section>
+
+            <section class="users-table-scroll">
+                <ul id="users-list" class="users-list users-list-rows" aria-live="polite"></ul>
+            </section>
+
+            <menu class="pagination-controls" aria-label="Users pagination">
+                <li><button id="previous-page-button" class="button-secondary" type="button">Previous</button></li>
+                <li><output id="users-page-indicator">Page 1 of 1</output></li>
+                <li><button id="next-page-button" class="button-secondary" type="button">Next</button></li>
+            </menu>
+        </section>
+    </main>
+
+    <dialog id="user-modal" class="user-modal">
+        <form method="dialog" class="user-modal-card">
+            <header class="user-modal-head">
+                <section>
+                    <h3 id="modal-user-name">User</h3>
+                    <p id="modal-user-email">email@example.com</p>
+                </section>
+
+                <button id="modal-close-button" class="button-secondary modal-close-button" type="button"
+                    aria-label="Close manage user modal">
+                    Close
+                </button>
+            </header>
+
+            <section class="user-modal-body">
+                <section class="modal-block" aria-labelledby="modal-account-heading">
+                    <h4 id="modal-account-heading">Account Snapshot</h4>
+
+                    <section class="modal-kv-grid">
+                        <p><strong>UID:</strong> <output id="modal-user-uid">-</output></p>
+                        <p><strong>Main role:</strong> <output id="modal-user-role">-</output></p>
+                        <p><strong>Vendor status:</strong> <output id="modal-user-vendor-status">-</output></p>
+                        <p><strong>Admin status:</strong> <output id="modal-user-admin-status">-</output></p>
+                        <p><strong>Account status:</strong> <output id="modal-user-account-status">-</output></p>
+                        <p><strong>Phone:</strong> <output id="modal-user-phone">-</output></p>
+                    </section>
+                </section>
+
+                <section class="modal-block" aria-labelledby="modal-review-note-heading">
+                    <h4 id="modal-review-note-heading">Review Note</h4>
+                    <p>This note is used when you reject or block vendor and admin applications.</p>
+
+                    <label class="review-note-field" for="modal-review-note">
+                        <strong>Reason or explanation</strong>
+                        <textarea id="modal-review-note" rows="4" maxlength="500"
+                            placeholder="Explain why the application was rejected, blocked, or changed."></textarea>
+                    </label>
+
+                    <p id="modal-warning" class="modal-warning" aria-live="polite"></p>
+                    <p id="modal-action-status" class="modal-action-status" aria-live="polite"></p>
+                </section>
+
+                <section class="modal-block" aria-labelledby="modal-vendor-actions-heading">
+                    <h4 id="modal-vendor-actions-heading">Vendor Application</h4>
+
+                    <menu class="modal-action-menu" aria-label="Vendor actions">
+                        <li><button id="modal-approve-vendor-button" class="button-primary" type="button">Approve
+                                Vendor</button></li>
+                        <li><button id="modal-reject-vendor-button" class="button-secondary" type="button">Reject
+                                Vendor</button></li>
+                        <li><button id="modal-block-vendor-button" class="button-secondary" type="button">Block
+                                Vendor</button></li>
+                        <li><button id="modal-clear-vendor-button" class="button-secondary" type="button">Clear Vendor
+                                Status</button></li>
+                    </menu>
+                </section>
+
+                <section class="modal-block" aria-labelledby="modal-admin-actions-heading">
+                    <h4 id="modal-admin-actions-heading">Admin Application</h4>
+
+                    <menu class="modal-action-menu" aria-label="Admin actions">
+                        <li><button id="modal-approve-admin-button" class="button-primary" type="button">Approve
+                                Admin</button></li>
+                        <li><button id="modal-reject-admin-button" class="button-secondary" type="button">Reject
+                                Admin</button></li>
+                        <li><button id="modal-block-admin-button" class="button-secondary" type="button">Block
+                                Admin</button></li>
+                        <li><button id="modal-clear-admin-button" class="button-secondary" type="button">Clear Admin
+                                Status</button></li>
+                    </menu>
+                </section>
+
+                <section class="modal-block" aria-labelledby="modal-account-actions-heading">
+                    <h4 id="modal-account-actions-heading">Account Access</h4>
+
+                    <menu class="modal-action-menu" aria-label="Account actions">
+                        <li><button id="modal-disable-account-button" class="button-danger" type="button">Disable
+                                Account</button></li>
+                        <li><button id="modal-enable-account-button" class="button-secondary" type="button">Enable
+                                Account</button></li>
+                    </menu>
+                </section>
+            </section>
+        </form>
+    </dialog>
+
+    <footer>
+        <p>© 2026 Campus Food Ordering Platform</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./users.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db } from "../authentication/config.js";
+        import {
+            collection,
+            getDocs,
+            doc,
+            updateDoc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.authService = authService;
+
+        window.usersPage.initialize({
+            authService,
+            authUtils: window.authUtils,
+            db,
+            firestoreFns: {
+                collection,
+                getDocs,
+                doc,
+                updateDoc
+            }
+        });
+    </script>
+
+</body>
+
+</html>

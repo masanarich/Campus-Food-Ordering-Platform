@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Disputes | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Admin disputes workspace placeholder for the Campus Food Ordering Platform.">
+    <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Admin disputes navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./users.html">Manage Users</a>
+            <a href="./disputes.html" aria-current="page">Disputes</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <section aria-labelledby="admin-disputes-heading">
+            <h2 id="admin-disputes-heading">Disputes and Issues</h2>
+
+            <p>
+                This page will later be used for customer support issues, complaints,
+                disputes, and other reported admin cases.
+            </p>
+
+            <p id="admin-disputes-status" aria-live="polite"></p>
+
+            <menu aria-label="Disputes placeholder actions">
+                <li><button id="back-to-admin-dashboard-button" type="button">Back to Admin Dashboard</button></li>
+                <li><button id="go-manage-users-button" type="button">Go to Manage Users</button></li>
+            </menu>
+        </section>
+
+        <section aria-labelledby="admin-disputes-next-heading">
+            <h3 id="admin-disputes-next-heading">What Happens Next</h3>
+
+            <p>
+                The actual dispute workflow is not implemented yet. For now, use this
+                page as a clean placeholder while we finish the rest of the admin portal.
+            </p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="./disputes.js"></script>
+    <script>
+        window.adminDisputesPage.initializeAdminDisputesPage({
+            authUtils: window.authUtils
+        });
+    </script>
+
+</body>
+</html>
