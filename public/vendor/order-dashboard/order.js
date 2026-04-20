@@ -2,86 +2,35 @@
     'use strict';
 
     /* ─────────────────────────────────────────
-       MOCK DATA  –  replace with real API calls
+       FIREBASE CONFIG  –  replace with yours
     ───────────────────────────────────────── */
-    const STATUSES = ['pending', 'accepted', 'preparing', 'ready', 'complete', 'rejected'];
+const firebaseConfig = {
+  apiKey: "AIzaSyCoKYtzrL8ib4VDfd0Wr0cMjVPfgUkPtVA",
+  authDomain: "campus-food-ordering-platform.firebaseapp.com",
+  projectId: "campus-food-ordering-platform",
+  storageBucket: "campus-food-ordering-platform.firebasestorage.app",
+  messagingSenderId: "808109232496",
+  appId: "1:808109232496:web:0c1bcd968c1493e3bbffb5",
+  measurementId: "G-8696Y3GMFE"
+};
 
-    const MOCK_ORDERS = [
-        {
-            id: 'ORD-001',
-            customer: 'Thato Cheune',
-            time: '08:14',
-            status: 'pending',
-            notes: 'Please add extra napkins.',
-            items: [
-                { name: 'Boerewors Roll', qty: 2, price: 35 },
-                { name: 'Coke 500 ml',    qty: 2, price: 18 },
-            ]
-        },
-        {
-            id: 'ORD-002',
-            customer: 'Tshepo Rodgers',
-            time: '08:27',
-            status: 'accepted',
-            notes: '',
-            items: [
-                { name: 'Cheese Burger', qty: 1, price: 65 },
-                { name: 'Slap Chips',    qty: 1, price: 28 },
-                { name: 'Water 500 ml',  qty: 1, price: 12 },
-            ]
-        },
-        {
-            id: 'ORD-003',
-            customer: 'Ledile Mokwena',
-            time: '08:35',
-            status: 'preparing',
-            notes: 'No onions please.',
-            items: [
-                { name: 'Gatsby (half)', qty: 1, price: 55 },
-                { name: 'Oros 300 ml',   qty: 1, price: 15 },
-            ]
-        },
-        {
-            id: 'ORD-004',
-            customer: 'Rele Mofokeng',
-            time: '08:41',
-            status: 'ready',
-            notes: '',
-            items: [
-                { name: 'Pap & Wors', qty: 2, price: 45 },
-            ]
-        },
-        {
-            id: 'ORD-005',
-            customer: 'Olwethu Makhabane',
-            time: '08:55',
-            status: 'complete',
-            notes: '',
-            items: [
-                { name: 'Vetkoek & Mince', qty: 3, price: 22 },
-                { name: 'Juice Box',        qty: 3, price: 10 },
-            ]
-        },
-        {
-            id: 'ORD-006',
-            customer: 'Faranani Maduwa',
-            time: '09:03',
-            status: 'pending',
-            notes: 'Gluten free bun if available.',
-            items: [
-                { name: 'Chicken Burger', qty: 1, price: 60 },
-                { name: 'Milkshake',      qty: 1, price: 35 },
-            ]
-        },
-    ];
+    /* ─────────────────────────────────────────
+       FIREBASE INIT
+    ───────────────────────────────────────── */
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    const STATUSES = ['pending', 'accepted', 'preparing', 'ready', 'complete', 'rejected'];
 
     /* ─────────────────────────────────────────
        STATE
     ───────────────────────────────────────── */
-    let orders = MOCK_ORDERS.map(o => ({ ...o }));
-    let activeFilter = 'all';
+    let orders         = [];
+    let activeFilter   = 'all';
     let selectedOrderId = null;
-    const log = [];
+    const log          = [];
 
     /* ─────────────────────────────────────────
        DOM REFS
@@ -97,7 +46,9 @@
        HELPERS
     ───────────────────────────────────────── */
     function orderTotal(order) {
-        return order.items.reduce((s, i) => s + i.qty * i.price, 0);
+        if (typeof order.totalAmount === 'number') return order.totalAmount;
+        if (!Array.isArray(order.items)) return 0;
+        return order.items.reduce((s, i) => s + (i.Quantity || i.qty || 0) * (i.price || 0), 0);
     }
 
     function badgeClass(status) {
@@ -109,11 +60,18 @@
     }
 
     function formatCurrency(val) {
-        return `R${val.toFixed(2)}`;
+        const n = typeof val === 'number' ? val : parseFloat(val);
+        return isFinite(n) ? `R${n.toFixed(2)}` : 'R0.00';
     }
 
     function now() {
         return new Date().toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatTimestamp(ts) {
+        if (!ts) return '—';
+        const date = ts.toDate ? ts.toDate() : new Date(ts);
+        return date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
     }
 
     function addLog(msg) {
@@ -124,6 +82,76 @@
     function setStatus(msg, state = 'info') {
         statusBanner.textContent = msg;
         statusBanner.dataset.state = state;
+    }
+
+    /* ─────────────────────────────────────────
+       FIRESTORE — LIVE LISTENER
+       Listens to all orders for this vendor
+       in real time. Update vendorID filter to
+       match the logged-in vendor.
+    ───────────────────────────────────────── */
+function listenToOrders() {
+    setStatus('Loading orders...', 'loading');
+
+    db.collection('orders')
+        .orderBy('createdAt', 'desc')
+        .onSnapshot(snapshot => {
+            console.log("Docs:", snapshot.docs.length);
+            console.log("Docs:", snapshot.docs.length);   // 👈 ADD THIS
+            console.log("Raw snapshot:", snapshot.docs);  // 👈 AND THIS
+
+            orders = snapshot.docs.map(doc => {
+                const data = doc.data();
+
+                return {
+                    id: doc.id,
+                    status: (data.status || 'pending').trim(),
+                    totalAmount: data.totalAmount || 0,
+                    vendorID: data.vendorID || '',
+                    time: formatTimestamp(data.createdAt),
+                    items: Array.isArray(data.items) ? data.items : []
+                };
+            });
+
+            renderOrders();
+            setStatus('Orders loaded.', 'info');
+            addLog('Orders refreshed from database.');
+        }, error => {
+            console.error('Firestore error:', error);
+            setStatus('Failed to load orders.', 'error');
+        });
+}
+    /* ─────────────────────────────────────────
+       FIRESTORE — UPDATE STATUS
+    ───────────────────────────────────────── */
+    async function updateOrderStatus(id, newStatus) {
+        const order = orders.find(o => o.id === id);
+        if (!order) return;
+
+        const oldStatus = order.status;
+
+        try {
+            await db.collection('orders').doc(id).update({ status: newStatus });
+
+            addLog(`${id}: ${badgeLabel(oldStatus)} → ${badgeLabel(newStatus)}`);
+
+            const msgs = {
+                accepted:  `Order ${id} accepted! Start preparing when ready.`,
+                rejected:  `Order ${id} rejected.`,
+                preparing: `Order ${id} is now being prepared.`,
+                ready:     `Order ${id} is ready for pickup!`,
+                complete:  `Order ${id} marked as complete.`,
+            };
+
+            setStatus(
+                msgs[newStatus] || `Order ${id} updated.`,
+                newStatus === 'rejected' ? 'error' : 'success'
+            );
+
+        } catch (err) {
+            console.error('Failed to update order:', err);
+            setStatus(`Failed to update order ${id}. Try again.`, 'error');
+        }
     }
 
     /* ─────────────────────────────────────────
@@ -158,18 +186,10 @@
         }
         log.slice(0, 12).forEach(entry => {
             const li  = document.createElement('li');
-            const dot = document.createElement('span');
-            dot.className = 'log-dot';
-            dot.setAttribute('aria-hidden', 'true');
-            const time = document.createElement('span');
-            time.className = 'log-time';
-            time.textContent = entry.time;
-            const msg = document.createElement('span');
-            msg.className = 'log-msg';
-            msg.textContent = entry.msg;
-            li.appendChild(dot);
-            li.appendChild(time);
-            li.appendChild(msg);
+            const dot = document.createElement('span'); dot.className = 'log-dot'; dot.setAttribute('aria-hidden', 'true');
+            const time = document.createElement('span'); time.className = 'log-time'; time.textContent = entry.time;
+            const msg  = document.createElement('span'); msg.className  = 'log-msg';  msg.textContent  = entry.msg;
+            li.appendChild(dot); li.appendChild(time); li.appendChild(msg);
             activityList.appendChild(li);
         });
     }
@@ -181,157 +201,102 @@
         const li  = document.createElement('li');
         const art = document.createElement('article');
         art.className = 'order-card';
-        art.setAttribute('aria-label', `Order ${order.id} from ${order.customer}`);
+        art.setAttribute('aria-label', `Order ${order.id}`);
 
         /* card header */
-        const hdr = document.createElement('header');
-        hdr.className = 'order-card-header';
+        const hdr  = document.createElement('header');  hdr.className  = 'order-card-header';
+        const meta = document.createElement('section'); meta.className = 'order-meta'; meta.setAttribute('aria-label', 'Order meta');
 
-        const meta = document.createElement('section');
-        meta.className = 'order-meta';
-        meta.setAttribute('aria-label', 'Order meta');
-
-        const idEl = document.createElement('p');
-        idEl.className = 'order-id';
-        idEl.textContent = order.id;
-
-        const custEl = document.createElement('p');
-        custEl.className = 'order-customer';
-        custEl.textContent = order.customer;
-
-        const timeEl = document.createElement('p');
-        timeEl.className = 'order-time';
-        timeEl.textContent = `Placed at ${order.time}`;
+        const idEl   = document.createElement('p'); idEl.className   = 'order-id';    idEl.textContent   = order.id;
+        const timeEl = document.createElement('p'); timeEl.className = 'order-time';   timeEl.textContent = `Placed at ${order.time}`;
+        const venEl  = document.createElement('p'); venEl.className  = 'order-time';   venEl.textContent  = `Vendor: ${order.vendorID}`;
 
         meta.appendChild(idEl);
-        meta.appendChild(custEl);
         meta.appendChild(timeEl);
+        meta.appendChild(venEl);
 
         const badge = document.createElement('span');
         badge.className = badgeClass(order.status);
         badge.setAttribute('aria-label', `Status: ${badgeLabel(order.status)}`);
         badge.textContent = badgeLabel(order.status);
 
-        hdr.appendChild(meta);
-        hdr.appendChild(badge);
+        hdr.appendChild(meta); hdr.appendChild(badge);
         art.appendChild(hdr);
 
         /* items table */
-        const tbl = document.createElement('table');
-        tbl.className = 'order-items';
-        tbl.setAttribute('aria-label', 'Items in this order');
-
+        const tbl   = document.createElement('table'); tbl.className = 'order-items'; tbl.setAttribute('aria-label', 'Items in this order');
         const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
+        const hrow  = document.createElement('tr');
         ['Item', 'Qty', 'Price'].forEach(h => {
-            const th = document.createElement('th');
-            th.scope = 'col';
-            th.textContent = h;
-            headerRow.appendChild(th);
+            const th = document.createElement('th'); th.scope = 'col'; th.textContent = h; hrow.appendChild(th);
         });
-        thead.appendChild(headerRow);
-        tbl.appendChild(thead);
+        thead.appendChild(hrow); tbl.appendChild(thead);
 
         const tbody = document.createElement('tbody');
         order.items.forEach(item => {
+            const qty   = item.Quantity || item.qty || 0;
+            const price = item.price || 0;
+            const name  = item.name  || item.itemID || '—';
+
             const tr  = document.createElement('tr');
-            const tdN = document.createElement('td'); tdN.textContent = item.name;
-            const tdQ = document.createElement('td'); tdQ.className = 'item-qty';   tdQ.textContent = `×${item.qty}`;
-            const tdP = document.createElement('td'); tdP.className = 'item-price'; tdP.textContent = formatCurrency(item.qty * item.price);
-            tr.appendChild(tdN);
-            tr.appendChild(tdQ);
-            tr.appendChild(tdP);
+            const tdN = document.createElement('td'); tdN.textContent = name;
+            const tdQ = document.createElement('td'); tdQ.className = 'item-qty';   tdQ.textContent = `×${qty}`;
+            const tdP = document.createElement('td'); tdP.className = 'item-price'; tdP.textContent = formatCurrency(qty * price);
+            tr.appendChild(tdN); tr.appendChild(tdQ); tr.appendChild(tdP);
             tbody.appendChild(tr);
         });
-        tbl.appendChild(tbody);
-        art.appendChild(tbl);
+        tbl.appendChild(tbody); art.appendChild(tbl);
 
         /* order total */
-        const totRow = document.createElement('section');
-        totRow.className = 'order-total-row';
-        totRow.setAttribute('aria-label', 'Order total');
+        const totRow   = document.createElement('section'); totRow.className = 'order-total-row'; totRow.setAttribute('aria-label', 'Order total');
         const totLabel = document.createElement('span'); totLabel.textContent = 'Total';
-        const totVal   = document.createElement('span'); totVal.textContent = formatCurrency(orderTotal(order));
-        totRow.appendChild(totLabel);
-        totRow.appendChild(totVal);
+        const totVal   = document.createElement('span'); totVal.textContent   = formatCurrency(orderTotal(order));
+        totRow.appendChild(totLabel); totRow.appendChild(totVal);
         art.appendChild(totRow);
 
-        /* customer notes */
-        if (order.notes) {
-            const notes = document.createElement('section');
-            notes.className = 'order-notes';
-            notes.setAttribute('aria-label', 'Customer notes');
-            const strong = document.createElement('strong');
-            strong.textContent = 'Note: ';
-            notes.appendChild(strong);
-            notes.appendChild(document.createTextNode(order.notes));
-            art.appendChild(notes);
-        }
-
-        /* action footer */
-        const actions = document.createElement('footer');
-        actions.className = 'order-actions';
+        /* actions */
+        const actions = document.createElement('footer'); actions.className = 'order-actions';
 
         if (order.status === 'pending') {
             const acceptBtn = document.createElement('button');
-            acceptBtn.className = 'btn-accept';
-            acceptBtn.type = 'button';
-            acceptBtn.textContent = '✓ Accept';
+            acceptBtn.className = 'btn-accept'; acceptBtn.type = 'button'; acceptBtn.textContent = '✓ Accept';
             acceptBtn.addEventListener('click', () => updateOrderStatus(order.id, 'accepted'));
 
             const rejectBtn = document.createElement('button');
-            rejectBtn.className = 'btn-reject';
-            rejectBtn.type = 'button';
-            rejectBtn.textContent = '✕ Reject';
+            rejectBtn.className = 'btn-reject'; rejectBtn.type = 'button'; rejectBtn.textContent = '✕ Reject';
             rejectBtn.addEventListener('click', () => updateOrderStatus(order.id, 'rejected'));
 
-            actions.appendChild(acceptBtn);
-            actions.appendChild(rejectBtn);
+            actions.appendChild(acceptBtn); actions.appendChild(rejectBtn);
 
         } else if (!['complete', 'rejected'].includes(order.status)) {
             const label = document.createElement('label');
             label.htmlFor = `status-select-${order.id}`;
             label.textContent = 'Move to:';
-            label.style.fontWeight = '700';
-            label.style.color = 'var(--text-soft)';
-            label.style.fontSize = '.92rem';
-            label.style.alignSelf = 'center';
+            label.style.cssText = 'font-weight:700; color:var(--text-soft); font-size:.92rem; align-self:center;';
 
             const sel = document.createElement('select');
             sel.className = 'status-select';
             sel.id = `status-select-${order.id}`;
             sel.setAttribute('aria-label', `Update status for ${order.id}`);
 
-            const nextStatuses = STATUSES.filter(s => s !== order.status && s !== 'pending' && s !== 'rejected');
-            nextStatuses.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = badgeLabel(s);
-                if (s === order.status) opt.selected = true;
+            STATUSES.filter(s => s !== order.status && s !== 'pending' && s !== 'rejected').forEach(s => {
+                const opt = document.createElement('option'); opt.value = s; opt.textContent = badgeLabel(s);
                 sel.appendChild(opt);
             });
 
             const updateBtn = document.createElement('button');
-            updateBtn.className = 'btn-primary';
-            updateBtn.type = 'button';
-            updateBtn.textContent = 'Update';
+            updateBtn.className = 'btn-primary'; updateBtn.type = 'button'; updateBtn.textContent = 'Update';
             updateBtn.addEventListener('click', () => updateOrderStatus(order.id, sel.value));
 
-            actions.appendChild(label);
-            actions.appendChild(sel);
-            actions.appendChild(updateBtn);
+            actions.appendChild(label); actions.appendChild(sel); actions.appendChild(updateBtn);
         }
 
-        /* view detail button */
         const detailBtn = document.createElement('button');
-        detailBtn.type = 'button';
-        detailBtn.textContent = 'View Detail';
-        detailBtn.setAttribute('aria-expanded', selectedOrderId === order.id ? 'true' : 'false');
+        detailBtn.type = 'button'; detailBtn.textContent = 'View Detail';
         detailBtn.addEventListener('click', () => selectOrder(order.id));
         actions.appendChild(detailBtn);
 
-        art.appendChild(actions);
-        li.appendChild(art);
+        art.appendChild(actions); li.appendChild(art);
         return li;
     }
 
@@ -346,19 +311,15 @@
 
         if (filtered.length === 0) {
             const li    = document.createElement('li');
-            const empty = document.createElement('section');
-            empty.className = 'empty-state';
-            const msg = document.createElement('p');
+            const empty = document.createElement('section'); empty.className = 'empty-state';
+            const msg   = document.createElement('p');
             msg.textContent = activeFilter === 'all'
                 ? 'No orders yet. They will appear here when customers place them.'
                 : `No orders with status "${badgeLabel(activeFilter)}" right now.`;
-            empty.appendChild(msg);
-            li.appendChild(empty);
-            ordersList.appendChild(li);
+            empty.appendChild(msg); li.appendChild(empty); ordersList.appendChild(li);
         } else {
             filtered.forEach(order => ordersList.appendChild(buildOrderCard(order)));
         }
-
         renderStats();
     }
 
@@ -376,7 +337,7 @@
 
         const heading = document.createElement('h4');
         heading.style.cssText = 'margin-top:0; margin-bottom:.5rem; font-size:1.1rem;';
-        heading.textContent = `${order.id} — ${order.customer}`;
+        heading.textContent = `Order: ${order.id}`;
         detailBody.appendChild(heading);
 
         const badge = document.createElement('span');
@@ -390,89 +351,40 @@
         timeP.textContent = `Placed at ${order.time}`;
         detailBody.appendChild(timeP);
 
-        const itemsHeading = document.createElement('p');
-        itemsHeading.style.cssText = 'font-weight:700; margin-bottom:.4rem;';
-        itemsHeading.textContent = 'Items:';
-        detailBody.appendChild(itemsHeading);
+        const iHead = document.createElement('p'); iHead.style.cssText = 'font-weight:700; margin-bottom:.4rem;'; iHead.textContent = 'Items:';
+        detailBody.appendChild(iHead);
 
-        const tbl = document.createElement('table');
-        tbl.className = 'order-items';
-        tbl.setAttribute('aria-label', 'Order items detail');
-
+        const tbl   = document.createElement('table'); tbl.className = 'order-items'; tbl.setAttribute('aria-label', 'Order items detail');
         const thead = document.createElement('thead');
-        const hr = document.createElement('tr');
+        const hr    = document.createElement('tr');
         ['Item', 'Qty', 'Unit', 'Line'].forEach(h => {
-            const th = document.createElement('th');
-            th.scope = 'col';
-            th.textContent = h;
-            hr.appendChild(th);
+            const th = document.createElement('th'); th.scope = 'col'; th.textContent = h; hr.appendChild(th);
         });
-        thead.appendChild(hr);
-        tbl.appendChild(thead);
+        thead.appendChild(hr); tbl.appendChild(thead);
 
         const tbody = document.createElement('tbody');
         order.items.forEach(item => {
+            const qty   = item.Quantity || item.qty || 0;
+            const price = item.price || 0;
+            const name  = item.name  || item.itemID || '—';
+
             const tr  = document.createElement('tr');
-            const tdN = document.createElement('td'); tdN.textContent = item.name;
-            const tdQ = document.createElement('td'); tdQ.className = 'item-qty';   tdQ.textContent = `×${item.qty}`;
-            const tdU = document.createElement('td'); tdU.className = 'item-price'; tdU.textContent = formatCurrency(item.price);
-            const tdL = document.createElement('td'); tdL.className = 'item-price'; tdL.textContent = formatCurrency(item.qty * item.price);
+            const tdN = document.createElement('td'); tdN.textContent = name;
+            const tdQ = document.createElement('td'); tdQ.className = 'item-qty';   tdQ.textContent = `×${qty}`;
+            const tdU = document.createElement('td'); tdU.className = 'item-price'; tdU.textContent = formatCurrency(price);
+            const tdL = document.createElement('td'); tdL.className = 'item-price'; tdL.textContent = formatCurrency(qty * price);
             tr.appendChild(tdN); tr.appendChild(tdQ); tr.appendChild(tdU); tr.appendChild(tdL);
             tbody.appendChild(tr);
         });
-        tbl.appendChild(tbody);
-        detailBody.appendChild(tbl);
+        tbl.appendChild(tbody); detailBody.appendChild(tbl);
 
-        const totRow = document.createElement('section');
-        totRow.className = 'order-total-row';
-        totRow.setAttribute('aria-label', 'Total');
+        const totRow = document.createElement('section'); totRow.className = 'order-total-row'; totRow.setAttribute('aria-label', 'Total');
         const tl = document.createElement('span'); tl.textContent = 'Order Total';
         const tv = document.createElement('span'); tv.textContent = formatCurrency(orderTotal(order));
-        totRow.appendChild(tl);
-        totRow.appendChild(tv);
+        totRow.appendChild(tl); totRow.appendChild(tv);
         detailBody.appendChild(totRow);
 
-        if (order.notes) {
-            const notes = document.createElement('section');
-            notes.className = 'order-notes';
-            const s = document.createElement('strong');
-            s.textContent = 'Customer note: ';
-            notes.appendChild(s);
-            notes.appendChild(document.createTextNode(order.notes));
-            detailBody.appendChild(notes);
-        }
-
-        document.getElementById('order-detail-section')
-            .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    /* ─────────────────────────────────────────
-       UPDATE STATUS
-    ───────────────────────────────────────── */
-    function updateOrderStatus(id, newStatus) {
-        const order = orders.find(o => o.id === id);
-        if (!order) return;
-
-        const oldStatus = order.status;
-        order.status = newStatus;
-
-        addLog(`${order.id} (${order.customer}): ${badgeLabel(oldStatus)} → ${badgeLabel(newStatus)}`);
-
-        const msgs = {
-            accepted:  `Order ${id} accepted! Start preparing when ready.`,
-            rejected:  `Order ${id} rejected.`,
-            preparing: `Order ${id} is now being prepared.`,
-            ready:     `Order ${id} is ready for pickup!`,
-            complete:  `Order ${id} marked as complete.`,
-        };
-
-        setStatus(
-            msgs[newStatus] || `Order ${id} updated.`,
-            newStatus === 'rejected' ? 'error' : 'success'
-        );
-
-        renderOrders();
-        if (selectedOrderId === id) selectOrder(id);
+        document.getElementById('order-detail-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     /* ─────────────────────────────────────────
@@ -490,35 +402,7 @@
        INIT
     ───────────────────────────────────────── */
     renderLog();
-    renderOrders();
-    setStatus('Dashboard loaded. Showing all orders.', 'info');
     addLog('Vendor dashboard opened.');
-
-    /* Simulate a new incoming order after 8 seconds */
-    setTimeout(() => {
-        const newOrder = {
-            id: 'ORD-007',
-            customer: 'Nandi Mthembu',
-            time: now(),
-            status: 'pending',
-            notes: 'Extra chilli sauce please!',
-            items: [
-                { name: 'Toasted Sarmie', qty: 2, price: 30 },
-                { name: 'Rooibos Tea',    qty: 1, price: 18 },
-            ]
-        };
-        orders.unshift(newOrder);
-        setStatus(`🔔 New order from ${newOrder.customer}!`, 'info');
-        addLog(`New order received: ${newOrder.id} from ${newOrder.customer}`);
-        renderOrders();
-    }, 8000);
+    listenToOrders();
 
 })();
-if (typeof module !== "undefined") {
-    module.exports = {
-        updateOrderStatus,
-        renderOrders,
-        selectOrder,
-        orderTotal
-    };
-}
