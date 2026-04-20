@@ -75,12 +75,18 @@ function getFallbackRoutes() {
         admin: "../admin/index.html",
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
+<<<<<<< HEAD
+        vendorapplication: "../vendor/vendor-application.html",
+        login: "../authentication/login.html",
+        stores: "../Approved_vendors/index.html"
+=======
         vendorapplication: "./vendor-application.html",
         adminapplication: "./admin-application.html",
         stores: "./browse-stores.html",
         orders: "./my-orders.html",
         support: "./support.html",
         login: "../authentication/login.html"
+>>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
     };
 }
 
@@ -124,10 +130,25 @@ function getPortalRoute(routeName, authUtils) {
         if (key === "vendorapplication") {
             return authUtils.PORTAL_ROUTES.vendorApplication || routes.vendorapplication;
         }
+<<<<<<< HEAD
+       /*if (key === "vendorapplication") {
+        // Allow override if authUtils defines it
+        if (
+            authUtils &&
+            authUtils.PORTAL_ROUTES &&
+            authUtils.PORTAL_ROUTES.vendorApplication
+        ) {
+            return authUtils.PORTAL_ROUTES.vendorApplication;
+            }
+
+    return routes.vendorapplication;
+        }*/
+=======
 
         if (key === "adminapplication") {
             return authUtils.PORTAL_ROUTES.adminApplication || routes.adminapplication;
         }
+>>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
     }
 
     if (Object.prototype.hasOwnProperty.call(routes, key)) {
@@ -136,6 +157,9 @@ function getPortalRoute(routeName, authUtils) {
 
     if (key === "signout") {
         return routes.login;
+    }
+    if (key === "stores"){
+        return routes.stores;
     }
 
     return routes.login;
@@ -679,7 +703,10 @@ function attachNavigationHandler(options = {}) {
         typeof options.navigate === "function"
             ? options.navigate
             : function fallbackNavigate(nextRoute) {
-                window.location.href = nextRoute;
+                if (typeof window !== "undefined" && window.location) {
+                    window.location.href = nextRoute;
+                }
+
             };
 
     if (!button || !route) {
@@ -831,14 +858,19 @@ async function initializeCustomerHomePage(options = {}) {
         profileButton: document.querySelector("#go-profile-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         vendorApplicationButton: document.querySelector("#go-vendor-application-button"),
+<<<<<<< HEAD
+        browseVendorsButton: document.querySelector("#browse-vendors"),
+=======
         adminApplicationButton: document.querySelector("#go-admin-application-button"),
         browseStoresButton: document.querySelector("#browse-stores-button"),
         myOrdersButton: document.querySelector("#view-orders-button"),
         supportButton: document.querySelector("#get-support-button"),
         signOutButton: document.querySelector("#sign-out-button"),
+>>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
         adminPortalButton: document.querySelector("#go-admin-portal-button")
+
     };
 
     setStatusMessage(elements.statusElement, "Loading your customer dashboard...", "loading");
@@ -885,6 +917,9 @@ async function initializeCustomerHomePage(options = {}) {
         const vendorApplicationController = result.state.vendorApplicationAction.visible
             ? attachNavigationHandler({
                 button: elements.vendorApplicationButton,
+<<<<<<< HEAD
+                route: "../vendor/vendor-application.html",
+=======
                 route: result.state.vendorApplicationAction.route,
                 navigate
             })
@@ -894,6 +929,7 @@ async function initializeCustomerHomePage(options = {}) {
             ? attachNavigationHandler({
                 button: elements.adminApplicationButton,
                 route: result.state.adminApplicationAction.route,
+>>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
                 navigate
             })
             : null;
@@ -921,6 +957,12 @@ async function initializeCustomerHomePage(options = {}) {
                 navigate
             })
             : null;
+        const browseVendorsController = attachNavigationHandler({
+            button: elements.browseVendorsButton,
+            route: getPortalRoute("stores", authUtils),
+            navigate
+        });
+        
 
         const browseStoresController = attachNavigationHandler({
             button: elements.browseStoresButton,
@@ -958,10 +1000,14 @@ async function initializeCustomerHomePage(options = {}) {
             customerPortalController,
             vendorPortalController,
             adminPortalController,
+<<<<<<< HEAD
+            browseVendorsController
+=======
             browseStoresController,
             myOrdersController,
             supportController,
             signOutController
+>>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
         };
     } catch (error) {
         const message =
