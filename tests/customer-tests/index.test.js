@@ -60,11 +60,14 @@ function createCustomerHomeDom() {
 
             <button id="go-profile-button" type="button">Profile</button>
             <button id="choose-portal-button" type="button">Choose Portal</button>
+            <button id="browse-vendors-button" type="button">Browse Vendors</button>
+            <button id="view-cart-button" type="button">Cart</button>
+            <button id="go-checkout-button" type="button">Checkout</button>
             <button id="go-vendor-application-button" type="button">Vendor</button>
             <button id="go-admin-application-button" type="button">Admin</button>
-            <button id="browse-stores-button" type="button">Stores</button>
             <button id="view-orders-button" type="button">Orders</button>
-            <button id="get-support-button" type="button">Support</button>
+            <button id="track-orders-button" type="button">Track Orders</button>
+            <button id="view-notifications-button" type="button">Notifications</button>
             <button id="sign-out-button" type="button">Sign out</button>
 
             <button id="go-customer-portal-button" type="button">Customer</button>
@@ -88,11 +91,14 @@ function createCustomerHomeDom() {
         adminApplicationNoteElement: document.querySelector("#admin-application-note"),
         profileButton: document.querySelector("#go-profile-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
+        browseVendorsButton: document.querySelector("#browse-vendors-button"),
+        cartButton: document.querySelector("#view-cart-button"),
+        checkoutButton: document.querySelector("#go-checkout-button"),
         vendorApplicationButton: document.querySelector("#go-vendor-application-button"),
         adminApplicationButton: document.querySelector("#go-admin-application-button"),
-        browseStoresButton: document.querySelector("#browse-stores-button"),
         myOrdersButton: document.querySelector("#view-orders-button"),
-        supportButton: document.querySelector("#get-support-button"),
+        trackOrdersButton: document.querySelector("#track-orders-button"),
+        notificationsButton: document.querySelector("#view-notifications-button"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
@@ -143,9 +149,11 @@ describe("customer/index.js helpers", () => {
             profile: "../authentication/profile.html",
             vendorapplication: "./vendor-application.html",
             adminapplication: "./admin-application.html",
-            stores: "./browse-stores.html",
-            orders: "./my-orders.html",
-            support: "./support.html",
+            browsevendors: "./order-management/browse-vendors.html",
+            cart: "./order-management/cart.html",
+            checkout: "./order-management/checkout.html",
+            orders: "./order-tracking/index.html",
+            notifications: "./order-tracking/notifications.html",
             login: "../authentication/login.html"
         });
 
@@ -156,9 +164,11 @@ describe("customer/index.js helpers", () => {
         expect(getPortalRoute("profile")).toBe("../authentication/profile.html");
         expect(getPortalRoute("vendorApplication")).toBe("./vendor-application.html");
         expect(getPortalRoute("adminApplication")).toBe("./admin-application.html");
-        expect(getPortalRoute("stores")).toBe("./browse-stores.html");
-        expect(getPortalRoute("orders")).toBe("./my-orders.html");
-        expect(getPortalRoute("support")).toBe("./support.html");
+        expect(getPortalRoute("browseVendors")).toBe("./order-management/browse-vendors.html");
+        expect(getPortalRoute("cart")).toBe("./order-management/cart.html");
+        expect(getPortalRoute("checkout")).toBe("./order-management/checkout.html");
+        expect(getPortalRoute("orders")).toBe("./order-tracking/index.html");
+        expect(getPortalRoute("notifications")).toBe("./order-tracking/notifications.html");
         expect(getPortalRoute("signOut")).toBe("../authentication/login.html");
     });
 
@@ -382,6 +392,12 @@ describe("customer/index.js helpers", () => {
         expect(state.showChoosePortal).toBe(false);
         expect(state.vendorApplicationAction.visible).toBe(true);
         expect(state.adminApplicationAction.visible).toBe(true);
+        expect(state.browseVendorsRoute).toBe("./order-management/browse-vendors.html");
+        expect(state.cartRoute).toBe("./order-management/cart.html");
+        expect(state.checkoutRoute).toBe("./order-management/checkout.html");
+        expect(state.myOrdersRoute).toBe("./order-tracking/index.html");
+        expect(state.trackOrdersRoute).toBe("./order-tracking/index.html");
+        expect(state.notificationsRoute).toBe("./order-tracking/notifications.html");
         expect(getDefaultAvatar("Faranani")).toContain("data:image/svg+xml");
     });
 });
@@ -706,17 +722,23 @@ describe("customer/index.js loading and initialization", () => {
         expect(result.customerPortalController).toBeTruthy();
         expect(result.vendorPortalController).toBeNull();
         expect(result.adminPortalController).toBeNull();
-        expect(result.browseStoresController).toBeTruthy();
+        expect(result.browseVendorsController).toBeTruthy();
+        expect(result.cartController).toBeTruthy();
+        expect(result.checkoutController).toBeTruthy();
         expect(result.myOrdersController).toBeTruthy();
-        expect(result.supportController).toBeTruthy();
+        expect(result.trackOrdersController).toBeTruthy();
+        expect(result.notificationsController).toBeTruthy();
         expect(result.signOutController).toBeTruthy();
 
         elements.profileButton.click();
+        elements.browseVendorsButton.click();
+        elements.cartButton.click();
+        elements.checkoutButton.click();
         elements.vendorApplicationButton.click();
         elements.adminApplicationButton.click();
-        elements.browseStoresButton.click();
         elements.myOrdersButton.click();
-        elements.supportButton.click();
+        elements.trackOrdersButton.click();
+        elements.notificationsButton.click();
         await result.signOutController.handleClick({
             preventDefault: jest.fn()
         });
@@ -724,11 +746,13 @@ describe("customer/index.js loading and initialization", () => {
         await flushPromises();
 
         expect(navigate).toHaveBeenCalledWith("../authentication/profile.html");
+        expect(navigate).toHaveBeenCalledWith("./order-management/browse-vendors.html");
+        expect(navigate).toHaveBeenCalledWith("./order-management/cart.html");
+        expect(navigate).toHaveBeenCalledWith("./order-management/checkout.html");
         expect(navigate).toHaveBeenCalledWith("./vendor-application.html");
         expect(navigate).toHaveBeenCalledWith("./admin-application.html");
-        expect(navigate).toHaveBeenCalledWith("./browse-stores.html");
-        expect(navigate).toHaveBeenCalledWith("./my-orders.html");
-        expect(navigate).toHaveBeenCalledWith("./support.html");
+        expect(navigate).toHaveBeenCalledWith("./order-tracking/index.html");
+        expect(navigate).toHaveBeenCalledWith("./order-tracking/notifications.html");
         expect(navigate).toHaveBeenCalledWith("../authentication/login.html");
         expect(elements.adminApplicationButton.hidden).toBe(false);
     });

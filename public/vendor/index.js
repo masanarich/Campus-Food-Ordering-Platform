@@ -68,6 +68,9 @@ function getFallbackRoutes() {
         profile: "../authentication/profile.html",
         shop: "./shop.html",
         products: "./products.html",
+        ordermanagement: "./order-management/index.html",
+        orderdetail: "./order-management/order-detail.html",
+        ordernotifications: "./order-management/notifications.html",
         login: "../authentication/login.html"
     };
 }
@@ -360,6 +363,9 @@ function getHomeState(profile, authUtils) {
         showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
         shopRoute: getPortalRoute("shop", authUtils),
         productsRoute: getPortalRoute("products", authUtils),
+        orderManagementRoute: getPortalRoute("orderManagement", authUtils),
+        orderDetailRoute: getPortalRoute("orderDetail", authUtils),
+        orderNotificationsRoute: getPortalRoute("orderNotifications", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
@@ -633,6 +639,9 @@ async function initializeVendorHomePage(options = {}) {
         profileButton: document.querySelector("#go-profile-button"),
         shopButton: document.querySelector("#go-shop-button"),
         productsButton: document.querySelector("#go-products-button"),
+        orderManagementButton: document.querySelector("#go-order-management-button"),
+        orderDetailButton: document.querySelector("#go-order-detail-button"),
+        orderNotificationsButton: document.querySelector("#go-order-notifications-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
@@ -685,6 +694,24 @@ async function initializeVendorHomePage(options = {}) {
             navigate
         });
 
+        const orderManagementController = attachNavigationHandler({
+            button: elements.orderManagementButton,
+            route: result.state.orderManagementRoute,
+            navigate
+        });
+
+        const orderDetailController = attachNavigationHandler({
+            button: elements.orderDetailButton,
+            route: result.state.orderDetailRoute,
+            navigate
+        });
+
+        const orderNotificationsController = attachNavigationHandler({
+            button: elements.orderNotificationsButton,
+            route: result.state.orderNotificationsRoute,
+            navigate
+        });
+
         const choosePortalController = result.state.showChoosePortal
             ? attachNavigationHandler({
                 button: elements.choosePortalButton,
@@ -731,6 +758,9 @@ async function initializeVendorHomePage(options = {}) {
             profileController,
             shopController,
             productsController,
+            orderManagementController,
+            orderDetailController,
+            orderNotificationsController,
             choosePortalController,
             customerPortalController,
             vendorPortalController,
