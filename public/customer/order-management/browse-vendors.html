@@ -1,21 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Customer Order Management | Campus Food Ordering Platform</title>
+    <title>Browse Vendors | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Browse approved campus food vendors and explore their menus.">
+    <link rel="stylesheet" href="../index.css">
     <link rel="stylesheet" href="./index.css">
 </head>
-<body>
-    <main>
-        <h1>Customer Order Management</h1>
-        <p id="order-management-status">Waiting to initialize...</p>
+
+<body class="customer-portal">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./browse-vendors.html" aria-current="page">Browse Vendors</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="./cart.html">Cart</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="browse-vendors-heading">
+            <h2 id="browse-vendors-heading">Browse Vendors</h2>
+
+            <p>Discover delicious food from our approved campus vendors. Select a vendor to view their menu and place
+                your order.</p>
+
+            <p id="browse-vendors-status" aria-live="polite" aria-atomic="true"></p>
+        </section>
+
+        <section class="vendors-section shared-section" aria-label="Available vendors">
+            <section id="vendors-container" class="vendors-grid" aria-live="polite">
+                <p class="loading-message">Loading vendors...</p>
+            </section>
+        </section>
+
+        <section class="help-section shared-section" aria-labelledby="help-heading">
+            <h3 id="help-heading">Need Help?</h3>
+
+            <p>Browse through the vendors above and click "View Menu" to see their offerings. You can add items to your
+                cart and proceed to checkout when ready.</p>
+
+            <menu class="action-menu" aria-label="Quick actions">
+                <li><button id="refresh-vendors-button" class="button-secondary" type="button">Refresh Vendors</button>
+                </li>
+                <li><a href="./cart.html" class="button-primary">View Cart</a></li>
+                <li><a href="../order-tracking/index.html" class="button-secondary">View My Orders</a></li>
+            </menu>
+        </section>
     </main>
 
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026 | <a href="../support.html">Support</a></p>
+    </footer>
+
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import {
+            collection,
+            getDocs,
+            query,
+            where,
+            orderBy
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        // Expose Firestore functions globally for the module
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            query,
+            where,
+            orderBy
+        };
+
+        window.db = db;
+        window.auth = auth;
+    </script>
     <script src="./browse-vendors.js"></script>
-    <script src="./browse-menu.js"></script>
-    <script src="./cart.js"></script>
-    <script src="./checkout.js"></script>
-    <script src="./index.js"></script>
+    <script>
+        // Initialize browse vendors page
+        (async function () {
+            if (typeof customerBrowseVendors !== "undefined") {
+                try {
+                    const result = await customerBrowseVendors.init();
+                    console.log("Browse vendors initialized:", result);
+
+                    // Setup refresh button
+                    const refreshButton = document.getElementById("refresh-vendors-button");
+                    if (refreshButton) {
+                        refreshButton.addEventListener("click", async () => {
+                            refreshButton.disabled = true;
+                            refreshButton.textContent = "Refreshing...";
+
+                            const refreshResult = await customerBrowseVendors.init();
+
+                            refreshButton.disabled = false;
+                            refreshButton.textContent = "Refresh Vendors";
+
+                            console.log("Vendors refreshed:", refreshResult);
+                        });
+                    }
+                } catch (error) {
+                    console.error("Failed to initialize browse vendors:", error);
+                }
+            }
+        })();
+    </script>
 </body>
+
 </html>
