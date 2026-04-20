@@ -1,7 +1,14 @@
 /**
  * @jest-environment jsdom
  */
+beforeEach(() => {
+    delete window.location;
 
+    window.location = {
+        href: "http://localhost/",
+        assign: jest.fn(),
+    };
+});
 function createMockSnapshot(records) {
     return {
         forEach(callback) {
@@ -593,7 +600,12 @@ describe("public/admin/users.js page coverage", () => {
         await usersPage.initialize(deps);
         await flushPromises();
 
+<<<<<<< HEAD
+        expect(window.location.assign).toHaveBeenCalledWith("../authentication/login.html");
+        expect(window.location.href).toContain("../authentication/login.html");
+=======
         expect(deps.navigate).toHaveBeenCalledWith("../authentication/login.html");
+>>>>>>> 8e296d9719a43ffbd84bc3f99b698be2509d4171
     });
 
     test("users without admin access are blocked", async () => {

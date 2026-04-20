@@ -1,37 +1,56 @@
+/**
+ * @jest-environment jsdom
+ */
+
 const {
   addToCart,
   removeFromCart,
   clearCart,
-  getCart
-} = require("../customer-tests/cart");
+  getCart,
+  getTotal,
+  resetCart
+} = require("../../public/customer/cart");
 
-beforeEach(() => {
-  clearCart();
-});
+describe("Cart Tests", () => {
 
-test("adds item to cart", () => {
-  addToCart({ id: "1", name: "Burger", price: 50 });
+  beforeEach(() => {
+    resetCart();
+  });
 
-  expect(getCart().length).toBe(1);
-});
+  test("adds item to cart", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
 
-test("increases quantity if item exists", () => {
-  addToCart({ id: "1", name: "Burger", price: 50 });
-  addToCart({ id: "1", name: "Burger", price: 50 });
+    expect(getCart().length).toBe(1);
+  });
 
-  expect(getCart()[0].quantity).toBe(2);
-});
+  test("increases quantity", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+    addToCart({ id: "1", name: "Burger", price: 50 });
 
-test("removes item from cart", () => {
-  addToCart({ id: "1", name: "Burger", price: 50 });
-  removeFromCart("1");
+    expect(getCart()[0].quantity).toBe(2);
+  });
 
-  expect(getCart().length).toBe(0);
-});
+  test("calculates total", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+    addToCart({ id: "2", name: "Pizza", price: 80 });
 
-test("clears cart", () => {
-  addToCart({ id: "1", name: "Burger", price: 50 });
-  clearCart();
+    expect(getTotal()).toBe(130);
+  });
 
-  expect(getCart().length).toBe(0);
+  test("removes item", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+
+    removeFromCart("1");
+
+    expect(getCart().length).toBe(0);
+  });
+
+  test("clears cart", () => {
+    addToCart({ id: "1", name: "Burger", price: 50 });
+
+    clearCart();
+
+    expect(getCart().length).toBe(0);
+  });
+
 });

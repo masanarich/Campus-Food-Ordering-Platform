@@ -1,8 +1,10 @@
-let cart = [];
+/*let cart = [];
 
-const getCart = () => cart;
+function getCart() {
+  return cart;
+}
 
-const addToCart = (item) => {
+function addToCart(item) {
   const existing = cart.find(i => i.id === item.id);
 
   if (existing) {
@@ -12,25 +14,68 @@ const addToCart = (item) => {
   }
 
   return cart;
-};
+}
 
-const removeFromCart = (id) => {
+function removeFromCart(id) {
   cart = cart.filter(item => item.id !== id);
   return cart;
-};
+}
 
-const clearCart = () => {
+function clearCart() {
   cart = [];
-};
+  return cart;
+}
 
-const getTotal = () => {
+// IMPORTANT: keep this for tests (alias of clearCart)
+function resetCart() {
+  cart = [];
+}
+
+function getTotal() {
   return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-};
+}
 
 module.exports = {
+  getCart,
   addToCart,
   removeFromCart,
   clearCart,
-  getCart,
+  resetCart,
   getTotal
-};
+};*/
+
+let cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+function saveCart() {
+  localStorage.setItem("cart", JSON.stringify(cart));
+}
+
+function getCart() {
+  return cart;
+}
+
+function addToCart(item) {
+  const existing = cart.find(i => i.id === item.id);
+
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    cart.push({ ...item, quantity: 1 });
+  }
+
+  saveCart();
+}
+
+function removeFromCart(id) {
+  cart = cart.filter(item => item.id !== id);
+  saveCart();
+}
+
+function clearCart() {
+  cart = [];
+  saveCart();
+}
+
+function getTotal() {
+  return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+}

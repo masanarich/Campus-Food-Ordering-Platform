@@ -1,5 +1,10 @@
-// Import cart logic (if using bundler OR copy functions if plain HTML setup)
-// For simple setup, assume cart functions are globally available
+/*const {
+  addToCart,
+  removeFromCart,
+  getCart,
+  getTotal,
+  clearCart
+} = require("../../public/customer/cart");
 
 const menuItems = [
   { id: "1", name: "Burger", price: 50 },
@@ -7,103 +12,165 @@ const menuItems = [
   { id: "3", name: "Chips", price: 30 }
 ];
 
-// ---------------- CART (LOCAL VERSION FOR FRONTEND) ----------------
-let cart = [];
+function renderCart() {
+  const cartDiv = document.getElementById("cart");
+  const totalDiv = document.getElementById("total");
 
-function addToCart(item) {
-  const existing = cart.find(i => i.id === item.id);
+  if (!cartDiv || !totalDiv) return;
 
-  if (existing) {
-    existing.quantity++;
-  } else {
-    cart.push({ ...item, quantity: 1 });
-  }
+  cartDiv.innerHTML = "";
 
-  renderCart();
+  const currentCart = getCart();
+
+  currentCart.forEach(item => {
+    const section = document.createElement("section");
+
+    const btn = document.createElement("button");
+    btn.textContent = "Remove";
+
+    btn.onclick = () => {
+      removeFromCart(item.id);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
+    section.appendChild(btn);
+
+    cartDiv.appendChild(section);
+  });
+
+  totalDiv.innerText = "Total: R" + getTotal();
 }
 
-function removeFromCart(id) {
-  cart = cart.filter(item => item.id !== id);
-  renderCart();
-}
-
-function clearCart() {
-  cart = [];
-  renderCart();
-}
-
-// ---------------- RENDER MENU ----------------
 function renderMenu() {
   const menuDiv = document.getElementById("menu");
+  if (!menuDiv) return;
+
+  menuDiv.innerHTML = "";
 
   menuItems.forEach(item => {
-    const div = document.createElement("div");
+    const section = document.createElement("section");
 
-    div.innerHTML = `
-      <p>${item.name} - R${item.price}</p>
-      <button onclick="addToCart(${JSON.stringify(item).replace(/"/g, '&quot;')})">
-        Add
-      </button>
-    `;
+    const btn = document.createElement("button");
+    btn.textContent = "Add";
 
-    menuDiv.appendChild(div);
+    btn.onclick = () => {
+      addToCart(item);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
+    section.appendChild(btn);
+
+    menuDiv.appendChild(section);
   });
 }
 
-// ---------------- RENDER CART ----------------
+function getMenu() {
+  return menuItems;
+}
+
+function cancelOrder() {
+  clearCart();
+  renderCart();
+
+  if (typeof window !== "undefined") {
+    alert("Order cancelled");
+  }
+}
+
+module.exports = {
+  renderMenu,
+  renderCart,
+  getMenu,
+  cancelOrder
+};*/
+const menuItems = [
+  { id: "1", name: "Burger", price: 50 },
+  { id: "2", name: "Pizza", price: 80 },
+  { id: "3", name: "Chips", price: 30 }
+];
+
+window.onload = function () {
+  renderMenu();
+  renderCart();
+};
+
+// ---------------- MENU ----------------
+function renderMenu() {
+  const menuDiv = document.getElementById("menu");
+  menuDiv.innerHTML = "";
+
+  menuItems.forEach(item => {
+    const section = document.createElement("section");
+
+    const btn = document.createElement("button");
+    btn.textContent = "Add";
+
+    btn.onclick = () => {
+      addToCart(item);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} - R${item.price}</p>`;
+    section.appendChild(btn);
+
+    menuDiv.appendChild(section);
+  });
+}
+
+// ---------------- CART ----------------
 function renderCart() {
   const cartDiv = document.getElementById("cart");
   const totalDiv = document.getElementById("total");
 
   cartDiv.innerHTML = "";
 
-  let total = 0;
+  const currentCart = getCart();
 
-  cart.forEach(item => {
-    total += item.price * item.quantity;
+  if (currentCart.length === 0) {
+    cartDiv.innerHTML = "<p>Your cart is empty</p>";
+    totalDiv.innerText = "Total: R0";
+    return;
+  }
 
-    const div = document.createElement("div");
+  currentCart.forEach(item => {
+    const section = document.createElement("section");
 
-    div.innerHTML = `
-      <p>${item.name} x ${item.quantity}</p>
-      <button onclick="removeFromCart('${item.id}')">Remove</button>
-    `;
+    const btn = document.createElement("button");
+    btn.textContent = "Remove";
 
-    cartDiv.appendChild(div);
+    btn.onclick = () => {
+      removeFromCart(item.id);
+      renderCart();
+    };
+
+    section.innerHTML = `<p>${item.name} x ${item.quantity}</p>`;
+    section.appendChild(btn);
+
+    cartDiv.appendChild(section);
   });
 
-  totalDiv.innerText = "Total: R" + total;
+  totalDiv.innerText = "Total: R" + getTotal();
 }
 
-// ---------------- CANCEL ORDER ----------------
+// ---------------- ACTIONS ----------------
+function placeOrder() {
+  const cart = getCart();
+
+  if (cart.length === 0) {
+    alert("Cart is empty");
+    return;
+  }
+
+  alert("Order placed! Total: R" + getTotal());
+
+  clearCart();
+  renderCart();
+}
+
 function cancelOrder() {
   clearCart();
+  renderCart();
   alert("Order cancelled");
 }
-
-// ---------------- PLACE ORDER (BACKEND CONNECT) ----------------
-async function placeOrder() {
-  const userId = "student1";
-  const vendorId = "vendor1";
-
-  const response = await fetch("http://localhost:3000/orders", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      userId,
-      vendorId,
-      items: cart
-    })
-  });
-
-  if (response.ok) {
-    clearCart();
-    alert("Order placed successfully!");
-  }
-}
-
-// ---------------- INIT ----------------
-renderMenu();
-renderCart();
