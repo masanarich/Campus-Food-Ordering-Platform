@@ -1,4 +1,4 @@
-let cart = [];
+/*let cart = [];
 
 function getCart() {
   return cart;
@@ -42,4 +42,40 @@ module.exports = {
   clearCart,
   resetCart,
   getTotal
-};
+};*/
+
+let cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+function saveCart() {
+  localStorage.setItem("cart", JSON.stringify(cart));
+}
+
+function getCart() {
+  return cart;
+}
+
+function addToCart(item) {
+  const existing = cart.find(i => i.id === item.id);
+
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    cart.push({ ...item, quantity: 1 });
+  }
+
+  saveCart();
+}
+
+function removeFromCart(id) {
+  cart = cart.filter(item => item.id !== id);
+  saveCart();
+}
+
+function clearCart() {
+  cart = [];
+  saveCart();
+}
+
+function getTotal() {
+  return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+}
