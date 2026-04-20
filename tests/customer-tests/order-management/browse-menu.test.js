@@ -29,16 +29,16 @@ function createMockMenuItem(overrides = {}) {
 }
 
 function createFirestoreFns(options = {}) {
+    const mockItems = options.mockMenuItems || [];
+    const mockDocs = mockItems.map((itemData) => ({
+        id: itemData.menuItemId || itemData.id,
+        data: () => itemData
+    }));
     const querySnapshot = {
         forEach: jest.fn((callback) => {
-            const mockItems = options.mockMenuItems || [];
-            mockItems.forEach((itemData) => {
-                callback({
-                    id: itemData.menuItemId || itemData.id,
-                    data: () => itemData
-                });
-            });
-        })
+            mockDocs.forEach(callback);
+        }),
+        docs: mockDocs
     };
 
     return {
@@ -81,40 +81,10 @@ function createDOMElements() {
     };
 }
 
-// Create a single shared store that can be reset
-const sharedStore = {};
-
-function resetLocalStorageStore() {
-    Object.keys(sharedStore).forEach(k => delete sharedStore[k]);
-}
-
-function createFreshLocalStorageMock() {
-    const mockLocalStorage = {
-        getItem: jest.fn((key) => {
-            const value = sharedStore[key];
-            // localStorage always returns strings or null
-            return value === undefined ? null : String(value);
-        }),
-        setItem: jest.fn((key, value) => {
-            // localStorage stores everything as strings
-            sharedStore[key] = String(value);
-        }),
-        removeItem: jest.fn((key) => {
-            delete sharedStore[key];
-        }),
-        clear: jest.fn(() => {
-            Object.keys(sharedStore).forEach(k => delete sharedStore[k]);
-        }),
-        get length() {
-            return Object.keys(sharedStore).length;
-        },
-        key: jest.fn((index) => {
-            const keys = Object.keys(sharedStore);
-            return keys[index] || null;
-        })
-    };
-
-    return mockLocalStorage;
+function clearBrowserStorage() {
+    if (window.localStorage && typeof window.localStorage.clear === "function") {
+        window.localStorage.clear();
+    }
 }
 
 // ==========================================
@@ -145,9 +115,11 @@ describe("customer/order-management/browse-menu.js - Module Structure", () => {
 
 describe("customer/order-management/browse-menu.js - Cart Management", () => {
     beforeEach(() => {
-        // Reset shared store and create fresh localStorage mock
-        resetLocalStorageStore();
-        global.localStorage = createFreshLocalStorageMock();
+        clearBrowserStorage();
+    });
+
+    afterEach(() => {
+        clearBrowserStorage();
     });
 
     test("getCart returns empty array when no cart exists", () => {
@@ -157,7 +129,7 @@ describe("customer/order-management/browse-menu.js - Cart Management", () => {
 
     test("getCart returns parsed cart from localStorage", () => {
         const cartData = [createMockMenuItem()];
-        global.localStorage.setItem("campus-food-cart", JSON.stringify(cartData));
+        window.localStorage.setItem("campus-food-cart", JSON.stringify(cartData));
 
         const cart = customerBrowseMenu.getCart();
         expect(cart).toHaveLength(1);
@@ -169,10 +141,7 @@ describe("customer/order-management/browse-menu.js - Cart Management", () => {
         const result = customerBrowseMenu.saveCart(cart);
 
         expect(result).toBe(true);
-        expect(global.localStorage.setItem).toHaveBeenCalledWith(
-            "campus-food-cart",
-            JSON.stringify(cart)
-        );
+        expect(window.localStorage.getItem("campus-food-cart")).toBe(JSON.stringify(cart));
     });
 
     test("addToCart adds new item to cart", () => {
@@ -227,16 +196,21 @@ describe("customer/order-management/browse-menu.js - fetchVendorMenu", () => {
     test("uses orderService when available", async () => {
         const mockMenuItems = [createMockMenuItem()];
         const orderService = createMockOrderService({ mockMenuItems });
+        const mockDb = { kind: "db" };
 
         const result = await customerBrowseMenu.fetchVendorMenu({
             vendorUid: "vendor-1",
-            orderService
+            vendorName: "Campus Bites",
+            orderService,
+            db: mockDb
         });
 
         expect(result.success).toBe(true);
         expect(result.menuItems).toHaveLength(1);
         expect(orderService.getVendorMenuItems).toHaveBeenCalledWith({
             vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            db: mockDb,
             firestoreFns: {}
         });
     });
@@ -254,19 +228,30 @@ describe("customer/order-management/browse-menu.js - fetchVendorMenu", () => {
 
         expect(result.success).toBe(true);
         expect(result.menuItems).toHaveLength(1);
-        expect(firestoreFns.collection).toHaveBeenCalledWith(mockDb, "users/vendor-1/menuItems");
+        expect(firestoreFns.collection).toHaveBeenCalledWith(
+            mockDb,
+            "users",
+            "vendor-1",
+            "menuItems"
+        );
+        expect(firestoreFns.getDocs).toHaveBeenCalledWith({ kind: "collection" });
     });
 
     test("handles orderService error gracefully", async () => {
         const orderService = createMockOrderService({ shouldFail: true });
+        const mockDb = { kind: "db" };
+        const firestoreFns = createFirestoreFns({ mockMenuItems: [] });
 
         const result = await customerBrowseMenu.fetchVendorMenu({
             vendorUid: "vendor-1",
-            orderService
+            orderService,
+            db: mockDb,
+            firestoreFns
         });
 
-        expect(result.success).toBe(false);
-        expect(result.error.code).toBe("fetch-error");
+        expect(result.success).toBe(true);
+        expect(result.menuItems).toEqual([]);
+        expect(result.count).toBe(0);
     });
 
     test("returns error when Firestore functions unavailable", async () => {
@@ -281,7 +266,8 @@ describe("customer/order-management/browse-menu.js - fetchVendorMenu", () => {
 
     test("normalizes menu item data", async () => {
         const incompleteItem = {
-            menuItemId: "item-minimal"
+            menuItemId: "item-minimal",
+            soldOut: false
             // Missing most fields
         };
 
@@ -455,12 +441,14 @@ describe("customer/order-management/browse-menu.js - updateCartBadge", () => {
     let badge;
 
     beforeEach(() => {
-        // Reset shared store and create fresh localStorage mock
-        resetLocalStorageStore();
-        global.localStorage = createFreshLocalStorageMock();
+        clearBrowserStorage();
 
         const elements = createDOMElements();
         badge = elements.cartBadge;
+    });
+
+    afterEach(() => {
+        clearBrowserStorage();
     });
 
     test("shows badge with count when cart has items", () => {
@@ -484,29 +472,13 @@ describe("customer/order-management/browse-menu.js - updateCartBadge", () => {
 // ==========================================
 
 describe("customer/order-management/browse-menu.js - init", () => {
-    let originalSearchDescriptor;
-
     beforeEach(() => {
-        // Reset shared store and create fresh localStorage mock
-        resetLocalStorageStore();
-        global.localStorage = createFreshLocalStorageMock();
-
+        clearBrowserStorage();
         createDOMElements();
-
-        // Mock location.search using Object.defineProperty
-        originalSearchDescriptor = Object.getOwnPropertyDescriptor(global.location, 'search');
-        Object.defineProperty(global.location, 'search', {
-            writable: true,
-            configurable: true,
-            value: "?vendorUid=vendor-1&vendorName=Campus%20Bites"
-        });
     });
 
     afterEach(() => {
-        // Restore original location.search
-        if (originalSearchDescriptor) {
-            Object.defineProperty(global.location, 'search', originalSearchDescriptor);
-        }
+        clearBrowserStorage();
     });
 
     test("initializes successfully with menu items", async () => {
@@ -516,7 +488,8 @@ describe("customer/order-management/browse-menu.js - init", () => {
 
         const result = await customerBrowseMenu.init({
             db: mockDb,
-            firestoreFns
+            firestoreFns,
+            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites"
         });
 
         expect(result.success).toBe(true);
@@ -529,10 +502,7 @@ describe("customer/order-management/browse-menu.js - init", () => {
     });
 
     test("returns error when no vendor UID provided", async () => {
-        // Override location.search for this test
-        global.location.search = "";
-
-        const result = await customerBrowseMenu.init();
+        const result = await customerBrowseMenu.init({ search: "" });
 
         expect(result.success).toBe(false);
         expect(result.error).toContain("vendor UID");
@@ -544,7 +514,8 @@ describe("customer/order-management/browse-menu.js - init", () => {
 
         await customerBrowseMenu.init({
             db: mockDb,
-            firestoreFns
+            firestoreFns,
+            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites"
         });
 
         const heading = document.getElementById("vendor-name-heading");
@@ -558,7 +529,8 @@ describe("customer/order-management/browse-menu.js - init", () => {
 
         const result = await customerBrowseMenu.init({
             db: mockDb,
-            firestoreFns
+            firestoreFns,
+            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites"
         });
 
         expect(result.success).toBe(false);

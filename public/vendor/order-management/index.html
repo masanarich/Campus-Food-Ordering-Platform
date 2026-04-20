@@ -1,19 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Vendor Order Management | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Review incoming vendor orders, monitor status, and open order detail pages for updates.">
+    <link rel="stylesheet" href="../index.css">
     <link rel="stylesheet" href="./index.css">
 </head>
-<body>
-    <main>
-        <h1>Vendor Order Management</h1>
-        <p id="vendor-order-management-status">Waiting to initialize...</p>
-        <p><a href="./order-detail.html">Open Vendor Order Detail</a></p>
+
+<body class="vendor-shell" data-page="vendor-order-management">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor order navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../products.html">Manage Menu</a>
+            <a href="./index.html" aria-current="page">Manage Orders</a>
+            <a href="./notifications.html">Notifications</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="shared-section vendor-orders-hero" aria-labelledby="vendor-order-management-heading">
+            <h2 id="vendor-order-management-heading">Vendor Order Management</h2>
+
+            <p>
+                Review incoming and active orders for your store, then open one order to accept,
+                reject, move it into preparation, or mark it ready for collection.
+            </p>
+
+            <p id="vendor-order-management-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Vendor order page actions">
+                <li><a href="../index.html">Home</a></li>
+                <li><a href="../products.html">Manage Menu</a></li>
+                <li><a href="./notifications.html">Notifications</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section vendor-orders-overview" aria-labelledby="vendor-order-summary-heading">
+            <h3 id="vendor-order-summary-heading">Order Workspace Summary</h3>
+
+            <section id="vendor-order-management-summary" aria-live="polite">
+                <p class="loading-message">Loading your order workspace...</p>
+            </section>
+        </section>
+
+        <section class="shared-section vendor-orders-list-section" aria-labelledby="vendor-orders-list-heading">
+            <h3 id="vendor-orders-list-heading">Incoming and Active Orders</h3>
+
+            <section id="vendor-orders-container" aria-live="polite">
+                <p class="loading-message">Loading vendor orders...</p>
+            </section>
+        </section>
     </main>
 
-    <script src="./notifications.js"></script>
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../../authentication/auth-utils.js"></script>
+    <script src="../../authentication/auth-core.js"></script>
+    <script src="../../shared/orders/order-status.js"></script>
+    <script src="../../shared/orders/order-model.js"></script>
+    <script src="../../shared/orders/order-queries.js"></script>
+    <script src="../../shared/orders/order-service.js"></script>
+    <script src="../../shared/orders/order-formatters.js"></script>
     <script src="./index.js"></script>
+    <script type="module">
+        import { authService } from "../../authentication/auth.js";
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+
+        if (window.vendorOrderManagementPage && typeof window.vendorOrderManagementPage.init === "function") {
+            await window.vendorOrderManagementPage.init({
+                db,
+                auth,
+                authService,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                orderService: window.orderService,
+                orderStatus: window.orderStatus,
+                orderFormatters: window.orderFormatters
+            });
+        }
+    </script>
 </body>
+
 </html>

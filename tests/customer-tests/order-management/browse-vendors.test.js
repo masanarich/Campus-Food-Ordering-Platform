@@ -28,23 +28,30 @@ function createMockVendor(overrides = {}) {
 }
 
 function createFirestoreFns(options = {}) {
+    const mockDocs = (options.mockVendors || []).map((vendorData) => ({
+        id: vendorData.uid,
+        data: () => vendorData
+    }));
     const querySnapshot = {
         forEach: jest.fn((callback) => {
-            const mockDocs = options.mockVendors || [];
-            mockDocs.forEach((vendorData) => {
-                callback({
-                    id: vendorData.uid,
-                    data: () => vendorData
-                });
-            });
-        })
+            mockDocs.forEach(callback);
+        }),
+        docs: mockDocs
     };
 
     return {
         collection: jest.fn(() => ({ kind: "collection" })),
-        query: jest.fn(() => ({ kind: "query" })),
-        where: jest.fn(() => ({ kind: "where" })),
-        orderBy: jest.fn(() => ({ kind: "orderBy" })),
+        query: jest.fn((collectionRef, ...constraints) => ({
+            kind: "query",
+            collectionRef,
+            constraints
+        })),
+        where: jest.fn((field, operator, value) => ({
+            kind: "where",
+            field,
+            operator,
+            value
+        })),
         getDocs: jest.fn(async () => querySnapshot)
     };
 }
@@ -128,14 +135,21 @@ describe("customer/order-management/browse-vendors.js - fetchApprovedVendors", (
         expect(result.success).toBe(true);
         expect(result.vendors).toHaveLength(2);
         expect(result.count).toBe(2);
-        expect(result.vendors[0].uid).toBe("vendor-1");
-        expect(result.vendors[1].businessName).toBe("Beta Foods");
+        expect(result.vendors.map((vendor) => vendor.businessName)).toEqual([
+            "Beta Foods",
+            "Campus Bites"
+        ]);
+        expect(result.vendors[0].uid).toBe("vendor-2");
+        expect(result.vendors[1].uid).toBe("vendor-1");
 
         // Verify Firestore calls
         expect(firestoreFns.collection).toHaveBeenCalledWith(mockDb, "users");
-        expect(firestoreFns.where).toHaveBeenCalledWith("vendorStatus", "==", "approved");
-        expect(firestoreFns.where).toHaveBeenCalledWith("accountStatus", "==", "active");
-        expect(firestoreFns.orderBy).toHaveBeenCalledWith("displayName", "asc");
+        expect(firestoreFns.where).toHaveBeenNthCalledWith(1, "vendorStatus", "==", "approved");
+        expect(firestoreFns.where).toHaveBeenNthCalledWith(2, "accountStatus", "==", "active");
+        expect(firestoreFns.query).toHaveBeenCalledTimes(1);
+        expect(firestoreFns.getDocs).toHaveBeenCalledWith(
+            expect.objectContaining({ kind: "query" })
+        );
     });
 
     test("returns empty array when no vendors found", async () => {
@@ -155,7 +169,7 @@ describe("customer/order-management/browse-vendors.js - fetchApprovedVendors", (
     test("normalizes vendor data with fallback values", async () => {
         const incompleteVendor = {
             uid: "vendor-minimal",
-            // Missing most fields
+            vendorStatus: "approved"
         };
 
         const mockDb = { kind: "db" };
@@ -171,7 +185,7 @@ describe("customer/order-management/browse-vendors.js - fetchApprovedVendors", (
 
         const vendor = result.vendors[0];
         expect(vendor.displayName).toBe("Unknown Vendor");
-        expect(vendor.businessName).toBe("Unknown");
+        expect(vendor.businessName).toBe("Unknown Vendor");
         expect(vendor.location).toBe("Campus");
         expect(vendor.rating).toBe(0);
         expect(vendor.totalOrders).toBe(0);
@@ -260,7 +274,7 @@ describe("customer/order-management/browse-vendors.js - createVendorCard", () =>
         const card = customerBrowseVendors.createVendorCard(vendor);
 
         const img = card.querySelector("img.vendor-image");
-        expect(img.src).toContain("default-vendor.png");
+        expect(img.src).toContain("default-avatar.png");
     });
 
     test("includes description when available", () => {
@@ -304,7 +318,7 @@ describe("customer/order-management/browse-vendors.js - renderVendors", () => {
 
         const message = container.querySelector(".empty-state-message");
         expect(message).not.toBeNull();
-        expect(message.textContent).toContain("No vendors available");
+        expect(message.textContent).toContain("No approved vendors are available right now");
     });
 
     test("clears existing content before rendering", () => {
@@ -520,7 +534,7 @@ describe("customer/order-management/browse-vendors.js - init", () => {
         expect(container.querySelectorAll(".vendor-card")).toHaveLength(2);
 
         // Check status message
-        expect(statusElement.textContent).toContain("Found 2 vendors");
+        expect(statusElement.textContent).toContain("Found 2 approved vendors");
         expect(statusElement.getAttribute("data-state")).toBe("success");
     });
 
@@ -570,7 +584,7 @@ describe("customer/order-management/browse-vendors.js - init", () => {
 
         expect(result.success).toBe(true);
         expect(result.vendorCount).toBe(0);
-        expect(statusElement.textContent).toContain("No vendors available");
+        expect(statusElement.textContent).toContain("No approved vendors are available right now");
         expect(statusElement.getAttribute("data-state")).toBe("info");
     });
 
