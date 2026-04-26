@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Browse Menu | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Browse menu items from campus vendors and add them to your cart.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./order-management.css">
+</head>
+<body class="customer-portal">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./browse-vendors.html">Browse Vendors</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="./cart.html">
+                Cart
+                <output id="cart-badge" class="cart-badge" style="display: none;">0</output>
+            </a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="vendor-name-heading">
+            <nav class="breadcrumb" aria-label="Breadcrumb navigation">
+                <p><a href="./browse-vendors.html">Vendors</a> / <strong aria-current="page">Menu</strong></p>
+            </nav>
+
+            <h2 id="vendor-name-heading">Menu</h2>
+
+            <p id="browse-menu-status" aria-live="polite" aria-atomic="true"></p>
+        </section>
+
+        <section class="menu-section shared-section" aria-label="Menu items">
+            <section id="menu-container" class="menu-grid" aria-live="polite">
+                <p class="loading-message">Loading menu...</p>
+            </section>
+        </section>
+
+        <section class="help-section shared-section" aria-labelledby="help-heading">
+            <h3 id="help-heading">Ready to Order?</h3>
+
+            <p>Select items from the menu above and add them to your cart. When you're ready, proceed to checkout.</p>
+
+            <menu class="action-menu" aria-label="Quick actions">
+                <li><a href="./cart.html" class="button-primary">View Cart</a></li>
+                <li><a href="./browse-vendors.html" class="button-secondary">Back to Vendors</a></li>
+                <li><a href="../order-tracking/index.html" class="button-secondary">My Orders</a></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026 | <a href="../support.html">Support</a></p>
+    </footer>
+
+    <script src="./browse-menu.js"></script>
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import {
+            collection,
+            getDocs,
+            query,
+            where,
+            orderBy
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        // Expose Firestore functions and services globally
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            query,
+            where,
+            orderBy
+        };
+
+        window.db = db;
+        window.auth = auth;
+
+        if (window.customerBrowseMenu && typeof window.customerBrowseMenu.init === "function") {
+            try {
+                const result = await window.customerBrowseMenu.init({
+                    db,
+                    auth,
+                    firestoreFns: window.firestoreFns
+                });
+
+                if (!result.success) {
+                    const statusElement = document.getElementById("browse-menu-status");
+
+                    if (statusElement && typeof result.error === "string" && result.error.includes("vendor")) {
+                        statusElement.textContent = "No vendor selected. Please return to browse vendors.";
+                        statusElement.setAttribute("data-state", "error");
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to initialize browse menu:", error);
+
+                const statusElement = document.getElementById("browse-menu-status");
+                const menuContainer = document.getElementById("menu-container");
+
+                if (statusElement) {
+                    statusElement.textContent = "Failed to load vendor menu.";
+                    statusElement.setAttribute("data-state", "error");
+                }
+
+                if (menuContainer) {
+                    menuContainer.innerHTML = "<p class=\"empty-state-message\">Menu data is unavailable right now.</p>";
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -170,7 +170,8 @@ footer {
 
 .profile-panel,
 .workspace-panel,
-.portal-panel {
+.portal-panel,
+.order-panel {
     grid-column: span 4;
 }
 
@@ -272,6 +273,32 @@ footer {
 .action-menu li {
     margin: 0;
     padding: 0;
+}
+
+.dashboard-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.1rem;
+    padding: 0.95rem 1.3rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--surface-strong);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-link:hover,
+.dashboard-link:focus {
+    outline: none;
+    transform: translateY(-1px);
+    background: var(--accent-soft);
+    border-color: rgba(198, 107, 29, 0.32);
+    color: var(--accent-dark);
+    box-shadow: var(--shadow-sm);
 }
 
 button {
@@ -521,7 +548,8 @@ footer p {
 @media (max-width: 1050px) {
     .profile-panel,
     .workspace-panel,
-    .portal-panel {
+    .portal-panel,
+    .order-panel {
         grid-column: span 6;
     }
 }

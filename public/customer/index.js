@@ -77,9 +77,11 @@ function getFallbackRoutes() {
         profile: "../authentication/profile.html",
         vendorapplication: "./vendor-application.html",
         adminapplication: "./admin-application.html",
-        stores: "./browse-stores.html",
-        orders: "./my-orders.html",
-        support: "./support.html",
+        browsevendors: "./order-management/browse-vendors.html",
+        cart: "./order-management/cart.html",
+        checkout: "./order-management/checkout.html",
+        orders: "./order-tracking/index.html",
+        notifications: "./order-tracking/notifications.html",
         login: "../authentication/login.html"
     };
 }
@@ -565,9 +567,12 @@ function getHomeState(profile, authUtils) {
         showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
         vendorApplicationAction,
         adminApplicationAction,
-        browseStoresRoute: getPortalRoute("stores", authUtils),
+        browseVendorsRoute: getPortalRoute("browseVendors", authUtils),
+        cartRoute: getPortalRoute("cart", authUtils),
+        checkoutRoute: getPortalRoute("checkout", authUtils),
         myOrdersRoute: getPortalRoute("orders", authUtils),
-        supportRoute: getPortalRoute("support", authUtils),
+        trackOrdersRoute: getPortalRoute("orders", authUtils),
+        notificationsRoute: getPortalRoute("notifications", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
@@ -832,9 +837,12 @@ async function initializeCustomerHomePage(options = {}) {
         choosePortalButton: document.querySelector("#choose-portal-button"),
         vendorApplicationButton: document.querySelector("#go-vendor-application-button"),
         adminApplicationButton: document.querySelector("#go-admin-application-button"),
-        browseStoresButton: document.querySelector("#browse-stores-button"),
+        browseVendorsButton: document.querySelector("#browse-vendors-button"),
+        cartButton: document.querySelector("#view-cart-button"),
+        checkoutButton: document.querySelector("#go-checkout-button"),
         myOrdersButton: document.querySelector("#view-orders-button"),
-        supportButton: document.querySelector("#get-support-button"),
+        trackOrdersButton: document.querySelector("#track-orders-button"),
+        notificationsButton: document.querySelector("#view-notifications-button"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
@@ -922,9 +930,21 @@ async function initializeCustomerHomePage(options = {}) {
             })
             : null;
 
-        const browseStoresController = attachNavigationHandler({
-            button: elements.browseStoresButton,
-            route: result.state.browseStoresRoute,
+        const browseVendorsController = attachNavigationHandler({
+            button: elements.browseVendorsButton,
+            route: result.state.browseVendorsRoute,
+            navigate
+        });
+
+        const cartController = attachNavigationHandler({
+            button: elements.cartButton,
+            route: result.state.cartRoute,
+            navigate
+        });
+
+        const checkoutController = attachNavigationHandler({
+            button: elements.checkoutButton,
+            route: result.state.checkoutRoute,
             navigate
         });
 
@@ -934,9 +954,15 @@ async function initializeCustomerHomePage(options = {}) {
             navigate
         });
 
-        const supportController = attachNavigationHandler({
-            button: elements.supportButton,
-            route: result.state.supportRoute,
+        const trackOrdersController = attachNavigationHandler({
+            button: elements.trackOrdersButton,
+            route: result.state.trackOrdersRoute,
+            navigate
+        });
+
+        const notificationsController = attachNavigationHandler({
+            button: elements.notificationsButton,
+            route: result.state.notificationsRoute,
             navigate
         });
 
@@ -958,9 +984,12 @@ async function initializeCustomerHomePage(options = {}) {
             customerPortalController,
             vendorPortalController,
             adminPortalController,
-            browseStoresController,
+            browseVendorsController,
+            cartController,
+            checkoutController,
             myOrdersController,
-            supportController,
+            trackOrdersController,
+            notificationsController,
             signOutController
         };
     } catch (error) {

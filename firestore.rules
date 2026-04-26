@@ -2,6 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() {
       return request.auth != null;
     }
@@ -14,14 +15,25 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function isActiveAccount() {
+    function currentUserExists() {
       return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveAccount() {
+      return currentUserExists() &&
         currentUserDoc().data.accountStatus == "active";
     }
 
     function isAdmin() {
-      return signedIn() &&
+      return currentUserExists() &&
         currentUserDoc().data.isAdmin == true &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function isApprovedVendor() {
+      return currentUserExists() &&
+        currentUserDoc().data.vendorStatus == "approved" &&
         currentUserDoc().data.accountStatus == "active";
     }
 
@@ -29,9 +41,32 @@ service cloud.firestore {
       return isSelf(userId) &&
         isActiveAccount() &&
         (
-          currentUserDoc().data.vendorStatus == "approved" ||
-          currentUserDoc().data.isAdmin == true
+          isApprovedVendor() ||
+          isAdmin()
         );
+    }
+
+    function orderDoc(orderId) {
+      return get(/databases/$(database)/documents/orders/$(orderId));
+    }
+
+    function orderExists(orderId) {
+      return exists(/databases/$(database)/documents/orders/$(orderId));
+    }
+
+    function isOrderParticipantById(orderId) {
+      return signedIn() &&
+        orderExists(orderId) &&
+        (
+          orderDoc(orderId).data.customerUid == request.auth.uid ||
+          orderDoc(orderId).data.vendorUid == request.auth.uid ||
+          isAdmin()
+        );
+    }
+
+    function isNotificationRecipientData(data) {
+      return signedIn() &&
+        request.auth.uid == data.recipientUid;
     }
 
     function isOwnPendingVendorSubmission(before, after) {
@@ -84,8 +119,7 @@ service cloud.firestore {
       allow create: if isSelf(userId) &&
         request.resource.data.uid == userId;
 
-      allow get: if isSelf(userId) || isAdmin();
-      allow list: if isAdmin();
+      allow get, list: if signedIn() || isAdmin();
 
       allow update: if isAdmin() || selfCanUpdateOwnProfile(userId);
 
@@ -130,6 +164,96 @@ service cloud.firestore {
       ) || isAdmin();
 
       allow delete: if isAdmin();
+    }
+
+match /orders/{orderId} {
+      // Allow creation if the user is logged in
+      allow create: if request.auth != null;
+
+      // Allow reading if they are the customer, vendor, or admin
+      allow read: if request.auth != null && (
+        resource.data.customerUid == request.auth.uid || 
+        resource.data.vendorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
+
+      // Allow any update (Accept, Reject, Ready) if they are a participant
+      allow update: if request.auth != null && (
+        resource.data.customerUid == request.auth.uid || 
+        resource.data.vendorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
+
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    match /notifications/{notificationId} {
+
+      function validReadFlagOnCreate() {
+        return
+          (
+            ("read" in request.resource.data && request.resource.data.read is bool) ||
+            ("isRead" in request.resource.data && request.resource.data.isRead is bool)
+          );
+      }
+
+      function isUnreadOnCreate() {
+        return
+          (
+            ("read" in request.resource.data && request.resource.data.read == false) ||
+            ("isRead" in request.resource.data && request.resource.data.isRead == false)
+          );
+      }
+
+      function isValidNotificationCreation() {
+        return signedIn() &&
+          isActiveAccount() &&
+          request.resource.data.recipientUid is string &&
+          request.resource.data.recipientUid != "" &&
+          request.resource.data.recipientRole is string &&
+          request.resource.data.type is string &&
+          request.resource.data.title is string &&
+          request.resource.data.message is string &&
+          validReadFlagOnCreate() &&
+          isUnreadOnCreate() &&
+          request.resource.data.createdAt is timestamp &&
+          (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp) &&
+          (!("orderId" in request.resource.data) || request.resource.data.orderId is string) &&
+          (!("vendorUid" in request.resource.data) || request.resource.data.vendorUid is string) &&
+          (!("customerUid" in request.resource.data) || request.resource.data.customerUid is string);
+      }
+
+      function canCreateNotification() {
+        return isValidNotificationCreation() &&
+          (
+            !("orderId" in request.resource.data) ||
+            (
+              request.resource.data.orderId != "" &&
+              isOrderParticipantById(request.resource.data.orderId)
+            )
+          );
+      }
+
+      function canUpdateNotification() {
+        return isNotificationRecipientData(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "read",
+            "isRead",
+            "updatedAt"
+          ]) &&
+          (!("read" in request.resource.data) || request.resource.data.read is bool) &&
+          (!("isRead" in request.resource.data) || request.resource.data.isRead is bool) &&
+          (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
+      }
+
+      allow create: if canCreateNotification();
+
+      allow read: if isNotificationRecipientData(resource.data) || isAdmin();
+
+      allow update: if canUpdateNotification();
+
+      allow delete: if isNotificationRecipientData(resource.data) || isAdmin();
     }
 
     match /{document=**} {

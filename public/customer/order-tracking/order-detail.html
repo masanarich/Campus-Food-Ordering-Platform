@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Order Detail | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="View one order in detail, including items, progress, and timeline updates.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body class="customer-portal" data-page="customer-order-detail">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-management/browse-vendors.html">Browse Vendors</a>
+            <a href="./index.html">My Orders</a>
+            <a href="./notifications.html">Notifications</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="order-detail-heading">
+            <h2 id="order-detail-heading">Order Detail</h2>
+
+            <p>
+                Review the vendor, items, running total, and the latest order progress from
+                order received through collection.
+            </p>
+
+            <p id="order-tracking-detail-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Order detail page actions">
+                <li><a href="./index.html" class="button-secondary">Back to My Orders</a></li>
+                <li><a href="./notifications.html" class="button-secondary">Notifications</a></li>
+                <li><a href="../index.html" class="button-primary">Home</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section" aria-labelledby="order-detail-content-heading">
+            <h3 id="order-detail-content-heading">Tracking Breakdown</h3>
+
+            <section class="order-detail-grid" aria-live="polite">
+                <article class="order-detail-overview" aria-labelledby="order-overview-heading">
+                    <h4 class="order-section-heading" id="order-overview-heading">Overview</h4>
+                    <section id="order-detail-summary">
+                        <p class="loading-message">Loading order summary...</p>
+                    </section>
+                </article>
+
+                <article class="order-detail-items" aria-labelledby="order-items-heading">
+                    <h4 class="order-section-heading" id="order-items-heading">Items</h4>
+                    <section id="order-detail-items">
+                        <p class="loading-message">Loading order items...</p>
+                    </section>
+                </article>
+
+                <article class="order-detail-timeline" aria-labelledby="order-timeline-heading">
+                    <h4 class="order-section-heading" id="order-timeline-heading">Timeline</h4>
+                    <section id="order-detail-timeline">
+                        <p class="loading-message">Loading timeline...</p>
+                    </section>
+                </article>
+
+                <article class="order-detail-help" aria-labelledby="order-help-heading">
+                    <h4 class="order-section-heading" id="order-help-heading">What This Means</h4>
+                    <p class="order-detail-caption">
+                        Use this page to see the full state of one order. When a vendor accepts,
+                        prepares, or marks the order ready, those updates appear here and in your
+                        notifications.
+                    </p>
+                    <menu class="action-menu" aria-label="Helpful shortcuts">
+                        <li><a href="../order-management/cart.html" class="button-secondary">Cart</a></li>
+                        <li><a href="../order-management/browse-vendors.html" class="button-secondary">Browse
+                                Vendors</a></li>
+                        <li><a href="./index.html" class="button-primary">All Orders</a></li>
+                    </menu>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="../../shared/orders/order-status.js"></script>
+    <script src="../../shared/orders/order-model.js"></script>
+    <script src="../../shared/orders/order-queries.js"></script>
+    <script src="../../shared/orders/order-service.js"></script>
+    <script src="../../shared/orders/order-formatters.js"></script>
+    <script src="./order-detail.js"></script>
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            doc,
+            getDoc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            doc,
+            getDoc
+        };
+
+        if (window.customerOrderDetailPage && typeof window.customerOrderDetailPage.init === "function") {
+            await window.customerOrderDetailPage.init({
+                db,
+                auth,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                orderService: window.orderService,
+                orderStatus: window.orderStatus,
+                orderFormatters: window.orderFormatters
+            });
+        }
+    </script>
+</body>
+
+</html>
