@@ -97,7 +97,9 @@
                 finish(user);
             }, function onError() {
                 finish(auth.currentUser || null);
-            });
+            }) || function noop() {
+                return undefined;
+            };
 
             globalScope.setTimeout(function onTimeout() {
                 finish(auth.currentUser || null);

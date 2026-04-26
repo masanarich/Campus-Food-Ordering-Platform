@@ -200,7 +200,7 @@
             return ORDER_STATUS_ALIASES[fallbackKey];
         }
 
-        return ORDER_STATUSES.PENDING;
+        return "";
     }
 
     function normalizeOrderActorRole(role) {
@@ -249,12 +249,12 @@
 
         if (!metadata) {
             return {
-                key: ORDER_STATUSES.PENDING,
-                label: "Order Received",
-                shortLabel: "Pending",
-                description: "The order was placed and is waiting for the vendor to respond.",
+                key: "",
+                label: "Unknown Status",
+                shortLabel: "Unknown",
+                description: "The order status is not recognized yet.",
                 tone: "info",
-                actionLabel: "Accept Order"
+                actionLabel: "Update Order"
             };
         }
 

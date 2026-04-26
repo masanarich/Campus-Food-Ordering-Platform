@@ -285,8 +285,8 @@
         const previousStatus = previousOrder
             ? (
                 orderStatus
-                    ? orderStatus.normalizeOrderStatus(previousOrder.status, currentStatus)
-                    : normalizeLowerText(previousOrder.status) || currentStatus
+                    ? orderStatus.normalizeOrderStatus(previousOrder.status)
+                    : normalizeLowerText(previousOrder.status)
             )
             : "";
 
@@ -488,8 +488,8 @@
         const previousStatus = previousOrder
             ? (
                 orderStatus
-                    ? orderStatus.normalizeOrderStatus(previousOrder.status, currentStatus)
-                    : normalizeLowerText(previousOrder.status) || currentStatus
+                    ? orderStatus.normalizeOrderStatus(previousOrder.status)
+                    : normalizeLowerText(previousOrder.status)
             )
             : "";
         const formattedOrderId = orderFormatters && typeof orderFormatters.formatOrderId === "function"

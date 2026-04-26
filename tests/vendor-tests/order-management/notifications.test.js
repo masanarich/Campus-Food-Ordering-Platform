@@ -42,7 +42,78 @@ function createDOM() {
     };
 }
 
+function resetNotificationGlobals() {
+    delete window.db;
+    delete global.db;
+    delete window.auth;
+    delete global.auth;
+    delete window.authFns;
+    delete global.authFns;
+    delete window.firestoreFns;
+    delete global.firestoreFns;
+    delete window.orderService;
+    delete global.orderService;
+}
+
+afterEach(() => {
+    jest.restoreAllMocks();
+    resetNotificationGlobals();
+});
+
 describe("vendor/order-management/notifications.js - helpers", () => {
+    test("resolve helpers and waitForAuthReady support globals and async auth flows", async () => {
+        jest.useFakeTimers();
+
+        try {
+            const db = { kind: "db" };
+            const auth = { currentUser: { uid: "vendor-1" } };
+            const authFns = { onAuthStateChanged: jest.fn() };
+            const firestoreFns = { getDocs: jest.fn() };
+            const orderService = { getNotifications: jest.fn() };
+
+            window.db = db;
+            window.auth = auth;
+            window.authFns = authFns;
+            window.firestoreFns = firestoreFns;
+            window.orderService = orderService;
+
+            expect(vendorOrderNotificationsPage.resolveFirestore(db)).toBe(db);
+            expect(vendorOrderNotificationsPage.resolveFirestore()).toBe(db);
+            expect(vendorOrderNotificationsPage.resolveAuth(auth)).toBe(auth);
+            expect(vendorOrderNotificationsPage.resolveAuth()).toBe(auth);
+            expect(vendorOrderNotificationsPage.resolveAuthFns(authFns)).toBe(authFns);
+            expect(vendorOrderNotificationsPage.resolveAuthFns()).toBe(authFns);
+            expect(vendorOrderNotificationsPage.resolveFirestoreFns(firestoreFns)).toBe(firestoreFns);
+            expect(vendorOrderNotificationsPage.resolveFirestoreFns()).toBe(firestoreFns);
+            expect(vendorOrderNotificationsPage.resolveOrderService(orderService)).toBe(orderService);
+            expect(vendorOrderNotificationsPage.resolveOrderService()).toBe(orderService);
+
+            const immediate = await vendorOrderNotificationsPage.waitForAuthReady(auth, null);
+            const listenerUser = await vendorOrderNotificationsPage.waitForAuthReady(auth, {
+                onAuthStateChanged: jest.fn((safeAuth, onChange) => {
+                    onChange({ uid: "vendor-2" });
+                })
+            });
+            const errorFallback = await vendorOrderNotificationsPage.waitForAuthReady(auth, {
+                onAuthStateChanged: jest.fn((safeAuth, onChange, onError) => {
+                    onError(new Error("auth failed"));
+                })
+            });
+            const timeoutPromise = vendorOrderNotificationsPage.waitForAuthReady(auth, {
+                onAuthStateChanged: jest.fn(() => jest.fn())
+            }, 25);
+
+            jest.advanceTimersByTime(25);
+
+            await expect(timeoutPromise).resolves.toBe(auth.currentUser);
+            expect(immediate).toBe(auth.currentUser);
+            expect(listenerUser).toEqual({ uid: "vendor-2" });
+            expect(errorFallback).toBe(auth.currentUser);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
     test("filterVendorNotifications keeps only vendor-targeted items", () => {
         const filtered = vendorOrderNotificationsPage.filterVendorNotifications([
             createNotification({ notificationId: "note-1", recipientRole: "vendor" }),
@@ -60,6 +131,10 @@ describe("vendor/order-management/notifications.js - helpers", () => {
 
         expect(url).toContain("order-detail.html");
         expect(url).toContain("orderId=order-77");
+    });
+
+    test("setStatusMessage safely ignores a missing status element", () => {
+        expect(vendorOrderNotificationsPage.setStatusMessage(null, "Ignored")).toBeUndefined();
     });
 });
 
@@ -87,6 +162,18 @@ describe("vendor/order-management/notifications.js - rendering", () => {
         expect(dom.container.textContent).toContain("Unread");
         expect(dom.container.textContent).toContain("Read");
         expect(dom.container.querySelector('a[href*="orderId=order-1"]')).not.toBeNull();
+    });
+
+    test("createNotificationCard and renderNotifications cover default content and null containers", () => {
+        const card = vendorOrderNotificationsPage.createNotificationCard({
+            notificationId: "note-raw",
+            read: false
+        });
+
+        expect(card.textContent).toContain("Order Update");
+        expect(card.textContent).toContain("There is a new update for this order.");
+        expect(card.querySelector("a")).toBeNull();
+        expect(vendorOrderNotificationsPage.renderNotifications([], null)).toBeUndefined();
     });
 });
 
@@ -140,6 +227,95 @@ describe("vendor/order-management/notifications.js - data loading and init", () 
         expect(firestoreFns.collection).toHaveBeenCalledWith({ kind: "db" }, "notifications");
     });
 
+    test("fetchVendorProfile and fetchNotifications cover Firestore fallback and error paths", async () => {
+        const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+        const profileFromFirestore = await vendorOrderNotificationsPage.fetchVendorProfile({
+            db: { kind: "db" },
+            firestoreFns: {
+                doc: jest.fn(() => ({ kind: "doc" })),
+                getDoc: jest.fn(async () => ({
+                    exists: () => true,
+                    data: () => ({
+                        vendorOwnerName: "Campus Bites",
+                        vendorStatus: "approved"
+                    })
+                }))
+            },
+            currentUser: {
+                uid: "vendor-1",
+                displayName: ""
+            }
+        });
+        const fallbackProfile = await vendorOrderNotificationsPage.fetchVendorProfile({
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => {
+                    throw new Error("auth profile failed");
+                })
+            },
+            db: { kind: "db" },
+            firestoreFns: {
+                doc: jest.fn(() => ({ kind: "doc" })),
+                getDoc: jest.fn(async () => {
+                    throw new Error("firestore failed");
+                })
+            },
+            currentUser: {
+                uid: "vendor-1",
+                displayName: "Campus Bites"
+            }
+        });
+        const missingRecipient = await vendorOrderNotificationsPage.fetchNotifications({
+            recipientUid: ""
+        });
+        const docsArrayResult = await vendorOrderNotificationsPage.fetchNotifications({
+            db: { kind: "db" },
+            recipientUid: "vendor-1",
+            firestoreFns: {
+                collection: jest.fn(() => ({ kind: "collection" })),
+                getDocs: jest.fn(async () => ({
+                    docs: [
+                        {
+                            id: "",
+                            data: () => createNotification({ notificationId: "fallback-note", title: "Docs Array Notification" })
+                        }
+                    ]
+                }))
+            }
+        });
+        const serviceThenNoFirestore = await vendorOrderNotificationsPage.fetchNotifications({
+            db: { kind: "db" },
+            recipientUid: "vendor-1",
+            orderService: {
+                getNotifications: jest.fn(async () => {
+                    throw new Error("service exploded");
+                })
+            },
+            firestoreFns: {}
+        });
+        const fetchFailure = await vendorOrderNotificationsPage.fetchNotifications({
+            db: { kind: "db" },
+            recipientUid: "vendor-1",
+            firestoreFns: {
+                collection: jest.fn(() => ({ kind: "collection" })),
+                getDocs: jest.fn(async () => {
+                    const error = new Error("permission denied");
+                    error.code = "permission-denied";
+                    throw error;
+                })
+            }
+        });
+
+        expect(profileFromFirestore.displayName).toBe("Campus Bites");
+        expect(fallbackProfile.displayName).toBe("Campus Bites");
+        expect(missingRecipient.error.code).toBe("missing-recipient");
+        expect(docsArrayResult.success).toBe(true);
+        expect(docsArrayResult.notifications[0].notificationId).toBe("fallback-note");
+        expect(serviceThenNoFirestore.error.code).toBe("no-firestore");
+        expect(fetchFailure.error.code).toBe("permission-denied");
+        expect(fetchFailure.error.message).toBe("permission denied");
+        expect(errorSpy).toHaveBeenCalledTimes(3);
+    });
+
     test("init requires a signed-in user", async () => {
         const result = await vendorOrderNotificationsPage.init({
             currentUser: null,
@@ -191,5 +367,61 @@ describe("vendor/order-management/notifications.js - data loading and init", () 
         expect(dom.container.querySelectorAll(".vendor-notification-card")).toHaveLength(2);
         expect(dom.container.textContent).not.toContain("Customer-facing only");
         expect(dom.statusElement.textContent).toContain("Loaded 2 vendor notifications");
+    });
+
+    test("init covers missing container, fetch failures, and empty vendor notification states", async () => {
+        document.body.innerHTML = "<p>Missing notification container</p>";
+        const missingContainer = await vendorOrderNotificationsPage.init();
+
+        expect(missingContainer).toEqual({
+            success: false,
+            error: "Vendor notification container not found."
+        });
+
+        dom = createDOM();
+
+        const fetchFailure = await vendorOrderNotificationsPage.init({
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            statusSelector: "#vendor-order-notifications-status",
+            containerSelector: "#vendor-notifications-container"
+        });
+
+        expect(fetchFailure.success).toBe(false);
+        expect(dom.statusElement.textContent).toContain("Vendor notification access is not available right now.");
+
+        dom = createDOM();
+
+        const emptyNotifications = await vendorOrderNotificationsPage.init({
+            auth: {
+                currentUser: {
+                    uid: "vendor-1"
+                }
+            },
+            authFns: {
+                onAuthStateChanged: jest.fn((auth, onChange) => {
+                    onChange(auth.currentUser);
+                })
+            },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: { collection: jest.fn(), getDocs: jest.fn() },
+            orderService: {
+                getNotifications: jest.fn(async () => [
+                    createNotification({ recipientRole: "customer" })
+                ])
+            },
+            statusSelector: "#vendor-order-notifications-status",
+            containerSelector: "#vendor-notifications-container"
+        });
+
+        expect(emptyNotifications.success).toBe(true);
+        expect(emptyNotifications.notifications).toEqual([]);
+        expect(dom.statusElement.textContent).toContain("There are no vendor notifications to review right now.");
+        expect(dom.container.textContent).toContain("no vendor notifications");
     });
 });

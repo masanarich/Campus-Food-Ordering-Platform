@@ -122,6 +122,15 @@
         return null;
     }
 
+    function supportsDirectOrderCreation(firestoreFns) {
+        return !!(
+            firestoreFns &&
+            typeof firestoreFns.collection === "function" &&
+            typeof firestoreFns.addDoc === "function" &&
+            typeof firestoreFns.serverTimestamp === "function"
+        );
+    }
+
     function getFallbackRoutes() {
         return {
             home: "../index.html",
@@ -373,15 +382,25 @@
     function updateCheckoutView(context, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const vendorNameElement = safeOptions.vendorNameElement || null;
+        const vendorNameHeading = safeOptions.vendorNameHeading || null;
         const placeOrderButton = safeOptions.placeOrderButton || null;
 
         renderCheckoutItems(context.vendorItems, safeOptions.container || null);
         renderCheckoutSummary(context, safeOptions.summarySection || null);
 
+        if (vendorNameHeading) {
+            vendorNameHeading.textContent = context.vendorName || "Checkout";
+        }
+
         if (vendorNameElement) {
-            vendorNameElement.textContent = context.vendorName
-                ? `Selected vendor: ${context.vendorName}`
-                : "Selected vendor: None";
+            const isHeadingElement = /^H[1-6]$/.test(vendorNameElement.tagName || "");
+            vendorNameElement.textContent = isHeadingElement
+                ? (context.vendorName || "Checkout")
+                : (
+                    context.vendorName
+                        ? `Selected vendor: ${context.vendorName}`
+                        : "Selected vendor: None"
+                );
         }
 
         if (safeOptions.statusElement) {
@@ -434,7 +453,9 @@
                 function onError() {
                     finish(auth.currentUser || null);
                 }
-            );
+            ) || function noop() {
+                return undefined;
+            };
 
             globalScope.setTimeout(function onTimeout() {
                 finish(auth.currentUser || null);
@@ -604,31 +625,28 @@
             };
         }
 
-        if (
-            !firestoreFns ||
-            typeof firestoreFns.collection !== "function" ||
-            typeof firestoreFns.serverTimestamp !== "function"
-        ) {
-            return {
-                success: false,
-                error: {
-                    code: "checkout/no-firestore-fns",
-                    message: "Firestore functions not available."
-                }
-            };
-        }
-
         const orderNotes = normalizeText(safeOptions.orderNotes);
+        const canCreateDirectly = supportsDirectOrderCreation(firestoreFns);
 
         try {
             if (orderService && typeof orderService.createOrders === "function") {
-                const result = await orderService.createOrders({
-                    db,
-                    firestoreFns,
-                    cartItems: context.vendorItems,
-                    customer: buildCustomerSnapshot(currentUser),
-                    notes: orderNotes
-                });
+                let result = null;
+
+                try {
+                    result = await orderService.createOrders({
+                        db,
+                        firestoreFns,
+                        cartItems: context.vendorItems,
+                        customer: buildCustomerSnapshot(currentUser),
+                        notes: orderNotes
+                    });
+                } catch (serviceError) {
+                    if (!canCreateDirectly) {
+                        throw serviceError;
+                    }
+
+                    console.warn(`${MODULE_NAME}: Shared order service threw an error. Falling back to direct Firestore create.`, serviceError);
+                }
 
                 if (result && result.success === true) {
                     saveCart(removeVendorItemsFromCart(context.allCartItems, context.vendorUid));
@@ -642,8 +660,25 @@
                 }
 
                 if (result && result.error && result.error.message) {
+                    if (!canCreateDirectly) {
+                        return {
+                            success: false,
+                            error: result.error
+                        };
+                    }
+
                     console.warn(`${MODULE_NAME}: Shared order service returned an error. Falling back to direct Firestore create.`, result.error);
                 }
+            }
+
+            if (!canCreateDirectly) {
+                return {
+                    success: false,
+                    error: {
+                        code: "checkout/no-firestore-fns",
+                        message: "Firestore functions not available."
+                    }
+                };
             }
 
             const fallbackResult = await createOrderDirectly({
@@ -827,6 +862,7 @@
         updateCheckoutView,
         waitForAuthReady,
         createOrderDirectly,
+        supportsDirectOrderCreation,
         placeOrder,
         setupEventListeners,
         init
