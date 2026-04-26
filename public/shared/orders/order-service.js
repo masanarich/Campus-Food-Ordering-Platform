@@ -338,12 +338,17 @@
         const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
 
         const patch = {
+            orderId: normalizeText(safeOrder.orderId),
             status: normalizeLowerText(safeOrder.status),
             updatedAt:
                 safeOptions.updatedAt !== undefined
                     ? safeOptions.updatedAt
                     : safeOrder.updatedAt
         };
+
+        if (!patch.orderId) {
+            delete patch.orderId;
+        }
 
         if (Array.isArray(safeOrder.timeline)) {
             patch.timeline = safeOrder.timeline;

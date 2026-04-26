@@ -75,7 +75,97 @@ function createOrderFormattersStub() {
     };
 }
 
+function resetIndexGlobals() {
+    delete window.db;
+    delete global.db;
+    delete window.auth;
+    delete global.auth;
+    delete window.authFns;
+    delete global.authFns;
+    delete window.firestoreFns;
+    delete global.firestoreFns;
+    delete window.orderService;
+    delete global.orderService;
+    delete window.orderStatus;
+    delete global.orderStatus;
+    delete window.orderFormatters;
+    delete global.orderFormatters;
+}
+
+afterEach(() => {
+    jest.restoreAllMocks();
+    resetIndexGlobals();
+});
+
 describe("vendor/order-management/index.js - helpers", () => {
+    test("resolve helpers support explicit arguments and global fallbacks", () => {
+        const db = { kind: "db" };
+        const auth = { currentUser: { uid: "vendor-1" } };
+        const authFns = { onAuthStateChanged: jest.fn() };
+        const firestoreFns = { getDoc: jest.fn() };
+        const orderService = { getVendorOrders: jest.fn() };
+        const orderStatus = { getOrderStatusLabel: jest.fn(), normalizeOrderStatus: jest.fn() };
+        const orderFormatters = { formatOrderSummary: jest.fn() };
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = authFns;
+        window.firestoreFns = firestoreFns;
+        window.orderService = orderService;
+        window.orderStatus = orderStatus;
+        window.orderFormatters = orderFormatters;
+
+        expect(vendorOrderManagementPage.resolveFirestore(db)).toBe(db);
+        expect(vendorOrderManagementPage.resolveFirestore()).toBe(db);
+        expect(vendorOrderManagementPage.resolveAuth(auth)).toBe(auth);
+        expect(vendorOrderManagementPage.resolveAuth()).toBe(auth);
+        expect(vendorOrderManagementPage.resolveAuthFns(authFns)).toBe(authFns);
+        expect(vendorOrderManagementPage.resolveAuthFns()).toBe(authFns);
+        expect(vendorOrderManagementPage.resolveFirestoreFns(firestoreFns)).toBe(firestoreFns);
+        expect(vendorOrderManagementPage.resolveFirestoreFns()).toBe(firestoreFns);
+        expect(vendorOrderManagementPage.resolveOrderService(orderService)).toBe(orderService);
+        expect(vendorOrderManagementPage.resolveOrderService()).toBe(orderService);
+        expect(vendorOrderManagementPage.resolveOrderStatus(orderStatus)).toBe(orderStatus);
+        expect(vendorOrderManagementPage.resolveOrderStatus()).toBe(orderStatus);
+        expect(vendorOrderManagementPage.resolveOrderFormatters(orderFormatters)).toBe(orderFormatters);
+        expect(vendorOrderManagementPage.resolveOrderFormatters()).toBe(orderFormatters);
+    });
+
+    test("waitForAuthReady supports immediate, listener, error, and timeout flows", async () => {
+        jest.useFakeTimers();
+
+        try {
+            const auth = {
+                currentUser: {
+                    uid: "vendor-1"
+                }
+            };
+            const immediate = await vendorOrderManagementPage.waitForAuthReady(auth, null);
+            const listenerUser = await vendorOrderManagementPage.waitForAuthReady(auth, {
+                onAuthStateChanged: jest.fn((safeAuth, onChange) => {
+                    onChange({ uid: "vendor-2" });
+                })
+            });
+            const errorFallback = await vendorOrderManagementPage.waitForAuthReady(auth, {
+                onAuthStateChanged: jest.fn((safeAuth, onChange, onError) => {
+                    onError(new Error("auth failed"));
+                })
+            });
+            const timeoutPromise = vendorOrderManagementPage.waitForAuthReady(auth, {
+                onAuthStateChanged: jest.fn(() => jest.fn())
+            }, 25);
+
+            jest.advanceTimersByTime(25);
+
+            await expect(timeoutPromise).resolves.toBe(auth.currentUser);
+            expect(immediate).toBe(auth.currentUser);
+            expect(listenerUser).toEqual({ uid: "vendor-2" });
+            expect(errorFallback).toBe(auth.currentUser);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
     test("normalizeVendorProfile and access checks work", () => {
         const normalized = vendorOrderManagementPage.normalizeVendorProfile({
             uid: " vendor-1 ",
@@ -111,6 +201,10 @@ describe("vendor/order-management/index.js - helpers", () => {
 
         expect(url).toContain("order-detail.html");
         expect(url).toContain("orderId=order-77");
+    });
+
+    test("setStatusMessage safely ignores missing elements", () => {
+        expect(vendorOrderManagementPage.setStatusMessage(null, "Ignored")).toBeUndefined();
     });
 });
 
@@ -157,6 +251,36 @@ describe("vendor/order-management/index.js - rendering", () => {
         expect(dom.container.textContent).toContain("Ready for Pickup");
         expect(dom.container.querySelector('a[href*="orderId=order-2"]')).not.toBeNull();
     });
+
+    test("mapOrderRecord and renderSummary fall back cleanly without shared formatters", () => {
+        const mapped = vendorOrderManagementPage.mapOrderRecord({
+            id: "raw-order-1",
+            customerName: "",
+            total: 0,
+            status: " ACCEPTED "
+        });
+
+        vendorOrderManagementPage.renderSummary(dom.summaryElement, [createOrder({ total: 0, status: "completed" })], null);
+
+        expect(mapped).toEqual({
+            orderId: "raw-order-1",
+            customerName: "Customer",
+            itemCount: 0,
+            totalText: "R0.00",
+            status: "accepted",
+            statusLabel: "accepted",
+            tone: "info",
+            summaryText: "Customer • 0 items",
+            updatedText: "Unknown time"
+        });
+        expect(dom.summaryElement.textContent).toContain("Vendor: Vendor User");
+        expect(dom.summaryElement.textContent).toContain("Combined order value: R0.00");
+    });
+
+    test("renderSummary and renderOrders safely ignore missing containers", () => {
+        expect(vendorOrderManagementPage.renderSummary(null, [], null)).toBeUndefined();
+        expect(vendorOrderManagementPage.renderOrders([], null)).toBeUndefined();
+    });
 });
 
 describe("vendor/order-management/index.js - data loading and init", () => {
@@ -181,6 +305,51 @@ describe("vendor/order-management/index.js - data loading and init", () => {
         expect(result.uid).toBe("vendor-1");
         expect(result.displayName).toBe("Campus Bites");
         expect(authService.getCurrentUserProfile).toHaveBeenCalledWith("vendor-1");
+    });
+
+    test("fetchVendorProfile falls back to Firestore and then current user after errors", async () => {
+        const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+        const firestoreResult = await vendorOrderManagementPage.fetchVendorProfile({
+            db: { kind: "db" },
+            firestoreFns: {
+                doc: jest.fn(() => ({ kind: "doc" })),
+                getDoc: jest.fn(async () => ({
+                    exists: () => true,
+                    data: () => ({
+                        vendorOwnerName: "Vendor Owner",
+                        vendorStatus: "approved"
+                    })
+                }))
+            },
+            currentUser: {
+                uid: "vendor-1",
+                displayName: "",
+                email: "Vendor@Example.com"
+            }
+        });
+        const fallbackResult = await vendorOrderManagementPage.fetchVendorProfile({
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => {
+                    throw new Error("auth profile failed");
+                })
+            },
+            db: { kind: "db" },
+            firestoreFns: {
+                doc: jest.fn(() => ({ kind: "doc" })),
+                getDoc: jest.fn(async () => {
+                    throw new Error("firestore failed");
+                })
+            },
+            currentUser: {
+                uid: "vendor-1",
+                displayName: "Campus Bites"
+            }
+        });
+
+        expect(firestoreResult.displayName).toBe("Vendor Owner");
+        expect(firestoreResult.email).toBe("vendor@example.com");
+        expect(fallbackResult.displayName).toBe("Campus Bites");
+        expect(errorSpy).toHaveBeenCalledTimes(2);
     });
 
     test("fetchVendorOrders uses orderService when available", async () => {
@@ -224,6 +393,59 @@ describe("vendor/order-management/index.js - data loading and init", () => {
         expect(result.success).toBe(true);
         expect(result.orders).toHaveLength(1);
         expect(firestoreFns.collection).toHaveBeenCalledWith({ kind: "db" }, "orders");
+    });
+
+    test("fetchVendorOrders covers missing vendor, docs-array fallback, and failure paths", async () => {
+        const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+        const missingVendor = await vendorOrderManagementPage.fetchVendorOrders({
+            vendorUid: ""
+        });
+        const docsArrayResult = await vendorOrderManagementPage.fetchVendorOrders({
+            db: { kind: "db" },
+            vendorUid: "vendor-1",
+            firestoreFns: {
+                collection: jest.fn(() => ({ kind: "collection" })),
+                getDocs: jest.fn(async () => ({
+                    docs: [
+                        {
+                            id: "",
+                            data: () => createOrder({ orderId: "fallback-id", customerName: "Docs Array" })
+                        }
+                    ]
+                }))
+            }
+        });
+        const serviceThenNoFirestore = await vendorOrderManagementPage.fetchVendorOrders({
+            db: { kind: "db" },
+            vendorUid: "vendor-1",
+            orderService: {
+                getVendorOrders: jest.fn(async () => {
+                    throw new Error("service exploded");
+                })
+            },
+            firestoreFns: {}
+        });
+        const fetchFailure = await vendorOrderManagementPage.fetchVendorOrders({
+            db: { kind: "db" },
+            vendorUid: "vendor-1",
+            firestoreFns: {
+                collection: jest.fn(() => ({ kind: "collection" })),
+                getDocs: jest.fn(async () => {
+                    const error = new Error("permission denied");
+                    error.code = "permission-denied";
+                    throw error;
+                })
+            }
+        });
+
+        expect(missingVendor.error.code).toBe("missing-vendor");
+        expect(docsArrayResult.success).toBe(true);
+        expect(docsArrayResult.orders[0].orderId).toBe("fallback-id");
+        expect(serviceThenNoFirestore.error.code).toBe("no-firestore");
+        expect(fetchFailure.success).toBe(false);
+        expect(fetchFailure.error.code).toBe("permission-denied");
+        expect(fetchFailure.error.message).toBe("permission denied");
+        expect(errorSpy).toHaveBeenCalledTimes(1);
     });
 
     test("init requires a signed-in user", async () => {
@@ -281,5 +503,62 @@ describe("vendor/order-management/index.js - data loading and init", () => {
         expect(dom.summaryElement.textContent).toContain("Orders loaded: 2");
         expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
         expect(dom.statusElement.textContent).toContain("Loaded 2 vendor orders");
+    });
+
+    test("init supports missing containers, fetched errors, auth listeners, and empty results", async () => {
+        document.body.innerHTML = "<p>Missing vendor containers</p>";
+        const missingContainers = await vendorOrderManagementPage.init();
+
+        expect(missingContainers).toEqual({
+            success: false,
+            error: "Vendor order management containers not found."
+        });
+
+        dom = createDOM();
+
+        const fetchedError = await vendorOrderManagementPage.init({
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            statusSelector: "#vendor-order-management-status",
+            summarySelector: "#vendor-order-management-summary",
+            containerSelector: "#vendor-orders-container"
+        });
+
+        expect(fetchedError.success).toBe(false);
+        expect(dom.statusElement.textContent).toContain("Vendor order access is not available right now.");
+
+        dom = createDOM();
+
+        const emptyResult = await vendorOrderManagementPage.init({
+            auth: {
+                currentUser: {
+                    uid: "vendor-1",
+                    displayName: "Campus Bites"
+                }
+            },
+            authFns: {
+                onAuthStateChanged: jest.fn((auth, onChange) => {
+                    onChange(auth.currentUser);
+                })
+            },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: { collection: jest.fn(), getDocs: jest.fn() },
+            orderService: {
+                getVendorOrders: jest.fn(async () => [])
+            },
+            statusSelector: "#vendor-order-management-status",
+            summarySelector: "#vendor-order-management-summary",
+            containerSelector: "#vendor-orders-container"
+        });
+
+        expect(emptyResult.success).toBe(true);
+        expect(emptyResult.orders).toEqual([]);
+        expect(dom.statusElement.textContent).toContain("There are no vendor orders to manage right now.");
+        expect(dom.container.textContent).toContain("no vendor orders");
     });
 });
