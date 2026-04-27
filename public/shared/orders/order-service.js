@@ -1086,7 +1086,41 @@
     async function confirmOrderCollection(options = {}) {
         try {
             const safeOptions = options && typeof options === "object" ? options : {};
-            const sourceOrder = safeOptions.order || await getOrderById(safeOptions);
+            const passedOrder = safeOptions.order && typeof safeOptions.order === "object"
+                ? safeOptions.order
+                : null;
+            let sourceOrder = passedOrder;
+
+            // Always try to re-read the latest server state when a cached order
+            // was supplied. Without this, two parallel confirmations (one by the
+            // customer, one by the vendor) each work off a stale snapshot and the
+            // second update overwrites the first party's confirmation flag, so
+            // the order never reaches "completed".
+            if (passedOrder) {
+                const refreshOrderId = normalizeText(safeOptions.orderId) ||
+                    normalizeText(passedOrder.orderId);
+
+                if (refreshOrderId) {
+                    try {
+                        const freshOrder = await getOrderById({
+                            ...safeOptions,
+                            orderId: refreshOrderId
+                        });
+
+                        if (freshOrder) {
+                            sourceOrder = freshOrder;
+                        }
+                    } catch (refreshError) {
+                        console.error(
+                            `${MODULE_NAME}: failed to refresh order before confirmation; ` +
+                            `falling back to cached copy.`,
+                            refreshError
+                        );
+                    }
+                }
+            } else {
+                sourceOrder = await getOrderById(safeOptions);
+            }
 
             if (!sourceOrder) {
                 return createServiceResult(false, {
