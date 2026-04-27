@@ -3,14 +3,9 @@
 
     const MODULE_NAME = "customer/order-tracking/order-detail";
     let initInFlight = null;
-    let lastInitOptions = null;
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
-    }
-
-    function normalizeLowerText(value) {
-        return normalizeText(value).toLowerCase();
     }
 
     function resolveFirestore(explicitDb) {
@@ -73,21 +68,6 @@
         return null;
     }
 
-    function resolveOrderCollectionService(explicitOrderService) {
-        if (explicitOrderService && typeof explicitOrderService.confirmOrderCollection === "function") {
-            return explicitOrderService;
-        }
-
-        if (
-            globalScope.orderService &&
-            typeof globalScope.orderService.confirmOrderCollection === "function"
-        ) {
-            return globalScope.orderService;
-        }
-
-        return null;
-    }
-
     function resolveOrderFormatters(explicitOrderFormatters) {
         if (explicitOrderFormatters && typeof explicitOrderFormatters.formatOrderId === "function") {
             return explicitOrderFormatters;
@@ -117,20 +97,8 @@
             home: "../index.html",
             tracking: "./index.html",
             notifications: "./notifications.html",
-            browseVendors: "../order-management/browse-vendors.html",
-            vendorOrderDetail: "../../vendor/order-management/order-detail.html"
+            browseVendors: "../order-management/browse-vendors.html"
         };
-    }
-
-    function buildVendorDetailUrl(orderId) {
-        const route = getFallbackRoutes().vendorOrderDetail;
-        const id = normalizeText(orderId);
-
-        if (!id) {
-            return route;
-        }
-
-        return `${route}?orderId=${encodeURIComponent(id)}`;
     }
 
     function waitForAuthReady(auth, authFns, timeoutMs = 5000) {
@@ -498,157 +466,6 @@
             safeContainers.timeline.innerHTML = "";
             safeContainers.timeline.appendChild(createParagraph("No timeline available.", "empty-state-message"));
         }
-
-        if (safeContainers.actions) {
-            safeContainers.actions.innerHTML = "";
-        }
-    }
-
-    function getCustomerCollectionAction(orderRecord, options = {}) {
-        const orderStatus = resolveOrderStatus(options.orderStatus);
-        const status = normalizeLowerText(orderRecord && orderRecord.status);
-        const readyStatus = orderStatus && orderStatus.ORDER_STATUSES
-            ? orderStatus.ORDER_STATUSES.READY
-            : "ready";
-
-        if (status !== readyStatus) {
-            return null;
-        }
-
-        if (orderRecord && orderRecord.customerConfirmedCollected === true) {
-            return null;
-        }
-
-        // The confirm-collection button is only meaningful for the customer who
-        // placed the order. If we can tell who's signed in and they're not the
-        // customer (e.g. they're the vendor or an admin browsing), suppress it.
-        const currentUser = options.currentUser && typeof options.currentUser === "object"
-            ? options.currentUser
-            : null;
-        const orderCustomerUid = normalizeText(orderRecord && orderRecord.customerUid);
-        const viewerUid = normalizeText(currentUser && currentUser.uid);
-
-        if (orderCustomerUid && viewerUid && orderCustomerUid !== viewerUid) {
-            return null;
-        }
-
-        return {
-            type: "confirm_collection",
-            label: "Confirm I Received This Order",
-            tone: "success"
-        };
-    }
-
-    function renderActionButtons(orderRecord, container, options = {}) {
-        if (!container) {
-            return;
-        }
-
-        container.innerHTML = "";
-
-        const action = getCustomerCollectionAction(orderRecord, options);
-
-        if (!action) {
-            if (
-                orderRecord &&
-                normalizeLowerText(orderRecord.status) === "ready" &&
-                orderRecord.customerConfirmedCollected === true &&
-                orderRecord.vendorConfirmedCollected !== true
-            ) {
-                container.appendChild(createParagraph(
-                    "Thanks — we have logged your collection. Waiting for the vendor to confirm.",
-                    "empty-state-message"
-                ));
-            }
-            return;
-        }
-
-        const intro = createParagraph(
-            "Once you have collected your order, confirm here so the vendor can close the ticket.",
-            "order-detail-caption"
-        );
-        container.appendChild(intro);
-
-        const menu = globalScope.document.createElement("menu");
-        menu.className = "action-menu";
-        menu.setAttribute("aria-label", "Customer order actions");
-
-        const item = globalScope.document.createElement("li");
-        const button = globalScope.document.createElement("button");
-
-        button.type = "button";
-        button.className = "button-primary";
-        button.textContent = action.label;
-        button.dataset.actionType = action.type;
-        button.dataset.tone = action.tone;
-        button.addEventListener("click", function onClick() {
-            return handleConfirmCollection(action, options);
-        });
-
-        item.appendChild(button);
-        menu.appendChild(item);
-        container.appendChild(menu);
-    }
-
-    async function handleConfirmCollection(action, options = {}) {
-        const orderService = resolveOrderCollectionService(options.orderService);
-        const statusElement = globalScope.document.querySelector(
-            options.statusSelector || "#order-tracking-detail-status"
-        );
-        const currentOrder = options.currentOrder && typeof options.currentOrder === "object"
-            ? options.currentOrder
-            : null;
-        const currentUser = options.currentUser && typeof options.currentUser === "object"
-            ? options.currentUser
-            : null;
-
-        if (!orderService || !currentOrder) {
-            setStatusMessage(statusElement, "Confirming collection is not available right now.", "error");
-            return {
-                success: false,
-                error: "Confirming collection is not available right now."
-            };
-        }
-
-        setStatusMessage(statusElement, "Confirming you received this order...", "loading");
-
-        const result = await orderService.confirmOrderCollection({
-            db: options.db || resolveFirestore(),
-            firestoreFns: resolveFirestoreFns(options.firestoreFns),
-            order: currentOrder,
-            actorRole: "customer",
-            actorUid: normalizeText(currentUser && currentUser.uid),
-            actorName: normalizeText(currentUser && currentUser.displayName) || "Customer"
-        });
-
-        if (!result || result.success !== true) {
-            setStatusMessage(
-                statusElement,
-                result && result.error && result.error.message
-                    ? result.error.message
-                    : "Failed to confirm collection.",
-                "error"
-            );
-            return {
-                success: false,
-                error: result && result.error ? result.error.message : "Failed to confirm collection."
-            };
-        }
-
-        setStatusMessage(statusElement, "Thanks for confirming you received your order.", "success");
-
-        if (lastInitOptions) {
-            await init({
-                ...lastInitOptions,
-                currentUser,
-                orderId: currentOrder.orderId
-            });
-        }
-
-        return {
-            success: true,
-            order: result.order
-        };
     }
 
     async function init(options = {}) {
@@ -657,8 +474,6 @@
         }
 
         initInFlight = (async function runInit() {
-            lastInitOptions = { ...options };
-
             const auth = options.auth || resolveAuth();
             const authFns = resolveAuthFns(options.authFns);
             const db = options.db || resolveFirestore();
@@ -674,9 +489,6 @@
             );
             const timelineContainer = globalScope.document.querySelector(
                 options.timelineSelector || "#order-detail-timeline"
-            );
-            const actionContainer = globalScope.document.querySelector(
-                options.actionSelector || "#order-detail-actions"
             );
 
             if (!summaryContainer || !itemsContainer || !timelineContainer) {
@@ -694,8 +506,7 @@
                 renderEmptyState({
                     summary: summaryContainer,
                     items: itemsContainer,
-                    timeline: timelineContainer,
-                    actions: actionContainer
+                    timeline: timelineContainer
                 });
                 setStatusMessage(statusElement, "Please sign in to view order details.", "error");
                 return {
@@ -716,8 +527,7 @@
                 renderEmptyState({
                     summary: summaryContainer,
                     items: itemsContainer,
-                    timeline: timelineContainer,
-                    actions: actionContainer
+                    timeline: timelineContainer
                 });
                 setStatusMessage(
                     statusElement,
@@ -734,18 +544,25 @@
                 };
             }
 
-            const nextOptions = {
-                ...options,
-                db,
-                firestoreFns,
-                currentUser,
-                currentOrder: result.order
-            };
+            if (
+                normalizeText(result.order.customerUid) &&
+                normalizeText(result.order.customerUid) !== normalizeText(currentUser.uid)
+            ) {
+                renderEmptyState({
+                    summary: summaryContainer,
+                    items: itemsContainer,
+                    timeline: timelineContainer
+                });
+                setStatusMessage(statusElement, "You do not have permission to view this order.", "error");
+                return {
+                    success: false,
+                    error: "You do not have permission to view this order."
+                };
+            }
 
-            renderOrderSummary(result.order, summaryContainer, nextOptions);
-            renderOrderItems(result.order, itemsContainer, nextOptions);
-            renderOrderTimeline(result.order, timelineContainer, nextOptions);
-            renderActionButtons(result.order, actionContainer, nextOptions);
+            renderOrderSummary(result.order, summaryContainer, options);
+            renderOrderItems(result.order, itemsContainer, options);
+            renderOrderTimeline(result.order, timelineContainer, options);
 
             const orderFormatters = resolveOrderFormatters(options.orderFormatters);
             const headline = orderFormatters && typeof orderFormatters.formatOrderSummary === "function"
@@ -756,8 +573,6 @@
                 : "Order loaded.";
 
             setStatusMessage(statusElement, headline, "success");
-
-            lastInitOptions = nextOptions;
 
             return {
                 success: true,
@@ -775,17 +590,14 @@
     const customerOrderDetailPage = {
         MODULE_NAME,
         normalizeText,
-        normalizeLowerText,
         resolveFirestore,
         resolveAuth,
         resolveAuthFns,
         resolveFirestoreFns,
         resolveOrderService,
-        resolveOrderCollectionService,
         resolveOrderFormatters,
         resolveOrderStatus,
         getFallbackRoutes,
-        buildVendorDetailUrl,
         waitForAuthReady,
         getOrderIdFromLocation,
         fetchOrderDetail,
@@ -794,9 +606,6 @@
         renderOrderItems,
         renderOrderTimeline,
         renderEmptyState,
-        getCustomerCollectionAction,
-        renderActionButtons,
-        handleConfirmCollection,
         init
     };
 

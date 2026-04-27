@@ -56,7 +56,6 @@ function createOrder(overrides = {}) {
 function createDOM() {
     document.body.innerHTML = `
         <p id="order-tracking-detail-status"></p>
-        <section id="order-detail-actions"></section>
         <section id="order-detail-summary"></section>
         <section id="order-detail-items"></section>
         <section id="order-detail-timeline"></section>
@@ -64,7 +63,6 @@ function createDOM() {
 
     return {
         statusElement: document.getElementById("order-tracking-detail-status"),
-        actionsContainer: document.getElementById("order-detail-actions"),
         summaryContainer: document.getElementById("order-detail-summary"),
         itemsContainer: document.getElementById("order-detail-items"),
         timelineContainer: document.getElementById("order-detail-timeline")
@@ -189,133 +187,15 @@ describe("customer/order-tracking/order-detail.js - rendering", () => {
     });
 
     test("renderEmptyState resets all containers", () => {
-        dom.actionsContainer.innerHTML = "<button>stale</button>";
-
         customerOrderDetailPage.renderEmptyState({
             summary: dom.summaryContainer,
             items: dom.itemsContainer,
-            timeline: dom.timelineContainer,
-            actions: dom.actionsContainer
+            timeline: dom.timelineContainer
         });
 
         expect(dom.summaryContainer.textContent).toContain("No order summary available");
         expect(dom.itemsContainer.textContent).toContain("No items available");
         expect(dom.timelineContainer.textContent).toContain("No timeline available");
-        expect(dom.actionsContainer.innerHTML).toBe("");
-    });
-});
-
-describe("customer/order-tracking/order-detail.js - collection action", () => {
-    let dom;
-
-    beforeEach(() => {
-        dom = createDOM();
-    });
-
-    test("getCustomerCollectionAction returns an action when ready and not yet confirmed", () => {
-        const action = customerOrderDetailPage.getCustomerCollectionAction(
-            createOrder({ status: "ready", customerConfirmedCollected: false })
-        );
-
-        expect(action).not.toBeNull();
-        expect(action.type).toBe("confirm_collection");
-    });
-
-    test("getCustomerCollectionAction returns null when customer already confirmed", () => {
-        const action = customerOrderDetailPage.getCustomerCollectionAction(
-            createOrder({ status: "ready", customerConfirmedCollected: true })
-        );
-
-        expect(action).toBeNull();
-    });
-
-    test("getCustomerCollectionAction returns null for non-ready statuses", () => {
-        expect(customerOrderDetailPage.getCustomerCollectionAction(
-            createOrder({ status: "preparing" })
-        )).toBeNull();
-        expect(customerOrderDetailPage.getCustomerCollectionAction(
-            createOrder({ status: "completed" })
-        )).toBeNull();
-    });
-
-    test("renderActionButtons shows the confirm button when ready", () => {
-        customerOrderDetailPage.renderActionButtons(
-            createOrder({ status: "ready", customerConfirmedCollected: false }),
-            dom.actionsContainer
-        );
-
-        const button = dom.actionsContainer.querySelector("button[data-action-type='confirm_collection']");
-        expect(button).not.toBeNull();
-        expect(button.textContent).toContain("Confirm");
-    });
-
-    test("renderActionButtons shows a waiting message after the customer confirmed", () => {
-        customerOrderDetailPage.renderActionButtons(
-            createOrder({
-                status: "ready",
-                customerConfirmedCollected: true,
-                vendorConfirmedCollected: false
-            }),
-            dom.actionsContainer
-        );
-
-        expect(dom.actionsContainer.querySelector("button")).toBeNull();
-        expect(dom.actionsContainer.textContent).toContain("Waiting for the vendor");
-    });
-
-    test("renderActionButtons hides the button for completed orders", () => {
-        customerOrderDetailPage.renderActionButtons(
-            createOrder({ status: "completed" }),
-            dom.actionsContainer
-        );
-
-        expect(dom.actionsContainer.querySelector("button")).toBeNull();
-    });
-
-    test("handleConfirmCollection calls orderService.confirmOrderCollection as customer", async () => {
-        const confirmOrderCollection = jest.fn(async () => ({
-            success: true,
-            order: createOrder({ status: "ready", customerConfirmedCollected: true })
-        }));
-        const order = createOrder({ status: "ready", customerConfirmedCollected: false });
-
-        const result = await customerOrderDetailPage.handleConfirmCollection(
-            { type: "confirm_collection" },
-            {
-                orderService: { confirmOrderCollection },
-                currentOrder: order,
-                currentUser: { uid: "customer-1", displayName: "Sam" },
-                db: { kind: "db" },
-                firestoreFns: {}
-            }
-        );
-
-        expect(result.success).toBe(true);
-        expect(confirmOrderCollection).toHaveBeenCalledWith(expect.objectContaining({
-            order,
-            actorRole: "customer",
-            actorUid: "customer-1",
-            actorName: "Sam"
-        }));
-    });
-
-    test("handleConfirmCollection surfaces service errors", async () => {
-        const confirmOrderCollection = jest.fn(async () => ({
-            success: false,
-            error: { message: "Cannot confirm yet." }
-        }));
-
-        const result = await customerOrderDetailPage.handleConfirmCollection(
-            { type: "confirm_collection" },
-            {
-                orderService: { confirmOrderCollection },
-                currentOrder: createOrder({ status: "ready" }),
-                currentUser: { uid: "customer-1" }
-            }
-        );
-
-        expect(result.success).toBe(false);
-        expect(dom.statusElement.textContent).toContain("Cannot confirm yet.");
     });
 });
 
@@ -381,42 +261,26 @@ describe("customer/order-tracking/order-detail.js - fetching and init", () => {
         expect(dom.statusElement.textContent).toContain("Please sign in");
     });
 
-    test("init renders the order even when the customerUid does not match the viewer", async () => {
-        // Firestore rules already gate read access (customer/vendor/admin only).
-        // The page should render whatever the rules let through and let the
-        // action helpers decide which buttons to show.
+    test("init blocks access to another customer's order", async () => {
         const getOrderById = jest.fn(async () => createOrder({
-            customerUid: "another-customer",
-            status: "ready"
+            customerUid: "another-customer"
         }));
 
         const result = await customerOrderDetailPage.init({
-            currentUser: { uid: "vendor-7" },
+            currentUser: { uid: "customer-1" },
             db: { kind: "db" },
             firestoreFns: {},
             orderService: { getOrderById },
             orderFormatters,
             orderId: "order-1",
             statusSelector: "#order-tracking-detail-status",
-            actionSelector: "#order-detail-actions",
             summarySelector: "#order-detail-summary",
             itemsSelector: "#order-detail-items",
             timelineSelector: "#order-detail-timeline"
         });
 
-        expect(result.success).toBe(true);
-        expect(dom.summaryContainer.textContent).toContain("Campus Bites");
-        // No confirm button because the viewer isn't the customer.
-        expect(dom.actionsContainer.querySelector("button[data-action-type='confirm_collection']")).toBeNull();
-    });
-
-    test("getCustomerCollectionAction hides the confirm button for non-customer viewers", () => {
-        const action = customerOrderDetailPage.getCustomerCollectionAction(
-            createOrder({ status: "ready", customerUid: "customer-1", customerConfirmedCollected: false }),
-            { currentUser: { uid: "vendor-7" } }
-        );
-
-        expect(action).toBeNull();
+        expect(result.success).toBe(false);
+        expect(dom.statusElement.textContent).toContain("do not have permission");
     });
 
     test("init renders the requested order for the signed-in customer", async () => {
@@ -440,30 +304,5 @@ describe("customer/order-tracking/order-detail.js - fetching and init", () => {
         expect(dom.itemsContainer.textContent).toContain("Burger");
         expect(dom.timelineContainer.textContent).toContain("Order Received");
         expect(dom.statusElement.textContent).toContain("Campus Bites");
-    });
-
-    test("init renders the confirm collection button when the order is ready", async () => {
-        const getOrderById = jest.fn(async () => createOrder({
-            status: "ready",
-            customerConfirmedCollected: false
-        }));
-
-        const result = await customerOrderDetailPage.init({
-            currentUser: { uid: "customer-1" },
-            db: { kind: "db" },
-            firestoreFns: {},
-            orderService: { getOrderById, confirmOrderCollection: jest.fn() },
-            orderFormatters,
-            orderId: "order-1",
-            statusSelector: "#order-tracking-detail-status",
-            actionSelector: "#order-detail-actions",
-            summarySelector: "#order-detail-summary",
-            itemsSelector: "#order-detail-items",
-            timelineSelector: "#order-detail-timeline"
-        });
-
-        expect(result.success).toBe(true);
-        const button = dom.actionsContainer.querySelector("button[data-action-type='confirm_collection']");
-        expect(button).not.toBeNull();
     });
 });

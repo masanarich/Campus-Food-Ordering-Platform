@@ -3,10 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // -----------------------------------------------------------------
-    // Auth + role helpers
-    // -----------------------------------------------------------------
-
     function signedIn() {
       return request.auth != null;
     }
@@ -50,10 +46,6 @@ service cloud.firestore {
         );
     }
 
-    // -----------------------------------------------------------------
-    // Order helpers
-    // -----------------------------------------------------------------
-
     function orderDoc(orderId) {
       return get(/databases/$(database)/documents/orders/$(orderId));
     }
@@ -72,104 +64,10 @@ service cloud.firestore {
         );
     }
 
-    function isOrderCustomer() {
-      return signedIn() && resource.data.customerUid == request.auth.uid;
-    }
-
-    function isOrderVendor() {
-      return signedIn() && resource.data.vendorUid == request.auth.uid;
-    }
-
-    function isOrderParticipant() {
-      return isOrderCustomer() || isOrderVendor() || isAdmin();
-    }
-
-    function orderUpdateAffectsOnlyAllowedKeys() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        "orderId",
-        "status",
-        "timeline",
-        "notes",
-        "updatedAt",
-        "customerConfirmedCollected",
-        "vendorConfirmedCollected"
-      ]);
-    }
-
-    function orderImmutableFieldsPreserved() {
-      return request.resource.data.customerUid == resource.data.customerUid &&
-        request.resource.data.vendorUid == resource.data.vendorUid &&
-        request.resource.data.createdAt == resource.data.createdAt;
-    }
-
-    function customerConfirmationPreservedOrAdvanced() {
-      return !("customerConfirmedCollected" in request.resource.data) ||
-        request.resource.data.customerConfirmedCollected == resource.data.get("customerConfirmedCollected", false) ||
-        (
-          resource.data.get("customerConfirmedCollected", false) == false &&
-          request.resource.data.customerConfirmedCollected == true
-        );
-    }
-
-    function vendorConfirmationPreservedOrAdvanced() {
-      return !("vendorConfirmedCollected" in request.resource.data) ||
-        request.resource.data.vendorConfirmedCollected == resource.data.get("vendorConfirmedCollected", false) ||
-        (
-          resource.data.get("vendorConfirmedCollected", false) == false &&
-          request.resource.data.vendorConfirmedCollected == true
-        );
-    }
-
-    function customerOnlyTouchesOwnConfirmation() {
-      // A customer can flip customerConfirmedCollected (false -> true).
-      // They must not change vendorConfirmedCollected.
-      return !("vendorConfirmedCollected" in request.resource.data) ||
-        request.resource.data.vendorConfirmedCollected == resource.data.get("vendorConfirmedCollected", false);
-    }
-
-    function vendorOnlyTouchesOwnConfirmation() {
-      return !("customerConfirmedCollected" in request.resource.data) ||
-        request.resource.data.customerConfirmedCollected == resource.data.get("customerConfirmedCollected", false);
-    }
-
-    function isValidOrderCreate() {
-      return signedIn() &&
-        request.resource.data.customerUid == request.auth.uid &&
-        request.resource.data.customerUid is string &&
-        request.resource.data.vendorUid is string &&
-        request.resource.data.vendorUid != "" &&
-        request.resource.data.status is string &&
-        request.resource.data.items is list &&
-        request.resource.data.items.size() > 0 &&
-        // Brand-new orders cannot start as already collected.
-        request.resource.data.get("customerConfirmedCollected", false) == false &&
-        request.resource.data.get("vendorConfirmedCollected", false) == false;
-    }
-
-    function isValidOrderUpdate() {
-      return isOrderParticipant() &&
-        orderUpdateAffectsOnlyAllowedKeys() &&
-        orderImmutableFieldsPreserved() &&
-        customerConfirmationPreservedOrAdvanced() &&
-        vendorConfirmationPreservedOrAdvanced() &&
-        (
-          isAdmin() ||
-          (isOrderCustomer() && customerOnlyTouchesOwnConfirmation()) ||
-          (isOrderVendor() && vendorOnlyTouchesOwnConfirmation())
-        );
-    }
-
-    // -----------------------------------------------------------------
-    // Notification helpers
-    // -----------------------------------------------------------------
-
     function isNotificationRecipientData(data) {
-      return signedIn() && request.auth.uid == data.recipientUid;
+      return signedIn() &&
+        request.auth.uid == data.recipientUid;
     }
-
-    // -----------------------------------------------------------------
-    // Application self-submission helpers
-    // -----------------------------------------------------------------
 
     function isOwnPendingVendorSubmission(before, after) {
       let oldStatus = before.vendorStatus;
@@ -225,7 +123,7 @@ service cloud.firestore {
       allow create: if isSelf(userId) &&
         request.resource.data.uid == userId;
 
-      allow get, list: if signedIn();
+      allow get, list: if signedIn() || isAdmin();
 
       allow update: if isAdmin() || selfCanUpdateOwnProfile(userId);
 
@@ -276,24 +174,27 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // -----------------------------------------------------------------
-    // /orders
-    // -----------------------------------------------------------------
+match /orders/{orderId} {
+      // Allow creation if the user is logged in
+      allow create: if request.auth != null;
 
-    match /orders/{orderId} {
-      allow create: if isValidOrderCreate();
+      // Allow reading if they are the customer, vendor, or admin
+      allow read: if request.auth != null && (
+        resource.data.customerUid == request.auth.uid || 
+        resource.data.vendorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
 
-      allow get: if isOrderParticipant();
-      allow list: if signedIn();
+      // Allow any update (Accept, Reject, Ready) if they are a participant
+      allow update: if request.auth != null && (
+        resource.data.customerUid == request.auth.uid || 
+        resource.data.vendorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
 
-      allow update: if isValidOrderUpdate();
-
-      allow delete: if isAdmin();
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-
-    // -----------------------------------------------------------------
-    // /notifications
-    // -----------------------------------------------------------------
 
     match /notifications/{notificationId} {
 
@@ -335,9 +236,10 @@ service cloud.firestore {
         return isValidNotificationCreation() &&
           (
             !("orderId" in request.resource.data) ||
-            request.resource.data.orderId == "" ||
-            isOrderParticipantById(request.resource.data.orderId) ||
-            request.resource.data.recipientUid == request.auth.uid
+            (
+              request.resource.data.orderId != "" &&
+              isOrderParticipantById(request.resource.data.orderId)
+            )
           );
       }
 
@@ -361,10 +263,6 @@ service cloud.firestore {
 
       allow delete: if isNotificationRecipientData(resource.data) || isAdmin();
     }
-
-    // -----------------------------------------------------------------
-    // Catch-all: deny everything else by default
-    // -----------------------------------------------------------------
 
     match /{document=**} {
       allow read, write: if false;

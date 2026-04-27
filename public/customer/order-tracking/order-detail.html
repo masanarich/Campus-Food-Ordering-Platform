@@ -42,11 +42,6 @@
             </menu>
         </section>
 
-        <section class="shared-section" aria-labelledby="order-detail-actions-heading">
-            <h3 id="order-detail-actions-heading">Your Actions</h3>
-            <section id="order-detail-actions" aria-live="polite"></section>
-        </section>
-
         <section class="shared-section" aria-labelledby="order-detail-content-heading">
             <h3 id="order-detail-content-heading">Tracking Breakdown</h3>
 
@@ -96,7 +91,6 @@
 
     <script src="../../shared/orders/order-status.js"></script>
     <script src="../../shared/orders/order-model.js"></script>
-    <script src="../../shared/orders/order-validation.js"></script>
     <script src="../../shared/orders/order-queries.js"></script>
     <script src="../../shared/orders/order-service.js"></script>
     <script src="../../shared/orders/order-formatters.js"></script>
@@ -106,9 +100,7 @@
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
         import {
             doc,
-            getDoc,
-            setDoc,
-            updateDoc
+            getDoc
         } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
         window.db = db;
@@ -118,9 +110,7 @@
         };
         window.firestoreFns = {
             doc,
-            getDoc,
-            setDoc,
-            updateDoc
+            getDoc
         };
 
         if (window.customerOrderDetailPage && typeof window.customerOrderDetailPage.init === "function") {

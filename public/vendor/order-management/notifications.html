@@ -70,9 +70,7 @@
             where,
             orderBy,
             limit,
-            doc,
-            updateDoc,
-            serverTimestamp
+            doc
         } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
         window.db = db;
@@ -89,9 +87,7 @@
             where,
             orderBy,
             limit,
-            doc,
-            updateDoc,
-            serverTimestamp
+            doc
         };
 
         if (window.vendorOrderNotificationsPage && typeof window.vendorOrderNotificationsPage.init === "function") {

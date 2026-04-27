@@ -68,7 +68,6 @@ function createMockOrderService(options = {}) {
 function createDOMElements() {
     document.body.innerHTML = `
         <section id="menu-container"></section>
-        <nav id="menu-pagination"></nav>
         <p id="browse-menu-status"></p>
         <output id="cart-badge">0</output>
         <h2 id="vendor-name-heading">Menu</h2>
@@ -76,7 +75,6 @@ function createDOMElements() {
 
     return {
         container: document.getElementById("menu-container"),
-        paginationContainer: document.getElementById("menu-pagination"),
         statusElement: document.getElementById("browse-menu-status"),
         cartBadge: document.getElementById("cart-badge"),
         vendorNameHeading: document.getElementById("vendor-name-heading")
@@ -99,7 +97,6 @@ describe("customer/order-management/browse-menu.js - Module Structure", () => {
         expect(customerBrowseMenu.fetchVendorMenu).toBeDefined();
         expect(customerBrowseMenu.renderMenuItems).toBeDefined();
         expect(customerBrowseMenu.createMenuItemCard).toBeDefined();
-        expect(customerBrowseMenu.getVisiblePageNumbers).toBeDefined();
         expect(customerBrowseMenu.getCart).toBeDefined();
         expect(customerBrowseMenu.addToCart).toBeDefined();
         expect(customerBrowseMenu.getCartItemCount).toBeDefined();
@@ -577,221 +574,5 @@ describe("customer/order-management/browse-menu.js - UI Helpers", () => {
         customerBrowseMenu.setLoadingState(container, false);
 
         expect(container.getAttribute("data-loading")).toBeNull();
-    });
-});
-
-// ==========================================
-// TESTS: Pagination
-// ==========================================
-
-describe("customer/order-management/browse-menu.js - Pagination helpers", () => {
-    test("getTotalPages handles empty, partial, and full pages", () => {
-        expect(customerBrowseMenu.getTotalPages(0, 12)).toBe(1);
-        expect(customerBrowseMenu.getTotalPages(5, 12)).toBe(1);
-        expect(customerBrowseMenu.getTotalPages(12, 12)).toBe(1);
-        expect(customerBrowseMenu.getTotalPages(13, 12)).toBe(2);
-        expect(customerBrowseMenu.getTotalPages(36, 12)).toBe(3);
-    });
-
-    test("paginateItems returns the slice for the active page", () => {
-        const items = Array.from({ length: 25 }, function buildItem(_, index) {
-            return { menuItemId: `item-${index + 1}`, name: `Item ${index + 1}` };
-        });
-
-        const firstPage = customerBrowseMenu.paginateItems(items, 1, 10);
-        const secondPage = customerBrowseMenu.paginateItems(items, 2, 10);
-        const thirdPage = customerBrowseMenu.paginateItems(items, 3, 10);
-
-        expect(firstPage).toHaveLength(10);
-        expect(firstPage[0].menuItemId).toBe("item-1");
-        expect(secondPage).toHaveLength(10);
-        expect(secondPage[0].menuItemId).toBe("item-11");
-        expect(thirdPage).toHaveLength(5);
-        expect(thirdPage[0].menuItemId).toBe("item-21");
-    });
-
-    test("paginateItems clamps out-of-range pages back into the valid range", () => {
-        const items = Array.from({ length: 5 }, function buildItem(_, index) {
-            return { menuItemId: `item-${index + 1}` };
-        });
-
-        expect(customerBrowseMenu.paginateItems(items, 0, 12)).toHaveLength(5);
-        expect(customerBrowseMenu.paginateItems(items, 99, 12)).toHaveLength(5);
-        expect(customerBrowseMenu.paginateItems(items, "not a number", 12)).toHaveLength(5);
-    });
-
-    test("clampPageNumber keeps page within [1, totalPages]", () => {
-        expect(customerBrowseMenu.clampPageNumber(-3, 4)).toBe(1);
-        expect(customerBrowseMenu.clampPageNumber(2, 4)).toBe(2);
-        expect(customerBrowseMenu.clampPageNumber(99, 4)).toBe(4);
-        expect(customerBrowseMenu.clampPageNumber("2", 4)).toBe(2);
-    });
-
-    test("getVisiblePageNumbers centers the current page when many pages exist", () => {
-        expect(customerBrowseMenu.getVisiblePageNumbers(1, 8)).toEqual([1, 2, 3, 4, 5]);
-        expect(customerBrowseMenu.getVisiblePageNumbers(4, 8)).toEqual([2, 3, 4, 5, 6]);
-        expect(customerBrowseMenu.getVisiblePageNumbers(8, 8)).toEqual([4, 5, 6, 7, 8]);
-    });
-});
-
-describe("customer/order-management/browse-menu.js - renderPagination", () => {
-    let dom;
-
-    beforeEach(() => {
-        dom = createDOMElements();
-    });
-
-    test("renders only the indicator (no Prev/Next) when there is one page", () => {
-        customerBrowseMenu.renderPagination(1, 1, dom.paginationContainer, jest.fn(), { totalItems: 4 });
-
-        expect(dom.paginationContainer.querySelector(".menu-pagination-prev")).toBeNull();
-        expect(dom.paginationContainer.querySelector(".menu-pagination-next")).toBeNull();
-
-        const indicator = dom.paginationContainer.querySelector(".menu-pagination-indicator");
-        expect(indicator).not.toBeNull();
-        expect(indicator.textContent).toBe("Showing 4 items");
-    });
-
-    test("uses singular wording when there is exactly one item", () => {
-        customerBrowseMenu.renderPagination(1, 1, dom.paginationContainer, jest.fn(), { totalItems: 1 });
-
-        const indicator = dom.paginationContainer.querySelector(".menu-pagination-indicator");
-        expect(indicator.textContent).toBe("Showing 1 item");
-    });
-
-    test("renders Previous/Next buttons and a page indicator for multi-page menus", () => {
-        customerBrowseMenu.renderPagination(2, 5, dom.paginationContainer, jest.fn(), {
-            totalItems: 43,
-            pageSize: 10
-        });
-
-        const prev = dom.paginationContainer.querySelector(".menu-pagination-prev");
-        const next = dom.paginationContainer.querySelector(".menu-pagination-next");
-        const indicator = dom.paginationContainer.querySelector(".menu-pagination-indicator");
-        const meta = dom.paginationContainer.querySelector(".menu-pagination-meta");
-        const pageButtons = dom.paginationContainer.querySelectorAll(".menu-pagination-page");
-
-        expect(prev).not.toBeNull();
-        expect(next).not.toBeNull();
-        expect(indicator.textContent).toBe("Showing 11-20 of 43 items");
-        expect(meta.textContent).toBe("Page 2 of 5");
-        expect(pageButtons).toHaveLength(5);
-        expect(prev.disabled).toBe(false);
-        expect(next.disabled).toBe(false);
-    });
-
-    test("disables Previous on the first page and Next on the last page", () => {
-        customerBrowseMenu.renderPagination(1, 3, dom.paginationContainer, jest.fn());
-        expect(dom.paginationContainer.querySelector(".menu-pagination-prev").disabled).toBe(true);
-        expect(dom.paginationContainer.querySelector(".menu-pagination-next").disabled).toBe(false);
-
-        customerBrowseMenu.renderPagination(3, 3, dom.paginationContainer, jest.fn());
-        expect(dom.paginationContainer.querySelector(".menu-pagination-prev").disabled).toBe(false);
-        expect(dom.paginationContainer.querySelector(".menu-pagination-next").disabled).toBe(true);
-    });
-
-    test("invokes onPageChange with the next/previous page", () => {
-        const onPageChange = jest.fn();
-        customerBrowseMenu.renderPagination(2, 4, dom.paginationContainer, onPageChange);
-
-        dom.paginationContainer.querySelector(".menu-pagination-next").click();
-        dom.paginationContainer.querySelector(".menu-pagination-prev").click();
-
-        expect(onPageChange).toHaveBeenNthCalledWith(1, 3);
-        expect(onPageChange).toHaveBeenNthCalledWith(2, 1);
-    });
-});
-
-describe("customer/order-management/browse-menu.js - renderMenuPage", () => {
-    let dom;
-
-    beforeEach(() => {
-        dom = createDOMElements();
-    });
-
-    test("renders only the current page's items and the matching pagination control", () => {
-        const allItems = Array.from({ length: 25 }, function buildItem(_, index) {
-            return createMockMenuItem({
-                menuItemId: `item-${index + 1}`,
-                id: `item-${index + 1}`,
-                name: `Item ${index + 1}`,
-                category: index % 2 === 0 ? "Meals" : "Drinks"
-            });
-        });
-
-        const state = { allItems, page: 1, pageSize: 10 };
-        customerBrowseMenu.renderMenuPage(state, dom.container, dom.paginationContainer);
-
-        expect(dom.container.querySelectorAll(".menu-item-card")).toHaveLength(10);
-        expect(dom.paginationContainer.querySelector(".menu-pagination-indicator").textContent)
-            .toBe("Showing 1-10 of 25 items");
-        expect(dom.paginationContainer.querySelector(".menu-pagination-meta").textContent)
-            .toBe("Page 1 of 3");
-    });
-
-    test("clicking Next re-renders with the second page's items", () => {
-        const allItems = Array.from({ length: 14 }, function buildItem(_, index) {
-            return createMockMenuItem({
-                menuItemId: `item-${index + 1}`,
-                id: `item-${index + 1}`,
-                name: `Item ${index + 1}`,
-                category: "Meals"
-            });
-        });
-
-        const state = { allItems, page: 1, pageSize: 12 };
-        customerBrowseMenu.renderMenuPage(state, dom.container, dom.paginationContainer);
-
-        expect(dom.container.querySelectorAll(".menu-item-card")).toHaveLength(12);
-
-        dom.paginationContainer.querySelector(".menu-pagination-next").click();
-
-        expect(state.page).toBe(2);
-        expect(dom.container.querySelectorAll(".menu-item-card")).toHaveLength(2);
-        expect(dom.container.textContent).toContain("Item 13");
-        expect(dom.container.textContent).toContain("Item 14");
-    });
-});
-
-describe("customer/order-management/browse-menu.js - init pagination", () => {
-    beforeEach(() => {
-        if (window.localStorage && typeof window.localStorage.clear === "function") {
-            window.localStorage.clear();
-        }
-        createDOMElements();
-    });
-
-    test("renders only the page-size slice and exposes pagination details", async () => {
-        const mockMenuItems = Array.from({ length: 25 }, function buildItem(_, index) {
-            return {
-                menuItemId: `item-${index + 1}`,
-                id: `item-${index + 1}`,
-                name: `Item ${index + 1}`,
-                category: "Meals",
-                price: 10 + index,
-                available: true
-            };
-        });
-        const mockDb = { kind: "db" };
-        const firestoreFns = createFirestoreFns({ mockMenuItems });
-
-        const result = await customerBrowseMenu.init({
-            db: mockDb,
-            firestoreFns,
-            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
-            pageSize: 10
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.menuItemCount).toBe(25);
-        expect(result.totalPages).toBe(3);
-        expect(result.page).toBe(1);
-
-        const container = document.getElementById("menu-container");
-        const pagination = document.getElementById("menu-pagination");
-
-        expect(container.querySelectorAll(".menu-item-card")).toHaveLength(10);
-        expect(pagination.querySelector(".menu-pagination-indicator").textContent).toBe("Showing 1-10 of 25 items");
-        expect(pagination.querySelector(".menu-pagination-meta").textContent).toBe("Page 1 of 3");
     });
 });

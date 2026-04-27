@@ -5,8 +5,6 @@
 
     const MODULE_NAME = "customer/order-management/browse-menu";
     const CART_STORAGE_KEY = "campus-food-cart";
-    const DEFAULT_PAGE_SIZE = 10;
-    const MAX_VISIBLE_PAGE_BUTTONS = 5;
     let initInFlight = null;
 
     // ==========================================
@@ -323,72 +321,6 @@
     }
 
     // ==========================================
-    // PAGINATION HELPERS
-    // ==========================================
-
-    function clampPageSize(value) {
-        const parsed = Number.parseInt(value, 10);
-
-        if (Number.isFinite(parsed) && parsed > 0) {
-            return parsed;
-        }
-
-        return DEFAULT_PAGE_SIZE;
-    }
-
-    function getTotalPages(itemCount, pageSize) {
-        const safeCount = Number.isFinite(Number(itemCount)) ? Math.max(0, Number(itemCount)) : 0;
-        const safeSize = clampPageSize(pageSize);
-
-        return Math.max(1, Math.ceil(safeCount / safeSize));
-    }
-
-    function clampPageNumber(page, totalPages) {
-        const parsed = Number.parseInt(page, 10);
-        const safeTotal = Math.max(1, Number.parseInt(totalPages, 10) || 1);
-
-        if (!Number.isFinite(parsed) || parsed < 1) {
-            return 1;
-        }
-
-        return Math.min(parsed, safeTotal);
-    }
-
-    function paginateItems(items, page, pageSize) {
-        const safeItems = Array.isArray(items) ? items : [];
-        const safeSize = clampPageSize(pageSize);
-        const totalPages = getTotalPages(safeItems.length, safeSize);
-        const safePage = clampPageNumber(page, totalPages);
-        const start = (safePage - 1) * safeSize;
-
-        return safeItems.slice(start, start + safeSize);
-    }
-
-    function getVisiblePageNumbers(currentPage, totalPages, maxVisibleButtons = MAX_VISIBLE_PAGE_BUTTONS) {
-        const safeTotal = Math.max(1, Number.parseInt(totalPages, 10) || 1);
-        const safeCurrent = clampPageNumber(currentPage, safeTotal);
-        const safeMax = Math.max(3, Number.parseInt(maxVisibleButtons, 10) || MAX_VISIBLE_PAGE_BUTTONS);
-
-        if (safeTotal <= safeMax) {
-            return Array.from({ length: safeTotal }, function mapPage(_, index) {
-                return index + 1;
-            });
-        }
-
-        const halfWindow = Math.floor(safeMax / 2);
-        let start = Math.max(1, safeCurrent - halfWindow);
-        let end = Math.min(safeTotal, start + safeMax - 1);
-
-        if (end - start + 1 < safeMax) {
-            start = Math.max(1, end - safeMax + 1);
-        }
-
-        return Array.from({ length: end - start + 1 }, function mapPage(_, index) {
-            return start + index;
-        });
-    }
-
-    // ==========================================
     // UI RENDERING
     // ==========================================
 
@@ -556,162 +488,6 @@
     }
 
     /**
-     * Render pagination controls.
-     * Always renders a page indicator so users can see the pagination system
-     * exists even when there's only one page. Prev/Next are disabled on the
-     * edges and hidden entirely when there's a single page.
-     *
-     * @param {Number} currentPage - Active page (1-based).
-     * @param {Number} totalPages - Total page count.
-     * @param {HTMLElement} container - Container for the controls.
-     * @param {Function} onPageChange - Callback invoked with the next page number.
-     * @param {Object} [options] - Optional info: { totalItems, pageSize }.
-     */
-    function renderPagination(currentPage, totalPages, container, onPageChange, options = {}) {
-        if (!container) {
-            return;
-        }
-
-        container.innerHTML = "";
-        container.classList.add("menu-pagination");
-
-        const safeTotal = Math.max(1, Number.parseInt(totalPages, 10) || 1);
-        const safeCurrent = clampPageNumber(currentPage, safeTotal);
-        const totalItems = Number.isFinite(Number(options.totalItems))
-            ? Math.max(0, Number(options.totalItems))
-            : null;
-        const pageSize = clampPageSize(options.pageSize);
-        const startItem = totalItems === null || totalItems === 0
-            ? 0
-            : ((safeCurrent - 1) * pageSize) + 1;
-        const endItem = totalItems === null || totalItems === 0
-            ? 0
-            : Math.min(totalItems, safeCurrent * pageSize);
-
-        const indicator = globalScope.document.createElement("p");
-        indicator.className = "menu-pagination-indicator";
-        indicator.setAttribute("aria-live", "polite");
-
-        if (safeTotal === 1 && totalItems !== null) {
-            indicator.textContent = totalItems === 1
-                ? "Showing 1 item"
-                : `Showing ${totalItems} items`;
-        } else {
-            indicator.textContent = `Showing ${startItem}-${endItem} of ${totalItems || 0} items`;
-        }
-
-        // Single-page menus only need the count line — no Prev/Next buttons.
-        if (safeTotal <= 1) {
-            container.appendChild(indicator);
-            return;
-        }
-
-        const meta = globalScope.document.createElement("p");
-        meta.className = "menu-pagination-meta";
-        meta.textContent = `Page ${safeCurrent} of ${safeTotal}`;
-
-        const pageButtonGroup = globalScope.document.createElement("section");
-        pageButtonGroup.className = "menu-pagination-pages";
-        pageButtonGroup.setAttribute("aria-label", "Page selection");
-
-        const prevButton = globalScope.document.createElement("button");
-        prevButton.type = "button";
-        prevButton.className = "button-secondary menu-pagination-prev";
-        prevButton.textContent = "Previous";
-        prevButton.disabled = safeCurrent <= 1;
-        prevButton.addEventListener("click", function onPrevClick() {
-            if (typeof onPageChange === "function" && safeCurrent > 1) {
-                onPageChange(safeCurrent - 1);
-            }
-        });
-
-        const nextButton = globalScope.document.createElement("button");
-        nextButton.type = "button";
-        nextButton.className = "button-secondary menu-pagination-next";
-        nextButton.textContent = "Next";
-        nextButton.disabled = safeCurrent >= safeTotal;
-        nextButton.addEventListener("click", function onNextClick() {
-            if (typeof onPageChange === "function" && safeCurrent < safeTotal) {
-                onPageChange(safeCurrent + 1);
-            }
-        });
-
-        getVisiblePageNumbers(safeCurrent, safeTotal).forEach(function renderPageButton(pageNumber) {
-            const pageButton = globalScope.document.createElement("button");
-            pageButton.type = "button";
-            pageButton.className = "button-secondary menu-pagination-page";
-            pageButton.textContent = pageNumber.toString();
-            pageButton.setAttribute("aria-label", `Go to page ${pageNumber}`);
-
-            if (pageNumber === safeCurrent) {
-                pageButton.setAttribute("aria-current", "page");
-            }
-
-            pageButton.addEventListener("click", function onPageButtonClick() {
-                if (typeof onPageChange === "function" && pageNumber !== safeCurrent) {
-                    onPageChange(pageNumber);
-                }
-            });
-
-            pageButtonGroup.appendChild(pageButton);
-        });
-
-        container.appendChild(prevButton);
-        container.appendChild(indicator);
-        container.appendChild(meta);
-        container.appendChild(pageButtonGroup);
-        container.appendChild(nextButton);
-    }
-
-    /**
-     * Render the active page of menu items plus pagination controls.
-     * @param {Object} state - { allItems, page, pageSize }
-     * @param {HTMLElement} container - Items container.
-     * @param {HTMLElement} paginationContainer - Pagination container.
-     * @param {Function} onAfterRender - Optional callback after render.
-     */
-    function renderMenuPage(state, container, paginationContainer, onAfterRender) {
-        const safeState = state && typeof state === "object" ? state : {};
-        const allItems = Array.isArray(safeState.allItems) ? safeState.allItems : [];
-        const pageSize = clampPageSize(safeState.pageSize);
-        const totalPages = getTotalPages(allItems.length, pageSize);
-        const currentPage = clampPageNumber(safeState.page, totalPages);
-
-        // Keep state in sync with clamped value so callers see what's actually rendered.
-        safeState.page = currentPage;
-        safeState.pageSize = pageSize;
-
-        const pageItems = paginateItems(allItems, currentPage, pageSize);
-
-        renderMenuItems(pageItems, container);
-        renderPagination(
-            currentPage,
-            totalPages,
-            paginationContainer,
-            function onPageChange(nextPage) {
-                safeState.page = clampPageNumber(nextPage, totalPages);
-                renderMenuPage(safeState, container, paginationContainer, onAfterRender);
-
-                const scrollTarget = container?.closest(".menu-section") || container;
-
-                if (scrollTarget && typeof scrollTarget.scrollIntoView === "function") {
-                    scrollTarget.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-            },
-            { totalItems: allItems.length, pageSize }
-        );
-
-        if (typeof onAfterRender === "function") {
-            onAfterRender({
-                page: currentPage,
-                totalPages,
-                pageItems,
-                pageSize
-            });
-        }
-    }
-
-    /**
      * Display status message
      * @param {HTMLElement} element - Status element
      * @param {String} message - Message
@@ -868,8 +644,6 @@
         const statusSelector = options.statusSelector || "#browse-menu-status";
         const cartBadgeSelector = options.cartBadgeSelector || "#cart-badge";
         const vendorNameSelector = options.vendorNameSelector || "#vendor-name-heading";
-        const paginationSelector = options.paginationSelector || "#menu-pagination";
-        const pageSize = clampPageSize(options.pageSize);
 
         // Get vendor info from URL
         const urlParams = new URLSearchParams(getLocationSearch(options));
@@ -885,7 +659,6 @@
         const statusElement = globalScope.document.querySelector(statusSelector);
         const cartBadge = globalScope.document.querySelector(cartBadgeSelector);
         const vendorNameElement = globalScope.document.querySelector(vendorNameSelector);
-        const paginationContainer = globalScope.document.querySelector(paginationSelector);
 
         if (!container) {
             console.error(`${MODULE_NAME}: Container not found: ${containerSelector}`);
@@ -902,9 +675,6 @@
 
         // Show loading
         setLoadingState(container, true);
-        if (paginationContainer) {
-            paginationContainer.innerHTML = "";
-        }
         if (statusElement) {
             setStatusMessage(statusElement, "Loading menu...", "loading");
         }
@@ -926,25 +696,15 @@
                 setStatusMessage(statusElement, errorMessage, "error");
             }
             renderMenuItems([], container);
-            if (paginationContainer) {
-                paginationContainer.innerHTML = "";
-            }
             return { success: false, error: errorMessage };
         }
 
-        // Render the first page; pagination controls update state and re-render.
-        const pageState = {
-            allItems: result.menuItems,
-            page: clampPageNumber(options.initialPage, getTotalPages(result.menuItems.length, pageSize)),
-            pageSize
-        };
-
-        renderMenuPage(pageState, container, paginationContainer);
+        // Render menu
+        renderMenuItems(result.menuItems, container);
 
         if (statusElement) {
-            const totalPages = getTotalPages(result.menuItems.length, pageSize);
             const message = result.count > 0
-                ? `${result.count} item${result.count === 1 ? "" : "s"} available${totalPages > 1 ? ` (${totalPages} pages)` : ""}`
+                ? `${result.count} item${result.count === 1 ? "" : "s"} available`
                 : "No items available";
             const state = result.count > 0 ? "success" : "info";
             setStatusMessage(statusElement, message, state);
@@ -966,9 +726,6 @@
             success: true,
             menuItemCount: result.count,
             menuItems: result.menuItems,
-            page: pageState.page,
-            pageSize: pageState.pageSize,
-            totalPages: getTotalPages(result.menuItems.length, pageSize),
             vendorUid,
             vendorName: decodeText(vendorName)
         };
@@ -997,14 +754,6 @@
         updateCartBadge,
         handleAddToCartClick,
         setupEventListeners,
-        // Pagination
-        DEFAULT_PAGE_SIZE,
-        paginateItems,
-        getTotalPages,
-        clampPageNumber,
-        renderPagination,
-        renderMenuPage,
-        getVisiblePageNumbers,
         // Cart functions
         getCart,
         saveCart,

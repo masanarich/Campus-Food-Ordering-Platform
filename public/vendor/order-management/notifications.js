@@ -278,61 +278,6 @@
         }
     }
 
-    async function markNotificationRead(notificationId, options = {}) {
-        const id = normalizeText(notificationId);
-
-        if (!id) {
-            return { success: false, error: "Missing notification id." };
-        }
-
-        const db = options.db || resolveFirestore();
-        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
-
-        if (
-            !db ||
-            typeof firestoreFns.doc !== "function" ||
-            typeof firestoreFns.updateDoc !== "function"
-        ) {
-            return { success: false, error: "Notification update is not available right now." };
-        }
-
-        try {
-            const docRef = firestoreFns.doc(db, "notifications", id);
-            const patch = {
-                read: true,
-                isRead: true
-            };
-
-            if (typeof firestoreFns.serverTimestamp === "function") {
-                patch.updatedAt = firestoreFns.serverTimestamp();
-            }
-
-            await firestoreFns.updateDoc(docRef, patch);
-            return { success: true };
-        } catch (error) {
-            console.error(`${MODULE_NAME}: Failed to mark notification as read:`, error);
-            return {
-                success: false,
-                error: error && error.message ? error.message : "Failed to mark notification as read."
-            };
-        }
-    }
-
-    function applyReadStateToCard(article) {
-        if (!article || typeof article.querySelector !== "function") {
-            return;
-        }
-
-        article.setAttribute("data-read", "true");
-
-        const stateLine = article.querySelector(".vendor-notification-state");
-
-        if (stateLine) {
-            stateLine.textContent = "Read";
-            stateLine.setAttribute("data-tone", "info");
-        }
-    }
-
     function filterVendorNotifications(notifications) {
         const safeNotifications = Array.isArray(notifications) ? notifications : [];
 
@@ -356,16 +301,13 @@
         return url.toString();
     }
 
-    function createNotificationCard(notificationRecord, options = {}) {
+    function createNotificationCard(notificationRecord) {
         const safeNotification = notificationRecord && typeof notificationRecord === "object"
             ? notificationRecord
             : {};
-        const isRead = safeNotification.read === true || safeNotification.isRead === true;
-        const notificationId = normalizeText(safeNotification.notificationId);
         const article = globalScope.document.createElement("article");
         article.className = "vendor-notification-card";
-        article.setAttribute("data-notification-id", notificationId);
-        article.setAttribute("data-read", isRead ? "true" : "false");
+        article.setAttribute("data-notification-id", normalizeText(safeNotification.notificationId));
 
         const heading = globalScope.document.createElement("h4");
         heading.className = "vendor-notification-heading";
@@ -377,105 +319,31 @@
 
         const state = globalScope.document.createElement("p");
         state.className = "vendor-notification-state";
-        state.textContent = isRead ? "Read" : "Unread";
-        state.setAttribute("data-tone", isRead ? "info" : "success");
+        state.textContent = safeNotification.read === true ? "Read" : "Unread";
+        state.setAttribute("data-tone", safeNotification.read === true ? "info" : "success");
 
         article.appendChild(heading);
         article.appendChild(message);
         article.appendChild(state);
 
-        function persistReadState() {
-            if (article.getAttribute("data-read") === "true") {
-                return Promise.resolve();
-            }
-
-            applyReadStateToCard(article);
-
-            return markNotificationRead(notificationId, options)
-                .catch(function onError(error) {
-                    console.warn(`${MODULE_NAME}: mark-as-read failed.`, error);
-                });
-        }
-
-        function navigateAfterRead(href) {
-            try {
-                if (typeof globalScope.location.assign === "function") {
-                    globalScope.location.assign(href);
-                    return;
-                }
-            } catch (assignError) {
-                // Some test environments throw on navigation; fall through.
-            }
-
-            try {
-                globalScope.location.href = href;
-            } catch (hrefError) {
-                // Test environment without real navigation — nothing to do.
-            }
-        }
-
-        const actions = globalScope.document.createElement("menu");
-        actions.className = "action-menu vendor-notification-actions";
-        actions.setAttribute("aria-label", `${heading.textContent} actions`);
-
         if (normalizeText(safeNotification.orderId)) {
+            const actions = globalScope.document.createElement("menu");
+            actions.className = "action-menu vendor-notification-actions";
+            actions.setAttribute("aria-label", `${heading.textContent} actions`);
+
             const item = globalScope.document.createElement("li");
             const link = globalScope.document.createElement("a");
             link.href = buildOrderDetailUrl(safeNotification.orderId);
             link.textContent = "Open Order";
-            link.addEventListener("click", async function onOpenOrder(event) {
-                if (article.getAttribute("data-read") === "true") {
-                    return;
-                }
-
-                // Modifier-clicks open in a new tab — the current page stays
-                // open, so a fire-and-forget update is safe.
-                const opensInNewTab = event && (
-                    event.ctrlKey === true ||
-                    event.metaKey === true ||
-                    event.shiftKey === true ||
-                    event.button === 1
-                );
-
-                if (opensInNewTab) {
-                    persistReadState();
-                    return;
-                }
-
-                // Same-tab navigation — we MUST wait for the write to commit
-                // before letting the page unload, otherwise the request is
-                // cancelled mid-flight and the notification stays unread.
-                event.preventDefault();
-                await persistReadState();
-                navigateAfterRead(link.href);
-            });
             item.appendChild(link);
             actions.appendChild(item);
-        }
-
-        if (!isRead) {
-            const markItem = globalScope.document.createElement("li");
-            const markButton = globalScope.document.createElement("button");
-            markButton.type = "button";
-            markButton.className = "button-secondary";
-            markButton.textContent = "Mark as read";
-            markButton.dataset.actionType = "mark_read";
-            markButton.addEventListener("click", function onMarkRead() {
-                persistReadState();
-                markButton.remove();
-            });
-            markItem.appendChild(markButton);
-            actions.appendChild(markItem);
-        }
-
-        if (actions.children.length > 0) {
             article.appendChild(actions);
         }
 
         return article;
     }
 
-    function renderNotifications(notifications, container, options = {}) {
+    function renderNotifications(notifications, container) {
         if (!container) {
             return;
         }
@@ -492,7 +360,7 @@
         }
 
         safeNotifications.forEach(function appendNotification(notification) {
-            container.appendChild(createNotificationCard(notification, options));
+            container.appendChild(createNotificationCard(notification));
         });
     }
 
@@ -574,10 +442,7 @@
             }
 
             const vendorNotifications = filterVendorNotifications(result.notifications);
-            renderNotifications(vendorNotifications, container, {
-                db,
-                firestoreFns
-            });
+            renderNotifications(vendorNotifications, container);
 
             if (vendorNotifications.length === 0) {
                 setStatusMessage(statusElement, "There are no vendor notifications to review right now.", "info");
@@ -618,8 +483,6 @@
         fetchVendorProfile,
         fetchNotifications,
         filterVendorNotifications,
-        markNotificationRead,
-        applyReadStateToCard,
         setStatusMessage,
         buildOrderDetailUrl,
         createNotificationCard,

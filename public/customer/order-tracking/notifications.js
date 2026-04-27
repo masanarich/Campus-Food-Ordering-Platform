@@ -112,7 +112,6 @@
 
     function mapNotificationRecord(notificationRecord) {
         const safeRecord = notificationRecord && typeof notificationRecord === "object" ? notificationRecord : {};
-        const isRead = safeRecord.read === true || safeRecord.isRead === true;
 
         return {
             notificationId: normalizeText(safeRecord.notificationId || safeRecord.id),
@@ -121,64 +120,9 @@
             type: normalizeText(safeRecord.type),
             title: normalizeText(safeRecord.title) || "Order Update",
             message: normalizeText(safeRecord.message) || "There is a new update for your order.",
-            read: isRead,
+            read: safeRecord.read === true,
             createdAt: safeRecord.createdAt || null
         };
-    }
-
-    async function markNotificationRead(notificationId, options = {}) {
-        const id = normalizeText(notificationId);
-
-        if (!id) {
-            return { success: false, error: "Missing notification id." };
-        }
-
-        const db = options.db || resolveFirestore();
-        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
-
-        if (
-            !db ||
-            typeof firestoreFns.doc !== "function" ||
-            typeof firestoreFns.updateDoc !== "function"
-        ) {
-            return { success: false, error: "Notification update is not available right now." };
-        }
-
-        try {
-            const docRef = firestoreFns.doc(db, "notifications", id);
-            const patch = {
-                read: true,
-                isRead: true
-            };
-
-            if (typeof firestoreFns.serverTimestamp === "function") {
-                patch.updatedAt = firestoreFns.serverTimestamp();
-            }
-
-            await firestoreFns.updateDoc(docRef, patch);
-            return { success: true };
-        } catch (error) {
-            console.error(`${MODULE_NAME}: Failed to mark notification as read:`, error);
-            return {
-                success: false,
-                error: error && error.message ? error.message : "Failed to mark notification as read."
-            };
-        }
-    }
-
-    function applyReadStateToCard(article) {
-        if (!article || typeof article.querySelector !== "function") {
-            return;
-        }
-
-        article.setAttribute("data-read", "true");
-
-        const stateLine = article.querySelector(".tracking-notification-state");
-
-        if (stateLine) {
-            stateLine.textContent = "Read";
-            stateLine.setAttribute("data-tone", "info");
-        }
     }
 
     async function fetchNotifications(options = {}) {
@@ -288,12 +232,11 @@
         return url.toString();
     }
 
-    function createNotificationArticle(notificationRecord, options = {}) {
+    function createNotificationArticle(notificationRecord) {
         const notification = mapNotificationRecord(notificationRecord);
         const article = globalScope.document.createElement("article");
         article.className = "tracking-notification-card";
         article.setAttribute("data-notification-id", notification.notificationId);
-        article.setAttribute("data-read", notification.read ? "true" : "false");
 
         const heading = globalScope.document.createElement("h3");
         heading.className = "tracking-notification-heading";
@@ -312,99 +255,26 @@
         article.appendChild(message);
         article.appendChild(stateLine);
 
-        const actions = globalScope.document.createElement("menu");
-        actions.className = "action-menu tracking-notification-actions";
-        actions.setAttribute("aria-label", `${notification.title} actions`);
-
-        function persistReadState() {
-            if (article.getAttribute("data-read") === "true") {
-                return Promise.resolve();
-            }
-
-            applyReadStateToCard(article);
-
-            return markNotificationRead(notification.notificationId, options)
-                .catch(function onError(error) {
-                    console.warn(`${MODULE_NAME}: mark-as-read failed.`, error);
-                });
-        }
-
-        function navigateAfterRead(href) {
-            try {
-                if (typeof globalScope.location.assign === "function") {
-                    globalScope.location.assign(href);
-                    return;
-                }
-            } catch (assignError) {
-                // Some test environments throw on navigation; fall through.
-            }
-
-            try {
-                globalScope.location.href = href;
-            } catch (hrefError) {
-                // Test environment without real navigation — nothing to do.
-            }
-        }
-
         if (notification.orderId) {
+            const actions = globalScope.document.createElement("menu");
+            actions.className = "action-menu tracking-notification-actions";
+            actions.setAttribute("aria-label", `${notification.title} actions`);
+
             const detailItem = globalScope.document.createElement("li");
             const detailLink = globalScope.document.createElement("a");
             detailLink.href = buildOrderDetailUrl(notification.orderId);
             detailLink.className = "button-primary";
             detailLink.textContent = "Open Order";
-            detailLink.addEventListener("click", async function onOpenOrder(event) {
-                if (article.getAttribute("data-read") === "true") {
-                    return;
-                }
-
-                // Modifier-clicks open in a new tab — the current page stays
-                // open, so a fire-and-forget update is safe.
-                const opensInNewTab = event && (
-                    event.ctrlKey === true ||
-                    event.metaKey === true ||
-                    event.shiftKey === true ||
-                    event.button === 1
-                );
-
-                if (opensInNewTab) {
-                    persistReadState();
-                    return;
-                }
-
-                // Same-tab navigation — we MUST wait for the write to commit
-                // before letting the page unload, otherwise the request is
-                // cancelled mid-flight and the notification stays unread.
-                event.preventDefault();
-                await persistReadState();
-                navigateAfterRead(detailLink.href);
-            });
             detailItem.appendChild(detailLink);
             actions.appendChild(detailItem);
-        }
 
-        if (!notification.read) {
-            const markItem = globalScope.document.createElement("li");
-            const markButton = globalScope.document.createElement("button");
-            markButton.type = "button";
-            markButton.className = "button-secondary";
-            markButton.textContent = "Mark as read";
-            markButton.dataset.actionType = "mark_read";
-            markButton.addEventListener("click", function onMarkRead() {
-                persistReadState();
-                markButton.remove();
-            });
-            markItem.appendChild(markButton);
-            actions.appendChild(markItem);
-        }
-
-        if (actions.children.length > 0) {
             article.appendChild(actions);
         }
 
         return article;
     }
 
-    function renderNotifications(notifications, container, options = {}) {
+    function renderNotifications(notifications, container) {
         if (!container) {
             return;
         }
@@ -421,7 +291,7 @@
         }
 
         safeNotifications.forEach(function appendNotification(notification) {
-            container.appendChild(createNotificationArticle(notification, options));
+            container.appendChild(createNotificationArticle(notification));
         });
     }
 
@@ -485,10 +355,7 @@
                 };
             }
 
-            renderNotifications(result.notifications, container, {
-                db,
-                firestoreFns
-            });
+            renderNotifications(result.notifications, container);
 
             if (result.notifications.length === 0) {
                 setStatusMessage(statusElement, "You do not have any notifications yet.", "info");
@@ -525,8 +392,6 @@
         waitForAuthReady,
         mapNotificationRecord,
         fetchNotifications,
-        markNotificationRead,
-        applyReadStateToCard,
         setStatusMessage,
         buildOrderDetailUrl,
         createNotificationArticle,
