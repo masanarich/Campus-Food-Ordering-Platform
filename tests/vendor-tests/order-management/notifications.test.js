@@ -175,6 +175,179 @@ describe("vendor/order-management/notifications.js - rendering", () => {
         expect(card.querySelector("a")).toBeNull();
         expect(vendorOrderNotificationsPage.renderNotifications([], null)).toBeUndefined();
     });
+
+    test("renderNotifications shows a Mark as read button only for unread items", () => {
+        vendorOrderNotificationsPage.renderNotifications([
+            createNotification({ notificationId: "note-1", read: false }),
+            createNotification({ notificationId: "note-2", read: true })
+        ], dom.container);
+
+        const cards = dom.container.querySelectorAll(".vendor-notification-card");
+        expect(cards[0].querySelector('button[data-action-type="mark_read"]')).not.toBeNull();
+        expect(cards[1].querySelector('button[data-action-type="mark_read"]')).toBeNull();
+    });
+
+    test("clicking Mark as read updates the card and calls updateDoc", async () => {
+        const updateDoc = jest.fn(async () => undefined);
+        const firestoreFns = {
+            doc: jest.fn(() => ({ kind: "doc-ref" })),
+            updateDoc,
+            serverTimestamp: jest.fn(() => "ts")
+        };
+
+        vendorOrderNotificationsPage.renderNotifications(
+            [createNotification({ notificationId: "note-1", read: false })],
+            dom.container,
+            { db: { kind: "db" }, firestoreFns }
+        );
+
+        const button = dom.container.querySelector('button[data-action-type="mark_read"]');
+        button.click();
+
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(firestoreFns.doc).toHaveBeenCalledWith({ kind: "db" }, "notifications", "note-1");
+        expect(updateDoc).toHaveBeenCalledWith(
+            { kind: "doc-ref" },
+            expect.objectContaining({ read: true, isRead: true })
+        );
+        const card = dom.container.querySelector(".vendor-notification-card");
+        expect(card.getAttribute("data-read")).toBe("true");
+        expect(card.querySelector(".vendor-notification-state").textContent).toBe("Read");
+    });
+
+    test("clicking Open Order also marks the notification as read", async () => {
+        const updateDoc = jest.fn(async () => undefined);
+        const firestoreFns = {
+            doc: jest.fn(() => ({ kind: "doc-ref" })),
+            updateDoc
+        };
+
+        vendorOrderNotificationsPage.renderNotifications(
+            [createNotification({ notificationId: "note-9", read: false, orderId: "order-9" })],
+            dom.container,
+            { db: { kind: "db" }, firestoreFns }
+        );
+
+        const link = dom.container.querySelector('a[href*="orderId=order-9"]');
+        link.addEventListener("click", function preventNav(event) { event.preventDefault(); });
+        link.click();
+
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+        const card = dom.container.querySelector(".vendor-notification-card");
+        expect(card.getAttribute("data-read")).toBe("true");
+    });
+
+    test("Open Order calls preventDefault so navigation can wait for the write", async () => {
+        const updateDoc = jest.fn(async () => undefined);
+
+        vendorOrderNotificationsPage.renderNotifications(
+            [createNotification({ notificationId: "note-wait", read: false, orderId: "order-wait" })],
+            dom.container,
+            {
+                db: { kind: "db" },
+                firestoreFns: {
+                    doc: jest.fn(() => ({ kind: "doc-ref" })),
+                    updateDoc
+                }
+            }
+        );
+
+        const link = dom.container.querySelector('a[href*="orderId=order-wait"]');
+        const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+        link.dispatchEvent(event);
+
+        // Without preventDefault, the browser would unload the page before
+        // the async updateDoc could finish.
+        expect(event.defaultPrevented).toBe(true);
+
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+    });
+
+    test("Ctrl/meta-click does not preventDefault so the new tab opens normally", () => {
+        const updateDoc = jest.fn(async () => undefined);
+
+        vendorOrderNotificationsPage.renderNotifications(
+            [createNotification({ notificationId: "note-tab", read: false, orderId: "order-tab" })],
+            dom.container,
+            {
+                db: { kind: "db" },
+                firestoreFns: {
+                    doc: jest.fn(() => ({ kind: "doc-ref" })),
+                    updateDoc
+                }
+            }
+        );
+
+        const link = dom.container.querySelector('a[href*="orderId=order-tab"]');
+        const event = new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true });
+        link.dispatchEvent(event);
+
+        // Browser handles the new-tab navigation itself — current page stays open.
+        expect(event.defaultPrevented).toBe(false);
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("vendor/order-management/notifications.js - markNotificationRead", () => {
+    test("calls updateDoc with read flags and a server timestamp when available", async () => {
+        const updateDoc = jest.fn(async () => undefined);
+        const firestoreFns = {
+            doc: jest.fn(() => ({ kind: "doc-ref" })),
+            updateDoc,
+            serverTimestamp: jest.fn(() => "server-ts")
+        };
+
+        const result = await vendorOrderNotificationsPage.markNotificationRead("note-42", {
+            db: { kind: "db" },
+            firestoreFns
+        });
+
+        expect(result.success).toBe(true);
+        expect(firestoreFns.doc).toHaveBeenCalledWith({ kind: "db" }, "notifications", "note-42");
+        expect(updateDoc).toHaveBeenCalledWith(
+            { kind: "doc-ref" },
+            { read: true, isRead: true, updatedAt: "server-ts" }
+        );
+    });
+
+    test("returns an error when updateDoc helpers are missing", async () => {
+        const result = await vendorOrderNotificationsPage.markNotificationRead("note-1", {
+            db: { kind: "db" },
+            firestoreFns: {}
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toMatch(/not available/i);
+    });
+
+    test("rejects an empty notification id", async () => {
+        const result = await vendorOrderNotificationsPage.markNotificationRead("", {});
+        expect(result.success).toBe(false);
+    });
+
+    test("propagates updateDoc errors as a failed result", async () => {
+        const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+        const firestoreFns = {
+            doc: jest.fn(() => ({ kind: "doc-ref" })),
+            updateDoc: jest.fn(async () => { throw new Error("permission denied"); })
+        };
+
+        const result = await vendorOrderNotificationsPage.markNotificationRead("note-1", {
+            db: { kind: "db" },
+            firestoreFns
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("permission denied");
+        errorSpy.mockRestore();
+    });
 });
 
 describe("vendor/order-management/notifications.js - data loading and init", () => {
