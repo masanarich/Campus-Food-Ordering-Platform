@@ -157,12 +157,51 @@
                             <strong>Dietary tags</strong>
                             <input id="product-dietary-tags" name="dietaryTags" type="text" maxlength="180" placeholder="e.g. halal, vegan, vegetarian">
                         </label>
+                        <section class="field-block field-block-wide">
+                            <strong>Dietary options</strong>
+
+                            <label>
+                                <input type="checkbox" id="dietary-halal">
+                                Halal
+                            </label>
+
+                            <label>
+                                <input type="checkbox" id="dietary-vegan">
+                                Vegan
+                            </label>
+
+                            <label>
+                                <input type="checkbox" id="dietary-vegetarian">
+                                Vegetarian
+                            </label>
+
+                            <label>
+                                <input type="checkbox" id="dietary-glutenfree">
+                                Gluten-Free
+                            </label>
+                        </section>
                         <p id="product-dietary-tags-error" class="form-error" aria-live="polite"></p>
 
                         <label class="field-block field-block-wide" for="product-allergen-tags">
                             <strong>Allergen tags</strong>
                             <input id="product-allergen-tags" name="allergenTags" type="text" maxlength="180" placeholder="e.g. gluten, dairy, nuts">
                         </label>
+
+                        <section class="field-block field-block-wide">
+                            <strong>Allergen information (FSANZ standard)</strong>
+
+                            <label for="allergen-contains">
+                                Contains (comma separated)
+                            </label>
+                            <input id="allergen-contains" type="text"
+                                placeholder="e.g. milk, peanuts, gluten">
+
+                            <label for="allergen-maycontain">
+                                May contain (cross-contamination)
+                            </label>
+                            <input id="allergen-maycontain" type="text"
+                                placeholder="e.g. soy, eggs">
+                        </section>
                         <p id="product-allergen-tags-error" class="form-error" aria-live="polite"></p>
                     </section>
 

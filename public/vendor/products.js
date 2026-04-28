@@ -79,10 +79,24 @@
             photoPath: normalizeText(safeRecord.photoPath),
             availability: normalizeAvailability(safeRecord.availability),
             soldOut: safeRecord.soldOut === true,
-            dietaryTags: normalizeTagList(safeRecord.dietaryTags),
-            allergenTags: normalizeTagList(safeRecord.allergenTags),
-            createdAt: safeRecord.createdAt || null,
-            updatedAt: safeRecord.updatedAt || null
+            /*dietaryTags: normalizeTagList(safeRecord.dietaryTags),*/
+            /*allergenTags: normalizeTagList(safeRecord.allergenTags),*/
+            dietary: {
+                halal: safeRecord.dietary?.halal === true || normalizeTagList(safeRecord.dietaryTags).includes("halal"),
+                vegan: safeRecord.dietary?.vegan === true || normalizeTagList(safeRecord.dietaryTags).includes("vegan"),
+                vegetarian: safeRecord.dietary?.vegetarian === true || normalizeTagList(safeRecord.dietaryTags).includes("vegetarian"),
+                glutenFree: safeRecord.dietary?.glutenFree === true || normalizeTagList(safeRecord.dietaryTags).includes("gluten-free")
+            },
+
+            allergens: {
+                contains: safeRecord.allergens?.contains?.length
+                    ? safeRecord.allergens.contains
+                    : normalizeTagList(safeRecord.allergenTags),
+
+                mayContain: safeRecord.allergens?.mayContain || []
+            },
+
+            allergenSource: safeRecord.allergenSource || "FSANZ 1.2.3"
         };
     }
 
@@ -231,8 +245,22 @@
             photoPath: normalizeText(safeValues.photoPath),
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true,
-            dietaryTags: normalizeTagList(safeValues.dietaryTags),
-            allergenTags: normalizeTagList(safeValues.allergenTags)
+            /*dietaryTags: normalizeTagList(safeValues.dietaryTags),
+            allergenTags: normalizeTagList(safeValues.allergenTags)*/
+            dietary: {
+                halal: safeValues.halal === true,
+                vegan: safeValues.vegan === true,
+                vegetarian: safeValues.vegetarian === true,
+                glutenFree: safeValues.glutenFree === true
+            },
+
+            allergens: {
+                contains: normalizeTagList(safeValues.allergenContains),
+                mayContain: normalizeTagList(safeValues.allergenMayContain)
+            },
+
+            allergenSource: "FSANZ 1.2.3",
+            lastUpdated: new Date().toISOString()
         });
     }
 
@@ -436,8 +464,8 @@
                     product.name,
                     product.category,
                     product.description,
-                    formatTagList(product.dietaryTags),
-                    formatTagList(product.allergenTags),
+                    formatTagList(product.dietary),
+                    formatTagList(product.allergen),
                     normalizeAvailability(product.availability),
                     product.soldOut ? "sold out" : "available"
                 ]
@@ -593,8 +621,15 @@
                 price: elements.priceInput ? elements.priceInput.value : "",
                 photoURL: state.selectedPhotoDataUrl,
                 availability: elements.availabilityInput ? elements.availabilityInput.value : "available",
-                dietaryTags: elements.dietaryTagsInput ? elements.dietaryTagsInput.value : "",
-                allergenTags: elements.allergenTagsInput ? elements.allergenTagsInput.value : "",
+                /*dietaryTags: elements.dietaryTagsInput ? elements.dietaryTagsInput.value : "",
+                allergenTags: elements.allergenTagsInput ? elements.allergenTagsInput.value : "",*/
+                halal: getElement("dietary-halal")?.checked === true,
+                vegan: getElement("dietary-vegan")?.checked === true,
+                vegetarian: getElement("dietary-vegetarian")?.checked === true,
+                glutenFree: getElement("dietary-glutenfree")?.checked === true,
+/*Apparently i must not remave the tags yet*/
+                allergenContains: getElement("allergen-contains")?.value || "",
+                allergenMayContain: getElement("allergen-maycontain")?.value || "",
                 soldOut: elements.soldOutInput ? elements.soldOutInput.checked === true : false
             };
         }
@@ -664,7 +699,7 @@
                 elements.availabilityInput.value = normalizeAvailability(safeProduct.availability);
             }
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.value =
                     formatTagList(safeProduct.dietaryTags) === "-" ? "" : formatTagList(safeProduct.dietaryTags);
             }
@@ -672,10 +707,40 @@
             if (elements.allergenTagsInput) {
                 elements.allergenTagsInput.value =
                     formatTagList(safeProduct.allergenTags) === "-" ? "" : formatTagList(safeProduct.allergenTags);
-            }
+            }*/
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = safeProduct.soldOut === true;
+            }
+
+            if (elements.dietaryHalal) {
+                elements.dietaryHalal.checked = safeProduct.dietary?.halal === true;
+            }
+
+            if (elements.dietaryVegan) {
+                elements.dietaryVegan.checked = safeProduct.dietary?.vegan === true;
+            }
+
+            if (elements.dietaryVegetarian) {
+                elements.dietaryVegetarian.checked = safeProduct.dietary?.vegetarian === true;
+            }
+
+            if (elements.dietaryGlutenFree) {
+                elements.dietaryGlutenFree.checked = safeProduct.dietary?.glutenFree === true;
+            }
+
+            if (elements.allergenContains) {
+                elements.allergenContains.value =
+                    formatTagList(safeProduct.allergens?.contains) === "-"
+                        ? ""
+                        : formatTagList(safeProduct.allergens?.contains);
+            }
+
+            if (elements.allergenMayContain) {
+                elements.allergenMayContain.value =
+                    formatTagList(safeProduct.allergens?.mayContain) === "-"
+                        ? ""
+                        : formatTagList(safeProduct.allergens?.mayContain);
             }
 
             clearFileInput(elements.photoFileInput);
@@ -818,8 +883,30 @@
 
             const tags = document.createElement("p");
             tags.className = "product-card-tags";
+            /*tags.textContent =
+                `Dietary: ${formatTagList(product.dietaryTags)} | Allergens: ${formatTagList(product.allergenTags)}`;*/
+            
+            const dietaryBadges = [];
+            if (product.dietary?.halal) dietaryBadges.push("Halal");
+            if (product.dietary?.vegan) dietaryBadges.push("Vegan");
+            if (product.dietary?.vegetarian) dietaryBadges.push("Vegetarian");
+            if (product.dietary?.glutenFree) dietaryBadges.push("Gluten-Free");
+
             tags.textContent =
-                `Dietary: ${formatTagList(product.dietaryTags)} | Allergens: ${formatTagList(product.allergenTags)}`;
+            `Dietary: ${dietaryBadges.length ? dietaryBadges.join(", ") : "-"} 
+            | Contains: ${formatTagList(product.allergens?.contains)} 
+            | May Contain: ${formatTagList(product.allergens?.mayContain)}`;
+
+            if (
+                !product.allergens?.contains ||
+                product.allergens.contains.length === 0
+            ) {
+                const warning = document.createElement("p");
+                warning.className = "product-warning";
+                warning.textContent =
+                    "⚠️ Allergen information not provided — contact vendor before ordering";
+                content.appendChild(warning);
+            }
 
             const actions = document.createElement("menu");
             actions.className = "action-menu product-card-actions";
@@ -850,6 +937,11 @@
             content.appendChild(badges);
             content.appendChild(tags);
             content.appendChild(actions);
+            const source = document.createElement("p");
+            source.className = "product-source";
+            source.textContent = "Allergen info standardised using FSANZ Standard 1.2.3";
+
+            content.appendChild(source);
 
             article.appendChild(content);
             item.appendChild(article);
@@ -1018,8 +1110,12 @@
                 photoPath: product.photoPath,
                 availability: product.availability,
                 soldOut: product.soldOut,
-                dietaryTags: product.dietaryTags,
-                allergenTags: product.allergenTags,
+                /*dietaryTags: product.dietaryTags,
+                allergenTags: product.allergenTags,*/
+                dietary: product.dietary,
+                allergens: product.allergens,
+                allergenSource: product.allergenSource,
+                lastUpdated: product.lastUpdated,
                 updatedAt: serverTimestampValue,
                 createdAt: serverTimestampValue
             };
