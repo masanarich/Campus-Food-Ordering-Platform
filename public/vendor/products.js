@@ -79,8 +79,8 @@
             photoPath: normalizeText(safeRecord.photoPath),
             availability: normalizeAvailability(safeRecord.availability),
             soldOut: safeRecord.soldOut === true,
-            /*dietaryTags: normalizeTagList(safeRecord.dietaryTags),*/
-            /*allergenTags: normalizeTagList(safeRecord.allergenTags),*/
+            dietaryTags: normalizeTagList(safeRecord.dietaryTags),
+            allergenTags: normalizeTagList(safeRecord.allergenTags),
             dietary: {
                 halal: safeRecord.dietary?.halal === true || normalizeTagList(safeRecord.dietaryTags).includes("halal"),
                 vegan: safeRecord.dietary?.vegan === true || normalizeTagList(safeRecord.dietaryTags).includes("vegan"),
@@ -245,8 +245,8 @@
             photoPath: normalizeText(safeValues.photoPath),
             availability: normalizeAvailability(safeValues.availability),
             soldOut: safeValues.soldOut === true,
-            /*dietaryTags: normalizeTagList(safeValues.dietaryTags),
-            allergenTags: normalizeTagList(safeValues.allergenTags)*/
+            dietaryTags: normalizeTagList(safeValues.dietaryTags),
+            allergenTags: normalizeTagList(safeValues.allergenTags),
             dietary: {
                 halal: safeValues.halal === true,
                 vegan: safeValues.vegan === true,
@@ -460,12 +460,24 @@
             }
 
             return state.products.filter(function filterProduct(product) {
-                return [
+                /*return [
                     product.name,
                     product.category,
                     product.description,
                     formatTagList(product.dietary),
                     formatTagList(product.allergen),
+                    normalizeAvailability(product.availability),
+                    product.soldOut ? "sold out" : "available"
+                ]*/
+               return [
+                    product.name,
+                    product.category,
+                    product.description,
+
+                    // NEW ADDITIONS
+                    JSON.stringify(product.dietary || {}),
+                    JSON.stringify(product.allergens || {}),
+
                     normalizeAvailability(product.availability),
                     product.soldOut ? "sold out" : "available"
                 ]
@@ -576,12 +588,32 @@
                 soldOutOutput.textContent = safeProduct.soldOut === true ? "Yes" : "No";
             }
 
-            if (dietaryTagsOutput) {
+            /*if (dietaryTagsOutput) {
                 dietaryTagsOutput.textContent = formatTagList(safeProduct.dietaryTags);
             }
 
             if (allergenTagsOutput) {
                 allergenTagsOutput.textContent = formatTagList(safeProduct.allergenTags);
+            }*/
+
+            if (dietaryTagsOutput) {
+                const dietary = safeProduct.dietary || {};
+                const activeDietary = Object.entries(dietary)
+                    .filter(([_, value]) => value === true)
+                    .map(([key]) => key);
+
+                dietaryTagsOutput.textContent = activeDietary.length
+                    ? activeDietary.join(", ")
+                    : "-";
+            }
+
+            if (allergenTagsOutput) {
+                const contains = safeProduct.allergens?.contains || [];
+                const mayContain = safeProduct.allergens?.mayContain || [];
+
+                allergenTagsOutput.textContent =
+                    `Contains: ${contains.length ? contains.join(", ") : "-"} | ` +
+                    `May contain: ${mayContain.length ? mayContain.join(", ") : "-"}`;
             }
 
             updatePreviewVisibility(getDisplayPhotoUrl(safeProduct));
@@ -621,8 +653,8 @@
                 price: elements.priceInput ? elements.priceInput.value : "",
                 photoURL: state.selectedPhotoDataUrl,
                 availability: elements.availabilityInput ? elements.availabilityInput.value : "available",
-                /*dietaryTags: elements.dietaryTagsInput ? elements.dietaryTagsInput.value : "",
-                allergenTags: elements.allergenTagsInput ? elements.allergenTagsInput.value : "",*/
+                dietaryTags: elements.dietaryTagsInput ? elements.dietaryTagsInput.value : "",
+                allergenTags: elements.allergenTagsInput ? elements.allergenTagsInput.value : "",
                 halal: getElement("dietary-halal")?.checked === true,
                 vegan: getElement("dietary-vegan")?.checked === true,
                 vegetarian: getElement("dietary-vegetarian")?.checked === true,
@@ -699,7 +731,7 @@
                 elements.availabilityInput.value = normalizeAvailability(safeProduct.availability);
             }
 
-            /*if (elements.dietaryTagsInput) {
+            if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.value =
                     formatTagList(safeProduct.dietaryTags) === "-" ? "" : formatTagList(safeProduct.dietaryTags);
             }
@@ -707,7 +739,7 @@
             if (elements.allergenTagsInput) {
                 elements.allergenTagsInput.value =
                     formatTagList(safeProduct.allergenTags) === "-" ? "" : formatTagList(safeProduct.allergenTags);
-            }*/
+            }
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = safeProduct.soldOut === true;
@@ -1110,14 +1142,18 @@
                 photoPath: product.photoPath,
                 availability: product.availability,
                 soldOut: product.soldOut,
-                /*dietaryTags: product.dietaryTags,
-                allergenTags: product.allergenTags,*/
+                dietaryTags: product.dietaryTags,
+                allergenTags: product.allergenTags,
                 dietary: product.dietary,
                 allergens: product.allergens,
                 allergenSource: product.allergenSource,
                 lastUpdated: product.lastUpdated,
                 updatedAt: serverTimestampValue,
-                createdAt: serverTimestampValue
+                createdAt: serverTimestampValue,
+                dietary: product.dietary,
+                allergens: product.allergens,
+                allergenSource: product.allergenSource,
+                lastUpdated: product.lastUpdated
             };
         }
 
@@ -1205,7 +1241,7 @@
                 showValidationErrors(validation.errors);
 
                 const firstError = Object.values(validation.errors)[0];
-                setStatus(firstError, "error");
+                setStatus(firstError,     "error");
                 setNote("Please correct the highlighted fields and try again.");
 
                 return {
