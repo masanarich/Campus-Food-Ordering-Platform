@@ -152,18 +152,36 @@
                             </select>
                         </label>
                         <p id="product-availability-error" class="form-error" aria-live="polite"></p>
+                           <!-- Allergen & Dietary Tags Section -->
+<section class="tags-section field-block field-block-wide">
+    <h3>Allergen & Dietary Tags</h3>
+    <p>Select all that apply to this menu item:</p>
 
-                        <label class="field-block field-block-wide" for="product-dietary-tags">
-                            <strong>Dietary tags</strong>
-                            <input id="product-dietary-tags" name="dietaryTags" type="text" maxlength="180" placeholder="e.g. halal, vegan, vegetarian">
-                        </label>
-                        <p id="product-dietary-tags-error" class="form-error" aria-live="polite"></p>
+    <!-- ALLERGEN TAGS -->
+    <fieldset>
+        <legend>Allergens</legend>
+        <ul id="allergen-tags-container">
+            <!-- Checkboxes injected by products.js -->
+        </ul>
+    </fieldset>
+    <p id="product-allergenTags-error" class="form-error" aria-live="polite"></p>
 
-                        <label class="field-block field-block-wide" for="product-allergen-tags">
-                            <strong>Allergen tags</strong>
-                            <input id="product-allergen-tags" name="allergenTags" type="text" maxlength="180" placeholder="e.g. gluten, dairy, nuts">
-                        </label>
-                        <p id="product-allergen-tags-error" class="form-error" aria-live="polite"></p>
+    <!-- DIETARY TAGS -->
+    <fieldset>
+        <legend>Dietary Labels</legend>
+        <ul id="dietary-tags-container">
+            <!-- Checkboxes injected by products.js -->
+        </ul>
+    </fieldset>
+    <p id="product-dietaryTags-error" class="form-error" aria-live="polite"></p>
+
+    <!-- Error message -->
+    <small id="tag-error" style="color: red; display: none;">
+        ⚠️ Please select at least one tag.
+    </small>
+
+</section>
+                        
                     </section>
 
                     <section class="photo-editor" aria-label="Product image tools">
