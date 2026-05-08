@@ -328,6 +328,8 @@
         }
     }
 
+
+
     function getSelectedAllergenTags() {
         const checkboxes = document.querySelectorAll('input[name="allergenTag"]:checked');
         return Array.from(checkboxes).map(function(cb) {
@@ -339,6 +341,21 @@
         const checkboxes = document.querySelectorAll('input[name="dietaryTag"]:checked');
         return Array.from(checkboxes).map(function(cb) {
             return cb.value;
+        });
+    }
+
+    function setCheckedTags(type, selectedTags) {
+        const safeTags = Array.isArray(selectedTags) ? selectedTags : [];
+
+        const selector =
+            type === "dietary"
+                ? 'input[name="dietaryTag"]'
+                : 'input[name="allergenTag"]';
+
+        const checkboxes = document.querySelectorAll(selector);
+
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = safeTags.includes(checkbox.value.toLowerCase());
         });
     }
 
