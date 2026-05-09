@@ -1371,7 +1371,7 @@
                 });
             });
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.addEventListener("input", function handleDietary() {
                     updateSummary(toProduct({
                         ...collectFormValues(),
@@ -1387,7 +1387,7 @@
                         vendorUid: state.currentUser ? state.currentUser.uid : ""
                     }));
                 });
-            }
+            }*/
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.addEventListener("change", function handleSoldOut() {
