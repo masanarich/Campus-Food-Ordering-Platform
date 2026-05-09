@@ -1,10 +1,91 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function isActiveAccount() {
+      return signedIn() &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        currentUserDoc().data.isAdmin == true &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function canManageOwnProfile(userId) {
+      return signedIn() &&
+        request.auth.uid == userId &&
+        isActiveAccount();
+    }
+
+    function canManageOwnMenu(vendorUid) {
+      return signedIn() &&
+        request.auth.uid == vendorUid &&
+        isActiveAccount() &&
+        (
+          currentUserDoc().data.vendorStatus == "approved" ||
+          currentUserDoc().data.isAdmin == true
+        );
+    }
+
+    // 5 MB upload cap for any image we accept.
+    function isAcceptableImageUpload() {
+      return request.resource != null &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType is string &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // ----------------------------------------------------------------
+    // Profile photos: users/{uid}/avatar.*
+    // ----------------------------------------------------------------
+
+    match /profilePhotos/{userId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update: if (
+        canManageOwnProfile(userId) ||
+        isAdmin()
+      ) && isAcceptableImageUpload();
+
+      allow delete: if canManageOwnProfile(userId) || isAdmin();
+    }
+
+    // ----------------------------------------------------------------
+    // Menu item photos: vendor uploads under /menuItemPhotos/{vendorUid}/{productId}/...
+    // ----------------------------------------------------------------
+
+    match /menuItemPhotos/{vendorUid}/{productId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update: if (
+        canManageOwnMenu(vendorUid) ||
+        isAdmin()
+      ) && isAcceptableImageUpload();
+
+      allow delete: if canManageOwnMenu(vendorUid) || isAdmin();
+    }
+
+    // ----------------------------------------------------------------
+    // Catch-all: deny everything else by default
+    // ----------------------------------------------------------------
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

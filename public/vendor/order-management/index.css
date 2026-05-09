@@ -1,0 +1,351 @@
+@import url("../index.css");
+
+.vendor-shell[data-page="vendor-order-management"],
+.vendor-shell[data-page="vendor-order-detail"],
+.vendor-shell[data-page="vendor-order-notifications"] {
+    background:
+        radial-gradient(circle at top left, rgba(197, 106, 26, 0.14), transparent 30%),
+        radial-gradient(circle at top right, rgba(106, 132, 104, 0.14), transparent 28%),
+        linear-gradient(180deg, #fcf8f3 0%, #f4eee7 46%, #eadfd3 100%);
+}
+
+.vendor-shell[data-page="vendor-order-management"] .vendor-main,
+.vendor-shell[data-page="vendor-order-detail"] .vendor-main,
+.vendor-shell[data-page="vendor-order-notifications"] .vendor-main {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.vendor-orders-hero,
+.vendor-order-detail-hero,
+.vendor-notifications-hero {
+    grid-column: 1 / -1;
+    background:
+        linear-gradient(135deg, rgba(255, 246, 232, 0.96), rgba(255, 251, 245, 0.82)),
+        var(--surface);
+}
+
+.vendor-orders-overview,
+.vendor-notifications-list {
+    grid-column: span 4;
+}
+
+.vendor-orders-list-section {
+    grid-column: span 8;
+}
+
+.vendor-main > .shared-section:nth-of-type(2):not(.vendor-orders-overview):not(.vendor-notifications-list),
+.vendor-main > .shared-section:nth-of-type(3):not(.vendor-orders-list-section) {
+    background: linear-gradient(180deg, var(--surface-soft), rgba(255, 252, 248, 0.92));
+}
+
+.vendor-order-detail-hero + .shared-section,
+.vendor-order-detail-hero + .shared-section + .shared-section,
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section,
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section {
+    grid-column: span 6;
+    background: linear-gradient(180deg, rgba(255, 251, 246, 0.96), rgba(247, 237, 223, 0.9));
+}
+
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section,
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section {
+    grid-column: 1 / -1;
+}
+
+.vendor-orders-hero h2,
+.vendor-order-detail-hero h2,
+.vendor-notifications-hero h2 {
+    max-width: 12ch;
+}
+
+#vendor-order-management-status,
+#vendor-order-detail-status,
+#vendor-order-notifications-status {
+    min-height: 1.5rem;
+    margin: 1rem 0 0;
+    padding: 0.95rem 1.1rem;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    border: 1px solid rgba(135, 111, 204, 0.18);
+    background: var(--info-soft);
+    color: var(--info-text);
+}
+
+#vendor-order-management-status[data-state="success"],
+#vendor-order-detail-status[data-state="success"],
+#vendor-order-notifications-status[data-state="success"] {
+    background: var(--success-soft);
+    color: var(--success-text);
+    border-color: rgba(41, 114, 74, 0.14);
+}
+
+#vendor-order-management-status[data-state="error"],
+#vendor-order-detail-status[data-state="error"],
+#vendor-order-notifications-status[data-state="error"] {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: rgba(139, 47, 36, 0.14);
+}
+
+#vendor-order-management-status[data-state="loading"],
+#vendor-order-management-status[data-state="info"],
+#vendor-order-detail-status[data-state="loading"],
+#vendor-order-detail-status[data-state="info"],
+#vendor-order-notifications-status[data-state="loading"],
+#vendor-order-notifications-status[data-state="info"] {
+    background: var(--info-soft);
+    color: var(--info-text);
+    border-color: rgba(91, 70, 153, 0.14);
+}
+
+#vendor-order-management-summary > ol,
+#vendor-order-summary > ol,
+#vendor-order-items > ol,
+#vendor-order-timeline > ol {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+#vendor-order-management-summary > ol > li + li,
+#vendor-order-summary > ol > li + li,
+#vendor-order-items > ol > li + li,
+#vendor-order-timeline > ol > li + li {
+    margin-top: 0.75rem;
+}
+
+#vendor-orders-container,
+#vendor-notifications-container,
+#vendor-order-action-container,
+#vendor-order-summary,
+#vendor-order-items,
+#vendor-order-timeline {
+    min-height: 4rem;
+}
+
+.loading-message,
+.empty-state-message {
+    margin: 0;
+    color: var(--text-soft);
+    font-size: 1rem;
+}
+
+.vendor-order-card,
+.vendor-notification-card {
+    position: relative;
+    overflow: hidden;
+    padding: 1.3rem;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    background: rgba(255, 252, 248, 0.96);
+    box-shadow: var(--shadow-sm);
+}
+
+.vendor-order-card::before,
+.vendor-notification-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 0.28rem;
+    background: linear-gradient(90deg, rgba(197, 106, 26, 0.88), rgba(106, 132, 104, 0.78));
+}
+
+.vendor-order-card + .vendor-order-card,
+.vendor-notification-card + .vendor-notification-card {
+    margin-top: 1rem;
+}
+
+.vendor-order-card-heading,
+.vendor-notification-heading {
+    margin: 0 0 0.55rem;
+    font-size: 1.18rem;
+    color: var(--text);
+}
+
+.vendor-order-card-summary,
+.vendor-order-card-total,
+.vendor-order-card-updated,
+.vendor-notification-message {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+}
+
+.vendor-order-card-status,
+.vendor-notification-state,
+.vendor-order-item-name,
+.vendor-order-timeline-label {
+    margin: 0.4rem 0 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.vendor-order-card-status[data-tone="success"],
+.vendor-notification-state[data-tone="success"] {
+    color: var(--success-text);
+}
+
+.vendor-order-card-status[data-tone="error"],
+.vendor-notification-state[data-tone="error"] {
+    color: var(--danger-text);
+}
+
+.vendor-order-card-status[data-tone="info"],
+.vendor-order-card-status[data-tone="loading"],
+.vendor-notification-state[data-tone="info"],
+.vendor-notification-state[data-tone="loading"] {
+    color: var(--info-text);
+}
+
+.vendor-order-card-actions,
+.vendor-notification-actions {
+    margin-top: 1rem;
+}
+
+.vendor-order-card-actions a,
+.vendor-notification-actions a,
+#vendor-order-action-container .action-menu button,
+.vendor-orders-hero .action-menu a,
+.vendor-order-detail-hero .action-menu a,
+.vendor-notifications-hero .action-menu a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.05rem;
+    padding: 0.95rem 1.25rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-strong);
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.vendor-order-card-actions a:hover,
+.vendor-order-card-actions a:focus,
+.vendor-notification-actions a:hover,
+.vendor-notification-actions a:focus,
+#vendor-order-action-container .action-menu button:hover,
+#vendor-order-action-container .action-menu button:focus,
+.vendor-orders-hero .action-menu a:hover,
+.vendor-orders-hero .action-menu a:focus,
+.vendor-order-detail-hero .action-menu a:hover,
+.vendor-order-detail-hero .action-menu a:focus,
+.vendor-notifications-hero .action-menu a:hover,
+.vendor-notifications-hero .action-menu a:focus {
+    outline: none;
+    transform: translateY(-1px);
+    background: var(--accent-soft);
+    border-color: rgba(198, 107, 29, 0.32);
+    color: var(--accent-dark);
+}
+
+#vendor-order-action-container .action-menu {
+    margin-top: 0;
+}
+
+#vendor-order-action-container .action-menu button[data-tone="success"] {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    border-color: transparent;
+    color: var(--accent-contrast);
+}
+
+#vendor-order-action-container .action-menu button[data-tone="success"]:hover,
+#vendor-order-action-container .action-menu button[data-tone="success"]:focus {
+    background: linear-gradient(135deg, #d67826, #8e4309);
+    color: var(--accent-contrast);
+}
+
+#vendor-order-action-container .action-menu button[data-tone="error"] {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: rgba(139, 47, 36, 0.2);
+}
+
+#vendor-order-action-container .action-menu button[data-tone="error"]:hover,
+#vendor-order-action-container .action-menu button[data-tone="error"]:focus {
+    background: #f9d6cf;
+    color: #78251b;
+    border-color: rgba(139, 47, 36, 0.32);
+}
+
+#vendor-order-action-container .action-menu button[data-tone="loading"],
+#vendor-order-action-container .action-menu button[data-tone="info"] {
+    background: rgba(255, 251, 246, 0.96);
+    color: var(--text);
+}
+
+.vendor-order-item-name {
+    margin-bottom: 0.2rem;
+}
+
+.vendor-order-item-meta,
+.vendor-order-timeline-meta,
+.vendor-order-timeline-note {
+    margin: 0.25rem 0 0;
+    color: var(--text-soft);
+}
+
+.vendor-order-timeline-note {
+    color: var(--text-muted);
+}
+
+.vendor-notifications-list .shared-section,
+.vendor-orders-list-section .shared-section {
+    background: transparent;
+}
+
+@media (max-width: 1080px) {
+    .vendor-orders-overview,
+    .vendor-orders-list-section,
+    .vendor-notifications-list,
+    .vendor-order-detail-hero + .shared-section,
+    .vendor-order-detail-hero + .shared-section + .shared-section {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 860px) {
+    .vendor-shell[data-page="vendor-order-management"] .vendor-main,
+    .vendor-shell[data-page="vendor-order-detail"] .vendor-main,
+    .vendor-shell[data-page="vendor-order-notifications"] .vendor-main {
+        grid-template-columns: 1fr;
+    }
+
+    .vendor-orders-hero,
+    .vendor-orders-overview,
+    .vendor-orders-list-section,
+    .vendor-order-detail-hero,
+    .vendor-order-detail-hero + .shared-section,
+    .vendor-order-detail-hero + .shared-section + .shared-section,
+    .vendor-order-detail-hero + .shared-section + .shared-section + .shared-section,
+    .vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section,
+    .vendor-notifications-hero,
+    .vendor-notifications-list {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 600px) {
+    .vendor-orders-hero .action-menu,
+    .vendor-order-detail-hero .action-menu,
+    .vendor-notifications-hero .action-menu,
+    #vendor-order-action-container .action-menu,
+    .vendor-order-card-actions,
+    .vendor-notification-actions {
+        flex-direction: column;
+    }
+
+    .vendor-order-card-actions a,
+    .vendor-notification-actions a,
+    #vendor-order-action-container .action-menu li,
+    #vendor-order-action-container .action-menu button,
+    .vendor-orders-hero .action-menu li,
+    .vendor-orders-hero .action-menu a,
+    .vendor-order-detail-hero .action-menu li,
+    .vendor-order-detail-hero .action-menu a,
+    .vendor-notifications-hero .action-menu li,
+    .vendor-notifications-hero .action-menu a {
+        width: 100%;
+    }
+}

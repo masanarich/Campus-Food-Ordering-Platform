@@ -4,7 +4,7 @@
  * Registration page logic for the Campus Food Ordering Platform.
  * This file:
  * - validates registration form data
- * - supports customer and vendor registration entry points
+ * - supports customer, vendor, and admin registration entry points
  * - supports Google and Apple sign-up/sign-in entry points
  * - uses injected services so it stays easy to test
  * - can be used in the browser through initializeRegisterPage(...)
@@ -27,36 +27,68 @@ function getFormField(form, fieldName) {
 }
 
 function extractRegisterFormValues(form) {
-    const fullNameField = getFormField(form, "fullName");
     const emailField = getFormField(form, "email");
     const passwordField = getFormField(form, "password");
     const confirmPasswordField = getFormField(form, "confirmPassword");
     const accountTypeField = getFormField(form, "accountType");
+    const fullNameField = getFormField(form, "fullName");
+    const phoneNumberField = getFormField(form, "phoneNumber");
+    const businessNameField = getFormField(form, "businessName");
+    const universityField = getFormField(form, "university");
+    const locationField = getFormField(form, "location");
+    const foodTypeField = getFormField(form, "foodType");
+    const descriptionField = getFormField(form, "description");
+    const departmentField = getFormField(form, "department");
+    const motivationField = getFormField(form, "motivation");
 
     return {
-        fullName: fullNameField ? fullNameField.value : "",
         email: emailField ? emailField.value : "",
         password: passwordField ? passwordField.value : "",
         confirmPassword: confirmPasswordField ? confirmPasswordField.value : "",
-        accountType: accountTypeField ? accountTypeField.value : "customer"
+        accountType: accountTypeField ? accountTypeField.value : "customer",
+        fullName: fullNameField ? fullNameField.value : "",
+        phoneNumber: phoneNumberField ? phoneNumberField.value : "",
+        businessName: businessNameField ? businessNameField.value : "",
+        university: universityField ? universityField.value : "",
+        location: locationField ? locationField.value : "",
+        foodType: foodTypeField ? foodTypeField.value : "",
+        description: descriptionField ? descriptionField.value : "",
+        department: departmentField ? departmentField.value : "",
+        motivation: motivationField ? motivationField.value : ""
     };
 }
 
 function buildRegisterPayload(rawValues) {
     return {
-        fullName: normalizeText(rawValues.fullName),
         email: normalizeEmail(rawValues.email),
         password: typeof rawValues.password === "string" ? rawValues.password : "",
         confirmPassword:
             typeof rawValues.confirmPassword === "string"
                 ? rawValues.confirmPassword
                 : "",
-        accountType: normalizeText(rawValues.accountType).toLowerCase() || "customer"
+        accountType: normalizeText(rawValues.accountType).toLowerCase() || "customer",
+        fullName: normalizeText(rawValues.fullName),
+        phoneNumber: normalizeText(rawValues.phoneNumber),
+        businessName: normalizeText(rawValues.businessName),
+        university: normalizeText(rawValues.university),
+        location: normalizeText(rawValues.location),
+        foodType: normalizeText(rawValues.foodType).toLowerCase(),
+        description: normalizeText(rawValues.description),
+        department: normalizeText(rawValues.department),
+        motivation: normalizeText(rawValues.motivation)
     };
 }
 
 function isValidAccountType(accountType) {
-    return accountType === "customer" || accountType === "vendor";
+    return (
+        accountType === "customer" ||
+        accountType === "vendor" ||
+        accountType === "admin"
+    );
+}
+
+function requiresExtendedDetails(accountType) {
+    return accountType === "vendor" || accountType === "admin";
 }
 
 function validateRegisterPayload(payload, authUtils) {
@@ -64,10 +96,6 @@ function validateRegisterPayload(payload, authUtils) {
 
     if (!authUtils || typeof authUtils !== "object") {
         throw new Error("authUtils is required.");
-    }
-
-    if (!authUtils.isNonEmptyString(payload.fullName)) {
-        errors.fullName = "Full name is required.";
     }
 
     if (!authUtils.isValidEmail(payload.email)) {
@@ -84,6 +112,54 @@ function validateRegisterPayload(payload, authUtils) {
 
     if (!isValidAccountType(payload.accountType)) {
         errors.accountType = "Please choose a valid account type.";
+    }
+
+    if (payload.accountType === "vendor") {
+        if (!authUtils.isNonEmptyString(payload.fullName)) {
+            errors.fullName = "Full name is required for vendor registration.";
+        }
+
+        if (!authUtils.isValidPhoneNumber(payload.phoneNumber)) {
+            errors.phoneNumber = "Please enter a valid phone number.";
+        }
+
+        if (!authUtils.isNonEmptyString(payload.businessName)) {
+            errors.businessName = "Business name is required.";
+        }
+
+        if (!authUtils.isNonEmptyString(payload.university)) {
+            errors.university = "Campus or university is required.";
+        }
+
+        if (!authUtils.isNonEmptyString(payload.location)) {
+            errors.location = "Vendor location is required.";
+        }
+
+        if (!authUtils.isNonEmptyString(payload.foodType)) {
+            errors.foodType = "Please choose a food category.";
+        }
+
+        if (payload.description.length < 20) {
+            errors.description = "Please provide a longer business description.";
+        }
+    }
+
+    if (payload.accountType === "admin") {
+        if (!authUtils.isNonEmptyString(payload.fullName)) {
+            errors.fullName = "Full name is required for admin registration.";
+        }
+
+        if (!authUtils.isValidPhoneNumber(payload.phoneNumber)) {
+            errors.phoneNumber = "Please enter a valid phone number.";
+        }
+
+        if (!authUtils.isNonEmptyString(payload.department)) {
+            errors.department = "Department or office is required.";
+        }
+
+        if (payload.motivation.length < 20) {
+            errors.motivation = "Please provide a longer reason for requesting admin access.";
+        }
     }
 
     return {
@@ -144,6 +220,10 @@ function getSuccessMessage(accountType) {
         return "Registration successful. Your vendor application is awaiting approval.";
     }
 
+    if (accountType === "admin") {
+        return "Registration successful. Your admin application is awaiting approval.";
+    }
+
     return "Registration successful.";
 }
 
@@ -158,8 +238,53 @@ async function submitRegistration(payload, dependencies) {
         email: payload.email,
         password: payload.password,
         displayName: payload.fullName,
-        accountType: payload.accountType
+        accountType: payload.accountType,
+        phoneNumber: payload.phoneNumber,
+        businessName: payload.businessName,
+        university: payload.university,
+        location: payload.location,
+        foodType: payload.foodType,
+        description: payload.description,
+        department: payload.department,
+        motivation: payload.motivation
     });
+}
+
+function setElementHidden(element, isHidden) {
+    if (!element) {
+        return;
+    }
+
+    element.hidden = !!isHidden;
+    element.setAttribute("aria-hidden", isHidden ? "true" : "false");
+}
+
+function toggleRegistrationRoleSections(options = {}) {
+    const accountType = normalizeText(options.accountType).toLowerCase() || "customer";
+    const vendorSection = options.vendorSection || null;
+    const adminSection = options.adminSection || null;
+    const detailsHint = options.detailsHint || null;
+    const fullNameRow = options.fullNameRow || null;
+    const phoneNumberRow = options.phoneNumberRow || null;
+
+    const isVendor = accountType === "vendor";
+    const isAdmin = accountType === "admin";
+    const showSharedApplicantFields = requiresExtendedDetails(accountType);
+
+    setElementHidden(vendorSection, !isVendor);
+    setElementHidden(adminSection, !isAdmin);
+    setElementHidden(fullNameRow, !showSharedApplicantFields);
+    setElementHidden(phoneNumberRow, !showSharedApplicantFields);
+
+    if (detailsHint) {
+        if (isVendor) {
+            detailsHint.textContent = "Vendor registration includes your application details and will start as pending.";
+        } else if (isAdmin) {
+            detailsHint.textContent = "Admin registration includes your access request details and will start as pending.";
+        } else {
+            detailsHint.textContent = "Customer registration only needs your email and password.";
+        }
+    }
 }
 
 async function submitGoogleRegistration(dependencies) {
@@ -402,6 +527,12 @@ function initializeRegisterPage(options = {}) {
     const statusElement = document.querySelector(statusSelector);
     const googleButton = document.querySelector(googleButtonSelector);
     const appleButton = document.querySelector(appleButtonSelector);
+    const accountTypeField = getFormField(form, "accountType");
+    const vendorSection = document.querySelector("#vendor-register-fields");
+    const adminSection = document.querySelector("#admin-register-fields");
+    const detailsHint = document.querySelector("#register-role-hint");
+    const fullNameRow = document.querySelector("[data-register-row='fullName']");
+    const phoneNumberRow = document.querySelector("[data-register-row='phoneNumber']");
 
     if (!form) {
         throw new Error("Register form not found.");
@@ -429,6 +560,28 @@ function initializeRegisterPage(options = {}) {
         authUtils,
         navigate: resolvedNavigate
     });
+
+    if (accountTypeField) {
+        toggleRegistrationRoleSections({
+            accountType: accountTypeField.value,
+            vendorSection,
+            adminSection,
+            detailsHint,
+            fullNameRow,
+            phoneNumberRow
+        });
+
+        accountTypeField.addEventListener("change", function handleAccountTypeChange() {
+            toggleRegistrationRoleSections({
+                accountType: accountTypeField.value,
+                vendorSection,
+                adminSection,
+                detailsHint,
+                fullNameRow,
+                phoneNumberRow
+            });
+        });
+    }
 
     let googleController = null;
     let appleController = null;
@@ -465,6 +618,7 @@ const registerPage = {
     extractRegisterFormValues,
     buildRegisterPayload,
     isValidAccountType,
+    requiresExtendedDetails,
     validateRegisterPayload,
     clearFieldErrors,
     showFieldErrors,
@@ -474,6 +628,8 @@ const registerPage = {
     submitRegistration,
     submitGoogleRegistration,
     submitAppleRegistration,
+    setElementHidden,
+    toggleRegistrationRoleSections,
     handleAuthSuccess,
     handleAuthFailure,
     attachRegisterHandler,

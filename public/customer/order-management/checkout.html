@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Checkout | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Review one vendor's cart items and place your order.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./order-management.css">
+</head>
+
+<body class="customer-portal" data-page="customer-checkout">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./browse-vendors.html">Browse Vendors</a>
+            <a href="./cart.html">Cart</a>
+            <a href="./checkout.html" aria-current="page">Checkout</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="checkout-page-heading">
+            <h2 id="checkout-page-heading">Checkout</h2>
+            <p id="checkout-vendor-name" class="checkout-vendor-name">Selected vendor: Loading...</p>
+
+            <p>
+                Review one vendor's items, add an optional note, and place the order when you are ready.
+            </p>
+
+            <p id="checkout-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Checkout page actions">
+                <li id="checkout-back-button-host"></li>
+                <li><a href="../index.html" class="button-secondary">Home</a></li>
+                <li><a href="./cart.html" class="button-secondary">Back to Cart</a></li>
+                <li><a href="./browse-vendors.html" class="button-secondary">Browse Vendors</a></li>
+                <li><a href="../order-tracking/index.html" class="button-secondary">My Orders</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section" aria-labelledby="checkout-items-heading">
+            <h3 id="checkout-items-heading">Items for This Vendor</h3>
+            <section id="checkout-items-container" aria-live="polite">
+                <p class="loading-message">Loading checkout...</p>
+            </section>
+        </section>
+
+        <section class="shared-section" aria-labelledby="checkout-summary-heading">
+            <h3 id="checkout-summary-heading">Checkout Summary</h3>
+            <section id="checkout-summary" aria-live="polite"></section>
+
+            <label for="checkout-notes">Order Notes</label>
+            <textarea id="checkout-notes" rows="5"
+                placeholder="Add collection notes or preferences for this vendor."></textarea>
+
+            <menu class="action-menu" aria-label="Checkout actions">
+                <li><a href="./browse-vendors.html" class="button-secondary">Browse Vendors</a></li>
+                <li><button type="button" class="button-primary" id="place-order-button">Place Order</button></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="../../shared/orders/order-status.js"></script>
+    <script src="../../shared/orders/order-model.js"></script>
+    <script src="../../shared/orders/order-validation.js"></script>
+    <script src="../../shared/orders/order-queries.js"></script>
+    <script src="../../shared/orders/order-service.js"></script>
+    <script src="./checkout.js"></script>
+
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            addDoc,
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            addDoc,
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            serverTimestamp
+        };
+
+        if (!window.customerCheckout || typeof window.customerCheckout.init !== "function") {
+            const statusElement = document.getElementById("checkout-status");
+            if (statusElement) {
+                statusElement.textContent = "Checkout script failed to load.";
+                statusElement.setAttribute("data-state", "error");
+            }
+        } else {
+            try {
+                await window.customerCheckout.init({
+                    db,
+                    auth,
+                    authFns: window.authFns,
+                    firestoreFns: window.firestoreFns,
+                    orderService: window.orderService
+                });
+            } catch (error) {
+                console.error("Checkout init failed:", error);
+                const statusElement = document.getElementById("checkout-status");
+                if (statusElement) {
+                    statusElement.textContent = error?.message || "Failed to initialise checkout.";
+                    statusElement.setAttribute("data-state", "error");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

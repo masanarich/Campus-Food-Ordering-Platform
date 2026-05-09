@@ -1,18 +1,373 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------
+    // Auth + role helpers
+    // -----------------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserExists() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveAccount() {
+      return currentUserExists() &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function isAdmin() {
+      return currentUserExists() &&
+        currentUserDoc().data.isAdmin == true &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function isApprovedVendor() {
+      return currentUserExists() &&
+        currentUserDoc().data.vendorStatus == "approved" &&
+        currentUserDoc().data.accountStatus == "active";
+    }
+
+    function canManageOwnVendorResources(userId) {
+      return isSelf(userId) &&
+        isActiveAccount() &&
+        (
+          isApprovedVendor() ||
+          isAdmin()
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Order helpers
+    // -----------------------------------------------------------------
+
+    function orderDoc(orderId) {
+      return get(/databases/$(database)/documents/orders/$(orderId));
+    }
+
+    function orderExists(orderId) {
+      return exists(/databases/$(database)/documents/orders/$(orderId));
+    }
+
+    function isOrderParticipantById(orderId) {
+      return signedIn() &&
+        orderExists(orderId) &&
+        (
+          orderDoc(orderId).data.customerUid == request.auth.uid ||
+          orderDoc(orderId).data.vendorUid == request.auth.uid ||
+          isAdmin()
+        );
+    }
+
+    function isOrderCustomer() {
+      return signedIn() && resource.data.customerUid == request.auth.uid;
+    }
+
+    function isOrderVendor() {
+      return signedIn() && resource.data.vendorUid == request.auth.uid;
+    }
+
+    function isOrderParticipant() {
+      return isOrderCustomer() || isOrderVendor() || isAdmin();
+    }
+
+    function orderUpdateAffectsOnlyAllowedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "orderId",
+        "status",
+        "timeline",
+        "notes",
+        "updatedAt",
+        "customerConfirmedCollected",
+        "vendorConfirmedCollected"
+      ]);
+    }
+
+    function orderImmutableFieldsPreserved() {
+      return request.resource.data.customerUid == resource.data.customerUid &&
+        request.resource.data.vendorUid == resource.data.vendorUid &&
+        request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function customerConfirmationPreservedOrAdvanced() {
+      return !("customerConfirmedCollected" in request.resource.data) ||
+        request.resource.data.customerConfirmedCollected == resource.data.get("customerConfirmedCollected", false) ||
+        (
+          resource.data.get("customerConfirmedCollected", false) == false &&
+          request.resource.data.customerConfirmedCollected == true
+        );
+    }
+
+    function vendorConfirmationPreservedOrAdvanced() {
+      return !("vendorConfirmedCollected" in request.resource.data) ||
+        request.resource.data.vendorConfirmedCollected == resource.data.get("vendorConfirmedCollected", false) ||
+        (
+          resource.data.get("vendorConfirmedCollected", false) == false &&
+          request.resource.data.vendorConfirmedCollected == true
+        );
+    }
+
+    function customerOnlyTouchesOwnConfirmation() {
+      // A customer can flip customerConfirmedCollected (false -> true).
+      // They must not change vendorConfirmedCollected.
+      return !("vendorConfirmedCollected" in request.resource.data) ||
+        request.resource.data.vendorConfirmedCollected == resource.data.get("vendorConfirmedCollected", false);
+    }
+
+    function vendorOnlyTouchesOwnConfirmation() {
+      return !("customerConfirmedCollected" in request.resource.data) ||
+        request.resource.data.customerConfirmedCollected == resource.data.get("customerConfirmedCollected", false);
+    }
+
+    function isValidOrderCreate() {
+      return signedIn() &&
+        request.resource.data.customerUid == request.auth.uid &&
+        request.resource.data.customerUid is string &&
+        request.resource.data.vendorUid is string &&
+        request.resource.data.vendorUid != "" &&
+        request.resource.data.status is string &&
+        request.resource.data.items is list &&
+        request.resource.data.items.size() > 0 &&
+        // Brand-new orders cannot start as already collected.
+        request.resource.data.get("customerConfirmedCollected", false) == false &&
+        request.resource.data.get("vendorConfirmedCollected", false) == false;
+    }
+
+    function isValidOrderUpdate() {
+      return isOrderParticipant() &&
+        orderUpdateAffectsOnlyAllowedKeys() &&
+        orderImmutableFieldsPreserved() &&
+        customerConfirmationPreservedOrAdvanced() &&
+        vendorConfirmationPreservedOrAdvanced() &&
+        (
+          isAdmin() ||
+          (isOrderCustomer() && customerOnlyTouchesOwnConfirmation()) ||
+          (isOrderVendor() && vendorOnlyTouchesOwnConfirmation())
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Notification helpers
+    // -----------------------------------------------------------------
+
+    function isNotificationRecipientData(data) {
+      return signedIn() && request.auth.uid == data.recipientUid;
+    }
+
+    // -----------------------------------------------------------------
+    // Application self-submission helpers
+    // -----------------------------------------------------------------
+
+    function isOwnPendingVendorSubmission(before, after) {
+      let oldStatus = before.vendorStatus;
+      let newStatus = after.vendorStatus;
+
+      return (
+        oldStatus == newStatus ||
+        (
+          (oldStatus == "none" || oldStatus == "rejected") &&
+          newStatus == "pending" &&
+          after.vendorReason == ""
+        )
+      );
+    }
+
+    function isOwnPendingAdminSubmission(before, after) {
+      let oldStatus = before.adminApplicationStatus;
+      let newStatus = after.adminApplicationStatus;
+
+      return (
+        oldStatus == newStatus ||
+        (
+          before.isAdmin == false &&
+          (oldStatus == "none" || oldStatus == "rejected") &&
+          newStatus == "pending" &&
+          after.isAdmin == false &&
+          after.adminApplicationReason == ""
+        )
+      );
+    }
+
+    function selfCanUpdateOwnProfile(userId) {
+      return isSelf(userId) &&
+        request.resource.data.uid == userId &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.isAdmin == resource.data.isAdmin &&
+        request.resource.data.accountStatus == resource.data.accountStatus &&
+        isOwnPendingVendorSubmission(resource.data, request.resource.data) &&
+        isOwnPendingAdminSubmission(resource.data, request.resource.data);
+    }
+
+    function validApplicationOwner(docId) {
+      return signedIn() &&
+        request.auth.uid == docId &&
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    // -----------------------------------------------------------------
+    // /users + /users/{uid}/menuItems
+    // -----------------------------------------------------------------
+
+    match /users/{userId} {
+      allow create: if isSelf(userId) &&
+        request.resource.data.uid == userId;
+
+      allow get, list: if signedIn();
+
+      allow update: if isAdmin() || selfCanUpdateOwnProfile(userId);
+
+      allow delete: if isSelf(userId) || isAdmin();
+
+      match /menuItems/{productId} {
+        allow get, list: if signedIn();
+
+        allow create: if canManageOwnVendorResources(userId) &&
+          request.resource.data.vendorUid == userId;
+
+        allow update: if canManageOwnVendorResources(userId) &&
+          request.resource.data.vendorUid == userId &&
+          request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if canManageOwnVendorResources(userId);
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // /vendorApplications, /adminApplications
+    // -----------------------------------------------------------------
+
+    match /vendorApplications/{userId} {
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create, update: if (
+        validApplicationOwner(userId) &&
+        request.resource.data.vendorStatus == "pending" &&
+        request.resource.data.vendorReason == ""
+      ) || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    match /adminApplications/{userId} {
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      allow create, update: if (
+        validApplicationOwner(userId) &&
+        request.resource.data.isAdmin == false &&
+        request.resource.data.adminApplicationStatus == "pending" &&
+        request.resource.data.adminApplicationReason == ""
+      ) || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /orders
+    // -----------------------------------------------------------------
+
+    match /orders/{orderId} {
+      allow create: if isValidOrderCreate();
+
+      allow get: if isOrderParticipant();
+      allow list: if signedIn();
+
+      allow update: if isValidOrderUpdate();
+
+      allow delete: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /notifications
+    // -----------------------------------------------------------------
+
+    match /notifications/{notificationId} {
+
+      function validReadFlagOnCreate() {
+        return
+          (
+            ("read" in request.resource.data && request.resource.data.read is bool) ||
+            ("isRead" in request.resource.data && request.resource.data.isRead is bool)
+          );
+      }
+
+      function isUnreadOnCreate() {
+        return
+          (
+            ("read" in request.resource.data && request.resource.data.read == false) ||
+            ("isRead" in request.resource.data && request.resource.data.isRead == false)
+          );
+      }
+
+      function isValidNotificationCreation() {
+        return signedIn() &&
+          isActiveAccount() &&
+          request.resource.data.recipientUid is string &&
+          request.resource.data.recipientUid != "" &&
+          request.resource.data.recipientRole is string &&
+          request.resource.data.type is string &&
+          request.resource.data.title is string &&
+          request.resource.data.message is string &&
+          validReadFlagOnCreate() &&
+          isUnreadOnCreate() &&
+          request.resource.data.createdAt is timestamp &&
+          (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp) &&
+          (!("orderId" in request.resource.data) || request.resource.data.orderId is string) &&
+          (!("vendorUid" in request.resource.data) || request.resource.data.vendorUid is string) &&
+          (!("customerUid" in request.resource.data) || request.resource.data.customerUid is string);
+      }
+
+      function canCreateNotification() {
+        return isValidNotificationCreation() &&
+          (
+            !("orderId" in request.resource.data) ||
+            request.resource.data.orderId == "" ||
+            isOrderParticipantById(request.resource.data.orderId) ||
+            request.resource.data.recipientUid == request.auth.uid
+          );
+      }
+
+      function canUpdateNotification() {
+        return isNotificationRecipientData(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "read",
+            "isRead",
+            "updatedAt"
+          ]) &&
+          (!("read" in request.resource.data) || request.resource.data.read is bool) &&
+          (!("isRead" in request.resource.data) || request.resource.data.isRead is bool) &&
+          (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
+      }
+
+      allow create: if canCreateNotification();
+
+      allow read: if isNotificationRecipientData(resource.data) || isAdmin();
+
+      allow update: if canUpdateNotification();
+
+      allow delete: if isNotificationRecipientData(resource.data) || isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // Catch-all: deny everything else by default
+    // -----------------------------------------------------------------
+
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 5, 2);
+      allow read, write: if false;
     }
   }
 }

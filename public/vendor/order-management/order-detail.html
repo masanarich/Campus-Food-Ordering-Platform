@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Order Detail | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Review one vendor order in full detail and move it through the preparation flow.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body class="vendor-shell" data-page="vendor-order-detail">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor order detail navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./index.html">Manage Orders</a>
+            <a href="./notifications.html">Notifications</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="shared-section vendor-order-detail-hero" aria-labelledby="vendor-order-detail-heading">
+            <h2 id="vendor-order-detail-heading">Vendor Order Detail</h2>
+
+            <p>
+                Review the customer, items, and timeline for this order, then update its status
+                when you accept it, start preparing, or mark it ready for pickup.
+            </p>
+
+            <p id="vendor-order-detail-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Vendor order detail shortcuts">
+                <li><a href="./index.html">Back to Orders</a></li>
+                <li><a href="./notifications.html">Notifications</a></li>
+                <li><a href="../index.html">Home</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section" aria-labelledby="vendor-order-actions-heading">
+            <h3 id="vendor-order-actions-heading">Order Actions</h3>
+            <section id="vendor-order-action-container" aria-live="polite">
+                <p class="loading-message">Loading order actions...</p>
+            </section>
+        </section>
+
+        <section class="shared-section" aria-labelledby="vendor-order-summary-heading">
+            <h3 id="vendor-order-summary-heading">Order Summary</h3>
+            <section id="vendor-order-summary" aria-live="polite">
+                <p class="loading-message">Loading order summary...</p>
+            </section>
+        </section>
+
+        <section class="shared-section" aria-labelledby="vendor-order-items-heading">
+            <h3 id="vendor-order-items-heading">Items in This Order</h3>
+            <section id="vendor-order-items" aria-live="polite">
+                <p class="loading-message">Loading ordered items...</p>
+            </section>
+        </section>
+
+        <section class="shared-section" aria-labelledby="vendor-order-timeline-heading">
+            <h3 id="vendor-order-timeline-heading">Order Timeline</h3>
+            <section id="vendor-order-timeline" aria-live="polite">
+                <p class="loading-message">Loading order timeline...</p>
+            </section>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../../authentication/auth-utils.js"></script>
+    <script src="../../authentication/auth-core.js"></script>
+    <script src="../../shared/orders/order-status.js"></script>
+    <script src="../../shared/orders/order-model.js"></script>
+    <script src="../../shared/orders/order-validation.js"></script>
+    <script src="../../shared/orders/order-queries.js"></script>
+    <script src="../../shared/orders/order-service.js"></script>
+    <script src="../../shared/orders/order-formatters.js"></script>
+    <script src="./order-detail.js"></script>
+    <script type="module">
+        import { authService } from "../../authentication/auth.js";
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+
+        if (window.vendorOrderDetailPage && typeof window.vendorOrderDetailPage.init === "function") {
+            await window.vendorOrderDetailPage.init({
+                db,
+                auth,
+                authService,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                orderService: window.orderService,
+                orderStatus: window.orderStatus,
+                orderFormatters: window.orderFormatters
+            });
+        }
+    </script>
+</body>
+
+</html>

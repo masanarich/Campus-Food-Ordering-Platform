@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Browse Vendors | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Browse approved campus food vendors and explore their menus.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./order-management.css">
+</head>
+
+<body class="customer-portal" data-page="browse-vendors">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./browse-vendors.html" aria-current="page">Browse Vendors</a>
+            <a href="./cart.html">Cart</a>
+            <a href="./checkout.html">Checkout</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="../order-tracking/notifications.html">Notifications</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="browse-vendors-heading">
+            <h2 id="browse-vendors-heading">Browse Vendors</h2>
+
+            <p>
+                Discover approved campus vendors, open a vendor menu, add items to your cart,
+                and continue to checkout when you are ready.
+            </p>
+
+            <p id="browse-vendors-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Browse vendor page actions">
+                <li id="browse-vendors-back-button-host"></li>
+                <li><a href="../index.html" class="button-secondary">Home</a></li>
+                <li><a href="./cart.html" class="button-primary">Cart</a></li>
+                <li><button id="refresh-vendors-button" class="button-secondary" type="button">Refresh Vendors</button>
+                </li>
+            </menu>
+        </section>
+
+        <section class="vendors-section shared-section" aria-labelledby="available-vendors-heading">
+            <h3 id="available-vendors-heading">Available Vendors</h3>
+
+            <section id="vendors-container" class="vendors-grid" aria-live="polite">
+                <p class="loading-message">Loading vendors...</p>
+            </section>
+        </section>
+
+        <section class="help-section shared-section" aria-labelledby="help-heading">
+            <h3 id="help-heading">How Ordering Works</h3>
+
+            <p>
+                Choose a vendor, open the vendor menu, add items to your cart, and then review
+                your grouped cart before checkout.
+            </p>
+
+            <menu class="action-menu" aria-label="Quick shortcuts">
+                <li><a href="./cart.html" class="button-primary">View Cart</a></li>
+                <li><a href="./checkout.html" class="button-secondary">Go to Checkout</a></li>
+                <li><a href="../order-tracking/index.html" class="button-secondary">View My Orders</a></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./browse-vendors.js"></script>
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            query,
+            where
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            query,
+            where
+        };
+
+        if (window.customerBrowseVendors && typeof window.customerBrowseVendors.init === "function") {
+            try {
+                await window.customerBrowseVendors.init({
+                    db,
+                    auth,
+                    authFns: window.authFns,
+                    firestoreFns: window.firestoreFns
+                });
+            } catch (error) {
+                console.error("Failed to initialize browse vendors page:", error);
+
+                const container = document.getElementById("vendors-container");
+                const status = document.getElementById("browse-vendors-status");
+
+                if (container) {
+                    container.innerHTML = "<p class=\"empty-state-message\">Vendor data is unavailable right now.</p>";
+                }
+
+                if (status) {
+                    status.textContent = "Failed to load approved vendors.";
+                    status.setAttribute("data-state", "error");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

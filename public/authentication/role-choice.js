@@ -7,12 +7,11 @@
  * - determines which portals they can access
  * - shows only the allowed portal buttons/sections
  * - redirects automatically when only one portal is available
- * - does NOT update Firestore roles when a portal is chosen
  *
  * Canonical access fields:
- * - isOwner
  * - isAdmin
  * - vendorStatus
+ * - adminApplicationStatus
  * - accountStatus
  */
 
@@ -26,6 +25,30 @@ function normalizePortal(portal) {
 
 function normalizeVendorStatus(status) {
     const value = normalizeText(status).toLowerCase();
+
+    if (value === "suspended") {
+        return "blocked";
+    }
+
+    if (
+        value === "none" ||
+        value === "pending" ||
+        value === "approved" ||
+        value === "rejected" ||
+        value === "blocked"
+    ) {
+        return value;
+    }
+
+    return "none";
+}
+
+function normalizeAdminApplicationStatus(status, isAdmin = false) {
+    const value = normalizeText(status).toLowerCase();
+
+    if (isAdmin === true) {
+        return "approved";
+    }
 
     if (value === "suspended") {
         return "blocked";
@@ -82,6 +105,7 @@ function getFallbackPortalRoutes() {
         vendor: "../vendor/index.html",
         admin: "../admin/index.html",
         roleChoice: "../authentication/role-choice.html",
+        profile: "../authentication/profile.html",
         login: "../authentication/login.html"
     };
 }
@@ -123,6 +147,10 @@ function getPortalRoute(portal, authUtils) {
             return authUtils.PORTAL_ROUTES.roleChoice || fallbackRoutes.roleChoice;
         }
 
+        if (normalizedPortal === "profile") {
+            return authUtils.PORTAL_ROUTES.profile || fallbackRoutes.profile;
+        }
+
         if (normalizedPortal === "login") {
             return authUtils.PORTAL_ROUTES.login || fallbackRoutes.login;
         }
@@ -142,6 +170,10 @@ function getPortalRoute(portal, authUtils) {
 
     if (normalizedPortal === "rolechoice") {
         return fallbackRoutes.roleChoice;
+    }
+
+    if (normalizedPortal === "profile") {
+        return fallbackRoutes.profile;
     }
 
     return fallbackRoutes.login;
@@ -205,25 +237,29 @@ function normalizeUserProfile(profile, authUtils) {
     }
 
     const safeProfile = profile && typeof profile === "object" ? profile : {};
-    const isOwner = safeProfile.isOwner === true || safeProfile.owner === true;
-    const isAdmin =
-        safeProfile.isAdmin === true ||
-        safeProfile.admin === true ||
-        isOwner === true;
+    const isAdmin = safeProfile.isAdmin === true || safeProfile.admin === true;
 
     return {
         uid: normalizeText(safeProfile.uid),
-        displayName: normalizeText(safeProfile.displayName),
+        displayName: normalizeText(safeProfile.displayName || safeProfile.fullName),
         email: normalizeText(safeProfile.email).toLowerCase(),
         phoneNumber: normalizeText(safeProfile.phoneNumber),
         photoURL: normalizeText(safeProfile.photoURL),
         isAdmin,
-        isOwner,
         vendorStatus: normalizeVendorStatus(safeProfile.vendorStatus),
         vendorReason: normalizeText(
             safeProfile.vendorReason ||
             safeProfile.rejectionReason ||
             safeProfile.blockReason
+        ),
+        adminApplicationStatus: normalizeAdminApplicationStatus(
+            safeProfile.adminApplicationStatus,
+            isAdmin
+        ),
+        adminApplicationReason: normalizeText(
+            safeProfile.adminApplicationReason ||
+            safeProfile.adminRejectionReason ||
+            safeProfile.adminBlockReason
         ),
         accountStatus: normalizeAccountStatus(safeProfile.accountStatus)
     };
@@ -234,11 +270,7 @@ function canAccessCustomerPortal(profile) {
 
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            hasAuthenticatedIdentity(safeProfile) ||
-            safeProfile.isAdmin === true ||
-            safeProfile.isOwner === true
-        )
+        hasAuthenticatedIdentity(safeProfile)
     );
 }
 
@@ -247,10 +279,7 @@ function canAccessVendorPortal(profile) {
 
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            safeProfile.isOwner === true ||
-            safeProfile.vendorStatus === "approved"
-        )
+        safeProfile.vendorStatus === "approved"
     );
 }
 
@@ -259,10 +288,7 @@ function canAccessAdminPortal(profile) {
 
     return (
         safeProfile.accountStatus === "active" &&
-        (
-            safeProfile.isOwner === true ||
-            safeProfile.isAdmin === true
-        )
+        safeProfile.isAdmin === true
     );
 }
 
@@ -339,39 +365,75 @@ function getPortalSummaryText(state) {
     }
 
     const availablePortals = state.availablePortals;
-    const profile = state.profile || {};
-
-    if (profile.isOwner === true) {
-        return "You have owner access. Choose which portal you want to open.";
-    }
 
     if (
         availablePortals.includes("customer") &&
         availablePortals.includes("vendor") &&
         availablePortals.includes("admin")
     ) {
-        return "You have access to the customer, vendor, and admin portals.";
+        return "Choose where you want to work next. All three portals are available to you.";
     }
 
     if (
         availablePortals.includes("customer") &&
         availablePortals.includes("admin")
     ) {
-        return "You have access to the customer and admin portals.";
+        return "You can continue to either the customer portal or the admin portal.";
     }
 
     if (
         availablePortals.includes("customer") &&
         availablePortals.includes("vendor")
     ) {
-        return "You have access to the customer and vendor portals.";
+        return "You can continue to either the customer portal or the vendor portal.";
     }
 
     if (availablePortals.includes("customer")) {
-        return "You only have customer access.";
+        return "Your account currently has customer access only.";
     }
 
     return "You do not currently have access to any portal.";
+}
+
+function getApplicationStatusMessage(profile) {
+    const safeProfile = normalizeUserProfile(profile);
+    const messages = [];
+
+    if (safeProfile.vendorStatus === "pending") {
+        messages.push("Vendor application pending approval.");
+    } else if (safeProfile.vendorStatus === "rejected") {
+        messages.push(
+            safeProfile.vendorReason
+                ? `Vendor application rejected: ${safeProfile.vendorReason}`
+                : "Vendor application rejected."
+        );
+    } else if (safeProfile.vendorStatus === "blocked") {
+        messages.push(
+            safeProfile.vendorReason
+                ? `Vendor access blocked: ${safeProfile.vendorReason}`
+                : "Vendor access is blocked."
+        );
+    }
+
+    if (safeProfile.isAdmin === true) {
+        messages.push("Admin access approved.");
+    } else if (safeProfile.adminApplicationStatus === "pending") {
+        messages.push("Admin application pending approval.");
+    } else if (safeProfile.adminApplicationStatus === "rejected") {
+        messages.push(
+            safeProfile.adminApplicationReason
+                ? `Admin application rejected: ${safeProfile.adminApplicationReason}`
+                : "Admin application rejected."
+        );
+    } else if (safeProfile.adminApplicationStatus === "blocked") {
+        messages.push(
+            safeProfile.adminApplicationReason
+                ? `Admin application blocked: ${safeProfile.adminApplicationReason}`
+                : "Admin application is blocked."
+        );
+    }
+
+    return messages.join(" ");
 }
 
 function canAccessPortal(portal, profile, authUtils) {
@@ -553,16 +615,13 @@ function renderRoleChoicePage(elements = {}, state) {
         adminSection,
         statusElement,
         summaryElement,
-        vendorStateElement
+        applicationStateElement
     } = elements;
 
     if (!state) {
         setStatusMessage(statusElement, "Unable to load portal access.", "error");
         return;
     }
-
-    const profile = state.profile || {};
-    const vendorStatus = normalizeVendorStatus(profile.vendorStatus);
 
     const customerDisplayElement = getPortalDisplayElement(customerSection, customerButton);
     const vendorDisplayElement = getPortalDisplayElement(vendorSection, vendorButton);
@@ -583,45 +642,21 @@ function renderRoleChoicePage(elements = {}, state) {
     );
 
     setElementText(summaryElement, getPortalSummaryText(state));
-
-    if (vendorStateElement) {
-        if (vendorStatus === "pending") {
-            setElementText(
-                vendorStateElement,
-                "Your vendor application is still pending approval."
-            );
-        } else if (vendorStatus === "rejected") {
-            setElementText(
-                vendorStateElement,
-                profile.vendorReason
-                    ? `Your vendor application was rejected: ${profile.vendorReason}`
-                    : "Your vendor application was rejected."
-            );
-        } else if (vendorStatus === "blocked") {
-            setElementText(
-                vendorStateElement,
-                profile.vendorReason
-                    ? `Your vendor access is blocked: ${profile.vendorReason}`
-                    : "Your vendor access is blocked."
-            );
-        } else {
-            setElementText(vendorStateElement, "");
-        }
-    }
+    setElementText(applicationStateElement, getApplicationStatusMessage(state.profile || {}));
 
     if (customerButton) {
         customerButton.dataset.portal = "customer";
-        customerButton.textContent = "Continue to Customer Portal";
+        customerButton.textContent = "Open Customer Portal";
     }
 
     if (vendorButton) {
         vendorButton.dataset.portal = "vendor";
-        vendorButton.textContent = "Continue to Vendor Portal";
+        vendorButton.textContent = "Open Vendor Portal";
     }
 
     if (adminButton) {
         adminButton.dataset.portal = "admin";
-        adminButton.textContent = "Continue to Admin Portal";
+        adminButton.textContent = "Open Admin Portal";
     }
 }
 
@@ -676,7 +711,7 @@ async function initializeRoleChoicePage(options = {}) {
 
     const statusSelector = options.statusSelector || "#role-choice-status";
     const summarySelector = options.summarySelector || "#role-choice-summary";
-    const vendorStateSelector = options.vendorStateSelector || "#vendor-status-message";
+    const applicationStateSelector = options.applicationStateSelector || "#application-status-message";
 
     const customerSectionSelector =
         options.customerSectionSelector || "#customer-portal-section";
@@ -705,7 +740,7 @@ async function initializeRoleChoicePage(options = {}) {
 
     const statusElement = document.querySelector(statusSelector);
     const summaryElement = document.querySelector(summarySelector);
-    const vendorStateElement = document.querySelector(vendorStateSelector);
+    const applicationStateElement = document.querySelector(applicationStateSelector);
 
     const customerSection = document.querySelector(customerSectionSelector);
     const vendorSection = document.querySelector(vendorSectionSelector);
@@ -759,7 +794,7 @@ async function initializeRoleChoicePage(options = {}) {
                 adminSection,
                 statusElement,
                 summaryElement,
-                vendorStateElement
+                applicationStateElement
             },
             state
         );
@@ -839,9 +874,11 @@ const roleChoicePage = {
     normalizeText,
     normalizePortal,
     normalizeVendorStatus,
+    normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     isValidPortal,
     resolveAuthUtils,
+    getFallbackPortalRoutes,
     getPortalRoute,
     setStatusMessage,
     setButtonState,
@@ -857,6 +894,7 @@ const roleChoicePage = {
     getDefaultPortalRoute,
     getRoleChoiceState,
     getPortalSummaryText,
+    getApplicationStatusMessage,
     canAccessPortal,
     submitPortalChoice,
     attachPortalChoiceHandler,

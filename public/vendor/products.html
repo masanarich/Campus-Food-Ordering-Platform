@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Menu | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Create, update, and manage menu items for your campus food shop.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./products.css">
+</head>
+
+<body class="vendor-shell">
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor menu navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./shop.html">Shop Details</a>
+            <a href="./products.html" aria-current="page">Manage Menu</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main products-main">
+        <section class="shared-section products-hero" aria-labelledby="products-heading">
+            <header class="products-hero-top">
+                <article>
+                    <h2 id="products-heading">Menu Management</h2>
+                    <p>
+                        Build a proper menu for your shop. Add item names, descriptions, prices,
+                        real product images, dietary details, and availability. Edit items in a popup
+                        so you never need to scroll all the way back to the top just to confirm it worked.
+                    </p>
+                </article>
+
+                <menu class="action-menu products-hero-actions" aria-label="Products page actions">
+                    <li><button id="back-button" class="button-secondary" type="button">Back to Vendor Dashboard</button></li>
+                    <li><button id="reset-editor-button" class="button-primary" type="button">Add New Item</button></li>
+                </menu>
+            </header>
+
+            <p id="products-status" aria-live="polite">Loading your menu workspace...</p>
+            <p id="products-note" aria-live="polite">Your menu summary will appear here.</p>
+
+            <section class="products-stats-grid" aria-label="Menu summary statistics">
+                <article class="stats-card">
+                    <strong class="stats-label">Total items</strong>
+                    <output id="products-total-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Available</strong>
+                    <output id="products-available-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Sold out</strong>
+                    <output id="products-sold-out-count">0</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">With photos</strong>
+                    <output id="products-photo-count">0</output>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section products-list-section" aria-labelledby="products-list-heading">
+            <header class="results-header">
+                <article>
+                    <h3 id="products-list-heading">Your Menu Items</h3>
+                    <p>
+                        Search through your menu, then edit or delete any item directly from its card.
+                        Items stay linked to the signed-in vendor.
+                    </p>
+                </article>
+
+                <label class="search-field list-search-field" for="products-search">
+                    <strong>Search menu</strong>
+                    <input id="products-search" type="search" placeholder="Search by name, category, tags, or status">
+                </label>
+            </header>
+
+            <header class="products-results-bar">
+                <p id="products-results-meta" class="results-meta" aria-live="polite">Showing 0 of 0 items</p>
+                <p class="results-hint">The list becomes scrollable automatically when your menu grows.</p>
+            </header>
+
+            <p id="products-empty-state">No menu items added yet. Start by creating your first product.</p>
+
+            <section class="products-list-scroll" aria-label="Vendor menu items">
+                <ul id="products-list" class="products-list" aria-live="polite"></ul>
+            </section>
+        </section>
+    </main>
+
+    <dialog id="products-editor-modal" class="products-modal">
+        <form id="products-form" class="products-modal-card" method="dialog" novalidate>
+            <header class="products-modal-head">
+                <article>
+                    <p class="modal-kicker">Menu Editor</p>
+                    <h3 id="products-form-heading">Create Menu Item</h3>
+                    <p id="products-form-subheading" class="modal-subheading">
+                        Fill in the product details below and save them to your vendor menu.
+                    </p>
+                </article>
+
+                <button id="close-editor-button" class="button-ghost modal-close-button" type="button" aria-label="Close menu editor">
+                    Close
+                </button>
+            </header>
+
+            <input id="product-id" name="productId" type="hidden">
+
+            <section class="products-modal-grid" aria-label="Menu item editor">
+                <section class="modal-editor-pane" aria-labelledby="products-form-heading">
+                    <header class="editor-header">
+                        <p class="editing-pill" id="editing-state-pill">Creating New Item</p>
+                    </header>
+
+                    <section class="editor-grid" aria-label="Menu item details">
+                        <label class="field-block" for="product-name">
+                            <strong>Item name</strong>
+                            <input id="product-name" name="name" type="text" maxlength="120" placeholder="e.g. Chicken Burger" required aria-describedby="product-name-error">
+                        </label>
+                        <p id="product-name-error" class="form-error" aria-live="polite"></p>
+
+                        <label class="field-block" for="product-category">
+                            <strong>Category</strong>
+                            <input id="product-category" name="category" type="text" maxlength="80" placeholder="e.g. Burgers, Drinks, Wraps">
+                        </label>
+                        <p id="product-category-error" class="form-error" aria-live="polite"></p>
+
+                        <label class="field-block field-block-wide" for="product-description">
+                            <strong>Description</strong>
+                            <textarea id="product-description" name="description" rows="5" maxlength="500" placeholder="Describe the item, ingredients, portion size, or anything students should know." required aria-describedby="product-description-error"></textarea>
+                        </label>
+                        <p id="product-description-error" class="form-error" aria-live="polite"></p>
+
+                        <label class="field-block" for="product-price">
+                            <strong>Price (R)</strong>
+                            <input id="product-price" name="price" type="number" min="0" step="0.01" placeholder="e.g. 45.00" required aria-describedby="product-price-error">
+                        </label>
+                        <p id="product-price-error" class="form-error" aria-live="polite"></p>
+
+                        <label class="field-block" for="product-availability">
+                            <strong>Availability</strong>
+                            <select id="product-availability" name="availability" aria-describedby="product-availability-error">
+                                <option value="available">Available</option>
+                                <option value="unavailable">Unavailable</option>
+                            </select>
+                        </label>
+                        <p id="product-availability-error" class="form-error" aria-live="polite"></p>
+
+                        <label class="field-block field-block-wide" for="product-dietary-tags">
+                            <strong>Dietary tags</strong>
+                            <input id="product-dietary-tags" name="dietaryTags" type="text" maxlength="180" placeholder="e.g. halal, vegan, vegetarian">
+                        </label>
+                        <p id="product-dietary-tags-error" class="form-error" aria-live="polite"></p>
+
+                        <label class="field-block field-block-wide" for="product-allergen-tags">
+                            <strong>Allergen tags</strong>
+                            <input id="product-allergen-tags" name="allergenTags" type="text" maxlength="180" placeholder="e.g. gluten, dairy, nuts">
+                        </label>
+                        <p id="product-allergen-tags-error" class="form-error" aria-live="polite"></p>
+                    </section>
+
+                    <section class="photo-editor" aria-label="Product image tools">
+                        <article class="photo-upload-block">
+                            <label class="field-block" for="product-photo-file">
+                                <strong>Item photo</strong>
+                                <input id="product-photo-file" name="photoFile" type="file" accept="image/*">
+                            </label>
+
+                            <p class="helper-copy">
+                                Product photos are stored in Firebase Storage. The menu item keeps only the image path
+                                and download URL in Firestore.
+                            </p>
+
+                            <menu class="action-menu photo-actions" aria-label="Photo actions">
+                                <li><button id="preview-product-photo-button" class="button-secondary" type="button">Preview Photo</button></li>
+                                <li><button id="remove-product-photo-button" class="button-secondary" type="button">Remove Photo</button></li>
+                            </menu>
+                        </article>
+
+                        <article class="photo-preview-card">
+                            <p class="photo-preview-label">Image preview</p>
+                            <img id="product-photo-preview" alt="Product photo preview" hidden>
+                            <p id="product-photo-empty-state">No image selected yet.</p>
+                        </article>
+                    </section>
+
+                    <section class="product-flags" aria-label="Product availability flags">
+                        <label class="checkbox-row" for="product-sold-out">
+                            <input id="product-sold-out" name="soldOut" type="checkbox">
+                            <strong>Mark this menu item as sold out</strong>
+                        </label>
+                    </section>
+                </section>
+
+                <aside class="modal-summary-pane" aria-labelledby="product-summary-heading">
+                    <h4 id="product-summary-heading">Live Item Summary</h4>
+
+                    <section class="summary-grid" aria-label="Live menu item summary">
+                        <p><strong>Name:</strong> <output id="product-name-output">-</output></p>
+                        <p><strong>Category:</strong> <output id="product-category-output">-</output></p>
+                        <p><strong>Price:</strong> <output id="product-price-output">-</output></p>
+                        <p><strong>Availability:</strong> <output id="product-availability-output">-</output></p>
+                        <p><strong>Sold out:</strong> <output id="product-sold-out-output">No</output></p>
+                        <p><strong>Dietary tags:</strong> <output id="product-dietary-tags-output">-</output></p>
+                        <p><strong>Allergen tags:</strong> <output id="product-allergen-tags-output">-</output></p>
+                    </section>
+
+                    <p class="summary-description"><strong>Description:</strong> <output id="product-description-output">-</output></p>
+                </aside>
+            </section>
+
+            <menu class="action-menu editor-actions" aria-label="Product editor actions">
+                <li><button id="save-product-button" class="button-primary" type="submit">Save Menu Item</button></li>
+                <li><button id="clear-product-button" class="button-secondary" type="reset">Clear Form</button></li>
+                <li><button id="delete-product-button" class="button-danger" type="button" hidden>Delete Item</button></li>
+            </menu>
+        </form>
+    </dialog>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./products.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db, storage } from "../authentication/config.js";
+        import {
+            collection,
+            getDocs,
+            setDoc,
+            doc,
+            deleteDoc,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+        import {
+            ref,
+            uploadBytes,
+            getDownloadURL,
+            deleteObject
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
+
+        window.authService = authService;
+
+        window.vendorProductsPage.initializeProductsPage({
+            authService,
+            authUtils: window.authUtils,
+            db,
+            storage,
+            firestoreFns: {
+                collection,
+                getDocs,
+                setDoc,
+                doc,
+                deleteDoc,
+                serverTimestamp
+            },
+            storageFns: {
+                ref,
+                uploadBytes,
+                getDownloadURL,
+                deleteObject
+            }
+        });
+    </script>
+</body>
+
+</html>
