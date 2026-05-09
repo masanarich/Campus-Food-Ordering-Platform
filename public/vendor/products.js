@@ -1666,7 +1666,12 @@
             clearFileInput,
             createMenuItemId,
             buildMenuItemPhotoPath,
-            createVendorProductsPage
+            createVendorProductsPage,
+            getSelectedAllergenTags,
+            getSelectedDietaryTags,
+            setCheckedTags,
+            validateTags,
+            renderTagCheckboxes
         };
     }
 
