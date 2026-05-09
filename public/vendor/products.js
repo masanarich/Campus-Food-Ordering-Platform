@@ -449,8 +449,8 @@
                 priceInput: getElement("product-price"),
                 photoFileInput: getElement("product-photo-file"),
                 availabilityInput: getElement("product-availability"),
-                dietaryTagsInput: getElement("product-dietary-tags"),
-                allergenTagsInput: getElement("product-allergen-tags"),
+                /*dietaryTagsInput: getElement("product-dietary-tags"),
+                allergenTagsInput: getElement("product-allergen-tags"),*/
                 soldOutInput: getElement("product-sold-out"),
                 saveButton: getElement("save-product-button"),
                 clearButton: getElement("clear-product-button"),
@@ -772,7 +772,7 @@
                 elements.availabilityInput.value = normalizeAvailability(safeProduct.availability);
             }
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.value =
                     formatTagList(safeProduct.dietaryTags) === "-" ? "" : formatTagList(safeProduct.dietaryTags);
             }
@@ -780,7 +780,9 @@
             if (elements.allergenTagsInput) {
                 elements.allergenTagsInput.value =
                     formatTagList(safeProduct.allergenTags) === "-" ? "" : formatTagList(safeProduct.allergenTags);
-            }
+            }*/
+           setCheckedTags("dietary", safeProduct.dietaryTags);
+           setCheckedTags("allergen", safeProduct.allergenTags);
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = safeProduct.soldOut === true;
@@ -825,19 +827,24 @@
                 elements.availabilityInput.value = "available";
             }
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.value = "";
             }
 
             if (elements.allergenTagsInput) {
                 elements.allergenTagsInput.value = "";
-            }
+            }*/
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = false;
             }
 
             clearFileInput(elements.photoFileInput);
+            document
+                .querySelectorAll('input[name="dietaryTag"], input[name="allergenTag"]')
+                .forEach(function (checkbox) {
+                    checkbox.checked = false;
+                });
             updateEditingState();
             clearFieldErrors();
             updateSummary({});
@@ -1390,6 +1397,23 @@
                     }));
                 });
             }
+
+            document
+                .querySelectorAll('input[name="dietaryTag"], input[name="allergenTag"]')
+                .forEach(function (checkbox) {
+                    checkbox.addEventListener("change", function () {
+                        validateTags();
+
+                        updateSummary(
+                            toProduct({
+                                ...collectFormValues(),
+                                vendorUid: state.currentUser
+                                    ? state.currentUser.uid
+                                    : ""
+                            })
+                        );
+                    });
+                });
         }
 
         function openCreateModal() {
@@ -1610,7 +1634,12 @@
                 getSelectedPhotoFile,
                 clearFileInput,
                 createMenuItemId,
-                buildMenuItemPhotoPath
+                buildMenuItemPhotoPath,
+                getSelectedAllergenTags,
+                getSelectedDietaryTags,
+                setCheckedTags,
+                validateTags,
+                renderTagCheckboxes  
             },
             state
         };

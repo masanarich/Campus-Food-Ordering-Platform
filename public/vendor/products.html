@@ -153,8 +153,10 @@
                         </label>
                         <p id="product-availability-error" class="form-error" aria-live="polite"></p>
                            <!-- Allergen & Dietary Tags Section -->
-<section class="tags-section field-block field-block-wide">
-    <h3>Allergen & Dietary Tags</h3>
+<section 
+    class="tags-section field-block field-block-wide"
+    aria-labelledby= "tags-heading">
+    <h3 id= "tags-heading"> Allergen & Dietary Tags</h3>
     <p>Select all that apply to this menu item:</p>
 
     <!-- ALLERGEN TAGS -->
@@ -176,9 +178,12 @@
     <p id="product-dietaryTags-error" class="form-error" aria-live="polite"></p>
 
     <!-- Error message -->
-    <small id="tag-error" style="color: red; display: none;">
+    <p id="tag-error"
+         class="form-error" 
+         aria-live ="polite"
+         style="display:none">
         ⚠️ Please select at least one tag.
-    </small>
+    </p>
 
 </section>
                         
