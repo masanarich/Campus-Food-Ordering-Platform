@@ -192,8 +192,8 @@ function buildDependencies(options = {}) {
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 availability: "available",
                 soldOut: false,
-                dietaryTags: ["halal"],
-                allergenTags: ["gluten"]
+                dietaryTags: ["Vegan"],
+                allergenTags: ["Nuts"]
             },
             {
                 id: "item-2",
@@ -206,8 +206,8 @@ function buildDependencies(options = {}) {
                 photoPath: "",
                 availability: "available",
                 soldOut: true,
-                dietaryTags: ["vegetarian"],
-                allergenTags: ["dairy"]
+                dietaryTags: ["Vegetarian"],
+                allergenTags: ["Dairy"]
             }
         ];
 
@@ -303,6 +303,13 @@ function fillValidForm() {
     document.getElementById("product-description").value = "A juicy chicken burger with chips.";
     document.getElementById("product-price").value = "55.00";
     document.getElementById("product-availability").value = "available";
+    document.querySelectorAll('input[name="dietaryTag"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+
+    document.querySelectorAll('input[name="allergenTag"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
     document.querySelector(
     'input[name="dietaryTag"][value="Vegan"]'
     ).checked = true;
@@ -341,8 +348,8 @@ describe("products.js helpers", () => {
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 availability: "unavailable",
                 soldOut: true,
-                dietaryTags: "halal,grilled",
-                allergenTags: ["gluten", "dairy"]
+                dietaryTags: "Vegan,Halal",
+                allergenTags: ["Nuts", "Dairy"]
             }, "fallback")
         ).toEqual({
             id: "item-1",
@@ -355,8 +362,8 @@ describe("products.js helpers", () => {
             photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
             availability: "unavailable",
             soldOut: true,
-            dietaryTags: ["halal", "grilled"],
-            allergenTags: ["gluten", "dairy"],
+            dietaryTags: ["vegan", "halal"],
+            allergenTags: ["nuts", "dairy"],
             createdAt: null,
             updatedAt: null
         });
@@ -376,8 +383,8 @@ describe("products.js helpers", () => {
                 photoURL: "https://files.example/menu.jpg",
                 photoPath: "menuItemPhotos/vendor-1/abc/cover.jpg",
                 availability: "unavailable",
-                dietaryTags: "halal",
-                allergenTags: "gluten",
+                dietaryTags: "Vegan",
+                allergenTags: "Nuts",
                 soldOut: true
             })
         ).toEqual(expect.objectContaining({
@@ -651,8 +658,8 @@ describe("createVendorProductsPage", () => {
                 photoPath: "menuItemPhotos/vendor-1/created-1/cover.jpg",
                 availability: "available",
                 soldOut: false,
-                dietaryTags: ["halal", "grilled"],
-                allergenTags: ["gluten"],
+                dietaryTags: ["vegan"],
+                allergenTags: ["nuts"],
                 createdAt: "SERVER_TIME",
                 updatedAt: "SERVER_TIME"
             })
