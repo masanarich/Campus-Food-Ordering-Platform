@@ -27,68 +27,6 @@
     font-size: clamp(1.8rem, 4vw, 2.8rem);
 }
 
-.analytics-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: flex-start;
-    padding-top: 0.5rem;
-}
-
-.meta-note {
-    font-size: 0.8rem;
-    opacity: 0.6;
-    max-width: 260px;
-}
-
-/* ----------------------------------------------------------
-   KPI Summary Cards
-   ---------------------------------------------------------- */
-.kpi-section {
-    max-width: 1200px;
-    margin: 0 auto 2.5rem;
-    padding: 0 2rem;
-}
-
-.kpi-section .section-label {
-    margin-bottom: 1rem;
-}
-
-.kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-}
-
-.kpi-card {
-    background: var(--card-bg, #fff);
-    border: 1px solid var(--border-color, #e5e7eb);
-    border-radius: 10px;
-    padding: 1.25rem 1.5rem;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    transition: box-shadow 0.2s ease;
-}
-
-.kpi-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.kpi-label {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    opacity: 0.55;
-    margin: 0 0 0.4rem;
-    font-weight: 600;
-}
-
-.kpi-value {
-    font-size: 1.9rem;
-    font-weight: 700;
-    margin: 0;
-    line-height: 1.1;
-}
-
 /* ----------------------------------------------------------
    Report Sections
    ---------------------------------------------------------- */
@@ -133,6 +71,12 @@
 /* ----------------------------------------------------------
    Charts
    ---------------------------------------------------------- */
+
+/* Reset default figure margin */
+figure {
+    margin: 0;
+}
+
 .chart-container {
     position: relative;
     width: 100%;
@@ -238,10 +182,6 @@
     .report-section {
         margin: 0 1rem 2rem;
         padding: 1.25rem;
-    }
-
-    .kpi-section {
-        padding: 0 1.25rem;
     }
 
     .report-header {
