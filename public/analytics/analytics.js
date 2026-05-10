@@ -418,7 +418,7 @@ function exportSectionPDF(sectionId, filename) {
   doc.setFontSize(18);
   doc.text(heading, 40, 50);
   doc.setFontSize(10);
-  doc.setTextColor(120);
+  doc.setTextColor(0);
   doc.text(desc, 40, 68);
   doc.setTextColor(0);
 
