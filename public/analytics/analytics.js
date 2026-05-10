@@ -399,83 +399,39 @@ function downloadCSV(rows, filename, rawRows = false) {
 }
 
 /** Export a report section to PDF using jsPDF */
-function exportSectionPDF(sectionId, filename) {
+async function exportSectionPDF(sectionId, filename) {
   const { jsPDF } = window.jspdf;
-  if (!jsPDF) {
-    console.error("jsPDF not loaded. Add the CDN script to analytics.html.");
-    return;
-  }
 
   const section = document.getElementById(sectionId);
   if (!section) return;
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "pt",
+    format: "a4"
+  });
 
-  // Grab the heading text for the PDF title
-  const heading = section.querySelector("h2")?.innerText ?? filename;
-  const desc = section.querySelector(".report-description")?.innerText ?? "";
+  // Capture the ENTIRE section as it appears on screen
+  const canvas = await html2canvas(section, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff"
+  });
 
-  doc.setFontSize(18);
-  doc.text(heading, 40, 50);
-  doc.setFontSize(10);
-  doc.setTextColor(0);
-  doc.text(desc, 40, 68);
-  doc.setTextColor(0);
+  const imgData = canvas.toDataURL("image/png");
 
-  // Extract table data if present
-  const table = section.querySelector("table");
-  if (table) {
-    const headers = [...table.querySelectorAll("thead th")].map(th => th.innerText);
-    const bodyRows = [...table.querySelectorAll("tbody tr")].map(row =>
-      [...row.querySelectorAll("td")].map(td => td.innerText)
-    );
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-    // Simple manual table rendering
-    const startY = 90;
-    const colWidth = (doc.internal.pageSize.getWidth() - 80) / (headers.length || 1);
-    const rowHeight = 20;
+  const imgWidth = pageWidth;
+  const imgHeight = pageHeight;
 
-    // Header row
-    doc.setFillColor(249, 250, 251);
-    doc.setFontSize(8);
-    doc.setFont(undefined, "bold");
-    headers.forEach((h, i) => {
-      doc.rect(40 + i * colWidth, startY, colWidth, rowHeight, "F");
-      doc.text(h, 44 + i * colWidth, startY + 13);
-    });
+  let y = 0;
 
-    // Body rows
-    doc.setFont(undefined, "normal");
-    bodyRows.forEach((row, rIdx) => {
-      const y = startY + (rIdx + 1) * rowHeight;
-      if (rIdx % 2 === 0) {
-        doc.setFillColor(255, 255, 255);
-      } else {
-        doc.setFillColor(249, 250, 251);
-      }
-      row.forEach((cell, i) => {
-        doc.rect(40 + i * colWidth, y, colWidth, rowHeight, "F");
-        doc.text(String(cell), 44 + i * colWidth, y + 13);
-      });
-    });
-  } else {
-    doc.setFontSize(10);
-    doc.text("No table data available for this report.", 40, 100);
-  }
-
-  // Footer
-  const pageW = doc.internal.pageSize.getWidth();
-  doc.setFontSize(8);
-  doc.setTextColor(150);
-  doc.text(
-    `Campus Food Ordering Platform · Exported ${new Date().toLocaleDateString("en-ZA")}`,
-    pageW / 2, doc.internal.pageSize.getHeight() - 20,
-    { align: "center" }
-  );
+  doc.addImage(imgData, "PNG", 0, y, imgWidth, imgHeight);
 
   doc.save(filename);
 }
-
 // ---------------------------------------------------------
 // Footer year
 // ---------------------------------------------------------
