@@ -1,5 +1,31 @@
 (function attachVendorProductsPage(globalScope) {
     "use strict";
+    const masterTags = {
+        allergens: [
+            "Gluten",
+            "Milk",
+            "Eggs",
+            "Nuts",
+            "Peanuts",
+            "Sesame Seeds",
+            "Soybeans",
+            "Fish",
+            "Crustaceans",
+            "Molluscs",
+            "Mustard",
+            "Celery",
+            "Lupin",
+            "Sulphur Dioxide and Sulphites"
+        ],
+        dietary: [
+            "Halal",
+            "Vegan",
+            "Vegetarian",
+            "Gluten Free",
+            "Dairy Free",
+            "Nut Free"
+        ]
+    };
 
     const DEFAULT_STATUS_MESSAGE = "Loading your menu workspace...";
     const DEFAULT_NOTE_MESSAGE = "Use this page to create, update, and organize your shop menu.";
@@ -264,10 +290,92 @@
         return "jpg";
     }
 
-    function buildMenuItemPhotoPath(vendorUid, productId, file) {
+   function buildMenuItemPhotoPath(vendorUid, productId, file) {
         return `menuItemPhotos/${normalizeText(vendorUid)}/${normalizeText(productId)}/cover.${getFileExtension(file)}`;
     }
 
+    function renderTagCheckboxes() {
+        const allergenContainer = document.getElementById("allergen-tags-container");
+        if (allergenContainer) {
+            masterTags.allergens.forEach(function(tag) {
+                const li = document.createElement("li");
+                const label = document.createElement("label");
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.name = "allergenTag";
+                checkbox.value = tag;
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(` ${tag}`));
+                li.appendChild(label);
+                allergenContainer.appendChild(li);
+            });
+        }
+
+        const dietaryContainer = document.getElementById("dietary-tags-container");
+        if (dietaryContainer) {
+            masterTags.dietary.forEach(function(tag) {
+                const li = document.createElement("li");
+                const label = document.createElement("label");
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.name = "dietaryTag";
+                checkbox.value = tag;
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(` ${tag}`));
+                li.appendChild(label);
+                dietaryContainer.appendChild(li);
+            });
+        }
+    }
+
+
+
+    function getSelectedAllergenTags() {
+        const checkboxes = document.querySelectorAll('input[name="allergenTag"]:checked');
+        return Array.from(checkboxes).map(function(cb) {
+            return cb.value;
+        });
+    }
+
+    function getSelectedDietaryTags() {
+        const checkboxes = document.querySelectorAll('input[name="dietaryTag"]:checked');
+        return Array.from(checkboxes).map(function(cb) {
+            return cb.value;
+        });
+    }
+
+    function setCheckedTags(type, selectedTags) {
+        const safeTags = Array.isArray(selectedTags) ? selectedTags : [];
+
+        const selector =
+            type === "dietary"
+                ? 'input[name="dietaryTag"]'
+                : 'input[name="allergenTag"]';
+
+        const checkboxes = document.querySelectorAll(selector);
+
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = safeTags.includes(checkbox.value.toLowerCase());
+        });
+    }
+
+    function validateTags() {
+        const selectedAllergens = getSelectedAllergenTags();
+        const selectedDietary = getSelectedDietaryTags();
+        const tagError = document.getElementById("tag-error");
+
+        if (selectedAllergens.length === 0 && selectedDietary.length === 0) {
+            if (tagError) {
+                tagError.style.display = "block";
+            }
+            return false;
+        }
+
+        if (tagError) {
+            tagError.style.display = "none";
+        }
+        return true;
+    }
     function createVendorProductsPage(dependencies = {}) {
         const authService = dependencies.authService || null;
         const authUtils = dependencies.authUtils || null;
@@ -341,8 +449,8 @@
                 priceInput: getElement("product-price"),
                 photoFileInput: getElement("product-photo-file"),
                 availabilityInput: getElement("product-availability"),
-                dietaryTagsInput: getElement("product-dietary-tags"),
-                allergenTagsInput: getElement("product-allergen-tags"),
+                /*dietaryTagsInput: getElement("product-dietary-tags"),
+                allergenTagsInput: getElement("product-allergen-tags"),*/
                 soldOutInput: getElement("product-sold-out"),
                 saveButton: getElement("save-product-button"),
                 clearButton: getElement("clear-product-button"),
@@ -593,8 +701,8 @@
                 price: elements.priceInput ? elements.priceInput.value : "",
                 photoURL: state.selectedPhotoDataUrl,
                 availability: elements.availabilityInput ? elements.availabilityInput.value : "available",
-                dietaryTags: elements.dietaryTagsInput ? elements.dietaryTagsInput.value : "",
-                allergenTags: elements.allergenTagsInput ? elements.allergenTagsInput.value : "",
+                dietaryTags: getSelectedDietaryTags(),
+                allergenTags: getSelectedAllergenTags(),
                 soldOut: elements.soldOutInput ? elements.soldOutInput.checked === true : false
             };
         }
@@ -664,7 +772,7 @@
                 elements.availabilityInput.value = normalizeAvailability(safeProduct.availability);
             }
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.value =
                     formatTagList(safeProduct.dietaryTags) === "-" ? "" : formatTagList(safeProduct.dietaryTags);
             }
@@ -672,7 +780,9 @@
             if (elements.allergenTagsInput) {
                 elements.allergenTagsInput.value =
                     formatTagList(safeProduct.allergenTags) === "-" ? "" : formatTagList(safeProduct.allergenTags);
-            }
+            }*/
+           setCheckedTags("dietary", safeProduct.dietaryTags);
+           setCheckedTags("allergen", safeProduct.allergenTags);
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = safeProduct.soldOut === true;
@@ -717,19 +827,24 @@
                 elements.availabilityInput.value = "available";
             }
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.value = "";
             }
 
             if (elements.allergenTagsInput) {
                 elements.allergenTagsInput.value = "";
-            }
+            }*/
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.checked = false;
             }
 
             clearFileInput(elements.photoFileInput);
+            document
+                .querySelectorAll('input[name="dietaryTag"], input[name="allergenTag"]')
+                .forEach(function (checkbox) {
+                    checkbox.checked = false;
+                });
             updateEditingState();
             clearFieldErrors();
             updateSummary({});
@@ -1102,6 +1217,11 @@
         }
 
         async function saveCurrentProduct() {
+             if (!validateTags()) {
+                setStatus("Please select at least one allergen or dietary tag.", "error");
+                setNote("Choose tags that apply to this menu item before saving.");
+                return { success: false };
+            }
             const values = collectFormValues();
             const validation = validateProduct(values);
 
@@ -1251,7 +1371,7 @@
                 });
             });
 
-            if (elements.dietaryTagsInput) {
+            /*if (elements.dietaryTagsInput) {
                 elements.dietaryTagsInput.addEventListener("input", function handleDietary() {
                     updateSummary(toProduct({
                         ...collectFormValues(),
@@ -1267,7 +1387,7 @@
                         vendorUid: state.currentUser ? state.currentUser.uid : ""
                     }));
                 });
-            }
+            }*/
 
             if (elements.soldOutInput) {
                 elements.soldOutInput.addEventListener("change", function handleSoldOut() {
@@ -1277,6 +1397,23 @@
                     }));
                 });
             }
+
+            document
+                .querySelectorAll('input[name="dietaryTag"], input[name="allergenTag"]')
+                .forEach(function (checkbox) {
+                    checkbox.addEventListener("change", function () {
+                        validateTags();
+
+                        updateSummary(
+                            toProduct({
+                                ...collectFormValues(),
+                                vendorUid: state.currentUser
+                                    ? state.currentUser.uid
+                                    : ""
+                            })
+                        );
+                    });
+                });
         }
 
         function openCreateModal() {
@@ -1435,8 +1572,10 @@
         }
 
         async function initializeProductsPage() {
+            
             setStatus(DEFAULT_STATUS_MESSAGE, "info");
             setNote(DEFAULT_NOTE_MESSAGE);
+            renderTagCheckboxes();
             bindEvents();
             resetFormState({ preserveMessages: true });
 
@@ -1495,7 +1634,12 @@
                 getSelectedPhotoFile,
                 clearFileInput,
                 createMenuItemId,
-                buildMenuItemPhotoPath
+                buildMenuItemPhotoPath,
+                getSelectedAllergenTags,
+                getSelectedDietaryTags,
+                setCheckedTags,
+                validateTags,
+                renderTagCheckboxes  
             },
             state
         };
@@ -1522,7 +1666,12 @@
             clearFileInput,
             createMenuItemId,
             buildMenuItemPhotoPath,
-            createVendorProductsPage
+            createVendorProductsPage,
+            getSelectedAllergenTags,
+            getSelectedDietaryTags,
+            setCheckedTags,
+            validateTags,
+            renderTagCheckboxes
         };
     }
 

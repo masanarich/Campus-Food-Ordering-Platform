@@ -79,10 +79,53 @@ function createDom() {
                     <option value="unavailable">Unavailable</option>
                 </select>
                 <p id="product-availability-error" hidden></p>
-                <input id="product-dietary-tags" type="text">
-                <p id="product-dietary-tags-error" hidden></p>
-                <input id="product-allergen-tags" type="text">
-                <p id="product-allergen-tags-error" hidden></p>
+                <ul id="dietary-tags-container">
+                    <li>
+                        <label>
+                            <input type="checkbox" name="dietaryTag" value="Vegan">
+                            Vegan
+                        </label>
+                    </li>
+
+                    <li>
+                        <label>
+                            <input type="checkbox" name="dietaryTag" value="Halal">
+                            Halal
+                        </label>
+                    </li>
+
+                    <li>
+                        <label>
+                            <input type="checkbox" name="dietaryTag" value="Vegetarian">
+                            Vegetarian
+                        </label>
+                    </li>
+                </ul>
+
+                <ul id="allergen-tags-container">
+                    <li>
+                        <label>
+                            <input type="checkbox" name="allergenTag" value="Nuts">
+                            Nuts
+                        </label>
+                    </li>
+
+                    <li>
+                        <label>
+                            <input type="checkbox" name="allergenTag" value="Gluten">
+                            Gluten
+                        </label>
+                    </li>
+
+                    <li>
+                        <label>
+                            <input type="checkbox" name="allergenTag" value="Dairy">
+                            Dairy
+                        </label>
+                    </li>
+                </ul>
+
+                <p id="tag-error" hidden></p>
                 <input id="product-sold-out" type="checkbox">
                 <button id="save-product-button" type="submit">Save</button>
                 <button id="clear-product-button" type="reset">Clear</button>
@@ -101,8 +144,6 @@ function createDom() {
             <output id="product-price-output"></output>
             <output id="product-availability-output"></output>
             <output id="product-sold-out-output"></output>
-            <output id="product-dietary-tags-output"></output>
-            <output id="product-allergen-tags-output"></output>
             <img id="product-photo-preview" alt="preview" hidden>
             <p id="product-photo-empty-state"></p>
         </section>
@@ -151,8 +192,8 @@ function buildDependencies(options = {}) {
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 availability: "available",
                 soldOut: false,
-                dietaryTags: ["halal"],
-                allergenTags: ["gluten"]
+                dietaryTags: ["Vegan"],
+                allergenTags: ["Nuts"]
             },
             {
                 id: "item-2",
@@ -165,8 +206,8 @@ function buildDependencies(options = {}) {
                 photoPath: "",
                 availability: "available",
                 soldOut: true,
-                dietaryTags: ["vegetarian"],
-                allergenTags: ["dairy"]
+                dietaryTags: ["Vegetarian"],
+                allergenTags: ["Dairy"]
             }
         ];
 
@@ -262,8 +303,20 @@ function fillValidForm() {
     document.getElementById("product-description").value = "A juicy chicken burger with chips.";
     document.getElementById("product-price").value = "55.00";
     document.getElementById("product-availability").value = "available";
-    document.getElementById("product-dietary-tags").value = "halal, grilled";
-    document.getElementById("product-allergen-tags").value = "gluten";
+    document.querySelectorAll('input[name="dietaryTag"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+
+    document.querySelectorAll('input[name="allergenTag"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+    document.querySelector(
+    'input[name="dietaryTag"][value="Vegan"]'
+    ).checked = true;
+
+    document.querySelector(
+    'input[name="allergenTag"][value="Nuts"]'
+    ).checked = true;
     document.getElementById("product-sold-out").checked = false;
 }
 
@@ -295,8 +348,8 @@ describe("products.js helpers", () => {
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 availability: "unavailable",
                 soldOut: true,
-                dietaryTags: "halal,grilled",
-                allergenTags: ["gluten", "dairy"]
+                dietaryTags: "Vegan,Halal",
+                allergenTags: ["Nuts", "Dairy"]
             }, "fallback")
         ).toEqual({
             id: "item-1",
@@ -309,8 +362,8 @@ describe("products.js helpers", () => {
             photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
             availability: "unavailable",
             soldOut: true,
-            dietaryTags: ["halal", "grilled"],
-            allergenTags: ["gluten", "dairy"],
+            dietaryTags: ["vegan", "halal"],
+            allergenTags: ["nuts", "dairy"],
             createdAt: null,
             updatedAt: null
         });
@@ -330,8 +383,8 @@ describe("products.js helpers", () => {
                 photoURL: "https://files.example/menu.jpg",
                 photoPath: "menuItemPhotos/vendor-1/abc/cover.jpg",
                 availability: "unavailable",
-                dietaryTags: "halal",
-                allergenTags: "gluten",
+                dietaryTags: "Vegan",
+                allergenTags: "Nuts",
                 soldOut: true
             })
         ).toEqual(expect.objectContaining({
@@ -564,6 +617,9 @@ describe("createVendorProductsPage", () => {
 
     test("saveCurrentProduct shows validation errors for invalid form", async () => {
         await page.initializeProductsPage();
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
@@ -577,6 +633,9 @@ describe("createVendorProductsPage", () => {
         page.openCreateModal();
         fillValidForm();
         attachFile(document.getElementById("product-photo-file"), createMockFile("burger.jpg", "image/jpeg"));
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
@@ -599,8 +658,8 @@ describe("createVendorProductsPage", () => {
                 photoPath: "menuItemPhotos/vendor-1/created-1/cover.jpg",
                 availability: "available",
                 soldOut: false,
-                dietaryTags: ["halal", "grilled"],
-                allergenTags: ["gluten"],
+                dietaryTags: ["vegan"],
+                allergenTags: ["nuts"],
                 createdAt: "SERVER_TIME",
                 updatedAt: "SERVER_TIME"
             })
@@ -614,6 +673,9 @@ describe("createVendorProductsPage", () => {
 
         page.editProductById("item-1");
         document.getElementById("product-price").value = "60.00";
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
@@ -638,6 +700,9 @@ describe("createVendorProductsPage", () => {
 
         page.editProductById("item-1");
         page.removeSelectedPhoto();
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
         const result = await page.saveCurrentProduct();
 
         expect(result.success).toBe(true);
@@ -750,6 +815,9 @@ describe("createVendorProductsPage", () => {
         page.openCreateModal();
         fillValidForm();
         attachFile(document.getElementById("product-photo-file"), createMockFile("burger.jpg", "image/jpeg"));
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
