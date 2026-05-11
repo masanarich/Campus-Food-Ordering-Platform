@@ -43,6 +43,8 @@
         return {};
     }
 
+    // FIX (Bug 2): Return null instead of {} so the guard in
+    // fetchOrderDetails actually catches missing Firestore functions.
     function resolveFirestoreFns(explicitFirestoreFns) {
         if (explicitFirestoreFns && typeof explicitFirestoreFns === "object") {
             return explicitFirestoreFns;
@@ -52,7 +54,7 @@
             return globalScope.firestoreFns;
         }
 
-        return {};
+        return null; // was {}, now null so !firestoreFns guard fires correctly
     }
 
     function normalizeText(value) {
@@ -106,7 +108,13 @@
 
         const { getDoc, doc, collection } = firestoreFns;
 
-        if (typeof getDoc !== "function" || typeof doc !== "function") {
+        // FIX (Bug 1): Added collection to the validation guard — it was
+        // being used below but never checked, causing a silent crash.
+        if (
+            typeof getDoc !== "function" ||
+            typeof doc !== "function" ||
+            typeof collection !== "function"
+        ) {
             throw new Error("Firestore functions not available");
         }
 
@@ -184,7 +192,6 @@
         const platformFee = calculatePlatformFee(subtotal, platformFeePercentage);
         const total = Math.round((subtotal + deliveryFee + platformFee) * 100) / 100;
 
-        // Update form fields
         const vendorNameEl = globalScope.document.getElementById("vendor-name");
         if (vendorNameEl) {
             vendorNameEl.textContent = normalizeText(orderData.vendorName) || "Unknown Vendor";
@@ -301,7 +308,6 @@
                     const paymentResult = await initiatePayment(orderId, orderData);
 
                     if (paymentResult && paymentResult.paymentUrl) {
-                        // Redirect to PayFast
                         globalScope.location.href = paymentResult.paymentUrl;
                     } else {
                         throw new Error("No payment URL returned");
@@ -364,14 +370,11 @@
 
                 clearStatusMessage(statusEl);
 
-                // Render order items
                 const itemsContainer = globalScope.document.getElementById("order-items-list");
                 renderOrderItems(orderData.items || [], itemsContainer);
 
-                // Update payment summary
                 updatePaymentSummary(orderData);
 
-                // Setup event listeners
                 setupEventListeners(orderId, orderData);
 
                 return {
@@ -430,3 +433,36 @@
         globalScope.paymentModule = paymentModule;
     }
 })(typeof window !== "undefined" ? window : globalThis);
+
+// =============================================================================
+// ENTRY SCRIPT — paste this into your payment page's <script type="module">
+// or a dedicated payment-init.js file loaded with type="module".
+//
+// Adjust the relative path to config.js based on where your payment page sits.
+// Examples:
+//   Payment page is in public/customer/order-management/  →  "../../../authentication/config.js"
+//   Payment page is in public/customer/                   →  "../../authentication/config.js"
+// =============================================================================
+//
+// <script type="module">
+//
+//   // 1. Re-use the already-initialised db and auth from your config file
+//   //    — no second initializeApp() call needed.
+//   import { db, auth } from "../../authentication/config.js";  // adjust path as needed
+//
+//   // 2. Import only the Firestore helper functions (NOT getFirestore — db is
+//   //    already built). These are the functions the payment module needs.
+//   import {
+//       getDoc,
+//       doc,
+//       collection
+//   } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+//
+//   // 3. Start the payment module with everything wired up.
+//   paymentModule.init({
+//       db,
+//       auth,
+//       firestoreFns: { getDoc, doc, collection }
+//   });
+//
+// </script>
