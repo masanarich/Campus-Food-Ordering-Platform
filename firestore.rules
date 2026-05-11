@@ -92,7 +92,39 @@ service cloud.firestore {
         "notes",
         "updatedAt",
         "customerConfirmedCollected",
-        "vendorConfirmedCollected"
+        "vendorConfirmedCollected",
+        "paymentId",
+        "paymentStatus",
+        "paymentProvider",
+        "paymentReference",
+        "paymentAccessCode",
+        "paymentAuthorizationUrl",
+        "paymentAmount",
+        "paymentAmountInMinorUnits",
+        "paymentCurrency",
+        "paymentPaidAt",
+        "paymentFailedAt",
+        "paymentVerifiedAt",
+        "paymentFailureReason"
+      ]);
+    }
+
+    function paymentUpdateAffectsOnlyPaymentKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "updatedAt",
+        "paymentId",
+        "paymentStatus",
+        "paymentProvider",
+        "paymentReference",
+        "paymentAccessCode",
+        "paymentAuthorizationUrl",
+        "paymentAmount",
+        "paymentAmountInMinorUnits",
+        "paymentCurrency",
+        "paymentPaidAt",
+        "paymentFailedAt",
+        "paymentVerifiedAt",
+        "paymentFailureReason"
       ]);
     }
 
@@ -132,6 +164,24 @@ service cloud.firestore {
         request.resource.data.customerConfirmedCollected == resource.data.get("customerConfirmedCollected", false);
     }
 
+    function vendorDoesNotTouchPaymentFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        "paymentId",
+        "paymentStatus",
+        "paymentProvider",
+        "paymentReference",
+        "paymentAccessCode",
+        "paymentAuthorizationUrl",
+        "paymentAmount",
+        "paymentAmountInMinorUnits",
+        "paymentCurrency",
+        "paymentPaidAt",
+        "paymentFailedAt",
+        "paymentVerifiedAt",
+        "paymentFailureReason"
+      ]);
+    }
+
     function isValidOrderCreate() {
       return signedIn() &&
         request.resource.data.customerUid == request.auth.uid &&
@@ -154,8 +204,18 @@ service cloud.firestore {
         vendorConfirmationPreservedOrAdvanced() &&
         (
           isAdmin() ||
-          (isOrderCustomer() && customerOnlyTouchesOwnConfirmation()) ||
-          (isOrderVendor() && vendorOnlyTouchesOwnConfirmation())
+          (
+            isOrderCustomer() &&
+            (
+              customerOnlyTouchesOwnConfirmation() ||
+              paymentUpdateAffectsOnlyPaymentKeys()
+            )
+          ) ||
+          (
+            isOrderVendor() &&
+            vendorOnlyTouchesOwnConfirmation() &&
+            vendorDoesNotTouchPaymentFields()
+          )
         );
     }
 

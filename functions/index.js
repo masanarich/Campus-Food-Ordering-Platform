@@ -14,6 +14,7 @@ function optionalRequire(moduleName) {
 }
 
 const httpsFunctions = optionalRequire("firebase-functions/v2/https");
+const firebaseAdmin = optionalRequire("firebase-admin");
 
 class LocalHttpsError extends Error {
     constructor(code, message, details) {
@@ -107,6 +108,110 @@ function sanitizeForCallable(value) {
     return value;
 }
 
+function normalizeText(value) {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function resolveOrderId(value, fallbackValue) {
+    const safeValue = value && typeof value === "object" ? value : {};
+    const safeFallback = fallbackValue && typeof fallbackValue === "object" ? fallbackValue : {};
+
+    return normalizeText(
+        safeValue.orderId ||
+        safeValue.id ||
+        safeValue.paymentOrderId ||
+        safeFallback.orderId ||
+        safeFallback.id
+    );
+}
+
+function resolveAdminFirestore(explicitDb) {
+    if (explicitDb && typeof explicitDb.collection === "function") {
+        return explicitDb;
+    }
+
+    if (!firebaseAdmin) {
+        return null;
+    }
+
+    if (Array.isArray(firebaseAdmin.apps) && firebaseAdmin.apps.length === 0) {
+        firebaseAdmin.initializeApp();
+    }
+
+    if (typeof firebaseAdmin.firestore === "function") {
+        return firebaseAdmin.firestore();
+    }
+
+    return null;
+}
+
+async function writeOrderPaymentPatch(orderId, patch, options = {}) {
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const safeOrderId = normalizeText(orderId);
+    const safePatch = patch && typeof patch === "object" ? patch : {};
+    const patchKeys = Object.keys(safePatch);
+
+    if (!safeOrderId || patchKeys.length === 0) {
+        return {
+            success: false,
+            skipped: true,
+            orderId: safeOrderId,
+            patch: safePatch
+        };
+    }
+
+    if (typeof safeOptions.orderPaymentPatchWriter === "function") {
+        return safeOptions.orderPaymentPatchWriter(safeOrderId, safePatch);
+    }
+
+    const db = resolveAdminFirestore(safeOptions.adminDb);
+
+    if (!db) {
+        return {
+            success: false,
+            skipped: true,
+            orderId: safeOrderId,
+            patch: safePatch,
+            error: {
+                code: "payments/admin-db-unavailable",
+                message: "Admin Firestore is not available to save the payment patch."
+            }
+        };
+    }
+
+    try {
+        await db.collection("orders").doc(safeOrderId).update(safePatch);
+
+        return {
+            success: true,
+            orderId: safeOrderId,
+            patch: safePatch
+        };
+    } catch (error) {
+        return {
+            success: false,
+            orderId: safeOrderId,
+            patch: safePatch,
+            error: sanitizeForCallable(error)
+        };
+    }
+}
+
+async function attachPersistedPaymentPatch(callableResult, fallbackOrder, dependencies = {}) {
+    const safeResult = callableResult && typeof callableResult === "object" ? callableResult : {};
+    const orderId = resolveOrderId(safeResult.payment, fallbackOrder);
+    const patchResult = await writeOrderPaymentPatch(orderId, safeResult.patch, dependencies);
+
+    if (patchResult.success) {
+        return {
+            ...safeResult,
+            patchResult: sanitizeForCallable(patchResult)
+        };
+    }
+
+    return safeResult;
+}
+
 function assertSuccessfulPaymentResult(result, fallbackMessage) {
     if (result && result.success === true) {
         return sanitizeForCallable(result);
@@ -137,10 +242,15 @@ function createInitializePaymentHandler(dependencies = {}) {
             actorUid: auth.uid,
             auth
         });
-
-        return assertSuccessfulPaymentResult(
+        const callableResult = assertSuccessfulPaymentResult(
             result,
             "Payment could not be initialized."
+        );
+
+        return attachPersistedPaymentPatch(
+            callableResult,
+            data.order || {},
+            safeDependencies
         );
     };
 }
@@ -163,10 +273,15 @@ function createVerifyPaymentHandler(dependencies = {}) {
             actorUid: auth.uid,
             auth
         });
-
-        return assertSuccessfulPaymentResult(
+        const callableResult = assertSuccessfulPaymentResult(
             result,
             "Payment could not be verified."
+        );
+
+        return attachPersistedPaymentPatch(
+            callableResult,
+            payment,
+            safeDependencies
         );
     };
 }
@@ -176,7 +291,8 @@ function createPaymentFunctions(options = {}) {
     const onCall = resolveOnCall(safeOptions.onCall);
     const triggerOptions = {
         region: safeOptions.region || DEFAULT_REGION,
-        cors: safeOptions.cors !== undefined ? safeOptions.cors : true
+        cors: safeOptions.cors !== undefined ? safeOptions.cors : true,
+        invoker: safeOptions.invoker || "public"
     };
 
     return {
@@ -203,6 +319,11 @@ module.exports = {
     normalizeAuthContext,
     createCallableError,
     sanitizeForCallable,
+    normalizeText,
+    resolveOrderId,
+    resolveAdminFirestore,
+    writeOrderPaymentPatch,
+    attachPersistedPaymentPatch,
     assertSuccessfulPaymentResult,
     createInitializePaymentHandler,
     createVerifyPaymentHandler,

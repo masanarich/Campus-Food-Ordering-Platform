@@ -844,7 +844,22 @@
                 };
             }
 
-            const patchResult = await updateOrderPaymentPatch(paymentOrder, result.patch, safeOptions);
+            let patchResult = result.patchResult || null;
+
+            try {
+                patchResult = patchResult || await updateOrderPaymentPatch(paymentOrder, result.patch, safeOptions);
+            } catch (patchError) {
+                console.warn(`${MODULE_NAME}: Browser payment patch failed; continuing because the payment function already initialized the transaction.`, patchError);
+                patchResult = {
+                    success: false,
+                    skipped: true,
+                    error: {
+                        code: patchError?.code || "checkout/payment-patch-browser-failed",
+                        message: patchError?.message || "Browser payment patch failed."
+                    }
+                };
+            }
+
             navigateToPayment(result.authorizationUrl, safeOptions);
 
             return {

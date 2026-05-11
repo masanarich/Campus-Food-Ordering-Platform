@@ -213,6 +213,71 @@ describe("functions/index.js", () => {
         );
     });
 
+    test("persists successful payment patches with injected writer", async () => {
+        const orderPaymentPatchWriter = jest.fn(async (orderId, patch) => ({
+            success: true,
+            orderId,
+            patch
+        }));
+        const handler = functionsIndex.createInitializePaymentHandler({
+            initializePayment: jest.fn(async () => ({
+                success: true,
+                payment: {
+                    orderId: "order-1"
+                },
+                patch: {
+                    paymentStatus: "pending",
+                    paymentReference: "paystack-ref"
+                },
+                authorizationUrl: "https://checkout.paystack.com/test"
+            })),
+            orderPaymentPatchWriter
+        });
+
+        await expect(
+            handler({
+                data: {
+                    order: {
+                        orderId: "order-1"
+                    }
+                }
+            })
+        ).resolves.toEqual({
+            success: true,
+            payment: {
+                orderId: "order-1"
+            },
+            patch: {
+                paymentStatus: "pending",
+                paymentReference: "paystack-ref"
+            },
+            patchResult: {
+                success: true,
+                orderId: "order-1",
+                patch: {
+                    paymentStatus: "pending",
+                    paymentReference: "paystack-ref"
+                }
+            },
+            authorizationUrl: "https://checkout.paystack.com/test"
+        });
+
+        expect(orderPaymentPatchWriter).toHaveBeenCalledWith("order-1", {
+            paymentStatus: "pending",
+            paymentReference: "paystack-ref"
+        });
+    });
+
+    test("writeOrderPaymentPatch skips safely without an order id or patch", async () => {
+        await expect(functionsIndex.writeOrderPaymentPatch("", {})).resolves.toEqual({
+            success: false,
+            skipped: true,
+            orderId: "",
+            patch: {}
+        });
+        expect(functionsIndex.resolveOrderId({ id: "doc-1" })).toBe("doc-1");
+    });
+
     test("builds payment callables with custom onCall", async () => {
         const onCall = jest.fn((options, handler) => ({
             options,
@@ -240,11 +305,13 @@ describe("functions/index.js", () => {
         expect(onCall).toHaveBeenCalledTimes(2);
         expect(paymentFunctions.initializePayment.options).toEqual({
             region: "europe-west1",
-            cors: false
+            cors: false,
+            invoker: "public"
         });
         expect(paymentFunctions.verifyPayment.options).toEqual({
             region: "europe-west1",
-            cors: false
+            cors: false,
+            invoker: "public"
         });
 
         await expect(

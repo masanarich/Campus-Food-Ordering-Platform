@@ -251,7 +251,7 @@ describe("functions/payments/initialize-payment.js", () => {
         };
 
         jest.resetModules();
-        jest.doMock("../../../public/shared/payments/payment-service.js", () => paymentService);
+        jest.doMock("../../../functions/shared/payments/payment-service.js", () => paymentService);
 
         let isolatedInitializePayment;
         jest.isolateModules(() => {
@@ -274,7 +274,7 @@ describe("functions/payments/initialize-payment.js", () => {
         expect(paymentService.prepareInitializePayment).toHaveBeenCalledTimes(1);
         expect(paymentService.applyInitializedPayment).toHaveBeenCalledTimes(1);
 
-        jest.dontMock("../../../public/shared/payments/payment-service.js");
+        jest.dontMock("../../../functions/shared/payments/payment-service.js");
         jest.resetModules();
     });
 });

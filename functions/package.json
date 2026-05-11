@@ -5,7 +5,7 @@
   "private": true,
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "start": "firebase emulators:start --only functions",
@@ -15,7 +15,7 @@
     "lint": "node -c index.js && node -c payments/paystack-client.js && node -c payments/initialize-payment.js && node -c payments/verify-payment.js"
   },
   "dependencies": {
-    "firebase-admin": "^13.0.0",
-    "firebase-functions": "^6.0.1"
+    "firebase-admin": "^13.9.0",
+    "firebase-functions": "^7.2.5"
   }
 }

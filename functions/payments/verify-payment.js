@@ -1,10 +1,10 @@
 "use strict";
 
 const { createPaystackClient } = require("./paystack-client.js");
-const paymentStatus = require("../../public/shared/payments/payment-status.js");
-const paymentModel = require("../../public/shared/payments/payment-model.js");
-const paymentValidation = require("../../public/shared/payments/payment-validation.js");
-const paymentService = require("../../public/shared/payments/payment-service.js");
+const paymentStatus = require("../shared/payments/payment-status.js");
+const paymentModel = require("../shared/payments/payment-model.js");
+const paymentValidation = require("../shared/payments/payment-validation.js");
+const paymentService = require("../shared/payments/payment-service.js");
 
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
