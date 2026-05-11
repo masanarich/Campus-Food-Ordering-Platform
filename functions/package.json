@@ -1,14 +1,18 @@
 {
   "name": "campus-food-ordering-platform-functions",
   "version": "1.0.0",
+  "description": "Firebase Cloud Functions for Campus Food Ordering Platform payments.",
   "private": true,
   "main": "index.js",
   "engines": {
     "node": "20"
   },
   "scripts": {
-    "lint": "echo \"No functions lint configured yet\"",
-    "test": "echo \"Functions are tested from the root Jest suite\""
+    "start": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "test": "cd .. && npm test -- tests/functions-tests --runInBand",
+    "test:coverage": "cd .. && npm run test:coverage -- --runInBand tests/functions-tests",
+    "lint": "node -c index.js && node -c payments/paystack-client.js && node -c payments/initialize-payment.js && node -c payments/verify-payment.js"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
