@@ -196,6 +196,12 @@ body.customer-portal [hidden] {
     max-width: 65ch;
 }
 
+.customer-portal .menu-detail-note {
+    margin: 0 0 0.8rem;
+    color: var(--order-text-soft);
+    font-weight: 600;
+}
+
 .customer-portal menu {
     display: flex;
     flex-wrap: wrap;
@@ -392,6 +398,7 @@ body.customer-portal [hidden] {
 .customer-portal .cart-vendor-summary,
 .customer-portal .menu-item-category,
 .customer-portal .menu-item-description,
+.customer-portal .menu-item-allergens,
 .customer-portal .checkout-item-category,
 .customer-portal .checkout-item-quantity,
 .customer-portal .checkout-item-total,
@@ -538,8 +545,31 @@ body.customer-portal [hidden] {
     gap: 0.55rem;
 }
 
+.customer-portal .menu-item-category,
+.customer-portal .menu-item-description,
+.customer-portal .menu-item-price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+}
+
+.customer-portal .menu-item-label {
+    color: var(--order-text);
+    font-weight: 800;
+}
+
+.customer-portal .menu-item-value {
+    color: var(--order-text-soft);
+}
+
 .customer-portal .menu-item-dietary,
+.customer-portal .menu-item-allergens,
 .customer-portal .unavailable-message {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
     margin: 0;
     width: fit-content;
     padding: 0.42rem 0.72rem;
@@ -548,6 +578,15 @@ body.customer-portal [hidden] {
     color: var(--order-text);
     font-weight: 700;
     font-size: 0.92rem;
+}
+
+.customer-portal .menu-item-allergens {
+    background: rgba(141, 50, 40, 0.08);
+}
+
+.customer-portal .menu-item-dietary .menu-item-value,
+.customer-portal .menu-item-allergens .menu-item-value {
+    color: var(--order-text);
 }
 
 .customer-portal .unavailable-message {

@@ -119,7 +119,9 @@
             photoURL: normalizeText(data.photoURL || data.photoDataUrl || data.photoUrl),
             available: availableFlag,
             soldOut: data.soldOut === true,
-            allergens: Array.isArray(data.allergens) ? data.allergens : [],
+            allergens: Array.isArray(data.allergens)
+                ? data.allergens
+                : (Array.isArray(data.allergenTags) ? data.allergenTags : []),
             dietary: Array.isArray(data.dietary)
                 ? data.dietary
                 : (Array.isArray(data.dietaryTags) ? data.dietaryTags : [])
@@ -392,6 +394,24 @@
     // UI RENDERING
     // ==========================================
 
+    function createLabeledDetail(labelText, valueText, className) {
+        const detail = globalScope.document.createElement("p");
+        detail.className = className;
+
+        const label = globalScope.document.createElement("span");
+        label.className = "menu-item-label";
+        label.textContent = labelText;
+
+        const value = globalScope.document.createElement("span");
+        value.className = "menu-item-value";
+        value.textContent = valueText;
+
+        detail.appendChild(label);
+        detail.appendChild(value);
+
+        return detail;
+    }
+
     /**
      * Create menu item card
      * @param {Object} item - Menu item
@@ -425,24 +445,45 @@
 
         const category = globalScope.document.createElement("p");
         category.className = "menu-item-category";
-        category.textContent = normalizeText(safeItem.category) || "Other";
+        const categoryLabel = globalScope.document.createElement("span");
+        categoryLabel.className = "menu-item-label";
+        categoryLabel.textContent = "Category:";
+        const categoryValue = globalScope.document.createElement("span");
+        categoryValue.className = "menu-item-value";
+        categoryValue.textContent = normalizeText(safeItem.category) || "Other";
+        category.appendChild(categoryLabel);
+        category.appendChild(categoryValue);
 
         section.appendChild(heading);
         section.appendChild(category);
 
         if (normalizeText(safeItem.description)) {
-            const description = globalScope.document.createElement("p");
-            description.className = "menu-item-description";
-            description.textContent = normalizeText(safeItem.description);
+            const description = createLabeledDetail(
+                "Item info:",
+                normalizeText(safeItem.description),
+                "menu-item-description"
+            );
             section.appendChild(description);
         }
 
         // Dietary info
         if (Array.isArray(safeItem.dietary) && safeItem.dietary.length > 0) {
-            const dietary = globalScope.document.createElement("p");
-            dietary.className = "menu-item-dietary";
-            dietary.textContent = safeItem.dietary.join(", ");
+            const dietary = createLabeledDetail(
+                "Dietary info:",
+                safeItem.dietary.join(", "),
+                "menu-item-dietary"
+            );
             section.appendChild(dietary);
+        }
+
+        // Allergen info
+        if (Array.isArray(safeItem.allergens) && safeItem.allergens.length > 0) {
+            const allergens = createLabeledDetail(
+                "Allergen info:",
+                safeItem.allergens.join(", "),
+                "menu-item-allergens"
+            );
+            section.appendChild(allergens);
         }
 
         // Price and actions
@@ -451,8 +492,12 @@
 
         const price = globalScope.document.createElement("p");
         price.className = "menu-item-price";
+        const priceLabel = globalScope.document.createElement("span");
+        priceLabel.className = "menu-item-label";
+        priceLabel.textContent = "Price:";
         const priceStrong = globalScope.document.createElement("strong");
         priceStrong.textContent = `R${normalizePrice(safeItem.price).toFixed(2)}`;
+        price.appendChild(priceLabel);
         price.appendChild(priceStrong);
 
         footer.appendChild(price);
@@ -790,7 +835,8 @@
         // Find the item data (we need to get it from the rendered card)
         const nameEl = card.querySelector(".menu-item-name");
         const priceEl = card.querySelector(".menu-item-price strong");
-        const categoryEl = card.querySelector(".menu-item-category");
+        const categoryEl = card.querySelector(".menu-item-category .menu-item-value")
+            || card.querySelector(".menu-item-category");
 
         if (!nameEl || !priceEl) {
             console.error(`${MODULE_NAME}: Could not find item details`);
