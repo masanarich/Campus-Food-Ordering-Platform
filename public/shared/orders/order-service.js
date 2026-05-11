@@ -40,6 +40,43 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.getDefaultPaymentStatus === "function" &&
+            typeof explicitPaymentStatus.normalizePaymentStatus === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.getDefaultPaymentStatus === "function" &&
+            typeof globalScope.paymentStatus.normalizePaymentStatus === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredPaymentStatus = require("../payments/payment-status.js");
+
+                if (
+                    requiredPaymentStatus &&
+                    typeof requiredPaymentStatus.getDefaultPaymentStatus === "function" &&
+                    typeof requiredPaymentStatus.normalizePaymentStatus === "function"
+                ) {
+                    return requiredPaymentStatus;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function resolveOrderModel(explicitOrderModel) {
         if (
             explicitOrderModel &&
@@ -257,20 +294,69 @@
     function buildOrderWritePayload(orderRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const orderModel = resolveOrderModel(safeOptions.orderModel);
         const safeRecord = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const normalizedRecord = orderModel
-            ? orderModel.normalizeOrderRecord(safeRecord, { orderStatus })
+            ? orderModel.normalizeOrderRecord(safeRecord, { orderStatus, paymentStatus })
             : safeRecord;
+        const requestedPaymentStatus =
+            safeOptions.paymentRecordStatus !== undefined
+                ? safeOptions.paymentRecordStatus
+                : safeOptions.paymentStatusValue;
+        const paymentStatusValue = requestedPaymentStatus !== undefined
+            ? requestedPaymentStatus
+            : normalizedRecord.paymentStatus;
         const timeline = Array.isArray(safeOptions.timeline)
             ? safeOptions.timeline.slice()
             : normalizedRecord.timeline;
 
         if (!orderModel) {
+            const normalizedPaymentStatus = paymentStatus
+                ? paymentStatus.normalizePaymentStatus(paymentStatusValue)
+                : normalizeLowerText(paymentStatusValue);
+
             return {
                 ...normalizedRecord,
                 orderId: normalizeText(safeOptions.orderId || normalizedRecord.orderId),
                 status: normalizeLowerText(safeOptions.status || normalizedRecord.status),
+                paymentStatus: normalizedPaymentStatus ||
+                    (
+                        paymentStatus && typeof paymentStatus.getDefaultPaymentStatus === "function"
+                            ? paymentStatus.getDefaultPaymentStatus()
+                            : "unpaid"
+                    ),
+                paymentProvider: normalizeLowerText(safeOptions.paymentProvider || normalizedRecord.paymentProvider),
+                paymentReference: normalizeText(safeOptions.paymentReference || normalizedRecord.paymentReference),
+                paymentAccessCode: normalizeText(safeOptions.paymentAccessCode || normalizedRecord.paymentAccessCode),
+                paymentAuthorizationUrl: normalizeText(
+                    safeOptions.paymentAuthorizationUrl || normalizedRecord.paymentAuthorizationUrl
+                ),
+                paymentAmount:
+                    safeOptions.paymentAmount !== undefined
+                        ? safeOptions.paymentAmount
+                        : normalizedRecord.paymentAmount,
+                paymentAmountInMinorUnits:
+                    safeOptions.paymentAmountInMinorUnits !== undefined
+                        ? safeOptions.paymentAmountInMinorUnits
+                        : normalizedRecord.paymentAmountInMinorUnits,
+                paymentCurrency: normalizeText(safeOptions.paymentCurrency || normalizedRecord.paymentCurrency),
+                paymentPaidAt:
+                    safeOptions.paymentPaidAt !== undefined
+                        ? safeOptions.paymentPaidAt
+                        : normalizedRecord.paymentPaidAt,
+                paymentFailedAt:
+                    safeOptions.paymentFailedAt !== undefined
+                        ? safeOptions.paymentFailedAt
+                        : normalizedRecord.paymentFailedAt,
+                paymentVerifiedAt:
+                    safeOptions.paymentVerifiedAt !== undefined
+                        ? safeOptions.paymentVerifiedAt
+                        : normalizedRecord.paymentVerifiedAt,
+                paymentFailureReason:
+                    safeOptions.paymentFailureReason !== undefined
+                        ? normalizeText(safeOptions.paymentFailureReason)
+                        : normalizeText(normalizedRecord.paymentFailureReason),
                 timeline: Array.isArray(timeline) ? timeline : [],
                 customerConfirmedCollected:
                     safeOptions.customerConfirmedCollected !== undefined
@@ -300,6 +386,51 @@
                 ...normalizedRecord,
                 orderId: safeOptions.orderId || normalizedRecord.orderId,
                 status: safeOptions.status || normalizedRecord.status,
+                paymentStatus: paymentStatusValue,
+                paymentProvider:
+                    safeOptions.paymentProvider !== undefined
+                        ? safeOptions.paymentProvider
+                        : normalizedRecord.paymentProvider,
+                paymentReference:
+                    safeOptions.paymentReference !== undefined
+                        ? safeOptions.paymentReference
+                        : normalizedRecord.paymentReference,
+                paymentAccessCode:
+                    safeOptions.paymentAccessCode !== undefined
+                        ? safeOptions.paymentAccessCode
+                        : normalizedRecord.paymentAccessCode,
+                paymentAuthorizationUrl:
+                    safeOptions.paymentAuthorizationUrl !== undefined
+                        ? safeOptions.paymentAuthorizationUrl
+                        : normalizedRecord.paymentAuthorizationUrl,
+                paymentAmount:
+                    safeOptions.paymentAmount !== undefined
+                        ? safeOptions.paymentAmount
+                        : normalizedRecord.paymentAmount,
+                paymentAmountInMinorUnits:
+                    safeOptions.paymentAmountInMinorUnits !== undefined
+                        ? safeOptions.paymentAmountInMinorUnits
+                        : normalizedRecord.paymentAmountInMinorUnits,
+                paymentCurrency:
+                    safeOptions.paymentCurrency !== undefined
+                        ? safeOptions.paymentCurrency
+                        : normalizedRecord.paymentCurrency,
+                paymentPaidAt:
+                    safeOptions.paymentPaidAt !== undefined
+                        ? safeOptions.paymentPaidAt
+                        : normalizedRecord.paymentPaidAt,
+                paymentFailedAt:
+                    safeOptions.paymentFailedAt !== undefined
+                        ? safeOptions.paymentFailedAt
+                        : normalizedRecord.paymentFailedAt,
+                paymentVerifiedAt:
+                    safeOptions.paymentVerifiedAt !== undefined
+                        ? safeOptions.paymentVerifiedAt
+                        : normalizedRecord.paymentVerifiedAt,
+                paymentFailureReason:
+                    safeOptions.paymentFailureReason !== undefined
+                        ? safeOptions.paymentFailureReason
+                        : normalizedRecord.paymentFailureReason,
                 timeline: Array.isArray(timeline) ? timeline : normalizedRecord.timeline,
                 customerConfirmedCollected:
                     safeOptions.customerConfirmedCollected !== undefined
@@ -324,6 +455,7 @@
             },
             {
                 orderStatus,
+                paymentStatus,
                 createdAt:
                     safeOptions.createdAt !== undefined
                         ? safeOptions.createdAt
@@ -358,6 +490,54 @@
             patch.notes = normalizeText(safeOrder.notes);
         }
 
+        if ("paymentStatus" in safeOrder) {
+            patch.paymentStatus = normalizeLowerText(safeOrder.paymentStatus);
+        }
+
+        if ("paymentProvider" in safeOrder) {
+            patch.paymentProvider = normalizeLowerText(safeOrder.paymentProvider);
+        }
+
+        if ("paymentReference" in safeOrder) {
+            patch.paymentReference = normalizeText(safeOrder.paymentReference);
+        }
+
+        if ("paymentAccessCode" in safeOrder) {
+            patch.paymentAccessCode = normalizeText(safeOrder.paymentAccessCode);
+        }
+
+        if ("paymentAuthorizationUrl" in safeOrder) {
+            patch.paymentAuthorizationUrl = normalizeText(safeOrder.paymentAuthorizationUrl);
+        }
+
+        if ("paymentAmount" in safeOrder) {
+            patch.paymentAmount = safeOrder.paymentAmount;
+        }
+
+        if ("paymentAmountInMinorUnits" in safeOrder) {
+            patch.paymentAmountInMinorUnits = safeOrder.paymentAmountInMinorUnits;
+        }
+
+        if ("paymentCurrency" in safeOrder) {
+            patch.paymentCurrency = normalizeText(safeOrder.paymentCurrency);
+        }
+
+        if ("paymentPaidAt" in safeOrder) {
+            patch.paymentPaidAt = safeOrder.paymentPaidAt;
+        }
+
+        if ("paymentFailedAt" in safeOrder) {
+            patch.paymentFailedAt = safeOrder.paymentFailedAt;
+        }
+
+        if ("paymentVerifiedAt" in safeOrder) {
+            patch.paymentVerifiedAt = safeOrder.paymentVerifiedAt;
+        }
+
+        if ("paymentFailureReason" in safeOrder) {
+            patch.paymentFailureReason = normalizeText(safeOrder.paymentFailureReason);
+        }
+
         if ("customerConfirmedCollected" in safeOrder) {
             patch.customerConfirmedCollected = safeOrder.customerConfirmedCollected === true;
         }
@@ -372,6 +552,7 @@
     function prepareCreateOrders(options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const orderModel = resolveOrderModel(safeOptions.orderModel);
         const orderValidation = resolveOrderValidation(safeOptions.orderValidation);
 
@@ -392,7 +573,14 @@
             safeOptions.customer,
             {
                 orderStatus,
+                paymentStatus,
                 status: safeOptions.status,
+                initialPaymentStatus: safeOptions.initialPaymentStatus,
+                paymentProvider: safeOptions.paymentProvider,
+                paymentReference: safeOptions.paymentReference,
+                paymentAccessCode: safeOptions.paymentAccessCode,
+                paymentAuthorizationUrl: safeOptions.paymentAuthorizationUrl,
+                paymentCurrency: safeOptions.paymentCurrency,
                 notes: safeOptions.notes,
                 createdByRole: safeOptions.createdByRole || "customer",
                 createdByUid: safeOptions.createdByUid,
@@ -523,6 +711,7 @@
 
                 const payload = buildOrderWritePayload(orderRecord, {
                     orderStatus: safeOptions.orderStatus,
+                    paymentStatus: safeOptions.paymentStatus,
                     orderModel: safeOptions.orderModel,
                     createdByRole: safeOptions.createdByRole || "customer",
                     orderId
@@ -568,6 +757,7 @@
 
             const payload = buildOrderWritePayload(orderRecord, {
                 orderStatus: safeOptions.orderStatus,
+                paymentStatus: safeOptions.paymentStatus,
                 orderModel: safeOptions.orderModel,
                 createdByRole: safeOptions.createdByRole || "customer",
                 orderId
@@ -1174,6 +1364,7 @@
     const orderService = {
         MODULE_NAME,
         resolveOrderStatus,
+        resolvePaymentStatus,
         resolveOrderModel,
         resolveOrderValidation,
         resolveOrderQueries,
