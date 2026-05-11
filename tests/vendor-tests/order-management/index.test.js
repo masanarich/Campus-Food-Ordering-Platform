@@ -14,6 +14,11 @@ function createOrder(overrides = {}) {
         itemCount: 2,
         total: 85,
         status: "pending",
+        paymentStatus: "paid",
+        paymentProvider: "paystack",
+        paymentReference: "paystack-ref",
+        paymentAmount: 85,
+        paymentCurrency: "ZAR",
         createdAt: "2026-04-20T12:00:00.000Z",
         updatedAt: "2026-04-20T12:15:00.000Z",
         ...overrides
@@ -43,6 +48,45 @@ function createDOM() {
         statusElement: document.getElementById("vendor-order-management-status"),
         summaryElement: document.getElementById("vendor-order-management-summary"),
         container: document.getElementById("vendor-orders-container")
+    };
+}
+
+function createPaymentStatusStub() {
+    return {
+        normalizePaymentStatus: jest.fn((status, fallbackStatus = "unpaid") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getPaymentStatusLabel: jest.fn(status => {
+            const labels = {
+                unpaid: "Unpaid",
+                pending: "Payment Pending",
+                paid: "Paid",
+                failed: "Payment Failed"
+            };
+            return labels[status] || "Unknown Payment Status";
+        }),
+        getPaymentStatusTone: jest.fn(status => {
+            const tones = {
+                unpaid: "neutral",
+                pending: "loading",
+                paid: "success",
+                failed: "error"
+            };
+            return tones[status] || "neutral";
+        })
+    };
+}
+
+function createPaymentFormattersStub() {
+    return {
+        formatPaymentAmount: jest.fn((amount, currency = "ZAR") => {
+            const numeric = Number(amount);
+            const safeAmount = Number.isFinite(numeric) ? numeric : 0;
+            return currency === "ZAR"
+                ? `R${safeAmount.toFixed(2)}`
+                : `${currency} ${safeAmount.toFixed(2)}`;
+        })
     };
 }
 
@@ -90,6 +134,10 @@ function resetIndexGlobals() {
     delete global.orderStatus;
     delete window.orderFormatters;
     delete global.orderFormatters;
+    delete window.paymentStatus;
+    delete global.paymentStatus;
+    delete window.paymentFormatters;
+    delete global.paymentFormatters;
 }
 
 afterEach(() => {
@@ -106,6 +154,8 @@ describe("vendor/order-management/index.js - helpers", () => {
         const orderService = { getVendorOrders: jest.fn() };
         const orderStatus = { getOrderStatusLabel: jest.fn(), normalizeOrderStatus: jest.fn() };
         const orderFormatters = { formatOrderSummary: jest.fn() };
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
 
         window.db = db;
         window.auth = auth;
@@ -114,6 +164,8 @@ describe("vendor/order-management/index.js - helpers", () => {
         window.orderService = orderService;
         window.orderStatus = orderStatus;
         window.orderFormatters = orderFormatters;
+        window.paymentStatus = paymentStatus;
+        window.paymentFormatters = paymentFormatters;
 
         expect(vendorOrderManagementPage.resolveFirestore(db)).toBe(db);
         expect(vendorOrderManagementPage.resolveFirestore()).toBe(db);
@@ -129,6 +181,10 @@ describe("vendor/order-management/index.js - helpers", () => {
         expect(vendorOrderManagementPage.resolveOrderStatus()).toBe(orderStatus);
         expect(vendorOrderManagementPage.resolveOrderFormatters(orderFormatters)).toBe(orderFormatters);
         expect(vendorOrderManagementPage.resolveOrderFormatters()).toBe(orderFormatters);
+        expect(vendorOrderManagementPage.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
+        expect(vendorOrderManagementPage.resolvePaymentStatus()).toBe(paymentStatus);
+        expect(vendorOrderManagementPage.resolvePaymentFormatters(paymentFormatters)).toBe(paymentFormatters);
+        expect(vendorOrderManagementPage.resolvePaymentFormatters()).toBe(paymentFormatters);
     });
 
     test("waitForAuthReady supports immediate, listener, error, and timeout flows", async () => {
@@ -211,18 +267,22 @@ describe("vendor/order-management/index.js - helpers", () => {
 describe("vendor/order-management/index.js - rendering", () => {
     let dom;
     let orderFormatters;
+    let paymentStatus;
+    let paymentFormatters;
 
     beforeEach(() => {
         dom = createDOM();
         orderFormatters = createOrderFormattersStub();
+        paymentStatus = createPaymentStatusStub();
+        paymentFormatters = createPaymentFormattersStub();
     });
 
-    test("renderSummary shows vendor order totals", () => {
+    test("renderSummary shows vendor order totals and payment counts", () => {
         vendorOrderManagementPage.renderSummary(
             dom.summaryElement,
             [
-                createOrder({ status: "pending", total: 85 }),
-                createOrder({ orderId: "order-2", status: "ready", total: 50 })
+                createOrder({ status: "pending", total: 85, paymentStatus: "paid" }),
+                createOrder({ orderId: "order-2", status: "ready", total: 50, paymentStatus: "unpaid" })
             ],
             createVendorProfile(),
             { orderFormatters }
@@ -231,6 +291,8 @@ describe("vendor/order-management/index.js - rendering", () => {
         expect(dom.summaryElement.textContent).toContain("Campus Bites");
         expect(dom.summaryElement.textContent).toContain("Orders loaded: 2");
         expect(dom.summaryElement.textContent).toContain("Ready for pickup: 1");
+        expect(dom.summaryElement.textContent).toContain("Paid orders: 1");
+        expect(dom.summaryElement.textContent).toContain("Awaiting payment: 1");
         expect(dom.summaryElement.textContent).toContain("R135.00");
     });
 
@@ -252,6 +314,58 @@ describe("vendor/order-management/index.js - rendering", () => {
         expect(dom.container.querySelector('a[href*="orderId=order-2"]')).not.toBeNull();
     });
 
+    test("renderOrders shows payment status, amount, and reference per card", () => {
+        vendorOrderManagementPage.renderOrders([
+            createOrder({
+                orderId: "order-1",
+                customerName: "Student One",
+                paymentStatus: "paid",
+                paymentReference: "paystack-ref-1",
+                paymentAmount: 85
+            }),
+            createOrder({
+                orderId: "order-2",
+                customerName: "Student Two",
+                paymentStatus: "pending",
+                paymentReference: "paystack-ref-2",
+                paymentAmount: 50
+            })
+        ], dom.container, {
+            orderFormatters,
+            paymentStatus,
+            paymentFormatters
+        });
+
+        const cards = dom.container.querySelectorAll(".vendor-order-card");
+        expect(cards).toHaveLength(2);
+
+        const firstCard = cards[0];
+        const firstPaymentStatus = firstCard.querySelector(".vendor-order-card-payment-status");
+        expect(firstPaymentStatus.textContent).toBe("Payment: Paid");
+        expect(firstPaymentStatus.getAttribute("data-tone")).toBe("success");
+        expect(firstPaymentStatus.getAttribute("data-payment-status")).toBe("paid");
+        expect(firstCard.querySelector(".vendor-order-card-payment-amount").textContent).toBe("Payment Amount: R85.00");
+        expect(firstCard.querySelector(".vendor-order-card-payment-reference").textContent).toBe("Reference: paystack-ref-1");
+
+        const secondPaymentStatus = cards[1].querySelector(".vendor-order-card-payment-status");
+        expect(secondPaymentStatus.textContent).toBe("Payment: Payment Pending");
+        expect(secondPaymentStatus.getAttribute("data-tone")).toBe("loading");
+    });
+
+    test("renderOrders omits the reference line when no payment reference exists", () => {
+        vendorOrderManagementPage.renderOrders([
+            createOrder({ paymentStatus: "unpaid", paymentReference: "" })
+        ], dom.container, {
+            orderFormatters,
+            paymentStatus,
+            paymentFormatters
+        });
+
+        const card = dom.container.querySelector(".vendor-order-card");
+        expect(card.querySelector(".vendor-order-card-payment-status").textContent).toBe("Payment: Unpaid");
+        expect(card.querySelector(".vendor-order-card-payment-reference")).toBeNull();
+    });
+
     test("mapOrderRecord and renderSummary fall back cleanly without shared formatters", () => {
         const mapped = vendorOrderManagementPage.mapOrderRecord({
             id: "raw-order-1",
@@ -271,10 +385,37 @@ describe("vendor/order-management/index.js - rendering", () => {
             statusLabel: "accepted",
             tone: "info",
             summaryText: "Customer • 0 items",
-            updatedText: "Unknown time"
+            updatedText: "Unknown time",
+            paymentStatus: "unpaid",
+            paymentStatusLabel: "unpaid",
+            paymentTone: "neutral",
+            paymentAmount: 0,
+            paymentAmountText: "R0.00",
+            paymentCurrency: "ZAR",
+            paymentReference: "",
+            paymentProvider: "paystack",
+            isPaid: false
         });
         expect(dom.summaryElement.textContent).toContain("Vendor: Vendor User");
         expect(dom.summaryElement.textContent).toContain("Combined order value: R0.00");
+        expect(dom.summaryElement.textContent).toContain("Paid orders: 1");
+    });
+
+    test("mapOrderRecord uses payment helpers when supplied", () => {
+        const mapped = vendorOrderManagementPage.mapOrderRecord(createOrder(), {
+            orderFormatters,
+            paymentStatus,
+            paymentFormatters
+        });
+
+        expect(mapped.paymentStatus).toBe("paid");
+        expect(mapped.paymentStatusLabel).toBe("Paid");
+        expect(mapped.paymentTone).toBe("success");
+        expect(mapped.paymentAmount).toBe(85);
+        expect(mapped.paymentAmountText).toBe("R85.00");
+        expect(mapped.paymentReference).toBe("paystack-ref");
+        expect(mapped.paymentProvider).toBe("paystack");
+        expect(mapped.isPaid).toBe(true);
     });
 
     test("renderSummary and renderOrders safely ignore missing containers", () => {
@@ -480,9 +621,23 @@ describe("vendor/order-management/index.js - data loading and init", () => {
 
     test("init renders vendor orders for approved vendor users", async () => {
         const getVendorOrders = jest.fn(async () => [
-            createOrder({ orderId: "order-1", customerName: "Student One", status: "pending" }),
-            createOrder({ orderId: "order-2", customerName: "Student Two", status: "ready" })
+            createOrder({
+                orderId: "order-1",
+                customerName: "Student One",
+                status: "pending",
+                paymentStatus: "paid",
+                paymentReference: "paystack-ref-1"
+            }),
+            createOrder({
+                orderId: "order-2",
+                customerName: "Student Two",
+                status: "ready",
+                paymentStatus: "pending",
+                paymentReference: "paystack-ref-2"
+            })
         ]);
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
 
         const result = await vendorOrderManagementPage.init({
             currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
@@ -493,6 +648,8 @@ describe("vendor/order-management/index.js - data loading and init", () => {
             firestoreFns: {},
             orderService: { getVendorOrders },
             orderFormatters,
+            paymentStatus,
+            paymentFormatters,
             statusSelector: "#vendor-order-management-status",
             summarySelector: "#vendor-order-management-summary",
             containerSelector: "#vendor-orders-container"
@@ -501,7 +658,12 @@ describe("vendor/order-management/index.js - data loading and init", () => {
         expect(result.success).toBe(true);
         expect(result.orders).toHaveLength(2);
         expect(dom.summaryElement.textContent).toContain("Orders loaded: 2");
+        expect(dom.summaryElement.textContent).toContain("Paid orders: 1");
+        expect(dom.summaryElement.textContent).toContain("Awaiting payment: 1");
         expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
+        expect(dom.container.textContent).toContain("Payment: Paid");
+        expect(dom.container.textContent).toContain("Payment: Payment Pending");
+        expect(dom.container.textContent).toContain("Reference: paystack-ref-1");
         expect(dom.statusElement.textContent).toContain("Loaded 2 vendor orders");
     });
 

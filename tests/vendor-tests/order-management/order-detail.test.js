@@ -14,6 +14,12 @@ function createOrder(overrides = {}) {
         itemCount: 2,
         total: 85,
         status: "pending",
+        paymentStatus: "paid",
+        paymentProvider: "paystack",
+        paymentReference: "paystack-ref",
+        paymentAmount: 85,
+        paymentCurrency: "ZAR",
+        paymentPaidAt: "2026-04-20T12:01:00.000Z",
         items: [
             {
                 menuItemId: "item-1",
@@ -64,6 +70,7 @@ function createDOM() {
         <section id="vendor-order-action-container"></section>
         <section id="vendor-order-summary"></section>
         <section id="vendor-order-items"></section>
+        <section id="vendor-order-payment"></section>
         <section id="vendor-order-timeline"></section>
     `;
 
@@ -72,7 +79,56 @@ function createDOM() {
         actionContainer: document.getElementById("vendor-order-action-container"),
         summaryContainer: document.getElementById("vendor-order-summary"),
         itemsContainer: document.getElementById("vendor-order-items"),
+        paymentContainer: document.getElementById("vendor-order-payment"),
         timelineContainer: document.getElementById("vendor-order-timeline")
+    };
+}
+
+function createPaymentStatusStub() {
+    return {
+        normalizePaymentStatus: jest.fn((status, fallbackStatus = "unpaid") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getPaymentStatusLabel: jest.fn(status => {
+            const labels = {
+                unpaid: "Unpaid",
+                pending: "Payment Pending",
+                paid: "Paid",
+                failed: "Payment Failed"
+            };
+            return labels[status] || "Unknown Payment Status";
+        }),
+        getPaymentStatusDescription: jest.fn(status => {
+            const descriptions = {
+                unpaid: "Payment has not been started for this order.",
+                pending: "Payment has been started and is waiting for verification.",
+                paid: "Payment was successfully verified.",
+                failed: "Payment could not be verified or was not completed."
+            };
+            return descriptions[status] || "";
+        }),
+        getPaymentStatusTone: jest.fn(status => {
+            const tones = {
+                unpaid: "neutral",
+                pending: "loading",
+                paid: "success",
+                failed: "error"
+            };
+            return tones[status] || "neutral";
+        })
+    };
+}
+
+function createPaymentFormattersStub() {
+    return {
+        formatPaymentAmount: jest.fn((amount, currency = "ZAR") => {
+            const numeric = Number(amount);
+            const safeAmount = Number.isFinite(numeric) ? numeric : 0;
+            return currency === "ZAR"
+                ? `R${safeAmount.toFixed(2)}`
+                : `${currency} ${safeAmount.toFixed(2)}`;
+        })
     };
 }
 
@@ -177,6 +233,10 @@ function resetOrderDetailGlobals() {
     delete global.orderStatus;
     delete window.orderFormatters;
     delete global.orderFormatters;
+    delete window.paymentStatus;
+    delete global.paymentStatus;
+    delete window.paymentFormatters;
+    delete global.paymentFormatters;
 }
 
 afterEach(() => {
@@ -219,6 +279,15 @@ describe("vendor/order-management/order-detail.js - helpers", () => {
             expect(vendorOrderDetailPage.resolveOrderStatus()).toBe(orderStatus);
             expect(vendorOrderDetailPage.resolveOrderFormatters(orderFormatters)).toBe(orderFormatters);
             expect(vendorOrderDetailPage.resolveOrderFormatters()).toBe(orderFormatters);
+
+            const paymentStatusGlobal = createPaymentStatusStub();
+            const paymentFormattersGlobal = createPaymentFormattersStub();
+            window.paymentStatus = paymentStatusGlobal;
+            window.paymentFormatters = paymentFormattersGlobal;
+            expect(vendorOrderDetailPage.resolvePaymentStatus(paymentStatusGlobal)).toBe(paymentStatusGlobal);
+            expect(vendorOrderDetailPage.resolvePaymentStatus()).toBe(paymentStatusGlobal);
+            expect(vendorOrderDetailPage.resolvePaymentFormatters(paymentFormattersGlobal)).toBe(paymentFormattersGlobal);
+            expect(vendorOrderDetailPage.resolvePaymentFormatters()).toBe(paymentFormattersGlobal);
 
             const immediate = await vendorOrderDetailPage.waitForAuthReady(auth, null);
             const listenerUser = await vendorOrderDetailPage.waitForAuthReady(auth, {
@@ -369,6 +438,44 @@ describe("vendor/order-management/order-detail.js - rendering", () => {
         expect(dom.actionContainer.textContent).toContain("No order information is available.");
     });
 
+    test("renderActionButtons disables forward actions and shows a banner when payment is not paid", () => {
+        const paymentStatus = createPaymentStatusStub();
+
+        vendorOrderDetailPage.renderActionButtons(
+            createOrder({ paymentStatus: "unpaid" }),
+            dom.actionContainer,
+            { orderStatus, orderFormatters, paymentStatus }
+        );
+
+        const banner = dom.actionContainer.querySelector(".vendor-order-payment-gate");
+        expect(banner).not.toBeNull();
+        expect(banner.textContent).toContain("Confirm payment");
+        expect(banner.getAttribute("data-payment-status")).toBe("unpaid");
+
+        const buttons = dom.actionContainer.querySelectorAll("button");
+        const acceptButton = Array.from(buttons).find(button => button.dataset.nextStatus === "accepted");
+        const rejectButton = Array.from(buttons).find(button => button.dataset.nextStatus === "rejected");
+
+        expect(acceptButton.disabled).toBe(true);
+        expect(acceptButton.dataset.blockedReason).toBe("payment-not-confirmed");
+        expect(rejectButton.disabled).toBe(false);
+    });
+
+    test("renderActionButtons keeps the accept button enabled when payment is paid", () => {
+        const paymentStatus = createPaymentStatusStub();
+
+        vendorOrderDetailPage.renderActionButtons(
+            createOrder({ paymentStatus: "paid" }),
+            dom.actionContainer,
+            { orderStatus, orderFormatters, paymentStatus }
+        );
+
+        expect(dom.actionContainer.querySelector(".vendor-order-payment-gate")).toBeNull();
+
+        const buttons = dom.actionContainer.querySelectorAll("button");
+        Array.from(buttons).forEach(button => expect(button.disabled).toBe(false));
+    });
+
     test("render helpers safely ignore missing containers and show direct empty states", () => {
         vendorOrderDetailPage.renderOrderSummary(null, null);
         vendorOrderDetailPage.renderOrderItems(createOrder(), null);
@@ -389,6 +496,151 @@ describe("vendor/order-management/order-detail.js - rendering", () => {
             orderFormatters
         });
         expect(dom.actionContainer.textContent).toContain("No further vendor actions are available");
+    });
+});
+
+describe("vendor/order-management/order-detail.js - payment rendering and gating", () => {
+    let dom;
+    let orderStatus;
+    let orderFormatters;
+    let paymentStatus;
+    let paymentFormatters;
+
+    beforeEach(() => {
+        dom = createDOM();
+        orderStatus = createOrderStatusStub();
+        orderFormatters = createOrderFormattersStub();
+        paymentStatus = createPaymentStatusStub();
+        paymentFormatters = createPaymentFormattersStub();
+    });
+
+    test("buildPaymentView returns a paid summary", () => {
+        const view = vendorOrderDetailPage.buildPaymentView(createOrder(), {
+            paymentStatus,
+            paymentFormatters,
+            orderFormatters
+        });
+
+        expect(view.status).toBe("paid");
+        expect(view.statusLabel).toBe("Paid");
+        expect(view.tone).toBe("success");
+        expect(view.amountText).toBe("R85.00");
+        expect(view.providerLabel).toBe("Paystack");
+        expect(view.reference).toBe("paystack-ref");
+        expect(view.isPaid).toBe(true);
+    });
+
+    test("buildPaymentView falls back to unpaid with order.total when paymentAmount is missing", () => {
+        const view = vendorOrderDetailPage.buildPaymentView({
+            orderId: "order-2",
+            status: "pending",
+            total: 30
+        }, { paymentStatus, paymentFormatters });
+
+        expect(view.status).toBe("unpaid");
+        expect(view.amount).toBe(30);
+        expect(view.amountText).toBe("R30.00");
+        expect(view.isPaid).toBe(false);
+    });
+
+    test("getPaymentGate blocks forward moves for unpaid pending orders", () => {
+        const gate = vendorOrderDetailPage.getPaymentGate(
+            createOrder({ paymentStatus: "unpaid", status: "pending" }),
+            { paymentStatus }
+        );
+
+        expect(gate.blocked).toBe(true);
+        expect(gate.paymentStatus).toBe("unpaid");
+        expect(gate.reason).toContain("Unpaid");
+    });
+
+    test("getPaymentGate also blocks accepted orders that are still unpaid", () => {
+        const gate = vendorOrderDetailPage.getPaymentGate(
+            createOrder({ paymentStatus: "failed", status: "accepted" }),
+            { paymentStatus }
+        );
+
+        expect(gate.blocked).toBe(true);
+        expect(gate.paymentStatus).toBe("failed");
+    });
+
+    test("getPaymentGate does not block paid orders or non-gated statuses", () => {
+        const paidGate = vendorOrderDetailPage.getPaymentGate(
+            createOrder({ paymentStatus: "paid", status: "pending" }),
+            { paymentStatus }
+        );
+        const readyGate = vendorOrderDetailPage.getPaymentGate(
+            createOrder({ paymentStatus: "unpaid", status: "ready" }),
+            { paymentStatus }
+        );
+
+        expect(paidGate.blocked).toBe(false);
+        expect(readyGate.blocked).toBe(false);
+    });
+
+    test("renderOrderPayment writes status, amount, provider, reference for a paid order", () => {
+        vendorOrderDetailPage.renderOrderPayment(createOrder(), dom.paymentContainer, {
+            paymentStatus,
+            paymentFormatters,
+            orderFormatters
+        });
+
+        const statusLine = dom.paymentContainer.querySelector(".vendor-order-payment-status");
+        expect(statusLine.textContent).toBe("Status: Paid");
+        expect(statusLine.getAttribute("data-tone")).toBe("success");
+        expect(statusLine.getAttribute("data-payment-status")).toBe("paid");
+
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-amount").textContent).toBe("Amount: R85.00");
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-provider").textContent).toBe("Provider: Paystack");
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-reference").textContent).toBe("Reference: paystack-ref");
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-paid-at").textContent).toContain("Paid at:");
+    });
+
+    test("renderOrderPayment surfaces failure reason for failed payments", () => {
+        vendorOrderDetailPage.renderOrderPayment(
+            createOrder({
+                paymentStatus: "failed",
+                paymentFailureReason: "Card was declined.",
+                paymentFailedAt: "2026-04-20T12:02:00.000Z"
+            }),
+            dom.paymentContainer,
+            { paymentStatus, paymentFormatters, orderFormatters }
+        );
+
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-status").textContent).toBe("Status: Payment Failed");
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-failure-reason").textContent).toContain("Card was declined.");
+    });
+
+    test("renderOrderPayment shows an empty state when the order is missing", () => {
+        vendorOrderDetailPage.renderOrderPayment(null, dom.paymentContainer, {
+            paymentStatus,
+            paymentFormatters
+        });
+
+        expect(dom.paymentContainer.textContent).toContain("Payment details are unavailable");
+    });
+
+    test("handleOrderAction does not fire when a forward button is disabled by the payment gate", async () => {
+        const updateOrderStatus = jest.fn();
+        vendorOrderDetailPage.renderActionButtons(
+            createOrder({ paymentStatus: "unpaid", status: "pending" }),
+            dom.actionContainer,
+            {
+                orderStatus,
+                orderFormatters,
+                paymentStatus,
+                orderService: { updateOrderStatus, getOrderById: jest.fn() },
+                currentOrder: createOrder({ paymentStatus: "unpaid", status: "pending" }),
+                currentUser: { uid: "vendor-1" }
+            }
+        );
+
+        const acceptButton = Array.from(dom.actionContainer.querySelectorAll("button"))
+            .find(button => button.dataset.nextStatus === "accepted");
+        acceptButton.click();
+
+        // Disabled button must not trigger the click handler.
+        expect(updateOrderStatus).not.toHaveBeenCalled();
     });
 });
 
@@ -660,6 +912,8 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
     });
 
     test("init renders vendor order detail for the owning vendor", async () => {
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
         const result = await vendorOrderDetailPage.init({
             currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
             authService: {
@@ -672,11 +926,14 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
             },
             orderStatus,
             orderFormatters,
+            paymentStatus,
+            paymentFormatters,
             orderId: "order-1",
             statusSelector: "#vendor-order-detail-status",
             actionSelector: "#vendor-order-action-container",
             summarySelector: "#vendor-order-summary",
             itemsSelector: "#vendor-order-items",
+            paymentSelector: "#vendor-order-payment",
             timelineSelector: "#vendor-order-timeline"
         });
 
@@ -686,6 +943,47 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
         expect(dom.timelineContainer.textContent).toContain("Order Received");
         expect(dom.actionContainer.textContent).toContain("Accept Order");
         expect(dom.statusElement.textContent).toContain("Student One");
+        expect(dom.paymentContainer.textContent).toContain("Status: Paid");
+        expect(dom.paymentContainer.textContent).toContain("Reference: paystack-ref");
+    });
+
+    test("init blocks accept and shows the payment gate banner when order payment is unpaid", async () => {
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
+        const result = await vendorOrderDetailPage.init({
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: {
+                getOrderById: jest.fn(async () => createOrder({ paymentStatus: "unpaid", paymentReference: "" }))
+            },
+            orderStatus,
+            orderFormatters,
+            paymentStatus,
+            paymentFormatters,
+            orderId: "order-1",
+            statusSelector: "#vendor-order-detail-status",
+            actionSelector: "#vendor-order-action-container",
+            summarySelector: "#vendor-order-summary",
+            itemsSelector: "#vendor-order-items",
+            paymentSelector: "#vendor-order-payment",
+            timelineSelector: "#vendor-order-timeline"
+        });
+
+        expect(result.success).toBe(true);
+        expect(dom.actionContainer.querySelector(".vendor-order-payment-gate")).not.toBeNull();
+
+        const acceptButton = Array.from(dom.actionContainer.querySelectorAll("button"))
+            .find(button => button.dataset.nextStatus === "accepted");
+        const rejectButton = Array.from(dom.actionContainer.querySelectorAll("button"))
+            .find(button => button.dataset.nextStatus === "rejected");
+
+        expect(acceptButton.disabled).toBe(true);
+        expect(rejectButton.disabled).toBe(false);
+        expect(dom.paymentContainer.textContent).toContain("Status: Unpaid");
     });
 
     test("init covers missing containers, fetch failures, and orderId from location objects", async () => {
