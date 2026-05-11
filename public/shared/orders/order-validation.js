@@ -77,12 +77,56 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.getDefaultPaymentStatus === "function" &&
+            typeof explicitPaymentStatus.normalizePaymentStatus === "function" &&
+            typeof explicitPaymentStatus.isKnownPaymentStatus === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.getDefaultPaymentStatus === "function" &&
+            typeof globalScope.paymentStatus.normalizePaymentStatus === "function" &&
+            typeof globalScope.paymentStatus.isKnownPaymentStatus === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredPaymentStatus = require("../payments/payment-status.js");
+
+                if (
+                    requiredPaymentStatus &&
+                    typeof requiredPaymentStatus.getDefaultPaymentStatus === "function" &&
+                    typeof requiredPaymentStatus.normalizePaymentStatus === "function" &&
+                    typeof requiredPaymentStatus.isKnownPaymentStatus === "function"
+                ) {
+                    return requiredPaymentStatus;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
     }
 
     function normalizeLowerText(value) {
         return normalizeText(value).toLowerCase();
+    }
+
+    function normalizeUpperText(value) {
+        return normalizeText(value).toUpperCase();
     }
 
     function createValidationResult(errors, details = {}) {
@@ -327,13 +371,122 @@
         });
     }
 
+    function validateOrderPaymentFields(orderRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeRecord = safeOptions.rawOrderRecord && typeof safeOptions.rawOrderRecord === "object"
+            ? safeOptions.rawOrderRecord
+            : (orderRecord && typeof orderRecord === "object" ? orderRecord : {});
+        const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
+        const orderModel = resolveOrderModel(safeOptions.orderModel);
+        const value = safeOptions.normalizedRecord || (
+            orderModel
+                ? orderModel.normalizeOrderRecord(safeRecord, { orderStatus, paymentStatus })
+                : safeRecord
+        );
+        const errors = {};
+        const rawPaymentStatus = safeRecord.paymentStatus !== undefined
+            ? safeRecord.paymentStatus
+            : value.paymentStatus;
+        const hasRawPaymentStatus = rawPaymentStatus !== undefined &&
+            rawPaymentStatus !== null &&
+            normalizeText(String(rawPaymentStatus)) !== "";
+        const normalizedPaymentStatus = paymentStatus
+            ? paymentStatus.normalizePaymentStatus(hasRawPaymentStatus ? rawPaymentStatus : value.paymentStatus)
+            : normalizeLowerText(value.paymentStatus);
+        const allowedProviders = Array.isArray(safeOptions.allowedPaymentProviders) &&
+            safeOptions.allowedPaymentProviders.length > 0
+            ? safeOptions.allowedPaymentProviders.map(normalizeLowerText).filter(Boolean)
+            : ["paystack"];
+        const allowedCurrencies = Array.isArray(safeOptions.allowedPaymentCurrencies) &&
+            safeOptions.allowedPaymentCurrencies.length > 0
+            ? safeOptions.allowedPaymentCurrencies.map(normalizeUpperText).filter(Boolean)
+            : ["ZAR"];
+        const provider = normalizeLowerText(value.paymentProvider);
+        const currency = normalizeUpperText(value.paymentCurrency);
+        const paymentAmount = Number(value.paymentAmount);
+        const total = Number(value.total);
+        const paymentAmountInMinorUnits = Number.parseInt(value.paymentAmountInMinorUnits, 10);
+        const expectedAmountInMinorUnits = Number.isFinite(paymentAmount)
+            ? Math.round(paymentAmount * 100)
+            : 0;
+
+        if (
+            !normalizedPaymentStatus ||
+            (
+                hasRawPaymentStatus &&
+                paymentStatus &&
+                !paymentStatus.isKnownPaymentStatus(rawPaymentStatus)
+            )
+        ) {
+            setError(errors, "paymentStatus", "Payment status must be valid.");
+        }
+
+        if (!provider) {
+            setError(errors, "paymentProvider", "Payment provider is required.");
+        } else if (allowedProviders.length > 0 && allowedProviders.indexOf(provider) === -1) {
+            setError(errors, "paymentProvider", `Payment provider must be one of: ${allowedProviders.join(", ")}.`);
+        }
+
+        if (!currency) {
+            setError(errors, "paymentCurrency", "Payment currency is required.");
+        } else if (allowedCurrencies.length > 0 && allowedCurrencies.indexOf(currency) === -1) {
+            setError(errors, "paymentCurrency", `Payment currency must be one of: ${allowedCurrencies.join(", ")}.`);
+        }
+
+        if (!Number.isFinite(paymentAmount) || paymentAmount < 0) {
+            setError(errors, "paymentAmount", "Payment amount must be a valid non-negative amount.");
+        } else if (Number.isFinite(total) && paymentAmount !== total) {
+            setError(errors, "paymentAmount", "Payment amount must match the order total.");
+        }
+
+        if (!Number.isFinite(paymentAmountInMinorUnits) || paymentAmountInMinorUnits < 0) {
+            setError(errors, "paymentAmountInMinorUnits", "Payment amount in minor units must be valid.");
+        } else if (paymentAmountInMinorUnits !== expectedAmountInMinorUnits) {
+            setError(
+                errors,
+                "paymentAmountInMinorUnits",
+                "Payment amount in minor units must match the payment amount."
+            );
+        }
+
+        if (
+            (normalizedPaymentStatus === "pending" || normalizedPaymentStatus === "paid") &&
+            !normalizeText(value.paymentReference)
+        ) {
+            setError(errors, "paymentReference", "Payment reference is required once payment has started.");
+        }
+
+        if (normalizedPaymentStatus === "paid" && !value.paymentVerifiedAt) {
+            setError(errors, "paymentVerifiedAt", "Paid orders must include a payment verification timestamp.");
+        }
+
+        return createValidationResult(errors, {
+            value: {
+                paymentStatus: normalizedPaymentStatus,
+                paymentProvider: provider,
+                paymentReference: normalizeText(value.paymentReference),
+                paymentAccessCode: normalizeText(value.paymentAccessCode),
+                paymentAuthorizationUrl: normalizeText(value.paymentAuthorizationUrl),
+                paymentAmount,
+                paymentAmountInMinorUnits,
+                paymentCurrency: currency,
+                paymentPaidAt: value.paymentPaidAt,
+                paymentFailedAt: value.paymentFailedAt,
+                paymentVerifiedAt: value.paymentVerifiedAt,
+                paymentFailureReason: normalizeText(value.paymentFailureReason)
+            }
+        });
+    }
+
     function validateOrderRecord(orderRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const safeRecord = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const orderModel = resolveOrderModel(safeOptions.orderModel);
         const value = orderModel
-            ? orderModel.normalizeOrderRecord(safeRecord, { orderStatus })
+            ? orderModel.normalizeOrderRecord(safeRecord, { orderStatus, paymentStatus })
             : safeRecord;
         const errors = {};
         const customerValidation = validateCustomerSnapshot(value, {
@@ -357,12 +510,22 @@
             orderStatus,
             normalizedRecord: value
         });
+        const paymentValidation = validateOrderPaymentFields(value, {
+            orderModel,
+            orderStatus,
+            paymentStatus,
+            normalizedRecord: value,
+            rawOrderRecord: safeRecord,
+            allowedPaymentProviders: safeOptions.allowedPaymentProviders,
+            allowedPaymentCurrencies: safeOptions.allowedPaymentCurrencies
+        });
 
         mergeErrors(errors, customerValidation.errors);
         mergeErrors(errors, vendorValidation.errors);
         mergeErrors(errors, itemsValidation.errors);
         mergeErrors(errors, timelineValidation.errors);
         mergeErrors(errors, totalsValidation.errors);
+        mergeErrors(errors, paymentValidation.errors);
 
         if (safeRecord.status !== undefined) {
             if (!orderStatus || !orderStatus.normalizeOrderStatus(safeRecord.status)) {
@@ -436,8 +599,10 @@
         MODULE_NAME,
         resolveOrderStatus,
         resolveOrderModel,
+        resolvePaymentStatus,
         normalizeText,
         normalizeLowerText,
+        normalizeUpperText,
         createValidationResult,
         setError,
         mergeErrors,
@@ -448,6 +613,7 @@
         validateOrderItems,
         validateOrderTimeline,
         validateOrderTotals,
+        validateOrderPaymentFields,
         validateOrderRecord,
         validateCreateOrderInput,
         validateOrderStatusChange

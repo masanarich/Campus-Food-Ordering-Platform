@@ -1,14 +1,17 @@
 const orderValidation = require("../../../public/shared/orders/order-validation.js");
 const orderStatus = require("../../../public/shared/orders/order-status.js");
 const orderModel = require("../../../public/shared/orders/order-model.js");
+const paymentStatus = require("../../../public/shared/payments/payment-status.js");
 
 describe("shared/orders/order-validation.js", () => {
     test("exports a real validation module and basic helpers", () => {
         expect(orderValidation.MODULE_NAME).toBe("order-validation");
         expect(orderValidation.resolveOrderStatus(orderStatus)).toBe(orderStatus);
         expect(orderValidation.resolveOrderModel(orderModel)).toBe(orderModel);
+        expect(orderValidation.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
         expect(orderValidation.normalizeText("  Hello  ")).toBe("Hello");
         expect(orderValidation.normalizeLowerText("  HeLLo  ")).toBe("hello");
+        expect(orderValidation.normalizeUpperText("  zar  ")).toBe("ZAR");
         expect(orderValidation.isValidEmail("user@example.com")).toBe(true);
         expect(orderValidation.isValidEmail("bad-email")).toBe(false);
     });
@@ -16,19 +19,25 @@ describe("shared/orders/order-validation.js", () => {
     test("resolves shared dependencies from global scope and require fallback", () => {
         const originalGlobalOrderStatus = global.orderStatus;
         const originalGlobalOrderModel = global.orderModel;
+        const originalGlobalPaymentStatus = global.paymentStatus;
 
         global.orderStatus = orderStatus;
         global.orderModel = orderModel;
+        global.paymentStatus = paymentStatus;
         expect(orderValidation.resolveOrderStatus()).toBe(orderStatus);
         expect(orderValidation.resolveOrderModel()).toBe(orderModel);
+        expect(orderValidation.resolvePaymentStatus()).toBe(paymentStatus);
 
         delete global.orderStatus;
         delete global.orderModel;
+        delete global.paymentStatus;
         expect(orderValidation.resolveOrderStatus()).toBe(orderStatus);
         expect(orderValidation.resolveOrderModel()).toBe(orderModel);
+        expect(orderValidation.resolvePaymentStatus()).toBe(paymentStatus);
 
         global.orderStatus = originalGlobalOrderStatus;
         global.orderModel = originalGlobalOrderModel;
+        global.paymentStatus = originalGlobalPaymentStatus;
     });
 
     test("creates validation result objects and merges errors safely", () => {
@@ -356,6 +365,101 @@ describe("shared/orders/order-validation.js", () => {
         });
     });
 
+    test("validates order payment fields", () => {
+        const validOrder = orderModel.createOrderRecord({
+            customerUid: "customer-1",
+            customerName: "Tshepo",
+            customerEmail: "tshepo@example.com",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            items: [
+                { id: "burger", vendorUid: "vendor-1", name: "Burger", price: 50, quantity: 1 }
+            ],
+            paymentStatus: "paid",
+            paymentReference: "ref-123",
+            paymentVerifiedAt: "verified-at",
+            createdAt: "t-1",
+            updatedAt: "t-1"
+        }, { orderStatus, paymentStatus });
+
+        expect(
+            orderValidation.validateOrderPaymentFields(validOrder, {
+                orderStatus,
+                orderModel,
+                paymentStatus
+            })
+        ).toEqual({
+            isValid: true,
+            errors: {},
+            value: {
+                paymentStatus: "paid",
+                paymentProvider: "paystack",
+                paymentReference: "ref-123",
+                paymentAccessCode: "",
+                paymentAuthorizationUrl: "",
+                paymentAmount: 50,
+                paymentAmountInMinorUnits: 5000,
+                paymentCurrency: "ZAR",
+                paymentPaidAt: null,
+                paymentFailedAt: null,
+                paymentVerifiedAt: "verified-at",
+                paymentFailureReason: ""
+            }
+        });
+
+        expect(
+            orderValidation.validateOrderPaymentFields({
+                total: 50,
+                paymentStatus: "mystery",
+                paymentProvider: "cash",
+                paymentAmount: 40,
+                paymentAmountInMinorUnits: 4001,
+                paymentCurrency: "USD"
+            }, {
+                paymentStatus
+            })
+        ).toEqual({
+            isValid: false,
+            errors: {
+                paymentStatus: "Payment status must be valid.",
+                paymentProvider: "Payment provider must be one of: paystack.",
+                paymentCurrency: "Payment currency must be one of: ZAR.",
+                paymentAmount: "Payment amount must match the order total.",
+                paymentAmountInMinorUnits: "Payment amount in minor units must match the payment amount."
+            },
+            value: {
+                paymentStatus: "",
+                paymentProvider: "cash",
+                paymentReference: "",
+                paymentAccessCode: "",
+                paymentAuthorizationUrl: "",
+                paymentAmount: 40,
+                paymentAmountInMinorUnits: 4001,
+                paymentCurrency: "USD",
+                paymentPaidAt: null,
+                paymentFailedAt: null,
+                paymentVerifiedAt: null,
+                paymentFailureReason: ""
+            }
+        });
+
+        const paidWithoutVerification = orderValidation.validateOrderPaymentFields({
+            total: 50,
+            paymentStatus: "paid",
+            paymentProvider: "paystack",
+            paymentReference: "",
+            paymentAmount: 50,
+            paymentAmountInMinorUnits: 5000,
+            paymentCurrency: "ZAR"
+        }, { paymentStatus });
+
+        expect(paidWithoutVerification.isValid).toBe(false);
+        expect(paidWithoutVerification.errors.paymentReference)
+            .toBe("Payment reference is required once payment has started.");
+        expect(paidWithoutVerification.errors.paymentVerifiedAt)
+            .toBe("Paid orders must include a payment verification timestamp.");
+    });
+
     test("validates full order records and catches consistency problems", () => {
         const validOrder = {
             orderId: "order-1",
@@ -375,12 +479,13 @@ describe("shared/orders/order-validation.js", () => {
         expect(
             orderValidation.validateOrderRecord(validOrder, {
                 orderModel,
-                orderStatus
+                orderStatus,
+                paymentStatus
             })
         ).toEqual({
             isValid: true,
             errors: {},
-            value: orderModel.normalizeOrderRecord(validOrder, { orderStatus })
+            value: orderModel.normalizeOrderRecord(validOrder, { orderStatus, paymentStatus })
         });
 
         const invalidOrder = {
@@ -398,13 +503,19 @@ describe("shared/orders/order-validation.js", () => {
             ],
             subtotal: 40,
             total: 30,
+            paymentStatus: "unknown",
+            paymentProvider: "cash",
+            paymentAmount: 20,
+            paymentAmountInMinorUnits: 2001,
+            paymentCurrency: "USD",
             createdAt: null,
             updatedAt: null
         };
 
         const result = orderValidation.validateOrderRecord(invalidOrder, {
             orderModel,
-            orderStatus
+            orderStatus,
+            paymentStatus
         });
 
         expect(result.isValid).toBe(false);
@@ -418,6 +529,12 @@ describe("shared/orders/order-validation.js", () => {
         expect(result.errors["timeline.0.at"]).toBe("Timeline entries need a timestamp.");
         expect(result.errors.subtotal).toBe("Order subtotal must match the sum of its items (50).");
         expect(result.errors.total).toBe("Order total cannot be less than subtotal.");
+        expect(result.errors.paymentStatus).toBe("Payment status must be valid.");
+        expect(result.errors.paymentProvider).toBe("Payment provider must be one of: paystack.");
+        expect(result.errors.paymentCurrency).toBe("Payment currency must be one of: ZAR.");
+        expect(result.errors.paymentAmount).toBe("Payment amount must match the order total.");
+        expect(result.errors.paymentAmountInMinorUnits)
+            .toBe("Payment amount in minor units must match the payment amount.");
         expect(result.errors["items.0.vendorUid"])
             .toBe("Each item in an order must belong to the same vendor as the order.");
         expect(result.errors.createdAt).toBe("Order createdAt is required.");
