@@ -77,12 +77,90 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.normalizePaymentStatus === "function" &&
+            typeof explicitPaymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.normalizePaymentStatus === "function" &&
+            typeof globalScope.paymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredPaymentStatus = require("../payments/payment-status.js");
+
+                if (
+                    requiredPaymentStatus &&
+                    typeof requiredPaymentStatus.normalizePaymentStatus === "function" &&
+                    typeof requiredPaymentStatus.getPaymentStatusLabel === "function"
+                ) {
+                    return requiredPaymentStatus;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolvePaymentFormatters(explicitPaymentFormatters) {
+        if (
+            explicitPaymentFormatters &&
+            typeof explicitPaymentFormatters.formatPaymentAmount === "function" &&
+            typeof explicitPaymentFormatters.getPaymentStatusLabel === "function"
+        ) {
+            return explicitPaymentFormatters;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.paymentFormatters &&
+            typeof globalScope.paymentFormatters.formatPaymentAmount === "function" &&
+            typeof globalScope.paymentFormatters.getPaymentStatusLabel === "function"
+        ) {
+            return globalScope.paymentFormatters;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredPaymentFormatters = require("../payments/payment-formatters.js");
+
+                if (
+                    requiredPaymentFormatters &&
+                    typeof requiredPaymentFormatters.formatPaymentAmount === "function" &&
+                    typeof requiredPaymentFormatters.getPaymentStatusLabel === "function"
+                ) {
+                    return requiredPaymentFormatters;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
     }
 
     function normalizeLowerText(value) {
         return normalizeText(value).toLowerCase();
+    }
+
+    function normalizeUpperText(value) {
+        return normalizeText(value).toUpperCase();
     }
 
     function normalizeNumber(value) {
@@ -108,11 +186,12 @@
     function normalizeOrderRecord(orderRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const orderModel = resolveOrderModel(safeOptions.orderModel);
         const safeRecord = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
 
         if (orderModel) {
-            return orderModel.normalizeOrderRecord(safeRecord, { orderStatus });
+            return orderModel.normalizeOrderRecord(safeRecord, { orderStatus, paymentStatus });
         }
 
         return safeRecord;
@@ -420,6 +499,134 @@
         return formatCurrency(amount, options);
     }
 
+    function buildOrderPaymentRecord(orderRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const normalizedOrder = normalizeOrderRecord(orderRecord, safeOptions);
+
+        return {
+            orderId: normalizedOrder.orderId,
+            customerUid: normalizedOrder.customerUid,
+            customerEmail: normalizedOrder.customerEmail,
+            provider: normalizedOrder.paymentProvider,
+            status: normalizedOrder.paymentStatus,
+            reference: normalizedOrder.paymentReference,
+            accessCode: normalizedOrder.paymentAccessCode,
+            authorizationUrl: normalizedOrder.paymentAuthorizationUrl,
+            amount: normalizedOrder.paymentAmount,
+            amountInMinorUnits: normalizedOrder.paymentAmountInMinorUnits,
+            currency: normalizedOrder.paymentCurrency,
+            paidAt: normalizedOrder.paymentPaidAt,
+            failedAt: normalizedOrder.paymentFailedAt,
+            verifiedAt: normalizedOrder.paymentVerifiedAt,
+            failureReason: normalizedOrder.paymentFailureReason,
+            createdAt: normalizedOrder.createdAt,
+            updatedAt: normalizedOrder.updatedAt
+        };
+    }
+
+    function getOrderPaymentStatusLabel(orderRecordOrStatus, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const status = orderRecordOrStatus && typeof orderRecordOrStatus === "object"
+            ? normalizeOrderRecord(orderRecordOrStatus, safeOptions).paymentStatus
+            : orderRecordOrStatus;
+
+        if (paymentFormatters) {
+            return paymentFormatters.getPaymentStatusLabel(status, paymentStatus);
+        }
+
+        if (paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function") {
+            return paymentStatus.getPaymentStatusLabel(status);
+        }
+
+        return normalizeText(status) || "Unknown Payment Status";
+    }
+
+    function getOrderPaymentStatusTone(orderRecordOrStatus, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const status = orderRecordOrStatus && typeof orderRecordOrStatus === "object"
+            ? normalizeOrderRecord(orderRecordOrStatus, safeOptions).paymentStatus
+            : orderRecordOrStatus;
+
+        if (paymentFormatters && typeof paymentFormatters.getPaymentStatusTone === "function") {
+            return paymentFormatters.getPaymentStatusTone(status, paymentStatus);
+        }
+
+        if (paymentStatus && typeof paymentStatus.getPaymentStatusTone === "function") {
+            return paymentStatus.getPaymentStatusTone(status);
+        }
+
+        return "neutral";
+    }
+
+    function formatOrderPaymentAmount(orderRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const normalizedOrder = normalizeOrderRecord(orderRecord, safeOptions);
+        const amount = normalizedOrder.paymentAmount !== undefined
+            ? normalizedOrder.paymentAmount
+            : normalizedOrder.total;
+        const currency = normalizeUpperText(normalizedOrder.paymentCurrency) || "ZAR";
+
+        if (paymentFormatters) {
+            return paymentFormatters.formatPaymentAmount(amount, currency, safeOptions);
+        }
+
+        return formatCurrency(amount, safeOptions);
+    }
+
+    function formatOrderPaymentReference(orderRecordOrReference, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const reference = orderRecordOrReference && typeof orderRecordOrReference === "object"
+            ? normalizeOrderRecord(orderRecordOrReference, safeOptions).paymentReference
+            : orderRecordOrReference;
+
+        if (paymentFormatters && typeof paymentFormatters.formatPaymentReference === "function") {
+            return paymentFormatters.formatPaymentReference(reference, safeOptions);
+        }
+
+        const safeReference = normalizeText(reference);
+        return safeReference ? `Ref #${safeReference}` : "No reference";
+    }
+
+    function formatOrderPaymentSummary(orderRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const paymentRecord = buildOrderPaymentRecord(orderRecord, safeOptions);
+
+        if (paymentFormatters && typeof paymentFormatters.formatPaymentSummary === "function") {
+            return paymentFormatters.formatPaymentSummary(paymentRecord, {
+                ...safeOptions,
+                paymentStatus
+            });
+        }
+
+        return {
+            providerLabel: normalizeText(paymentRecord.provider) || "Payment Provider",
+            status: normalizeLowerText(paymentRecord.status),
+            statusLabel: getOrderPaymentStatusLabel(paymentRecord.status, safeOptions),
+            statusShortLabel: getOrderPaymentStatusLabel(paymentRecord.status, safeOptions),
+            statusDescription: "The payment status is still being resolved.",
+            statusTone: getOrderPaymentStatusTone(paymentRecord.status, safeOptions),
+            actionLabel: "Review Payment",
+            amountLabel: formatOrderPaymentAmount(orderRecord, safeOptions),
+            referenceLabel: formatOrderPaymentReference(paymentRecord.reference, safeOptions),
+            timestampLabel: formatDateTime(
+                paymentRecord.paidAt ||
+                paymentRecord.verifiedAt ||
+                paymentRecord.failedAt ||
+                paymentRecord.updatedAt ||
+                paymentRecord.createdAt,
+                safeOptions
+            )
+        };
+    }
+
     function formatOrderSummary(orderRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const normalizedOrder = normalizeOrderRecord(orderRecord, safeOptions);
@@ -438,6 +645,10 @@
 
         if (safeOptions.includeStatus === true) {
             segments.push(getOrderStatusLabel(normalizedOrder.status, safeOptions.orderStatus));
+        }
+
+        if (safeOptions.includePaymentStatus === true) {
+            segments.push(getOrderPaymentStatusLabel(normalizedOrder, safeOptions));
         }
 
         return segments.join(" • ");
@@ -587,8 +798,11 @@
         MODULE_NAME,
         resolveOrderStatus,
         resolveOrderModel,
+        resolvePaymentStatus,
+        resolvePaymentFormatters,
         normalizeText,
         normalizeLowerText,
+        normalizeUpperText,
         normalizeNumber,
         normalizePositiveInteger,
         normalizeOrderRecord,
@@ -606,6 +820,12 @@
         formatRelativeTime,
         formatOrderHeadline,
         formatOrderTotal,
+        buildOrderPaymentRecord,
+        getOrderPaymentStatusLabel,
+        getOrderPaymentStatusTone,
+        formatOrderPaymentAmount,
+        formatOrderPaymentReference,
+        formatOrderPaymentSummary,
         formatOrderSummary,
         buildTrackingSteps,
         formatTimelineEntry,
