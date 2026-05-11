@@ -13,6 +13,14 @@ function createOrder(overrides = {}) {
         itemCount: 2,
         total: 120,
         status: "preparing",
+        paymentStatus: "paid",
+        paymentProvider: "paystack",
+        paymentReference: "paystack-ref",
+        paymentAmount: 120,
+        paymentCurrency: "ZAR",
+        paymentPaidAt: "2026-04-20T12:05:00.000Z",
+        paymentFailedAt: null,
+        paymentFailureReason: "",
         items: [
             {
                 menuItemId: "item-1",
@@ -59,6 +67,7 @@ function createDOM() {
         <section id="order-detail-actions"></section>
         <section id="order-detail-summary"></section>
         <section id="order-detail-items"></section>
+        <section id="order-detail-payment"></section>
         <section id="order-detail-timeline"></section>
     `;
 
@@ -67,7 +76,56 @@ function createDOM() {
         actionsContainer: document.getElementById("order-detail-actions"),
         summaryContainer: document.getElementById("order-detail-summary"),
         itemsContainer: document.getElementById("order-detail-items"),
+        paymentContainer: document.getElementById("order-detail-payment"),
         timelineContainer: document.getElementById("order-detail-timeline")
+    };
+}
+
+function createPaymentStatusStub() {
+    return {
+        normalizePaymentStatus: jest.fn((status, fallbackStatus = "unpaid") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getPaymentStatusLabel: jest.fn(status => {
+            const labels = {
+                unpaid: "Unpaid",
+                pending: "Payment Pending",
+                paid: "Paid",
+                failed: "Payment Failed"
+            };
+            return labels[status] || "Unknown Payment Status";
+        }),
+        getPaymentStatusDescription: jest.fn(status => {
+            const descriptions = {
+                unpaid: "Payment has not been started for this order.",
+                pending: "Payment has been started and is waiting for verification.",
+                paid: "Payment was successfully verified.",
+                failed: "Payment could not be verified or was not completed."
+            };
+            return descriptions[status] || "";
+        }),
+        getPaymentStatusTone: jest.fn(status => {
+            const tones = {
+                unpaid: "neutral",
+                pending: "loading",
+                paid: "success",
+                failed: "error"
+            };
+            return tones[status] || "neutral";
+        })
+    };
+}
+
+function createPaymentFormattersStub() {
+    return {
+        formatPaymentAmount: jest.fn((amount, currency = "ZAR") => {
+            const numeric = Number(amount);
+            const safeAmount = Number.isFinite(numeric) ? numeric : 0;
+            return currency === "ZAR"
+                ? `R${safeAmount.toFixed(2)}`
+                : `${currency} ${safeAmount.toFixed(2)}`;
+        })
     };
 }
 
@@ -195,13 +253,143 @@ describe("customer/order-tracking/order-detail.js - rendering", () => {
             summary: dom.summaryContainer,
             items: dom.itemsContainer,
             timeline: dom.timelineContainer,
+            payment: dom.paymentContainer,
             actions: dom.actionsContainer
         });
 
         expect(dom.summaryContainer.textContent).toContain("No order summary available");
         expect(dom.itemsContainer.textContent).toContain("No items available");
         expect(dom.timelineContainer.textContent).toContain("No timeline available");
+        expect(dom.paymentContainer.textContent).toContain("No payment details available");
         expect(dom.actionsContainer.innerHTML).toBe("");
+    });
+});
+
+describe("customer/order-tracking/order-detail.js - payment rendering", () => {
+    let dom;
+    let orderFormatters;
+    let paymentStatus;
+    let paymentFormatters;
+
+    beforeEach(() => {
+        dom = createDOM();
+        orderFormatters = createOrderFormattersStub();
+        paymentStatus = createPaymentStatusStub();
+        paymentFormatters = createPaymentFormattersStub();
+    });
+
+    test("buildPaymentView returns a paid summary with retry disabled", () => {
+        const view = customerOrderDetailPage.buildPaymentView(createOrder(), {
+            paymentStatus,
+            paymentFormatters,
+            orderFormatters
+        });
+
+        expect(view.status).toBe("paid");
+        expect(view.statusLabel).toBe("Paid");
+        expect(view.tone).toBe("success");
+        expect(view.amountText).toBe("R120.00");
+        expect(view.providerLabel).toBe("Paystack");
+        expect(view.reference).toBe("paystack-ref");
+        expect(view.canRetry).toBe(false);
+        expect(view.retryUrl).toBe("");
+    });
+
+    test("buildPaymentView returns a retry URL with vendor query for failed payments", () => {
+        const view = customerOrderDetailPage.buildPaymentView(
+            createOrder({
+                paymentStatus: "failed",
+                paymentFailureReason: "Card was declined.",
+                paymentFailedAt: "2026-04-20T12:06:00.000Z"
+            }),
+            { paymentStatus, paymentFormatters, orderFormatters }
+        );
+
+        expect(view.status).toBe("failed");
+        expect(view.canRetry).toBe(true);
+        expect(view.retryUrl).toContain("../order-management/checkout.html?vendorUid=vendor-1");
+        expect(view.retryUrl).toContain("vendorName=Campus+Bites");
+        expect(view.failureReason).toBe("Card was declined.");
+    });
+
+    test("buildPaymentView falls back to order.total when paymentAmount is missing", () => {
+        const view = customerOrderDetailPage.buildPaymentView(
+            createOrder({ paymentStatus: "unpaid", paymentAmount: undefined, paymentReference: "" }),
+            { paymentStatus, paymentFormatters }
+        );
+
+        expect(view.status).toBe("unpaid");
+        expect(view.amount).toBe(120);
+        expect(view.amountText).toBe("R120.00");
+        expect(view.canRetry).toBe(true);
+    });
+
+    test("renderOrderPayment writes status, amount, reference, and retry link for failed payments", () => {
+        customerOrderDetailPage.renderOrderPayment(
+            createOrder({
+                paymentStatus: "failed",
+                paymentFailureReason: "Card was declined.",
+                paymentFailedAt: "2026-04-20T12:06:00.000Z"
+            }),
+            dom.paymentContainer,
+            {
+                paymentStatus,
+                paymentFormatters,
+                orderFormatters
+            }
+        );
+
+        const statusLine = dom.paymentContainer.querySelector(".order-detail-payment-status");
+        expect(statusLine.textContent).toBe("Status: Payment Failed");
+        expect(statusLine.getAttribute("data-tone")).toBe("error");
+        expect(statusLine.getAttribute("data-payment-status")).toBe("failed");
+
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-amount").textContent).toBe("Amount: R120.00");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-provider").textContent).toBe("Provider: Paystack");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-reference").textContent).toBe("Reference: paystack-ref");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-failure-reason").textContent).toContain("Card was declined.");
+
+        const retryLink = dom.paymentContainer.querySelector(".order-detail-payment-actions a");
+        expect(retryLink).not.toBeNull();
+        expect(retryLink.textContent).toBe("Retry Payment");
+        expect(retryLink.getAttribute("href")).toContain("vendorUid=vendor-1");
+    });
+
+    test("renderOrderPayment does not show retry link for paid orders", () => {
+        customerOrderDetailPage.renderOrderPayment(createOrder(), dom.paymentContainer, {
+            paymentStatus,
+            paymentFormatters,
+            orderFormatters
+        });
+
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-actions")).toBeNull();
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-status").textContent).toBe("Status: Paid");
+    });
+
+    test("renderOrderPayment shows a Pay Now link for unpaid orders", () => {
+        customerOrderDetailPage.renderOrderPayment(
+            createOrder({ paymentStatus: "unpaid", paymentReference: "" }),
+            dom.paymentContainer,
+            { paymentStatus, paymentFormatters, orderFormatters }
+        );
+
+        const link = dom.paymentContainer.querySelector(".order-detail-payment-actions a");
+        expect(link).not.toBeNull();
+        expect(link.textContent).toBe("Pay Now");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-reference")).toBeNull();
+    });
+
+    test("renderOrderPayment shows an empty state when the order is missing", () => {
+        customerOrderDetailPage.renderOrderPayment(null, dom.paymentContainer, {
+            paymentStatus,
+            paymentFormatters
+        });
+
+        expect(dom.paymentContainer.textContent).toContain("Payment details are unavailable");
+    });
+
+    test("buildRetryPaymentUrl falls back to the checkout route when vendorUid is missing", () => {
+        expect(customerOrderDetailPage.buildRetryPaymentUrl({})).toBe("../order-management/checkout.html");
     });
 });
 
@@ -421,6 +609,8 @@ describe("customer/order-tracking/order-detail.js - fetching and init", () => {
 
     test("init renders the requested order for the signed-in customer", async () => {
         const getOrderById = jest.fn(async () => createOrder());
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
 
         const result = await customerOrderDetailPage.init({
             currentUser: { uid: "customer-1" },
@@ -428,10 +618,13 @@ describe("customer/order-tracking/order-detail.js - fetching and init", () => {
             firestoreFns: {},
             orderService: { getOrderById },
             orderFormatters,
+            paymentStatus,
+            paymentFormatters,
             orderId: "order-1",
             statusSelector: "#order-tracking-detail-status",
             summarySelector: "#order-detail-summary",
             itemsSelector: "#order-detail-items",
+            paymentSelector: "#order-detail-payment",
             timelineSelector: "#order-detail-timeline"
         });
 
@@ -440,6 +633,8 @@ describe("customer/order-tracking/order-detail.js - fetching and init", () => {
         expect(dom.itemsContainer.textContent).toContain("Burger");
         expect(dom.timelineContainer.textContent).toContain("Order Received");
         expect(dom.statusElement.textContent).toContain("Campus Bites");
+        expect(dom.paymentContainer.textContent).toContain("Status: Paid");
+        expect(dom.paymentContainer.textContent).toContain("Reference: paystack-ref");
     });
 
     test("init renders the confirm collection button when the order is ready", async () => {
