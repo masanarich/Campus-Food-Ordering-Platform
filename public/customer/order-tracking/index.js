@@ -92,6 +92,42 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        return null;
+    }
+
+    function resolvePaymentFormatters(explicitPaymentFormatters) {
+        if (
+            explicitPaymentFormatters &&
+            typeof explicitPaymentFormatters.formatPaymentAmount === "function"
+        ) {
+            return explicitPaymentFormatters;
+        }
+
+        if (
+            globalScope.paymentFormatters &&
+            typeof globalScope.paymentFormatters.formatPaymentAmount === "function"
+        ) {
+            return globalScope.paymentFormatters;
+        }
+
+        return null;
+    }
+
     function getFallbackRoutes() {
         return {
             home: "../index.html",
@@ -138,6 +174,8 @@
         const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const orderStatus = resolveOrderStatus(options.orderStatus);
         const orderFormatters = resolveOrderFormatters(options.orderFormatters);
+        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
+        const paymentFormatters = resolvePaymentFormatters(options.paymentFormatters);
         const normalizedStatus =
             orderStatus && typeof orderStatus.normalizeOrderStatus === "function"
                 ? orderStatus.normalizeOrderStatus(safeOrder.status, "pending")
@@ -155,6 +193,30 @@
                 ? orderFormatters.formatCurrency(safeOrder.total || 0)
                 : `R${Number(safeOrder.total || 0).toFixed(2)}`;
 
+        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
+        const normalizedPaymentStatus =
+            paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
+                ? paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid")
+                : rawPaymentStatus.toLowerCase() || "unpaid";
+        const paymentStatusLabel =
+            paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
+                ? paymentStatus.getPaymentStatusLabel(normalizedPaymentStatus)
+                : normalizedPaymentStatus;
+        const paymentTone =
+            paymentStatus && typeof paymentStatus.getPaymentStatusTone === "function"
+                ? paymentStatus.getPaymentStatusTone(normalizedPaymentStatus)
+                : "neutral";
+        const paymentCurrency = normalizeText(safeOrder.paymentCurrency) || "ZAR";
+        const paymentAmount = Number.isFinite(Number(safeOrder.paymentAmount))
+            ? Number(safeOrder.paymentAmount)
+            : Number(safeOrder.total) || 0;
+        const paymentAmountText =
+            paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
+                ? paymentFormatters.formatPaymentAmount(paymentAmount, paymentCurrency)
+                : (paymentCurrency === "ZAR"
+                    ? `R${paymentAmount.toFixed(2)}`
+                    : `${paymentCurrency} ${paymentAmount.toFixed(2)}`);
+
         return {
             orderId: normalizeText(safeOrder.orderId || safeOrder.id),
             vendorUid: normalizeText(safeOrder.vendorUid),
@@ -165,6 +227,14 @@
             status: normalizedStatus,
             statusLabel,
             tone,
+            paymentStatus: normalizedPaymentStatus,
+            paymentStatusLabel,
+            paymentTone,
+            paymentAmount,
+            paymentAmountText,
+            paymentCurrency,
+            paymentReference: normalizeText(safeOrder.paymentReference),
+            paymentProvider: normalizeText(safeOrder.paymentProvider) || "paystack",
             updatedAt: safeOrder.updatedAt || safeOrder.createdAt || null
         };
     }
@@ -299,6 +369,16 @@
         totalLine.className = "tracking-order-total";
         totalLine.textContent = `Total: ${order.totalText}`;
 
+        const paymentStatusLine = globalScope.document.createElement("p");
+        paymentStatusLine.className = "tracking-order-payment-status";
+        paymentStatusLine.textContent = `Payment: ${order.paymentStatusLabel}`;
+        paymentStatusLine.setAttribute("data-tone", order.paymentTone);
+        paymentStatusLine.setAttribute("data-payment-status", order.paymentStatus);
+
+        const paymentAmountLine = globalScope.document.createElement("p");
+        paymentAmountLine.className = "tracking-order-payment-amount";
+        paymentAmountLine.textContent = `Payment Amount: ${order.paymentAmountText}`;
+
         const footer = globalScope.document.createElement("menu");
         footer.className = "action-menu tracking-order-actions";
         footer.setAttribute("aria-label", `${order.vendorName} order actions`);
@@ -316,6 +396,16 @@
         article.appendChild(statusLine);
         article.appendChild(itemsLine);
         article.appendChild(totalLine);
+        article.appendChild(paymentStatusLine);
+        article.appendChild(paymentAmountLine);
+
+        if (order.paymentReference) {
+            const paymentReferenceLine = globalScope.document.createElement("p");
+            paymentReferenceLine.className = "tracking-order-payment-reference";
+            paymentReferenceLine.textContent = `Reference: ${order.paymentReference}`;
+            article.appendChild(paymentReferenceLine);
+        }
+
         article.appendChild(footer);
 
         return article;
@@ -437,6 +527,8 @@
         resolveOrderService,
         resolveOrderStatus,
         resolveOrderFormatters,
+        resolvePaymentStatus,
+        resolvePaymentFormatters,
         getFallbackRoutes,
         waitForAuthReady,
         mapOrderRecord,

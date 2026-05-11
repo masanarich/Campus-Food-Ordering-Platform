@@ -12,6 +12,11 @@ function createOrder(overrides = {}) {
         itemCount: 2,
         total: 120,
         status: "preparing",
+        paymentStatus: "paid",
+        paymentProvider: "paystack",
+        paymentReference: "paystack-ref",
+        paymentAmount: 120,
+        paymentCurrency: "ZAR",
         updatedAt: "2026-04-20T12:00:00.000Z",
         ...overrides
     };
@@ -59,6 +64,45 @@ function createOrderStatusStub() {
 function createOrderFormattersStub() {
     return {
         formatCurrency: jest.fn(value => `R${Number(value || 0).toFixed(2)}`)
+    };
+}
+
+function createPaymentStatusStub() {
+    return {
+        normalizePaymentStatus: jest.fn((status, fallbackStatus = "unpaid") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getPaymentStatusLabel: jest.fn(status => {
+            const labels = {
+                unpaid: "Unpaid",
+                pending: "Payment Pending",
+                paid: "Paid",
+                failed: "Payment Failed"
+            };
+            return labels[status] || "Unknown Payment Status";
+        }),
+        getPaymentStatusTone: jest.fn(status => {
+            const tones = {
+                unpaid: "neutral",
+                pending: "loading",
+                paid: "success",
+                failed: "error"
+            };
+            return tones[status] || "neutral";
+        })
+    };
+}
+
+function createPaymentFormattersStub() {
+    return {
+        formatPaymentAmount: jest.fn((amount, currency = "ZAR") => {
+            const numeric = Number(amount);
+            const safeAmount = Number.isFinite(numeric) ? numeric : 0;
+            return currency === "ZAR"
+                ? `R${safeAmount.toFixed(2)}`
+                : `${currency} ${safeAmount.toFixed(2)}`;
+        })
     };
 }
 
