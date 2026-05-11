@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Payment</title>
+    <link rel="stylesheet" href="../../index.css">
+    <link rel="stylesheet" href="./order-management.css">
+    <style>
+        .payment-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .payment-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #e8e8e8;
+            padding-bottom: 1rem;
+        }
+
+        .payment-header h1 {
+            color: #333;
+            margin: 0 0 0.5rem 0;
+            font-size: 1.8rem;
+        }
+
+        .payment-status {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        .payment-status.pending {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .payment-status.processing {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .payment-details {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin-bottom: 2rem;
+        }
+
+        .payment-details h2 {
+            font-size: 1.1rem;
+            color: #333;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .detail-value {
+            text-align: right;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .order-items {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fafafa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #e8e8e8;
+            font-size: 0.95rem;
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            color: #333;
+            display: block;
+        }
+
+        .item-quantity {
+            font-size: 0.85rem;
+            color: #999;
+            display: block;
+        }
+
+        .item-price {
+            font-weight: 600;
+            color: #333;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .total-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin-bottom: 2rem;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            font-size: 1rem;
+        }
+
+        .total-row.final {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2c3e50;
+            border-top: 2px solid #e8e8e8;
+            padding-top: 1rem;
+            margin-top: 1rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            flex: 1;
+            max-width: 250px;
+            padding: 1rem 2rem;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #45a049;
+        }
+
+        .btn-primary:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            flex: 1;
+            max-width: 250px;
+            padding: 1rem 2rem;
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #e8e8e8;
+        }
+
+        .status-message {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .status-message.show {
+            display: block;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.loading {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #0c5460;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .security-notice {
+            background: #e8f4f8;
+            border: 1px solid #b3d9e8;
+            padding: 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #0c5460;
+            margin-top: 1.5rem;
+        }
+
+        .security-notice svg {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            margin-right: 0.5rem;
+            vertical-align: -2px;
+        }
+
+        @media (max-width: 600px) {
+            .payment-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+
+            .payment-header h1 {
+                font-size: 1.4rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn-primary,
+            .btn-secondary {
+                max-width: none;
+            }
+
+            .detail-row {
+                flex-direction: column;
+            }
+
+            .detail-value {
+                text-align: left;
+                margin-top: 0.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="navbar">
+        <div class="navbar-brand">
+            <a href="../../index.html" class="logo-text">Campus Food Ordering</a>
+        </div>
+        <nav class="navbar-nav">
+            <ul>
+                <li><a href="../index.html">Dashboard</a></li>
+                <li><a href="./browse-vendors.html">Browse Stores</a></li>
+                <li><a href="../order-tracking/index.html">My Orders</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        <div class="payment-container">
+            <div class="payment-header">
+                <h1>Complete Payment</h1>
+                <p>Secure payment powered by PayFast</p>
+                <span class="payment-status pending" id="payment-status">
+                    Pending Payment
+                </span>
+            </div>
+
+            <div id="status-message" class="status-message"></div>
+
+            <div class="payment-details">
+                <h2>Order Summary</h2>
+
+                <div id="order-items-list" class="order-items">
+                    <p style="color: #999; text-align: center;">Loading order details...</p>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Vendor</span>
+                    <span class="detail-value" id="vendor-name">Loading...</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Order ID</span>
+                    <span class="detail-value" id="order-id" style="font-family: monospace; font-size: 0.9rem;">Loading...</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">Order Date</span>
+                    <span class="detail-value" id="order-date">Loading...</span>
+                </div>
+            </div>
+
+            <div class="total-section">
+                <div class="total-row">
+                    <span class="detail-label">Subtotal</span>
+                    <span id="subtotal">R0.00</span>
+                </div>
+                <div class="total-row">
+                    <span class="detail-label">Delivery Fee</span>
+                    <span id="delivery-fee">R0.00</span>
+                </div>
+                <div class="total-row">
+                    <span class="detail-label">Platform Fee (10%)</span>
+                    <span id="platform-fee">R0.00</span>
+                </div>
+                <div class="total-row final">
+                    <span>Total Amount</span>
+                    <span id="total-amount">R0.00</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="continue-payment-btn" class="btn-primary" disabled>
+                    Continue to PayFast
+                </button>
+                <button id="back-button" class="btn-secondary">
+                    Back to Order
+                </button>
+            </div>
+
+            <div class="security-notice">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                Your payment information is secure and encrypted. PayFast is PCI DSS Level 1 compliant.
+            </div>
+        </div>
+    </main>
+
+    <!-- Payment Integration Scripts -->
+    <script src="../../shared/payment/payment-integration.js"></script>
+    <script src="../../shared/payment/payment-service.js"></script>
+    <script src="payment.js"></script>
+
+    <script>
+        // Initialize payment page when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                if (window.paymentModule && typeof window.paymentModule.init === 'function') {
+                    window.paymentModule.init();
+                }
+            });
+        } else {
+            if (window.paymentModule && typeof window.paymentModule.init === 'function') {
+                window.paymentModule.init();
+            }
+        }
+    </script>
+</body>
+</html>
