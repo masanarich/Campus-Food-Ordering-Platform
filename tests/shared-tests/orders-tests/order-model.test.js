@@ -1,14 +1,17 @@
 const orderModel = require("../../../public/shared/orders/order-model.js");
 const orderStatus = require("../../../public/shared/orders/order-status.js");
+const paymentStatus = require("../../../public/shared/payments/payment-status.js");
 
 describe("shared/orders/order-model.js", () => {
     test("exports a real shared model module", () => {
         expect(orderModel.MODULE_NAME).toBe("order-model");
         expect(orderModel.resolveOrderStatus(orderStatus)).toBe(orderStatus);
+        expect(orderModel.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
     });
 
-    test("resolves order-status from global scope and require fallback", () => {
+    test("resolves order-status and payment-status from global scope and require fallback", () => {
         const originalGlobalOrderStatus = global.orderStatus;
+        const originalGlobalPaymentStatus = global.paymentStatus;
 
         global.orderStatus = orderStatus;
         expect(orderModel.resolveOrderStatus()).toBe(orderStatus);
@@ -17,12 +20,21 @@ describe("shared/orders/order-model.js", () => {
         expect(orderModel.resolveOrderStatus()).toBe(orderStatus);
 
         global.orderStatus = originalGlobalOrderStatus;
+
+        global.paymentStatus = paymentStatus;
+        expect(orderModel.resolvePaymentStatus()).toBe(paymentStatus);
+
+        delete global.paymentStatus;
+        expect(orderModel.resolvePaymentStatus()).toBe(paymentStatus);
+
+        global.paymentStatus = originalGlobalPaymentStatus;
     });
 
     test("normalizes primitive values safely", () => {
         expect(orderModel.normalizeText("  Hello  ")).toBe("Hello");
         expect(orderModel.normalizeText(null)).toBe("");
         expect(orderModel.normalizeLowerText("  HeLLo  ")).toBe("hello");
+        expect(orderModel.normalizeUpperText("  zar  ")).toBe("ZAR");
 
         expect(orderModel.normalizeCurrencyAmount("45.678")).toBe(45.68);
         expect(orderModel.normalizeCurrencyAmount(-50)).toBe(0);
@@ -32,6 +44,15 @@ describe("shared/orders/order-model.js", () => {
         expect(orderModel.normalizePositiveInteger("4")).toBe(4);
         expect(orderModel.normalizePositiveInteger(-1, 3)).toBe(3);
         expect(orderModel.normalizePositiveInteger("bad")).toBe(1);
+
+        expect(orderModel.normalizeAmountInMinorUnits("1234")).toBe(1234);
+        expect(orderModel.normalizeAmountInMinorUnits(-20, 500)).toBe(0);
+        expect(orderModel.normalizeAmountInMinorUnits("bad", 500)).toBe(500);
+        expect(orderModel.amountToMinorUnits(12.34)).toBe(1234);
+        expect(orderModel.normalizePaymentProvider(" PayStack ")).toBe("paystack");
+        expect(orderModel.normalizePaymentProvider("", "campus-pay")).toBe("campus-pay");
+        expect(orderModel.normalizePaymentCurrency(" zar ")).toBe("ZAR");
+        expect(orderModel.normalizePaymentCurrency("", "usd")).toBe("USD");
 
         expect(orderModel.normalizeBoolean(true)).toBe(true);
         expect(orderModel.normalizeBoolean(1)).toBe(true);
@@ -350,6 +371,18 @@ describe("shared/orders/order-model.js", () => {
             subtotal: 130,
             total: 130,
             status: "accepted",
+            paymentStatus: "unpaid",
+            paymentProvider: "paystack",
+            paymentReference: "",
+            paymentAccessCode: "",
+            paymentAuthorizationUrl: "",
+            paymentAmount: 130,
+            paymentAmountInMinorUnits: 13000,
+            paymentCurrency: "ZAR",
+            paymentPaidAt: null,
+            paymentFailedAt: null,
+            paymentVerifiedAt: null,
+            paymentFailureReason: "",
             timeline: [
                 {
                     status: "accepted",
@@ -403,6 +436,18 @@ describe("shared/orders/order-model.js", () => {
             notes: "Please make it hot.",
             customerConfirmedCollected: false,
             vendorConfirmedCollected: true,
+            paymentStatus: "unpaid",
+            paymentProvider: "paystack",
+            paymentReference: "",
+            paymentAccessCode: "",
+            paymentAuthorizationUrl: "",
+            paymentAmount: 30,
+            paymentAmountInMinorUnits: 3000,
+            paymentCurrency: "ZAR",
+            paymentPaidAt: null,
+            paymentFailedAt: null,
+            paymentVerifiedAt: null,
+            paymentFailureReason: "",
             createdAt: "t-1",
             updatedAt: "t-2"
         }, { orderStatus });
@@ -431,6 +476,49 @@ describe("shared/orders/order-model.js", () => {
         expect(normalized.vendorConfirmedCollected).toBe(true);
     });
 
+    test("normalizes payment fields on existing order records", () => {
+        const normalized = orderModel.normalizeOrderRecord({
+            orderId: "order-paid-1",
+            customerUid: "customer-1",
+            customerName: "Tshepo",
+            customerEmail: "tshepo@example.com",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            items: [
+                { id: "burger", vendorUid: "vendor-1", name: "Burger", price: 50, quantity: 1 }
+            ],
+            total: 50,
+            paymentStatus: "success",
+            paymentProvider: " PayStack ",
+            paystackReference: " ref-123 ",
+            paystackAccessCode: " access-123 ",
+            paymentURL: " https://paystack.test/pay ",
+            paymentAmount: "50.125",
+            paymentCurrency: " zar ",
+            paidAt: "paid-1",
+            verifiedAt: "verified-1",
+            paymentErrorMessage: " none "
+        }, {
+            orderStatus,
+            paymentStatus
+        });
+
+        expect(normalized).toEqual(expect.objectContaining({
+            paymentStatus: "paid",
+            paymentProvider: "paystack",
+            paymentReference: "ref-123",
+            paymentAccessCode: "access-123",
+            paymentAuthorizationUrl: "https://paystack.test/pay",
+            paymentAmount: 50.13,
+            paymentAmountInMinorUnits: 5013,
+            paymentCurrency: "ZAR",
+            paymentPaidAt: "paid-1",
+            paymentFailedAt: null,
+            paymentVerifiedAt: "verified-1",
+            paymentFailureReason: "none"
+        }));
+    });
+
     test("creates one order record per vendor from a mixed cart", () => {
         const orders = orderModel.createOrderRecordsFromCart(
             [
@@ -445,7 +533,11 @@ describe("shared/orders/order-model.js", () => {
             },
             {
                 orderStatus,
+                paymentStatus,
                 status: "pending",
+                initialPaymentStatus: "pending",
+                paymentProvider: "paystack",
+                paymentCurrency: "ZAR",
                 notes: "Mixed vendor checkout",
                 createdAt: "created-1"
             }
@@ -455,10 +547,16 @@ describe("shared/orders/order-model.js", () => {
         expect(orders[0].vendorUid).toBe("vendor-1");
         expect(orders[0].customerUid).toBe("customer-1");
         expect(orders[0].status).toBe("pending");
+        expect(orders[0].paymentStatus).toBe("pending");
+        expect(orders[0].paymentAmount).toBe(100);
+        expect(orders[0].paymentAmountInMinorUnits).toBe(10000);
         expect(orders[0].timeline[0].actorRole).toBe("customer");
         expect(orders[0].notes).toBe("Mixed vendor checkout");
 
         expect(orders[1].vendorUid).toBe("vendor-2");
         expect(orders[1].total).toBe(25);
+        expect(orders[1].paymentStatus).toBe("pending");
+        expect(orders[1].paymentAmount).toBe(25);
+        expect(orders[1].paymentAmountInMinorUnits).toBe(2500);
     });
 });

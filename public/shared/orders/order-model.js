@@ -40,12 +40,53 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.getDefaultPaymentStatus === "function" &&
+            typeof explicitPaymentStatus.normalizePaymentStatus === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.getDefaultPaymentStatus === "function" &&
+            typeof globalScope.paymentStatus.normalizePaymentStatus === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredPaymentStatus = require("../payments/payment-status.js");
+
+                if (
+                    requiredPaymentStatus &&
+                    typeof requiredPaymentStatus.getDefaultPaymentStatus === "function" &&
+                    typeof requiredPaymentStatus.normalizePaymentStatus === "function"
+                ) {
+                    return requiredPaymentStatus;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
     }
 
     function normalizeLowerText(value) {
         return normalizeText(value).toLowerCase();
+    }
+
+    function normalizeUpperText(value) {
+        return normalizeText(value).toUpperCase();
     }
 
     function normalizeCurrencyAmount(value, fallbackValue) {
@@ -75,6 +116,21 @@
         }
 
         return 1;
+    }
+
+    function normalizeAmountInMinorUnits(value, fallbackValue) {
+        const parsed = Number.parseInt(value, 10);
+        const fallbackParsed = Number.parseInt(fallbackValue, 10);
+
+        if (Number.isFinite(parsed)) {
+            return Math.max(0, parsed);
+        }
+
+        if (Number.isFinite(fallbackParsed)) {
+            return Math.max(0, fallbackParsed);
+        }
+
+        return 0;
     }
 
     function normalizeBoolean(value) {
@@ -113,6 +169,18 @@
         }
 
         return null;
+    }
+
+    function amountToMinorUnits(amount) {
+        return Math.round(normalizeCurrencyAmount(amount) * 100);
+    }
+
+    function normalizePaymentProvider(value, fallbackValue) {
+        return normalizeLowerText(value || fallbackValue) || "paystack";
+    }
+
+    function normalizePaymentCurrency(value, fallbackValue) {
+        return normalizeUpperText(value || fallbackValue) || "ZAR";
     }
 
     function createCustomerSnapshot(customer) {
@@ -300,10 +368,17 @@
         const safeValues = orderValues && typeof orderValues === "object" ? orderValues : {};
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const defaultStatus = orderStatus ? orderStatus.getDefaultOrderStatus() : "pending";
         const normalizedStatus = orderStatus
             ? orderStatus.normalizeOrderStatus(safeValues.status, defaultStatus)
             : normalizeLowerText(safeValues.status) || defaultStatus;
+        const defaultPaymentStatus = paymentStatus
+            ? paymentStatus.getDefaultPaymentStatus()
+            : "unpaid";
+        const normalizedPaymentStatus = paymentStatus
+            ? paymentStatus.normalizePaymentStatus(safeValues.paymentStatus, defaultPaymentStatus)
+            : normalizeLowerText(safeValues.paymentStatus) || defaultPaymentStatus;
         const customer = createCustomerSnapshot(safeValues.customer || safeValues);
         const vendor = createVendorSnapshot(safeValues.vendor || safeValues);
         const items = normalizeOrderItems(safeValues.items);
@@ -345,6 +420,17 @@
         const total = safeValues.total !== undefined
             ? normalizeCurrencyAmount(safeValues.total, subtotal)
             : subtotal;
+        const paymentAmount = safeValues.paymentAmount !== undefined
+            ? normalizeCurrencyAmount(safeValues.paymentAmount, total)
+            : total;
+        const paymentAmountInMinorUnits =
+            safeValues.paymentAmountInMinorUnits !== undefined ||
+            safeValues.paymentAmountMinor !== undefined
+                ? normalizeAmountInMinorUnits(
+                    safeValues.paymentAmountInMinorUnits,
+                    safeValues.paymentAmountMinor
+                )
+                : amountToMinorUnits(paymentAmount);
 
         return {
             orderId: normalizeText(
@@ -361,6 +447,33 @@
             subtotal,
             total,
             status: normalizedStatus || defaultStatus,
+            paymentStatus: normalizedPaymentStatus || defaultPaymentStatus,
+            paymentProvider: normalizePaymentProvider(safeValues.paymentProvider),
+            paymentReference: normalizeText(
+                safeValues.paymentReference ||
+                safeValues.paystackReference
+            ),
+            paymentAccessCode: normalizeText(
+                safeValues.paymentAccessCode ||
+                safeValues.paystackAccessCode
+            ),
+            paymentAuthorizationUrl: normalizeText(
+                safeValues.paymentAuthorizationUrl ||
+                safeValues.paymentAuthorizationURL ||
+                safeValues.paymentUrl ||
+                safeValues.paymentURL
+            ),
+            paymentAmount,
+            paymentAmountInMinorUnits,
+            paymentCurrency: normalizePaymentCurrency(safeValues.paymentCurrency),
+            paymentPaidAt: normalizeTimestampValue(safeValues.paymentPaidAt, safeValues.paidAt),
+            paymentFailedAt: normalizeTimestampValue(safeValues.paymentFailedAt, safeValues.failedAt),
+            paymentVerifiedAt: normalizeTimestampValue(safeValues.paymentVerifiedAt, safeValues.verifiedAt),
+            paymentFailureReason: normalizeText(
+                safeValues.paymentFailureReason ||
+                safeValues.failureReason ||
+                safeValues.paymentErrorMessage
+            ),
             timeline,
             notes: normalizeText(safeValues.notes || safeValues.note),
             customerConfirmedCollected: normalizeBoolean(safeValues.customerConfirmedCollected),
@@ -390,6 +503,12 @@
                     vendorName: group.vendorName,
                     items: group.items,
                     status: safeOptions.status,
+                    paymentStatus: safeOptions.paymentRecordStatus || safeOptions.initialPaymentStatus,
+                    paymentProvider: safeOptions.paymentProvider,
+                    paymentReference: safeOptions.paymentReference,
+                    paymentAccessCode: safeOptions.paymentAccessCode,
+                    paymentAuthorizationUrl: safeOptions.paymentAuthorizationUrl,
+                    paymentCurrency: safeOptions.paymentCurrency,
                     notes: safeOptions.notes,
                     createdByRole: safeOptions.createdByRole || "customer",
                     createdByUid: safeOptions.createdByUid || customerSnapshot.customerUid,
@@ -399,6 +518,7 @@
                 },
                 {
                     orderStatus: orderStatus,
+                    paymentStatus: safeOptions.paymentStatus,
                     createdAt: safeOptions.createdAt,
                     createdByRole: safeOptions.createdByRole || "customer"
                 }
@@ -409,12 +529,18 @@
     const orderModel = {
         MODULE_NAME,
         resolveOrderStatus,
+        resolvePaymentStatus,
         normalizeText,
         normalizeLowerText,
+        normalizeUpperText,
         normalizeCurrencyAmount,
         normalizePositiveInteger,
+        normalizeAmountInMinorUnits,
         normalizeBoolean,
         normalizeTimestampValue,
+        amountToMinorUnits,
+        normalizePaymentProvider,
+        normalizePaymentCurrency,
         createCustomerSnapshot,
         createVendorSnapshot,
         normalizeOrderItem,
