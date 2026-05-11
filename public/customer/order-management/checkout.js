@@ -110,6 +110,30 @@
         return {};
     }
 
+    function resolveFunctions(explicitFunctions) {
+        if (explicitFunctions) {
+            return explicitFunctions;
+        }
+
+        if (globalScope.functions) {
+            return globalScope.functions;
+        }
+
+        return null;
+    }
+
+    function resolveFunctionsFns(explicitFunctionsFns) {
+        if (explicitFunctionsFns && typeof explicitFunctionsFns === "object") {
+            return explicitFunctionsFns;
+        }
+
+        if (globalScope.functionsFns && typeof globalScope.functionsFns === "object") {
+            return globalScope.functionsFns;
+        }
+
+        return {};
+    }
+
     function resolveOrderService(explicitOrderService) {
         if (explicitOrderService && typeof explicitOrderService.createOrders === "function") {
             return explicitOrderService;
@@ -518,6 +542,18 @@
 
             notes: orderNotes,
             status: "placed",
+            paymentStatus: "unpaid",
+            paymentProvider: "paystack",
+            paymentReference: "",
+            paymentAccessCode: "",
+            paymentAuthorizationUrl: "",
+            paymentAmount: context.subtotal,
+            paymentAmountInMinorUnits: Math.round(context.subtotal * 100),
+            paymentCurrency: "ZAR",
+            paymentPaidAt: null,
+            paymentFailedAt: null,
+            paymentVerifiedAt: null,
+            paymentFailureReason: "",
 
             createdAt: firestoreFns.serverTimestamp(),
             updatedAt: firestoreFns.serverTimestamp()
@@ -585,6 +621,255 @@
         };
     }
 
+    function getOrderIdentifier(orderRecord) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        return normalizeText(safeOrder.orderId || safeOrder.id);
+    }
+
+    function buildPaymentOrder(orderRecord, fallbackContext = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const safeContext = fallbackContext && typeof fallbackContext === "object" ? fallbackContext : {};
+        const orderId = getOrderIdentifier(safeOrder);
+        const total = safeOrder.total !== undefined
+            ? normalizePrice(safeOrder.total)
+            : normalizePrice(safeContext.subtotal);
+
+        return {
+            ...safeOrder,
+            orderId,
+            customerUid: normalizeText(safeOrder.customerUid),
+            customerName: normalizeText(safeOrder.customerName),
+            customerEmail: normalizeText(safeOrder.customerEmail),
+            vendorUid: normalizeText(safeOrder.vendorUid || safeContext.vendorUid),
+            vendorName: normalizeText(safeOrder.vendorName || safeContext.vendorName),
+            total,
+            paymentAmount: safeOrder.paymentAmount !== undefined
+                ? normalizePrice(safeOrder.paymentAmount)
+                : total,
+            paymentAmountInMinorUnits: safeOrder.paymentAmountInMinorUnits !== undefined
+                ? Number.parseInt(safeOrder.paymentAmountInMinorUnits, 10)
+                : Math.round(total * 100),
+            paymentCurrency: normalizeText(safeOrder.paymentCurrency) || "ZAR",
+            paymentProvider: normalizeText(safeOrder.paymentProvider) || "paystack"
+        };
+    }
+
+    function shouldInitializePayment(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        if (safeOptions.requirePayment === false) {
+            return false;
+        }
+
+        if (typeof safeOptions.initializePaymentCallable === "function") {
+            return true;
+        }
+
+        if (
+            safeOptions.paymentFunctions &&
+            typeof safeOptions.paymentFunctions.initializePayment === "function"
+        ) {
+            return true;
+        }
+
+        const functions = resolveFunctions(safeOptions.functions);
+        const functionsFns = resolveFunctionsFns(safeOptions.functionsFns);
+
+        return !!(
+            functions &&
+            functionsFns &&
+            typeof functionsFns.httpsCallable === "function"
+        );
+    }
+
+    function resolveInitializePaymentCallable(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        if (typeof safeOptions.initializePaymentCallable === "function") {
+            return safeOptions.initializePaymentCallable;
+        }
+
+        if (
+            safeOptions.paymentFunctions &&
+            typeof safeOptions.paymentFunctions.initializePayment === "function"
+        ) {
+            return safeOptions.paymentFunctions.initializePayment;
+        }
+
+        const functions = resolveFunctions(safeOptions.functions);
+        const functionsFns = resolveFunctionsFns(safeOptions.functionsFns);
+
+        if (
+            functions &&
+            functionsFns &&
+            typeof functionsFns.httpsCallable === "function"
+        ) {
+            return functionsFns.httpsCallable(functions, "initializePayment");
+        }
+
+        return null;
+    }
+
+    function normalizeCallableResult(result) {
+        if (result && typeof result === "object" && "data" in result) {
+            return result.data;
+        }
+
+        return result;
+    }
+
+    function getPaymentCallbackUrl(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const explicitUrl = normalizeText(safeOptions.paymentCallbackUrl || safeOptions.callbackUrl);
+
+        if (explicitUrl) {
+            return explicitUrl;
+        }
+
+        const location = globalScope.location;
+        const origin = normalizeText(location && location.origin);
+
+        if (origin) {
+            return `${origin}/customer/order-management/payment-callback.html`;
+        }
+
+        return "./payment-callback.html";
+    }
+
+    async function updateOrderPaymentPatch(orderRecord, patch, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safePatch = patch && typeof patch === "object" ? patch : {};
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+        const db = safeOptions.db || resolveFirestore();
+        const orderId = getOrderIdentifier(orderRecord);
+
+        if (
+            !db ||
+            !orderId ||
+            !safePatch ||
+            Object.keys(safePatch).length === 0 ||
+            typeof firestoreFns.doc !== "function" ||
+            typeof firestoreFns.updateDoc !== "function"
+        ) {
+            return {
+                success: false,
+                skipped: true,
+                error: {
+                    code: "checkout/payment-patch-skipped",
+                    message: "Order payment patch could not be saved from checkout."
+                }
+            };
+        }
+
+        const docRef = firestoreFns.doc(db, "orders", orderId);
+        await firestoreFns.updateDoc(docRef, safePatch);
+
+        return {
+            success: true,
+            docRef,
+            patch: safePatch
+        };
+    }
+
+    function navigateToPayment(authorizationUrl, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeUrl = normalizeText(authorizationUrl);
+
+        if (!safeUrl) {
+            return false;
+        }
+
+        if (typeof safeOptions.navigateToPayment === "function") {
+            safeOptions.navigateToPayment(safeUrl);
+            return true;
+        }
+
+        if (globalScope.location && typeof globalScope.location.assign === "function") {
+            globalScope.location.assign(safeUrl);
+            return true;
+        }
+
+        if (globalScope.location) {
+            globalScope.location.href = safeUrl;
+            return true;
+        }
+
+        return false;
+    }
+
+    async function initializeOrderPayment(orderRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        if (!shouldInitializePayment(safeOptions)) {
+            return {
+                success: true,
+                skipped: true,
+                paymentRequired: false
+            };
+        }
+
+        const initializePaymentCallable = resolveInitializePaymentCallable(safeOptions);
+
+        if (!initializePaymentCallable) {
+            return {
+                success: false,
+                error: {
+                    code: "checkout/payment-unavailable",
+                    message: "Payment service is not available. Please try again later."
+                }
+            };
+        }
+
+        const paymentOrder = buildPaymentOrder(orderRecord, safeOptions.context);
+        const callbackUrl = getPaymentCallbackUrl(safeOptions);
+
+        try {
+            const callableResult = await initializePaymentCallable({
+                order: paymentOrder,
+                options: {
+                    callbackUrl
+                }
+            });
+            const result = normalizeCallableResult(callableResult) || {};
+
+            if (result.success !== true || !normalizeText(result.authorizationUrl)) {
+                return {
+                    success: false,
+                    payment: result.payment || null,
+                    patch: result.patch || null,
+                    error: result.error || {
+                        code: "checkout/payment-initialize-failed",
+                        message: "Payment could not be started."
+                    }
+                };
+            }
+
+            const patchResult = await updateOrderPaymentPatch(paymentOrder, result.patch, safeOptions);
+            navigateToPayment(result.authorizationUrl, safeOptions);
+
+            return {
+                success: true,
+                paymentRequired: true,
+                payment: result.payment || null,
+                patch: result.patch || null,
+                patchResult,
+                authorizationUrl: result.authorizationUrl,
+                accessCode: result.accessCode || "",
+                reference: result.reference || ""
+            };
+        } catch (error) {
+            console.error(`${MODULE_NAME}: Payment initialization failed:`, error);
+
+            return {
+                success: false,
+                error: {
+                    code: error?.code || "checkout/payment-initialize-failed",
+                    message: error?.message || "Payment could not be started."
+                }
+            };
+        }
+    }
+
     async function placeOrder(options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const context = safeOptions.context || buildCheckoutContext(safeOptions);
@@ -649,12 +934,30 @@
                 }
 
                 if (result && result.success === true) {
+                    const createdOrders = Array.isArray(result.orders) ? result.orders : [];
+                    const paymentResult = await initializeOrderPayment(createdOrders[0], {
+                        ...safeOptions,
+                        db,
+                        firestoreFns,
+                        context
+                    });
+
+                    if (!paymentResult.success) {
+                        return {
+                            success: false,
+                            orders: createdOrders,
+                            payment: paymentResult,
+                            error: paymentResult.error
+                        };
+                    }
+
                     saveCart(removeVendorItemsFromCart(context.allCartItems, context.vendorUid));
 
                     return {
                         success: true,
-                        orders: Array.isArray(result.orders) ? result.orders : [],
+                        orders: createdOrders,
                         createdAt: result.createdAt || null,
+                        payment: paymentResult,
                         source: "shared-order-service"
                     };
                 }
@@ -689,8 +992,28 @@
             });
 
             if (fallbackResult && fallbackResult.success) {
+                const createdOrders = Array.isArray(fallbackResult.orders) ? fallbackResult.orders : [];
+                const paymentResult = await initializeOrderPayment(createdOrders[0], {
+                    ...safeOptions,
+                    db,
+                    firestoreFns,
+                    context
+                });
+
+                if (!paymentResult.success) {
+                    return {
+                        ...fallbackResult,
+                        success: false,
+                        payment: paymentResult,
+                        error: paymentResult.error
+                    };
+                }
+
                 saveCart(removeVendorItemsFromCart(context.allCartItems, context.vendorUid));
-                return fallbackResult;
+                return {
+                    ...fallbackResult,
+                    payment: paymentResult
+                };
             }
 
             return {
@@ -741,7 +1064,7 @@
                     return;
                 }
 
-                setStatusMessage(statusElement, "Placing your order...", "loading");
+                setStatusMessage(statusElement, "Placing your order and starting payment...", "loading");
 
                 const result = await placeOrder({
                     ...safeOptions,
@@ -764,7 +1087,13 @@
 
                 const refreshedContext = buildCheckoutContext(safeOptions);
                 updateCheckoutView(refreshedContext, safeOptions);
-                setStatusMessage(statusElement, "Order placed successfully. You can now track it from My Orders.", "success");
+                setStatusMessage(
+                    statusElement,
+                    result.payment && result.payment.paymentRequired
+                        ? "Order placed. Redirecting you to Paystack to complete payment."
+                        : "Order placed successfully. You can now track it from My Orders.",
+                    "success"
+                );
             });
         }
     }
@@ -845,6 +1174,8 @@
         resolveAuth,
         resolveAuthFns,
         resolveFirestoreFns,
+        resolveFunctions,
+        resolveFunctionsFns,
         resolveOrderService,
         getFallbackRoutes,
         getLocationSearch,
@@ -863,6 +1194,15 @@
         waitForAuthReady,
         createOrderDirectly,
         supportsDirectOrderCreation,
+        getOrderIdentifier,
+        buildPaymentOrder,
+        shouldInitializePayment,
+        resolveInitializePaymentCallable,
+        normalizeCallableResult,
+        getPaymentCallbackUrl,
+        updateOrderPaymentPatch,
+        navigateToPayment,
+        initializeOrderPayment,
         placeOrder,
         setupEventListeners,
         init
