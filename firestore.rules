@@ -363,6 +363,103 @@ service cloud.firestore {
     }
 
     // -----------------------------------------------------------------
+    // /payments - Payment records
+    // -----------------------------------------------------------------
+
+    match /payments/{paymentId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        resource.data.customerId == request.auth.uid
+      );
+
+      allow create: if signedIn() &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.paymentStatus == "pending" &&
+        request.resource.data.paymentMethod == "payfast";
+
+      allow update: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /vendorBalances - Vendor account balances
+    // -----------------------------------------------------------------
+
+    match /vendorBalances/{vendorId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        isSelf(vendorId)
+      );
+
+      allow write: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /payouts - Individual vendor payouts
+    // -----------------------------------------------------------------
+
+    match /payouts/{payoutId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        resource.data.vendorId == request.auth.uid
+      );
+
+      allow write: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /payoutBatches - Payout batch records
+    // -----------------------------------------------------------------
+
+    match /payoutBatches/{batchId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /refunds - Refund requests
+    // -----------------------------------------------------------------
+
+    match /refunds/{refundId} {
+      allow read: if signedIn() && (
+        isAdmin() ||
+        resource.data.customerId == request.auth.uid
+      );
+
+      allow create: if signedIn() &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.status == "requested";
+
+      allow update: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /webhookEvents - PayFast ITN webhook logs (Cloud Functions only)
+    // -----------------------------------------------------------------
+
+    match /webhookEvents/{webhookEventId} {
+      allow read: if isAdmin();
+      allow write: if false; // Cloud Functions write only
+    }
+
+    // -----------------------------------------------------------------
+    // /ledgerEntries - Accounting ledger entries (Admin only)
+    // -----------------------------------------------------------------
+
+    match /ledgerEntries/{entryId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /xeroMappings - Xero sync mappings (Admin only)
+    // -----------------------------------------------------------------
+
+    match /xeroMappings/{mappingId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
     // Catch-all: deny everything else by default
     // -----------------------------------------------------------------
 

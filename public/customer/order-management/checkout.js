@@ -764,7 +764,19 @@
 
                 const refreshedContext = buildCheckoutContext(safeOptions);
                 updateCheckoutView(refreshedContext, safeOptions);
-                setStatusMessage(statusElement, "Order placed successfully. You can now track it from My Orders.", "success");
+                setStatusMessage(statusElement, "Order placed successfully. Redirecting to payment...", "success");
+
+                // Get the order ID from the result
+                const orderId = result.orders && result.orders.length > 0 ? result.orders[0].id : null;
+                
+                if (orderId) {
+                    // Redirect to payment page with order ID
+                    globalScope.setTimeout(function redirectToPayment() {
+                        globalScope.location.href = `./payment.html?orderId=${encodeURIComponent(orderId)}`;
+                    }, 1000);
+                } else {
+                    setStatusMessage(statusElement, "Order placed successfully. You can now track it from My Orders.", "success");
+                }
             });
         }
     }
@@ -876,3 +888,6 @@
         globalScope.customerCheckout = customerCheckout;
     }
 })(typeof window !== "undefined" ? window : globalThis);
+
+
+        
