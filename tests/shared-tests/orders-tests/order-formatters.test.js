@@ -1,6 +1,8 @@
 const orderFormatters = require("../../../public/shared/orders/order-formatters.js");
 const orderStatus = require("../../../public/shared/orders/order-status.js");
 const orderModel = require("../../../public/shared/orders/order-model.js");
+const paymentStatus = require("../../../public/shared/payments/payment-status.js");
+const paymentFormatters = require("../../../public/shared/payments/payment-formatters.js");
 
 function createOrderRecord(overrides = {}) {
     return orderModel.createOrderRecord(
@@ -60,7 +62,7 @@ function createOrderRecord(overrides = {}) {
             ],
             ...overrides
         },
-        { orderStatus }
+        { orderStatus, paymentStatus }
     );
 }
 
@@ -69,8 +71,11 @@ describe("shared/orders/order-formatters.js", () => {
         expect(orderFormatters.MODULE_NAME).toBe("order-formatters");
         expect(orderFormatters.resolveOrderStatus(orderStatus)).toBe(orderStatus);
         expect(orderFormatters.resolveOrderModel(orderModel)).toBe(orderModel);
+        expect(orderFormatters.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
+        expect(orderFormatters.resolvePaymentFormatters(paymentFormatters)).toBe(paymentFormatters);
         expect(orderFormatters.normalizeText("  Hello  ")).toBe("Hello");
         expect(orderFormatters.normalizeLowerText("  HeLLo  ")).toBe("hello");
+        expect(orderFormatters.normalizeUpperText("  zar  ")).toBe("ZAR");
         expect(orderFormatters.normalizeNumber("55.5")).toBe(55.5);
         expect(orderFormatters.normalizeNumber("bad")).toBeNull();
         expect(orderFormatters.normalizePositiveInteger("6", 2)).toBe(6);
@@ -79,15 +84,23 @@ describe("shared/orders/order-formatters.js", () => {
 
         const originalGlobalOrderStatus = global.orderStatus;
         const originalGlobalOrderModel = global.orderModel;
+        const originalGlobalPaymentStatus = global.paymentStatus;
+        const originalGlobalPaymentFormatters = global.paymentFormatters;
 
         global.orderStatus = orderStatus;
         global.orderModel = orderModel;
+        global.paymentStatus = paymentStatus;
+        global.paymentFormatters = paymentFormatters;
 
         expect(orderFormatters.resolveOrderStatus()).toBe(orderStatus);
         expect(orderFormatters.resolveOrderModel()).toBe(orderModel);
+        expect(orderFormatters.resolvePaymentStatus()).toBe(paymentStatus);
+        expect(orderFormatters.resolvePaymentFormatters()).toBe(paymentFormatters);
 
         global.orderStatus = originalGlobalOrderStatus;
         global.orderModel = originalGlobalOrderModel;
+        global.paymentStatus = originalGlobalPaymentStatus;
+        global.paymentFormatters = originalGlobalPaymentFormatters;
     });
 
     test("normalizes order records and converts multiple date shapes", () => {
@@ -326,10 +339,108 @@ describe("shared/orders/order-formatters.js", () => {
             orderFormatters.formatOrderSummary(orderRecord, {
                 orderStatus,
                 orderModel,
+                paymentStatus,
                 viewerRole: "customer",
-                includeStatus: true
+                includeStatus: true,
+                includePaymentStatus: true
             })
-        ).toBe("Campus Bites • 2 items • R75.00 • Preparing");
+        ).toBe("Campus Bites • 2 items • R75.00 • Preparing • Unpaid");
+    });
+
+    test("formats order payment details and summaries", () => {
+        const orderRecord = createOrderRecord({
+            paymentStatus: "paid",
+            paymentProvider: "paystack",
+            paymentReference: "paystack-reference-123456",
+            paymentAccessCode: "access-123",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/test",
+            paymentAmount: 75,
+            paymentAmountInMinorUnits: 7500,
+            paymentCurrency: "ZAR",
+            paymentPaidAt: "2026-04-20T10:15:00.000Z",
+            paymentVerifiedAt: "2026-04-20T10:16:00.000Z"
+        });
+
+        expect(
+            orderFormatters.buildOrderPaymentRecord(orderRecord, {
+                orderStatus,
+                orderModel,
+                paymentStatus
+            })
+        ).toEqual({
+            orderId: "order-123456789",
+            customerUid: "customer-1",
+            customerEmail: "tshepo@example.com",
+            provider: "paystack",
+            status: "paid",
+            reference: "paystack-reference-123456",
+            accessCode: "access-123",
+            authorizationUrl: "https://checkout.paystack.com/test",
+            amount: 75,
+            amountInMinorUnits: 7500,
+            currency: "ZAR",
+            paidAt: "2026-04-20T10:15:00.000Z",
+            failedAt: null,
+            verifiedAt: "2026-04-20T10:16:00.000Z",
+            failureReason: "",
+            createdAt: "2026-04-20T10:00:00.000Z",
+            updatedAt: "2026-04-20T10:10:00.000Z"
+        });
+
+        expect(
+            orderFormatters.getOrderPaymentStatusLabel(orderRecord, {
+                orderStatus,
+                orderModel,
+                paymentStatus,
+                paymentFormatters
+            })
+        ).toBe("Paid");
+        expect(
+            orderFormatters.getOrderPaymentStatusTone(orderRecord, {
+                orderStatus,
+                orderModel,
+                paymentStatus,
+                paymentFormatters
+            })
+        ).toBe("success");
+        expect(
+            orderFormatters.formatOrderPaymentAmount(orderRecord, {
+                orderStatus,
+                orderModel,
+                paymentStatus,
+                paymentFormatters
+            })
+        ).toBe("R75.00");
+        expect(
+            orderFormatters.formatOrderPaymentReference(orderRecord, {
+                orderStatus,
+                orderModel,
+                paymentStatus,
+                paymentFormatters,
+                visibleChars: 6
+            })
+        ).toBe("Ref #123456");
+
+        expect(
+            orderFormatters.formatOrderPaymentSummary(orderRecord, {
+                orderStatus,
+                orderModel,
+                paymentStatus,
+                paymentFormatters,
+                timeZone: "UTC"
+            })
+        ).toEqual({
+            providerLabel: "Paystack",
+            status: "paid",
+            statusLabel: "Paid",
+            statusShortLabel: "Paid",
+            statusDescription: "Payment was successfully verified.",
+            statusTone: "success",
+            actionLabel: "View Payment",
+            amountLabel: "R75.00",
+            referenceLabel: "Ref #e-123456",
+            timestampLabel: expect.stringContaining("2026")
+        });
     });
 
     test("builds tracking steps for active and terminal orders", () => {
@@ -499,13 +610,19 @@ describe("shared/orders/order-formatters.js", () => {
     test("handles formatter fallbacks when shared order helpers are unavailable", () => {
         const originalGlobalOrderStatus = global.orderStatus;
         const originalGlobalOrderModel = global.orderModel;
+        const originalGlobalPaymentStatus = global.paymentStatus;
+        const originalGlobalPaymentFormatters = global.paymentFormatters;
 
         delete global.orderStatus;
         delete global.orderModel;
+        delete global.paymentStatus;
+        delete global.paymentFormatters;
 
         jest.resetModules();
         jest.doMock("../../../public/shared/orders/order-status.js", () => ({}));
         jest.doMock("../../../public/shared/orders/order-model.js", () => ({}));
+        jest.doMock("../../../public/shared/payments/payment-status.js", () => ({}));
+        jest.doMock("../../../public/shared/payments/payment-formatters.js", () => ({}));
 
         let isolatedOrderFormatters;
 
@@ -515,6 +632,8 @@ describe("shared/orders/order-formatters.js", () => {
 
         expect(isolatedOrderFormatters.resolveOrderStatus()).toBeNull();
         expect(isolatedOrderFormatters.resolveOrderModel()).toBeNull();
+        expect(isolatedOrderFormatters.resolvePaymentStatus()).toBeNull();
+        expect(isolatedOrderFormatters.resolvePaymentFormatters()).toBeNull();
         expect(
             isolatedOrderFormatters.normalizeOrderRecord(
                 {
@@ -531,12 +650,41 @@ describe("shared/orders/order-formatters.js", () => {
         );
         expect(isolatedOrderFormatters.getOrderStatusTone("accepted")).toBe("info");
         expect(isolatedOrderFormatters.getOrderStatusActionLabel("accepted")).toBe("Update Order");
+        expect(isolatedOrderFormatters.getOrderPaymentStatusLabel("paid")).toBe("paid");
+        expect(isolatedOrderFormatters.getOrderPaymentStatusTone("paid")).toBe("neutral");
+        expect(
+            isolatedOrderFormatters.formatOrderPaymentSummary({
+                paymentStatus: "paid",
+                paymentProvider: "paystack",
+                paymentReference: "ref-123",
+                paymentAmount: 25,
+                paymentCurrency: "ZAR",
+                updatedAt: "2026-04-20T10:00:00.000Z"
+            }, {
+                timeZone: "UTC"
+            })
+        ).toEqual({
+            providerLabel: "paystack",
+            status: "paid",
+            statusLabel: "paid",
+            statusShortLabel: "paid",
+            statusDescription: "The payment status is still being resolved.",
+            statusTone: "neutral",
+            actionLabel: "Review Payment",
+            amountLabel: "R25.00",
+            referenceLabel: "Ref #ref-123",
+            timestampLabel: expect.stringContaining("2026")
+        });
 
         jest.dontMock("../../../public/shared/orders/order-status.js");
         jest.dontMock("../../../public/shared/orders/order-model.js");
+        jest.dontMock("../../../public/shared/payments/payment-status.js");
+        jest.dontMock("../../../public/shared/payments/payment-formatters.js");
         jest.resetModules();
 
         global.orderStatus = originalGlobalOrderStatus;
         global.orderModel = originalGlobalOrderModel;
+        global.paymentStatus = originalGlobalPaymentStatus;
+        global.paymentFormatters = originalGlobalPaymentFormatters;
     });
 });

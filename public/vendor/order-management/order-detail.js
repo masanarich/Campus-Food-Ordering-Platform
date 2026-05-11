@@ -97,6 +97,42 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        return null;
+    }
+
+    function resolvePaymentFormatters(explicitPaymentFormatters) {
+        if (
+            explicitPaymentFormatters &&
+            typeof explicitPaymentFormatters.formatPaymentAmount === "function"
+        ) {
+            return explicitPaymentFormatters;
+        }
+
+        if (
+            globalScope.paymentFormatters &&
+            typeof globalScope.paymentFormatters.formatPaymentAmount === "function"
+        ) {
+            return globalScope.paymentFormatters;
+        }
+
+        return null;
+    }
+
     function waitForAuthReady(auth, authFns, timeoutMs = 5000) {
         if (!auth || !authFns || typeof authFns.onAuthStateChanged !== "function") {
             return Promise.resolve(auth?.currentUser || null);
@@ -444,6 +480,147 @@
         container.appendChild(list);
     }
 
+    function buildPaymentView(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
+        const normalizedPaymentStatus =
+            paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
+                ? paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid")
+                : rawPaymentStatus.toLowerCase() || "unpaid";
+        const statusLabel =
+            paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
+                ? paymentStatus.getPaymentStatusLabel(normalizedPaymentStatus)
+                : normalizedPaymentStatus;
+        const description =
+            paymentStatus && typeof paymentStatus.getPaymentStatusDescription === "function"
+                ? paymentStatus.getPaymentStatusDescription(normalizedPaymentStatus)
+                : "";
+        const tone =
+            paymentStatus && typeof paymentStatus.getPaymentStatusTone === "function"
+                ? paymentStatus.getPaymentStatusTone(normalizedPaymentStatus)
+                : "neutral";
+
+        const currency = normalizeText(safeOrder.paymentCurrency) || "ZAR";
+        const amount = Number.isFinite(Number(safeOrder.paymentAmount))
+            ? Number(safeOrder.paymentAmount)
+            : Number(safeOrder.total) || 0;
+        const amountText =
+            paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
+                ? paymentFormatters.formatPaymentAmount(amount, currency)
+                : (currency === "ZAR"
+                    ? `R${amount.toFixed(2)}`
+                    : `${currency} ${amount.toFixed(2)}`);
+
+        const provider = normalizeText(safeOrder.paymentProvider) || "paystack";
+        const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
+        const orderFormatters = resolveOrderFormatters(safeOptions.orderFormatters);
+        const paidAtSource = safeOrder.paymentPaidAt || safeOrder.paymentVerifiedAt;
+        const paidAtText = orderFormatters && typeof orderFormatters.formatDateTime === "function" && paidAtSource
+            ? normalizeText(orderFormatters.formatDateTime(paidAtSource))
+            : "";
+        const failedAtText = orderFormatters && typeof orderFormatters.formatDateTime === "function" && safeOrder.paymentFailedAt
+            ? normalizeText(orderFormatters.formatDateTime(safeOrder.paymentFailedAt))
+            : "";
+
+        return {
+            status: normalizedPaymentStatus,
+            statusLabel,
+            description,
+            tone,
+            amount,
+            amountText,
+            currency,
+            provider,
+            providerLabel,
+            reference: normalizeText(safeOrder.paymentReference),
+            paidAtText,
+            failedAtText,
+            failureReason: normalizeText(safeOrder.paymentFailureReason),
+            isPaid: normalizedPaymentStatus === "paid"
+        };
+    }
+
+    function getPaymentGate(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const view = buildPaymentView(safeOrder, options);
+        const orderStatus = normalizeLowerText(safeOrder.status);
+        const gatedOrderStatuses = ["pending", "accepted"];
+        const requiresPayment = gatedOrderStatuses.indexOf(orderStatus) >= 0;
+
+        if (!requiresPayment || view.isPaid) {
+            return {
+                blocked: false,
+                paymentStatus: view.status,
+                statusLabel: view.statusLabel
+            };
+        }
+
+        return {
+            blocked: true,
+            paymentStatus: view.status,
+            statusLabel: view.statusLabel,
+            reason: `Customer payment is ${view.statusLabel}. Confirm payment before moving this order forward. You can still reject the order.`
+        };
+    }
+
+    function renderOrderPayment(orderRecord, container, options = {}) {
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = "";
+
+        if (!orderRecord || typeof orderRecord !== "object") {
+            container.appendChild(createParagraph(
+                "Payment details are unavailable right now.",
+                "empty-state-message"
+            ));
+            return;
+        }
+
+        const view = buildPaymentView(orderRecord, options);
+        const doc = globalScope.document;
+
+        const statusLine = doc.createElement("p");
+        statusLine.className = "vendor-order-payment-status";
+        statusLine.textContent = `Status: ${view.statusLabel}`;
+        statusLine.setAttribute("data-tone", view.tone);
+        statusLine.setAttribute("data-payment-status", view.status);
+        container.appendChild(statusLine);
+
+        if (view.description) {
+            container.appendChild(createParagraph(view.description, "vendor-order-payment-description"));
+        }
+
+        const list = doc.createElement("ul");
+        list.className = "vendor-order-payment-list";
+
+        function appendDetail(label, value, className) {
+            const safeValue = normalizeText(value);
+
+            if (!safeValue) {
+                return;
+            }
+
+            const item = doc.createElement("li");
+            item.className = className || "vendor-order-payment-item";
+            item.textContent = `${label}: ${safeValue}`;
+            list.appendChild(item);
+        }
+
+        appendDetail("Amount", view.amountText, "vendor-order-payment-amount");
+        appendDetail("Provider", view.providerLabel, "vendor-order-payment-provider");
+        appendDetail("Reference", view.reference, "vendor-order-payment-reference");
+        appendDetail("Paid at", view.paidAtText, "vendor-order-payment-paid-at");
+        appendDetail("Failed at", view.failedAtText, "vendor-order-payment-failed-at");
+        appendDetail("Failure reason", view.failureReason, "vendor-order-payment-failure-reason");
+
+        container.appendChild(list);
+    }
+
     function renderOrderTimeline(orderRecord, container, options = {}) {
         if (!container) {
             return;
@@ -495,6 +672,14 @@
         const orderStatus = resolveOrderStatus(options.orderStatus);
         const orderFormatters = resolveOrderFormatters(options.orderFormatters);
         const actions = getAllowedVendorActions(orderRecord, options);
+        const gate = getPaymentGate(orderRecord, options);
+
+        if (gate.blocked) {
+            const banner = createParagraph(gate.reason, "vendor-order-payment-gate");
+            banner.setAttribute("data-tone", "error");
+            banner.setAttribute("data-payment-status", gate.paymentStatus);
+            container.appendChild(banner);
+        }
 
         if (actions.length === 0) {
             const currentStatusLabel = orderFormatters && typeof orderFormatters.getOrderStatusLabel === "function"
@@ -514,15 +699,25 @@
         actions.forEach(function appendAction(action) {
             const item = globalScope.document.createElement("li");
             const button = globalScope.document.createElement("button");
+            const isRejection = normalizeLowerText(action.nextStatus) === "rejected";
+            const blockedByPayment = gate.blocked && !isRejection;
 
             button.type = "button";
             button.textContent = action.label;
             button.dataset.actionType = action.type;
             button.dataset.nextStatus = action.nextStatus;
             button.dataset.tone = action.tone;
-            button.addEventListener("click", function onClick() {
-                return handleOrderAction(action, options);
-            });
+
+            if (blockedByPayment) {
+                button.disabled = true;
+                button.dataset.blockedReason = "payment-not-confirmed";
+                button.setAttribute("aria-disabled", "true");
+                button.title = gate.reason;
+            } else {
+                button.addEventListener("click", function onClick() {
+                    return handleOrderAction(action, options);
+                });
+            }
 
             item.appendChild(button);
             menu.appendChild(item);
@@ -635,6 +830,7 @@
             const summaryContainer = globalScope.document.querySelector(options.summarySelector || "#vendor-order-summary");
             const itemsContainer = globalScope.document.querySelector(options.itemsSelector || "#vendor-order-items");
             const timelineContainer = globalScope.document.querySelector(options.timelineSelector || "#vendor-order-timeline");
+            const paymentContainer = globalScope.document.querySelector(options.paymentSelector || "#vendor-order-payment");
 
             if (!actionContainer || !summaryContainer || !itemsContainer || !timelineContainer) {
                 return {
@@ -652,7 +848,8 @@
                     actions: actionContainer,
                     summary: summaryContainer,
                     items: itemsContainer,
-                    timeline: timelineContainer
+                    timeline: timelineContainer,
+                    payment: paymentContainer
                 });
                 setStatusMessage(statusElement, "Please sign in to manage this order.", "error");
                 return {
@@ -673,7 +870,8 @@
                     actions: actionContainer,
                     summary: summaryContainer,
                     items: itemsContainer,
-                    timeline: timelineContainer
+                    timeline: timelineContainer,
+                    payment: paymentContainer
                 });
                 setStatusMessage(statusElement, "You do not have vendor access for order management.", "error");
                 return {
@@ -695,7 +893,8 @@
                     actions: actionContainer,
                     summary: summaryContainer,
                     items: itemsContainer,
-                    timeline: timelineContainer
+                    timeline: timelineContainer,
+                    payment: paymentContainer
                 });
                 setStatusMessage(
                     statusElement,
@@ -713,7 +912,8 @@
                     actions: actionContainer,
                     summary: summaryContainer,
                     items: itemsContainer,
-                    timeline: timelineContainer
+                    timeline: timelineContainer,
+                    payment: paymentContainer
                 });
                 setStatusMessage(statusElement, "You do not have permission to manage this order.", "error");
                 return {
@@ -733,6 +933,7 @@
             renderActionButtons(result.order, actionContainer, nextOptions);
             renderOrderSummary(result.order, summaryContainer, nextOptions);
             renderOrderItems(result.order, itemsContainer, nextOptions);
+            renderOrderPayment(result.order, paymentContainer, nextOptions);
             renderOrderTimeline(result.order, timelineContainer, nextOptions);
 
             const orderFormatters = resolveOrderFormatters(options.orderFormatters);
@@ -772,6 +973,8 @@
         resolveOrderService,
         resolveOrderStatus,
         resolveOrderFormatters,
+        resolvePaymentStatus,
+        resolvePaymentFormatters,
         waitForAuthReady,
         normalizeVendorProfile,
         canAccessVendorWorkspace,
@@ -780,8 +983,11 @@
         fetchOrderDetail,
         setStatusMessage,
         getAllowedVendorActions,
+        buildPaymentView,
+        getPaymentGate,
         renderOrderSummary,
         renderOrderItems,
+        renderOrderPayment,
         renderOrderTimeline,
         renderActionButtons,
         renderEmptyState,

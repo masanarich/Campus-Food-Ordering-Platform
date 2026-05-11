@@ -17,6 +17,7 @@
     "collectCoverageFrom": [
       "public/**/*.js",
       "!public/authentication/config.js",
+      "!public/authentication/config.example.js",
       "!public/authentication/auth.js"
     ],
     "coverageDirectory": "coverage",

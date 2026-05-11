@@ -72,6 +72,10 @@ function resetCheckoutGlobals() {
     delete global.authFns;
     delete window.firestoreFns;
     delete global.firestoreFns;
+    delete window.functions;
+    delete global.functions;
+    delete window.functionsFns;
+    delete global.functionsFns;
     delete window.orderService;
     delete global.orderService;
 }
@@ -126,6 +130,8 @@ describe("customer/order-management/checkout.js - helpers", () => {
         window.auth = { currentUser: { uid: "customer-1" } };
         window.authFns = { onAuthStateChanged: jest.fn() };
         window.firestoreFns = { collection: jest.fn() };
+        window.functions = { kind: "functions" };
+        window.functionsFns = { httpsCallable: jest.fn() };
         window.orderService = { createOrders: jest.fn() };
 
         expect(customerCheckout.normalizePrice("42.5")).toBe(42.5);
@@ -140,6 +146,8 @@ describe("customer/order-management/checkout.js - helpers", () => {
         expect(customerCheckout.resolveAuth()).toBe(window.auth);
         expect(customerCheckout.resolveAuthFns()).toBe(window.authFns);
         expect(customerCheckout.resolveFirestoreFns()).toBe(window.firestoreFns);
+        expect(customerCheckout.resolveFunctions()).toBe(window.functions);
+        expect(customerCheckout.resolveFunctionsFns()).toBe(window.functionsFns);
         expect(customerCheckout.resolveOrderService()).toBe(window.orderService);
         expect(customerCheckout.resolveOrderService({ createOrders: jest.fn() })).toEqual(
             expect.objectContaining({ createOrders: expect.any(Function) })
@@ -236,6 +244,51 @@ describe("customer/order-management/checkout.js - helpers", () => {
         expect(article.textContent).toContain("Quantity: 3");
         expect(article.textContent).toContain("Unit Price: R15.00");
         expect(article.textContent).toContain("Line Total: R45.00");
+    });
+
+    test("builds payment order details and resolves payment callables", () => {
+        const callable = jest.fn(async () => ({
+            data: {
+                success: true
+            }
+        }));
+        const httpsCallable = jest.fn(() => callable);
+        const functions = { kind: "functions" };
+        const order = customerCheckout.buildPaymentOrder({
+            id: "order-1",
+            customerUid: "customer-1",
+            customerEmail: "ama@example.com",
+            total: 42.5
+        }, {
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            subtotal: 42.5
+        });
+
+        expect(order).toEqual(expect.objectContaining({
+            orderId: "order-1",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            paymentAmount: 42.5,
+            paymentAmountInMinorUnits: 4250,
+            paymentCurrency: "ZAR",
+            paymentProvider: "paystack"
+        }));
+        expect(customerCheckout.getOrderIdentifier({ id: "order-1" })).toBe("order-1");
+        expect(customerCheckout.shouldInitializePayment({ functions, functionsFns: { httpsCallable } })).toBe(true);
+        expect(customerCheckout.shouldInitializePayment({ requirePayment: false })).toBe(false);
+        expect(
+            customerCheckout.resolveInitializePaymentCallable({
+                functions,
+                functionsFns: { httpsCallable }
+            })
+        ).toBe(callable);
+        expect(httpsCallable).toHaveBeenCalledWith(functions, "initializePayment");
+        expect(customerCheckout.normalizeCallableResult({ data: { success: true } })).toEqual({ success: true });
+        expect(customerCheckout.normalizeCallableResult({ success: true })).toEqual({ success: true });
+        expect(customerCheckout.getPaymentCallbackUrl({
+            paymentCallbackUrl: "https://example.com/callback.html"
+        })).toBe("https://example.com/callback.html");
     });
 });
 
@@ -395,6 +448,62 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(remainingCart[0].vendorUid).toBe("vendor-2");
     });
 
+    test("placeOrder initializes payment when a callable payment function is available", async () => {
+        seedCart([
+            createCartItem({ menuItemId: "item-1", vendorUid: "vendor-1", vendorName: "Campus Bites", quantity: 2, price: 10 }),
+            createCartItem({ menuItemId: "item-2", vendorUid: "vendor-2", vendorName: "Fresh Drinks", quantity: 1, price: 5 })
+        ]);
+
+        const navigateToPayment = jest.fn();
+        const updateDoc = jest.fn(async () => true);
+        const result = await customerCheckout.placeOrder({
+            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
+            db: { kind: "db" },
+            firestoreFns: {
+                doc: jest.fn((db, collectionName, orderId) => ({ db, collectionName, orderId })),
+                setDoc: jest.fn(),
+                updateDoc
+            },
+            orderService: {
+                createOrders: jest.fn(async () => ({
+                    success: true,
+                    orders: [{
+                        orderId: "order-1",
+                        customerUid: "customer-1",
+                        customerEmail: "ama@example.com",
+                        vendorUid: "vendor-1",
+                        vendorName: "Campus Bites",
+                        total: 20
+                    }]
+                }))
+            },
+            initializePaymentCallable: jest.fn(async () => ({
+                data: {
+                    success: true,
+                    authorizationUrl: "https://checkout.paystack.com/test",
+                    reference: "paystack-ref",
+                    patch: {
+                        paymentStatus: "pending",
+                        paymentReference: "paystack-ref"
+                    }
+                }
+            })),
+            navigateToPayment,
+            currentUser: {
+                uid: "customer-1",
+                displayName: "Ama",
+                email: "ama@example.com"
+            }
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.payment.paymentRequired).toBe(true);
+        expect(result.payment.reference).toBe("paystack-ref");
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/test");
+        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(1);
+    });
+
     test("createOrderDirectly creates an order and vendor or customer notifications", async () => {
         const addDoc = jest.fn()
             .mockResolvedValueOnce({ id: "order-1" })
@@ -431,9 +540,120 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
             expect.objectContaining({
                 id: "order-1",
                 vendorUid: "vendor-1",
-                notes: "Please hurry"
+                notes: "Please hurry",
+                paymentStatus: "unpaid",
+                paymentProvider: "paystack",
+                paymentAmount: 20,
+                paymentAmountInMinorUnits: 2000,
+                paymentCurrency: "ZAR"
             })
         );
+    });
+
+    test("initializeOrderPayment calls the cloud function, patches the order, and navigates to Paystack", async () => {
+        const updateDoc = jest.fn(async () => true);
+        const doc = jest.fn((db, collectionName, orderId) => ({ db, collectionName, orderId }));
+        const navigateToPayment = jest.fn();
+        const initializePaymentCallable = jest.fn(async () => ({
+            data: {
+                success: true,
+                authorizationUrl: "https://checkout.paystack.com/test",
+                accessCode: "access-code",
+                reference: "paystack-ref",
+                payment: {
+                    orderId: "order-1",
+                    status: "pending"
+                },
+                patch: {
+                    paymentStatus: "pending",
+                    paymentReference: "paystack-ref",
+                    paymentAuthorizationUrl: "https://checkout.paystack.com/test"
+                }
+            }
+        }));
+
+        const result = await customerCheckout.initializeOrderPayment({
+            orderId: "order-1",
+            customerUid: "customer-1",
+            customerEmail: "ama@example.com",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            total: 20
+        }, {
+            db: { kind: "db" },
+            firestoreFns: { doc, updateDoc },
+            initializePaymentCallable,
+            paymentCallbackUrl: "https://example.com/customer/order-management/payment-callback.html",
+            navigateToPayment
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.paymentRequired).toBe(true);
+        expect(result.reference).toBe("paystack-ref");
+        expect(initializePaymentCallable).toHaveBeenCalledWith({
+            order: expect.objectContaining({
+                orderId: "order-1",
+                paymentAmount: 20,
+                paymentAmountInMinorUnits: 2000
+            }),
+            options: {
+                callbackUrl: "https://example.com/customer/order-management/payment-callback.html"
+            }
+        });
+        expect(updateDoc).toHaveBeenCalledWith(
+            {
+                db: { kind: "db" },
+                collectionName: "orders",
+                orderId: "order-1"
+            },
+            {
+                paymentStatus: "pending",
+                paymentReference: "paystack-ref",
+                paymentAuthorizationUrl: "https://checkout.paystack.com/test"
+            }
+        );
+        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/test");
+    });
+
+    test("initializeOrderPayment skips when payment helpers are unavailable", async () => {
+        await expect(
+            customerCheckout.initializeOrderPayment({ orderId: "order-1" }, {})
+        ).resolves.toEqual({
+            success: true,
+            skipped: true,
+            paymentRequired: false
+        });
+    });
+
+    test("initializeOrderPayment returns payment errors without patching", async () => {
+        const updateDoc = jest.fn();
+        const result = await customerCheckout.initializeOrderPayment({
+            orderId: "order-1",
+            customerEmail: "ama@example.com",
+            total: 20
+        }, {
+            db: { kind: "db" },
+            firestoreFns: {
+                doc: jest.fn(),
+                updateDoc
+            },
+            initializePaymentCallable: jest.fn(async () => ({
+                data: {
+                    success: false,
+                    error: {
+                        code: "payments/problem",
+                        message: "Payment failed."
+                    }
+                }
+            }))
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toEqual({
+            code: "payments/problem",
+            message: "Payment failed."
+        });
+        expect(updateDoc).not.toHaveBeenCalled();
     });
 
     test("createOrderDirectly rejects missing Firestore helpers", async () => {

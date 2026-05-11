@@ -70,6 +70,9 @@
     <script src="../../shared/orders/order-queries.js"></script>
     <script src="../../shared/orders/order-service.js"></script>
     <script src="../../shared/orders/order-formatters.js"></script>
+    <script src="../../shared/payments/payment-status.js"></script>
+    <script src="../../shared/payments/payment-model.js"></script>
+    <script src="../../shared/payments/payment-formatters.js"></script>
     <script src="./index.js"></script>
     <script type="module">
         import { authService } from "../../authentication/auth.js";
@@ -112,7 +115,9 @@
                 firestoreFns: window.firestoreFns,
                 orderService: window.orderService,
                 orderStatus: window.orderStatus,
-                orderFormatters: window.orderFormatters
+                orderFormatters: window.orderFormatters,
+                paymentStatus: window.paymentStatus,
+                paymentFormatters: window.paymentFormatters
             });
         }
     </script>

@@ -3,6 +3,7 @@ const orderStatus = require("../../../public/shared/orders/order-status.js");
 const orderModel = require("../../../public/shared/orders/order-model.js");
 const orderValidation = require("../../../public/shared/orders/order-validation.js");
 const orderQueries = require("../../../public/shared/orders/order-queries.js");
+const paymentStatus = require("../../../public/shared/payments/payment-status.js");
 
 function createDocSnapshot(id, data, exists = true) {
     return {
@@ -131,6 +132,7 @@ describe("shared/orders/order-service.js", () => {
     test("exports a real service module and resolves shared dependencies", () => {
         expect(orderService.MODULE_NAME).toBe("order-service");
         expect(orderService.resolveOrderStatus(orderStatus)).toBe(orderStatus);
+        expect(orderService.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
         expect(orderService.resolveOrderModel(orderModel)).toBe(orderModel);
         expect(orderService.resolveOrderValidation(orderValidation)).toBe(orderValidation);
         expect(orderService.resolveOrderQueries(orderQueries)).toBe(orderQueries);
@@ -138,21 +140,25 @@ describe("shared/orders/order-service.js", () => {
         expect(orderService.normalizeLowerText("  HeLLo  ")).toBe("hello");
 
         const originalGlobalOrderStatus = global.orderStatus;
+        const originalGlobalPaymentStatus = global.paymentStatus;
         const originalGlobalOrderModel = global.orderModel;
         const originalGlobalOrderValidation = global.orderValidation;
         const originalGlobalOrderQueries = global.orderQueries;
 
         global.orderStatus = orderStatus;
+        global.paymentStatus = paymentStatus;
         global.orderModel = orderModel;
         global.orderValidation = orderValidation;
         global.orderQueries = orderQueries;
 
         expect(orderService.resolveOrderStatus()).toBe(orderStatus);
+        expect(orderService.resolvePaymentStatus()).toBe(paymentStatus);
         expect(orderService.resolveOrderModel()).toBe(orderModel);
         expect(orderService.resolveOrderValidation()).toBe(orderValidation);
         expect(orderService.resolveOrderQueries()).toBe(orderQueries);
 
         global.orderStatus = originalGlobalOrderStatus;
+        global.paymentStatus = originalGlobalPaymentStatus;
         global.orderModel = originalGlobalOrderModel;
         global.orderValidation = originalGlobalOrderValidation;
         global.orderQueries = originalGlobalOrderQueries;
@@ -237,6 +243,7 @@ describe("shared/orders/order-service.js", () => {
         expect(
             orderService.buildOrderWritePayload(readyOrder, {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderId: "order-updated-1",
                 status: "completed",
@@ -270,6 +277,18 @@ describe("shared/orders/order-service.js", () => {
             subtotal: 50,
             total: 50,
             status: "completed",
+            paymentStatus: "unpaid",
+            paymentProvider: "paystack",
+            paymentReference: "",
+            paymentAccessCode: "",
+            paymentAuthorizationUrl: "",
+            paymentAmount: 50,
+            paymentAmountInMinorUnits: 5000,
+            paymentCurrency: "ZAR",
+            paymentPaidAt: null,
+            paymentFailedAt: null,
+            paymentVerifiedAt: null,
+            paymentFailureReason: "",
             timeline: readyOrder.timeline,
             notes: "All done",
             customerConfirmedCollected: true,
@@ -277,6 +296,37 @@ describe("shared/orders/order-service.js", () => {
             createdAt: "t-1",
             updatedAt: "t-2"
         });
+
+        expect(
+            orderService.buildOrderWritePayload(readyOrder, {
+                orderStatus,
+                paymentStatus,
+                orderModel,
+                paymentRecordStatus: "PAID",
+                paymentProvider: " Paystack ",
+                paymentReference: " ref-123 ",
+                paymentAccessCode: " access-123 ",
+                paymentAuthorizationUrl: " https://checkout.paystack.com/test ",
+                paymentAmount: 50,
+                paymentAmountInMinorUnits: 5000,
+                paymentCurrency: " zar ",
+                paymentPaidAt: "paid-at",
+                paymentVerifiedAt: "verified-at"
+            })
+        ).toEqual(
+            expect.objectContaining({
+                paymentStatus: "paid",
+                paymentProvider: "paystack",
+                paymentReference: "ref-123",
+                paymentAccessCode: "access-123",
+                paymentAuthorizationUrl: "https://checkout.paystack.com/test",
+                paymentAmount: 50,
+                paymentAmountInMinorUnits: 5000,
+                paymentCurrency: "ZAR",
+                paymentPaidAt: "paid-at",
+                paymentVerifiedAt: "verified-at"
+            })
+        );
 
         expect(
             orderService.buildOrderWritePayload(
@@ -304,6 +354,18 @@ describe("shared/orders/order-service.js", () => {
             subtotal: 0,
             total: 0,
             status: "completed",
+            paymentStatus: "unpaid",
+            paymentProvider: "paystack",
+            paymentReference: "",
+            paymentAccessCode: "",
+            paymentAuthorizationUrl: "",
+            paymentAmount: 0,
+            paymentAmountInMinorUnits: 0,
+            paymentCurrency: "ZAR",
+            paymentPaidAt: null,
+            paymentFailedAt: null,
+            paymentVerifiedAt: null,
+            paymentFailureReason: "",
             timeline: [
                 {
                     status: "ready",
@@ -323,19 +385,68 @@ describe("shared/orders/order-service.js", () => {
         });
     });
 
+    test("builds update patches with payment fields", () => {
+        expect(
+            orderService.buildOrderUpdatePatch({
+                orderId: "order-payment-1",
+                status: "PENDING",
+                paymentStatus: " PAID ",
+                paymentProvider: " PAYSTACK ",
+                paymentReference: " ref-123 ",
+                paymentAccessCode: " access-123 ",
+                paymentAuthorizationUrl: " https://checkout.paystack.com/test ",
+                paymentAmount: 50,
+                paymentAmountInMinorUnits: 5000,
+                paymentCurrency: " zar ",
+                paymentPaidAt: "paid-at",
+                paymentFailedAt: null,
+                paymentVerifiedAt: "verified-at",
+                paymentFailureReason: " ",
+                updatedAt: "t-2"
+            })
+        ).toEqual({
+            orderId: "order-payment-1",
+            status: "pending",
+            updatedAt: "t-2",
+            paymentStatus: "paid",
+            paymentProvider: "paystack",
+            paymentReference: "ref-123",
+            paymentAccessCode: "access-123",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/test",
+            paymentAmount: 50,
+            paymentAmountInMinorUnits: 5000,
+            paymentCurrency: "zar",
+            paymentPaidAt: "paid-at",
+            paymentFailedAt: null,
+            paymentVerifiedAt: "verified-at",
+            paymentFailureReason: ""
+        });
+    });
+
     test("prepares split vendor orders and flags empty carts", () => {
         const preparedResult = orderService.prepareCreateOrders({
             cartItems: createCartItems(),
             customer: createCustomer(),
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
+            initialPaymentStatus: "pending",
+            paymentProvider: "paystack",
+            paymentReference: "checkout-ref",
+            paymentCurrency: "zar",
             timestampValue: "t-1"
         });
 
         expect(preparedResult.success).toBe(true);
         expect(preparedResult.orders).toHaveLength(2);
         expect(preparedResult.orders[0].status).toBe("pending");
+        expect(preparedResult.orders[0].paymentStatus).toBe("pending");
+        expect(preparedResult.orders[0].paymentProvider).toBe("paystack");
+        expect(preparedResult.orders[0].paymentReference).toBe("checkout-ref");
+        expect(preparedResult.orders[0].paymentAmount).toBe(100);
+        expect(preparedResult.orders[0].paymentAmountInMinorUnits).toBe(10000);
+        expect(preparedResult.orders[0].paymentCurrency).toBe("ZAR");
         expect(preparedResult.orders[0].createdAt).toBe("t-1");
         expect(preparedResult.orders[0].customerName).toBe("Tshepo");
         expect(preparedResult.validationResults.every(result => result.isValid)).toBe(true);
@@ -975,7 +1086,8 @@ describe("shared/orders/order-service.js", () => {
                 doc: jest.fn((...args) => ({
                     kind: "doc",
                     args
-                }))
+                })),
+                getDoc: jest.fn(async () => createDocSnapshot("order-ready-1", {}, false))
             },
             orderQueries,
             order: createReadyOrder(),
@@ -1337,6 +1449,9 @@ describe("shared/orders/order-service.js", () => {
         failingFirestoreFns.getDoc = jest.fn(async () => {
             throw new Error("network down");
         });
+        const consoleErrorSpy = jest
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
 
         const result = await orderService.confirmOrderCollection({
             db: { name: "db" },
@@ -1355,21 +1470,30 @@ describe("shared/orders/order-service.js", () => {
         expect(result.success).toBe(true);
         expect(result.order.customerConfirmedCollected).toBe(true);
         expect(result.order.vendorConfirmedCollected).toBe(false);
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+            expect.stringContaining("failed to refresh order before confirmation"),
+            expect.any(Error)
+        );
+
+        consoleErrorSpy.mockRestore();
     });
 
     test("handles dependency-missing fallbacks in isolation when shared modules are unavailable", () => {
         const originalGlobalOrderStatus = global.orderStatus;
+        const originalGlobalPaymentStatus = global.paymentStatus;
         const originalGlobalOrderModel = global.orderModel;
         const originalGlobalOrderValidation = global.orderValidation;
         const originalGlobalOrderQueries = global.orderQueries;
 
         delete global.orderStatus;
+        delete global.paymentStatus;
         delete global.orderModel;
         delete global.orderValidation;
         delete global.orderQueries;
 
         jest.resetModules();
         jest.doMock("../../../public/shared/orders/order-status.js", () => ({}));
+        jest.doMock("../../../public/shared/payments/payment-status.js", () => ({}));
         jest.doMock("../../../public/shared/orders/order-model.js", () => ({}));
         jest.doMock("../../../public/shared/orders/order-validation.js", () => ({}));
         jest.doMock("../../../public/shared/orders/order-queries.js", () => ({}));
@@ -1381,6 +1505,7 @@ describe("shared/orders/order-service.js", () => {
         });
 
         expect(isolatedOrderService.resolveOrderStatus()).toBeNull();
+        expect(isolatedOrderService.resolvePaymentStatus()).toBeNull();
         expect(isolatedOrderService.resolveOrderModel()).toBeNull();
         expect(isolatedOrderService.resolveOrderValidation()).toBeNull();
         expect(isolatedOrderService.resolveOrderQueries()).toBeNull();
@@ -1402,6 +1527,18 @@ describe("shared/orders/order-service.js", () => {
         ).toEqual({
             orderId: "fallback-order",
             status: "completed",
+            paymentStatus: "unpaid",
+            paymentProvider: "",
+            paymentReference: "",
+            paymentAccessCode: "",
+            paymentAuthorizationUrl: "",
+            paymentAmount: undefined,
+            paymentAmountInMinorUnits: undefined,
+            paymentCurrency: "",
+            paymentPaidAt: undefined,
+            paymentFailedAt: undefined,
+            paymentVerifiedAt: undefined,
+            paymentFailureReason: "",
             timeline: [],
             customerConfirmedCollected: true,
             vendorConfirmedCollected: false,
@@ -1447,12 +1584,14 @@ describe("shared/orders/order-service.js", () => {
         );
 
         jest.dontMock("../../../public/shared/orders/order-status.js");
+        jest.dontMock("../../../public/shared/payments/payment-status.js");
         jest.dontMock("../../../public/shared/orders/order-model.js");
         jest.dontMock("../../../public/shared/orders/order-validation.js");
         jest.dontMock("../../../public/shared/orders/order-queries.js");
         jest.resetModules();
 
         global.orderStatus = originalGlobalOrderStatus;
+        global.paymentStatus = originalGlobalPaymentStatus;
         global.orderModel = originalGlobalOrderModel;
         global.orderValidation = originalGlobalOrderValidation;
         global.orderQueries = originalGlobalOrderQueries;

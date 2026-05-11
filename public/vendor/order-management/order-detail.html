@@ -62,6 +62,13 @@
             </section>
         </section>
 
+        <section class="shared-section" aria-labelledby="vendor-order-payment-heading">
+            <h3 id="vendor-order-payment-heading">Payment</h3>
+            <section id="vendor-order-payment" aria-live="polite">
+                <p class="loading-message">Loading payment details...</p>
+            </section>
+        </section>
+
         <section class="shared-section" aria-labelledby="vendor-order-timeline-heading">
             <h3 id="vendor-order-timeline-heading">Order Timeline</h3>
             <section id="vendor-order-timeline" aria-live="polite">
@@ -82,6 +89,9 @@
     <script src="../../shared/orders/order-queries.js"></script>
     <script src="../../shared/orders/order-service.js"></script>
     <script src="../../shared/orders/order-formatters.js"></script>
+    <script src="../../shared/payments/payment-status.js"></script>
+    <script src="../../shared/payments/payment-model.js"></script>
+    <script src="../../shared/payments/payment-formatters.js"></script>
     <script src="./order-detail.js"></script>
     <script type="module">
         import { authService } from "../../authentication/auth.js";
@@ -128,7 +138,9 @@
                 firestoreFns: window.firestoreFns,
                 orderService: window.orderService,
                 orderStatus: window.orderStatus,
-                orderFormatters: window.orderFormatters
+                orderFormatters: window.orderFormatters,
+                paymentStatus: window.paymentStatus,
+                paymentFormatters: window.paymentFormatters
             });
         }
     </script>

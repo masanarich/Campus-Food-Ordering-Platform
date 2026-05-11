@@ -112,14 +112,71 @@
         return null;
     }
 
+    function resolvePaymentStatus(explicitPaymentStatus) {
+        if (
+            explicitPaymentStatus &&
+            typeof explicitPaymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return explicitPaymentStatus;
+        }
+
+        if (
+            globalScope.paymentStatus &&
+            typeof globalScope.paymentStatus.getPaymentStatusLabel === "function"
+        ) {
+            return globalScope.paymentStatus;
+        }
+
+        return null;
+    }
+
+    function resolvePaymentFormatters(explicitPaymentFormatters) {
+        if (
+            explicitPaymentFormatters &&
+            typeof explicitPaymentFormatters.formatPaymentAmount === "function"
+        ) {
+            return explicitPaymentFormatters;
+        }
+
+        if (
+            globalScope.paymentFormatters &&
+            typeof globalScope.paymentFormatters.formatPaymentAmount === "function"
+        ) {
+            return globalScope.paymentFormatters;
+        }
+
+        return null;
+    }
+
     function getFallbackRoutes() {
         return {
             home: "../index.html",
             tracking: "./index.html",
             notifications: "./notifications.html",
             browseVendors: "../order-management/browse-vendors.html",
+            checkout: "../order-management/checkout.html",
+            cart: "../order-management/cart.html",
             vendorOrderDetail: "../../vendor/order-management/order-detail.html"
         };
+    }
+
+    function buildRetryPaymentUrl(orderRecord) {
+        const route = getFallbackRoutes().checkout;
+        const vendorUid = normalizeText(orderRecord && orderRecord.vendorUid);
+
+        if (!vendorUid) {
+            return route;
+        }
+
+        const vendorName = normalizeText(orderRecord && orderRecord.vendorName);
+        const params = new URLSearchParams();
+        params.set("vendorUid", vendorUid);
+
+        if (vendorName) {
+            params.set("vendorName", vendorName);
+        }
+
+        return `${route}?${params.toString()}`;
     }
 
     function buildVendorDetailUrl(orderId) {
@@ -396,6 +453,188 @@
         container.appendChild(list);
     }
 
+    function getPaymentDateValue(rawValue) {
+        if (!rawValue) {
+            return null;
+        }
+
+        if (typeof rawValue.toDate === "function") {
+            try {
+                return rawValue.toDate();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        if (rawValue instanceof Date) {
+            return rawValue;
+        }
+
+        if (typeof rawValue === "string" || typeof rawValue === "number") {
+            const parsed = new Date(rawValue);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        return null;
+    }
+
+    function formatPaymentDate(rawValue, options = {}) {
+        const orderFormatters = resolveOrderFormatters(options.orderFormatters);
+
+        if (orderFormatters && typeof orderFormatters.formatDateTime === "function") {
+            const formatted = normalizeText(orderFormatters.formatDateTime(rawValue));
+
+            if (formatted) {
+                return formatted;
+            }
+        }
+
+        const date = getPaymentDateValue(rawValue);
+
+        if (!date) {
+            return "";
+        }
+
+        try {
+            return date.toLocaleString();
+        } catch (error) {
+            return date.toISOString();
+        }
+    }
+
+    function buildPaymentView(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
+        const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
+        const normalizedPaymentStatus =
+            paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
+                ? paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid")
+                : rawPaymentStatus.toLowerCase() || "unpaid";
+        const statusLabel =
+            paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
+                ? paymentStatus.getPaymentStatusLabel(normalizedPaymentStatus)
+                : normalizedPaymentStatus;
+        const description =
+            paymentStatus && typeof paymentStatus.getPaymentStatusDescription === "function"
+                ? paymentStatus.getPaymentStatusDescription(normalizedPaymentStatus)
+                : "";
+        const tone =
+            paymentStatus && typeof paymentStatus.getPaymentStatusTone === "function"
+                ? paymentStatus.getPaymentStatusTone(normalizedPaymentStatus)
+                : "neutral";
+
+        const currency = normalizeText(safeOrder.paymentCurrency) || "ZAR";
+        const amount = Number.isFinite(Number(safeOrder.paymentAmount))
+            ? Number(safeOrder.paymentAmount)
+            : Number(safeOrder.total) || 0;
+        const amountText =
+            paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
+                ? paymentFormatters.formatPaymentAmount(amount, currency)
+                : (currency === "ZAR"
+                    ? `R${amount.toFixed(2)}`
+                    : `${currency} ${amount.toFixed(2)}`);
+
+        const provider = normalizeText(safeOrder.paymentProvider) || "paystack";
+        const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
+        const reference = normalizeText(safeOrder.paymentReference);
+        const paidAtText = formatPaymentDate(safeOrder.paymentPaidAt || safeOrder.paymentVerifiedAt, safeOptions);
+        const failedAtText = formatPaymentDate(safeOrder.paymentFailedAt, safeOptions);
+        const failureReason = normalizeText(safeOrder.paymentFailureReason);
+
+        const canRetry = normalizedPaymentStatus === "unpaid" || normalizedPaymentStatus === "failed";
+
+        return {
+            status: normalizedPaymentStatus,
+            statusLabel,
+            description,
+            tone,
+            amount,
+            amountText,
+            currency,
+            provider,
+            providerLabel,
+            reference,
+            paidAtText,
+            failedAtText,
+            failureReason,
+            canRetry,
+            retryUrl: canRetry ? buildRetryPaymentUrl(safeOrder) : ""
+        };
+    }
+
+    function renderOrderPayment(orderRecord, container, options = {}) {
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = "";
+
+        if (!orderRecord || typeof orderRecord !== "object") {
+            container.appendChild(createParagraph(
+                "Payment details are unavailable right now.",
+                "empty-state-message"
+            ));
+            return;
+        }
+
+        const view = buildPaymentView(orderRecord, options);
+        const doc = globalScope.document;
+
+        const statusLine = doc.createElement("p");
+        statusLine.className = "order-detail-payment-status";
+        statusLine.textContent = `Status: ${view.statusLabel}`;
+        statusLine.setAttribute("data-tone", view.tone);
+        statusLine.setAttribute("data-payment-status", view.status);
+        container.appendChild(statusLine);
+
+        if (view.description) {
+            container.appendChild(createParagraph(view.description, "order-detail-payment-description"));
+        }
+
+        const list = doc.createElement("ul");
+        list.className = "order-detail-payment-list";
+
+        function appendDetail(label, value, className) {
+            const safeValue = normalizeText(value);
+
+            if (!safeValue) {
+                return;
+            }
+
+            const item = doc.createElement("li");
+            item.className = className || "order-detail-payment-item";
+            item.textContent = `${label}: ${safeValue}`;
+            list.appendChild(item);
+        }
+
+        appendDetail("Amount", view.amountText, "order-detail-payment-amount");
+        appendDetail("Provider", view.providerLabel, "order-detail-payment-provider");
+        appendDetail("Reference", view.reference, "order-detail-payment-reference");
+        appendDetail("Paid at", view.paidAtText, "order-detail-payment-paid-at");
+        appendDetail("Failed at", view.failedAtText, "order-detail-payment-failed-at");
+        appendDetail("Failure reason", view.failureReason, "order-detail-payment-failure-reason");
+
+        container.appendChild(list);
+
+        if (view.canRetry && view.retryUrl) {
+            const menu = doc.createElement("menu");
+            menu.className = "action-menu order-detail-payment-actions";
+            menu.setAttribute("aria-label", "Payment actions");
+
+            const item = doc.createElement("li");
+            const link = doc.createElement("a");
+            link.href = view.retryUrl;
+            link.className = "button-primary";
+            link.textContent = view.status === "failed" ? "Retry Payment" : "Pay Now";
+
+            item.appendChild(link);
+            menu.appendChild(item);
+            container.appendChild(menu);
+        }
+    }
+
     function renderOrderTimeline(orderRecord, container, options = {}) {
         if (!container) {
             return;
@@ -497,6 +736,11 @@
         if (safeContainers.timeline) {
             safeContainers.timeline.innerHTML = "";
             safeContainers.timeline.appendChild(createParagraph("No timeline available.", "empty-state-message"));
+        }
+
+        if (safeContainers.payment) {
+            safeContainers.payment.innerHTML = "";
+            safeContainers.payment.appendChild(createParagraph("No payment details available.", "empty-state-message"));
         }
 
         if (safeContainers.actions) {
@@ -675,6 +919,9 @@
             const timelineContainer = globalScope.document.querySelector(
                 options.timelineSelector || "#order-detail-timeline"
             );
+            const paymentContainer = globalScope.document.querySelector(
+                options.paymentSelector || "#order-detail-payment"
+            );
             const actionContainer = globalScope.document.querySelector(
                 options.actionSelector || "#order-detail-actions"
             );
@@ -695,6 +942,7 @@
                     summary: summaryContainer,
                     items: itemsContainer,
                     timeline: timelineContainer,
+                    payment: paymentContainer,
                     actions: actionContainer
                 });
                 setStatusMessage(statusElement, "Please sign in to view order details.", "error");
@@ -717,6 +965,7 @@
                     summary: summaryContainer,
                     items: itemsContainer,
                     timeline: timelineContainer,
+                    payment: paymentContainer,
                     actions: actionContainer
                 });
                 setStatusMessage(
@@ -745,6 +994,7 @@
             renderOrderSummary(result.order, summaryContainer, nextOptions);
             renderOrderItems(result.order, itemsContainer, nextOptions);
             renderOrderTimeline(result.order, timelineContainer, nextOptions);
+            renderOrderPayment(result.order, paymentContainer, nextOptions);
             renderActionButtons(result.order, actionContainer, nextOptions);
 
             const orderFormatters = resolveOrderFormatters(options.orderFormatters);
@@ -784,8 +1034,11 @@
         resolveOrderCollectionService,
         resolveOrderFormatters,
         resolveOrderStatus,
+        resolvePaymentStatus,
+        resolvePaymentFormatters,
         getFallbackRoutes,
         buildVendorDetailUrl,
+        buildRetryPaymentUrl,
         waitForAuthReady,
         getOrderIdFromLocation,
         fetchOrderDetail,
@@ -793,6 +1046,10 @@
         renderOrderSummary,
         renderOrderItems,
         renderOrderTimeline,
+        getPaymentDateValue,
+        formatPaymentDate,
+        buildPaymentView,
+        renderOrderPayment,
         renderEmptyState,
         getCustomerCollectionAction,
         renderActionButtons,
