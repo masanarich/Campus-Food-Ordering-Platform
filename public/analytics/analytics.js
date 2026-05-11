@@ -1,6 +1,4 @@
-// =========================================================
 // analytics.js — REAL-TIME + DYNAMIC FIRESTORE ANALYTICS
-// =========================================================
 
 import {
   initializeApp,
@@ -47,9 +45,7 @@ let cachedPopularData = { sorted: [] };
 
 const COLORS = ["#f97316","#3b82f6","#10b981","#8b5cf6","#ec4899","#f59e0b"];
 
-// =========================================================
 // AUTH + REAL-TIME STREAM
-// =========================================================
 
 onAuthStateChanged(auth, (user) => {
   if (!user) {
@@ -79,9 +75,7 @@ onAuthStateChanged(auth, (user) => {
   });
 });
 
-// =========================================================
 // MASTER RENDER
-// =========================================================
 
 function renderAll(orders) {
   renderSales(orders);
@@ -89,9 +83,7 @@ function renderAll(orders) {
   renderPopular(orders);
 }
 
-// =========================================================
 // SALES REPORT
-// =========================================================
 
 function renderSales(orders) {
   const ctx = document.getElementById("salesChart");
@@ -177,10 +169,7 @@ function renderSales(orders) {
   cachedSalesData = { vendorList, monthsUsed, monthNames, vendorMap, grandTotal, monthlyTotals };
 }
 
-// =========================================================
 // PEAK HOURS
-// =========================================================
-
 function renderPeak(orders) {
   const ctx = document.getElementById("peakChart");
   if (!ctx) return;
@@ -205,9 +194,7 @@ function renderPeak(orders) {
   cachedPeakData = { hours };
 }
 
-// =========================================================
 // POPULAR ITEMS
-// =========================================================
 
 function renderPopular(orders) {
   const ctx = document.getElementById("popularChart");
@@ -251,9 +238,7 @@ function renderPopular(orders) {
   cachedPopularData = { sorted };
 }
 
-// =========================================================
 // PDF HELPER — draw a simple table without autoTable
-// =========================================================
 
 function drawPDFTable(doc, headers, rows, startY) {
   const colWidth  = (doc.internal.pageSize.getWidth() - 28) / headers.length;
@@ -288,9 +273,7 @@ function drawPDFTable(doc, headers, rows, startY) {
   return y; // return final Y position
 }
 
-// =========================================================
 // EXPORT — CSV (Excel)
-// =========================================================
 
 function exportSalesCSV() {
   const { vendorList, monthsUsed, monthNames, vendorMap, grandTotal, monthlyTotals } = cachedSalesData;
@@ -337,9 +320,7 @@ function exportPopularCSV() {
   XLSX.writeFile(wb, "popular_items.xlsx");
 }
 
-// =========================================================
 // EXPORT — PDF (no autoTable, pure jsPDF)
-// =========================================================
 
 function exportSalesPDF() {
   const { jsPDF } = window.jspdf;
@@ -431,9 +412,7 @@ function exportPopularPDF() {
   doc.save("popular_items.pdf");
 }
 
-// =========================================================
 // WIRE UP BUTTONS
-// =========================================================
 
 document.getElementById("exportSalesCSV")?.addEventListener("click", exportSalesCSV);
 document.getElementById("exportPeakCSV")?.addEventListener("click", exportPeakCSV);
@@ -443,9 +422,7 @@ document.getElementById("exportSalesPDF")?.addEventListener("click", exportSales
 document.getElementById("exportPeakPDF")?.addEventListener("click", exportPeakPDF);
 document.getElementById("exportPopularPDF")?.addEventListener("click", exportPopularPDF);
 
-// =========================================================
 // FOOTER
-// =========================================================
 
 const year = document.getElementById("currentYear");
 if (year) year.textContent = new Date().getFullYear();
