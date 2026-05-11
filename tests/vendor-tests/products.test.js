@@ -20,7 +20,12 @@ const {
     clearFileInput,
     createMenuItemId,
     buildMenuItemPhotoPath,
-    createVendorProductsPage
+    createVendorProductsPage,
+    getSelectedAllergenTags,
+    getSelectedDietaryTags,
+    setCheckedTags,
+    validateTags,
+    renderTagCheckboxes
 } = require("../../public/vendor/products.js");
 
 function createMockSnapshot(records) {
@@ -79,53 +84,27 @@ function createDom() {
                     <option value="unavailable">Unavailable</option>
                 </select>
                 <p id="product-availability-error" hidden></p>
-                <ul id="dietary-tags-container">
-                    <li>
-                        <label>
-                            <input type="checkbox" name="dietaryTag" value="Vegan">
-                            Vegan
-                        </label>
-                    </li>
+                <section class="tags-section">
+                    <section class="tag-picker-panel">
+                        <fieldset class="tag-picker-group tag-picker-group-scroll">
+                            <legend>Allergens</legend>
+                            <section class="tag-options-scroll">
+                                <ul id="allergen-tags-container" class="tag-options" role="list"></ul>
+                            </section>
+                        </fieldset>
+                        <p id="product-allergenTags-error" hidden></p>
 
-                    <li>
-                        <label>
-                            <input type="checkbox" name="dietaryTag" value="Halal">
-                            Halal
-                        </label>
-                    </li>
+                        <fieldset class="tag-picker-group">
+                            <legend>Dietary Labels</legend>
+                            <section class="tag-options-scroll tag-options-scroll-compact">
+                                <ul id="dietary-tags-container" class="tag-options" role="list"></ul>
+                            </section>
+                        </fieldset>
+                        <p id="product-dietaryTags-error" hidden></p>
 
-                    <li>
-                        <label>
-                            <input type="checkbox" name="dietaryTag" value="Vegetarian">
-                            Vegetarian
-                        </label>
-                    </li>
-                </ul>
-
-                <ul id="allergen-tags-container">
-                    <li>
-                        <label>
-                            <input type="checkbox" name="allergenTag" value="Nuts">
-                            Nuts
-                        </label>
-                    </li>
-
-                    <li>
-                        <label>
-                            <input type="checkbox" name="allergenTag" value="Gluten">
-                            Gluten
-                        </label>
-                    </li>
-
-                    <li>
-                        <label>
-                            <input type="checkbox" name="allergenTag" value="Dairy">
-                            Dairy
-                        </label>
-                    </li>
-                </ul>
-
-                <p id="tag-error" hidden></p>
+                        <p id="tag-error" hidden>Please select at least one allergen or dietary tag.</p>
+                    </section>
+                </section>
                 <input id="product-sold-out" type="checkbox">
                 <button id="save-product-button" type="submit">Save</button>
                 <button id="clear-product-button" type="reset">Clear</button>
@@ -144,6 +123,8 @@ function createDom() {
             <output id="product-price-output"></output>
             <output id="product-availability-output"></output>
             <output id="product-sold-out-output"></output>
+            <output id="product-dietary-tags-output"></output>
+            <output id="product-allergen-tags-output"></output>
             <img id="product-photo-preview" alt="preview" hidden>
             <p id="product-photo-empty-state"></p>
         </section>
@@ -408,6 +389,32 @@ describe("products.js helpers", () => {
         expect(result.errors.category).toBe("Please use a longer category name.");
         expect(result.errors.description).toBe("Please enter a longer item description.");
         expect(result.errors.price).toBe("Please enter a valid price of R0.00 or more.");
+    });
+
+    test("renderTagCheckboxes creates compact selectable tag options without duplicates", () => {
+        createDom();
+
+        renderTagCheckboxes();
+        renderTagCheckboxes();
+        setCheckedTags("allergen", ["nuts", "milk"]);
+        setCheckedTags("dietary", ["vegan"]);
+
+        expect(document.querySelectorAll('input[name="allergenTag"]')).toHaveLength(14);
+        expect(document.querySelectorAll('input[name="dietaryTag"]')).toHaveLength(6);
+        expect(document.querySelectorAll(".tag-choice-label")[0].textContent).toBe("Gluten");
+        expect(getSelectedAllergenTags()).toEqual(["Milk", "Nuts"]);
+        expect(getSelectedDietaryTags()).toEqual(["Vegan"]);
+        expect(validateTags()).toBe(true);
+        expect(document.getElementById("tag-error").hidden).toBe(true);
+    });
+
+    test("validateTags shows grouped picker error when no tags are selected", () => {
+        createDom();
+        renderTagCheckboxes();
+
+        expect(validateTags()).toBe(false);
+        expect(document.getElementById("tag-error").hidden).toBe(false);
+        expect(document.querySelector(".tag-picker-group").getAttribute("aria-invalid")).toBe("true");
     });
 
     test("clearFileInput clears a file input safely and ids can be generated", () => {

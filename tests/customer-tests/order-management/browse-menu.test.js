@@ -288,6 +288,28 @@ describe("customer/order-management/browse-menu.js - fetchVendorMenu", () => {
         expect(result.menuItems[0].category).toBe("Other");
         expect(result.menuItems[0].price).toBe(0);
     });
+
+    test("normalizes vendor allergenTags for customer display", async () => {
+        const itemWithVendorTags = createMockMenuItem({
+            allergens: undefined,
+            allergenTags: ["nuts", "dairy"],
+            dietaryTags: ["vegetarian"],
+            dietary: undefined
+        });
+
+        const mockDb = { kind: "db" };
+        const firestoreFns = createFirestoreFns({ mockMenuItems: [itemWithVendorTags] });
+
+        const result = await customerBrowseMenu.fetchVendorMenu({
+            vendorUid: "vendor-1",
+            db: mockDb,
+            firestoreFns
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.menuItems[0].allergens).toEqual(["nuts", "dairy"]);
+        expect(result.menuItems[0].dietary).toEqual(["vegetarian"]);
+    });
 });
 
 // ==========================================
@@ -317,11 +339,13 @@ describe("customer/order-management/browse-menu.js - createMenuItemCard", () => 
 
         // Check category
         const category = card.querySelector("p.menu-item-category");
-        expect(category.textContent).toBe("Meals");
+        expect(category.textContent).toContain("Category:");
+        expect(category.querySelector(".menu-item-value").textContent).toBe("Meals");
 
         // Check price
         const price = card.querySelector(".menu-item-price strong");
         expect(price.textContent).toBe("R50.00");
+        expect(card.querySelector(".menu-item-price .menu-item-label").textContent).toBe("Price:");
 
         // Check add to cart button
         const button = card.querySelector(".add-to-cart-button");
@@ -335,7 +359,8 @@ describe("customer/order-management/browse-menu.js - createMenuItemCard", () => 
 
         const description = card.querySelector(".menu-item-description");
         expect(description).not.toBeNull();
-        expect(description.textContent).toBe("Best burger ever");
+        expect(description.textContent).toContain("Item info:");
+        expect(description.querySelector(".menu-item-value").textContent).toBe("Best burger ever");
     });
 
     test("shows dietary information when available", () => {
@@ -344,7 +369,18 @@ describe("customer/order-management/browse-menu.js - createMenuItemCard", () => 
 
         const dietary = card.querySelector(".menu-item-dietary");
         expect(dietary).not.toBeNull();
-        expect(dietary.textContent).toBe("halal, no-pork");
+        expect(dietary.textContent).toContain("Dietary info:");
+        expect(dietary.querySelector(".menu-item-value").textContent).toBe("halal, no-pork");
+    });
+
+    test("shows allergen information when available", () => {
+        const item = createMockMenuItem({ allergens: ["gluten", "nuts"] });
+        const card = customerBrowseMenu.createMenuItemCard(item);
+
+        const allergens = card.querySelector(".menu-item-allergens");
+        expect(allergens).not.toBeNull();
+        expect(allergens.textContent).toContain("Allergen info:");
+        expect(allergens.querySelector(".menu-item-value").textContent).toBe("gluten, nuts");
     });
 
     test("shows unavailable message for unavailable items", () => {
