@@ -134,8 +134,12 @@ function resolveAdminFirestore(explicitDb) {
         return null;
     }
 
-    if (Array.isArray(firebaseAdmin.apps) && firebaseAdmin.apps.length === 0) {
-        firebaseAdmin.initializeApp();
+    try {
+        firebaseAdmin.app();
+    } catch (error) {
+        if (typeof firebaseAdmin.initializeApp === "function") {
+            firebaseAdmin.initializeApp();
+        }
     }
 
     if (typeof firebaseAdmin.firestore === "function") {
