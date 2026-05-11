@@ -975,7 +975,8 @@ describe("shared/orders/order-service.js", () => {
                 doc: jest.fn((...args) => ({
                     kind: "doc",
                     args
-                }))
+                })),
+                getDoc: jest.fn(async () => createDocSnapshot("order-ready-1", {}, false))
             },
             orderQueries,
             order: createReadyOrder(),
@@ -1337,6 +1338,9 @@ describe("shared/orders/order-service.js", () => {
         failingFirestoreFns.getDoc = jest.fn(async () => {
             throw new Error("network down");
         });
+        const consoleErrorSpy = jest
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
 
         const result = await orderService.confirmOrderCollection({
             db: { name: "db" },
@@ -1355,6 +1359,12 @@ describe("shared/orders/order-service.js", () => {
         expect(result.success).toBe(true);
         expect(result.order.customerConfirmedCollected).toBe(true);
         expect(result.order.vendorConfirmedCollected).toBe(false);
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+            expect.stringContaining("failed to refresh order before confirmation"),
+            expect.any(Error)
+        );
+
+        consoleErrorSpy.mockRestore();
     });
 
     test("handles dependency-missing fallbacks in isolation when shared modules are unavailable", () => {

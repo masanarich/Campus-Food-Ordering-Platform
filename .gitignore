@@ -1,6 +1,9 @@
 
 public/authentication/config.js
 
+
+.env
+
 # Logs
 logs
 *.log
