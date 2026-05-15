@@ -16,6 +16,18 @@ function optionalRequire(moduleName) {
 const httpsFunctions = optionalRequire("firebase-functions/v2/https");
 const firebaseAdmin = optionalRequire("firebase-admin");
 
+if (firebaseAdmin && typeof firebaseAdmin.initializeApp === "function" && process.env.FIREBASE_CONFIG) {
+    try {
+        firebaseAdmin.app();
+    } catch (error) {
+        try {
+            firebaseAdmin.initializeApp();
+        } catch (initError) {
+            // Admin SDK initialization failed - downstream callers will treat it as unavailable.
+        }
+    }
+}
+
 class LocalHttpsError extends Error {
     constructor(code, message, details) {
         super(message);
@@ -130,23 +142,17 @@ function resolveAdminFirestore(explicitDb) {
         return explicitDb;
     }
 
-    if (!firebaseAdmin) {
+    if (!firebaseAdmin || typeof firebaseAdmin.firestore !== "function") {
         return null;
     }
 
     try {
         firebaseAdmin.app();
     } catch (error) {
-        if (typeof firebaseAdmin.initializeApp === "function") {
-            firebaseAdmin.initializeApp();
-        }
+        return null;
     }
 
-    if (typeof firebaseAdmin.firestore === "function") {
-        return firebaseAdmin.firestore();
-    }
-
-    return null;
+    return firebaseAdmin.firestore();
 }
 
 async function writeOrderPaymentPatch(orderId, patch, options = {}) {
