@@ -38,17 +38,53 @@
     background: linear-gradient(180deg, var(--surface-soft), rgba(255, 252, 248, 0.92));
 }
 
-.vendor-order-detail-hero + .shared-section,
-.vendor-order-detail-hero + .shared-section + .shared-section,
-.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section,
-.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section {
-    grid-column: span 6;
+.vendor-shell[data-page="vendor-order-detail"] .vendor-main > .shared-section {
+    min-width: 0;
+}
+
+.vendor-shell[data-page="vendor-order-detail"] .vendor-main > .shared-section:not(.vendor-order-detail-hero) {
     background: linear-gradient(180deg, rgba(255, 251, 246, 0.96), rgba(247, 237, 223, 0.9));
 }
 
-.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section,
-.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section {
+/* Order Actions — full width row directly under the hero */
+.vendor-order-detail-hero + .shared-section {
     grid-column: 1 / -1;
+}
+
+/* Summary + Items — first 2-up row */
+.vendor-order-detail-hero + .shared-section + .shared-section,
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section {
+    grid-column: span 6;
+}
+
+/* Payment + Timeline — second 2-up row */
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section,
+.vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section + .shared-section {
+    grid-column: span 6;
+}
+
+#vendor-order-summary,
+#vendor-order-items,
+#vendor-order-payment,
+#vendor-order-timeline,
+#vendor-order-action-container {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+#vendor-order-summary > ul,
+#vendor-order-items > ul,
+#vendor-order-payment > ul,
+#vendor-order-timeline > ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+#vendor-order-summary > ul > li + li,
+#vendor-order-items > ul > li + li,
+#vendor-order-payment > ul > li + li,
+#vendor-order-timeline > ul > li + li {
+    margin-top: 0.6rem;
 }
 
 .vendor-orders-hero h2,
@@ -299,8 +335,7 @@
     .vendor-orders-overview,
     .vendor-orders-list-section,
     .vendor-notifications-list,
-    .vendor-order-detail-hero + .shared-section,
-    .vendor-order-detail-hero + .shared-section + .shared-section {
+    .vendor-shell[data-page="vendor-order-detail"] .vendor-main > .shared-section {
         grid-column: 1 / -1;
     }
 }
@@ -315,11 +350,7 @@
     .vendor-orders-hero,
     .vendor-orders-overview,
     .vendor-orders-list-section,
-    .vendor-order-detail-hero,
-    .vendor-order-detail-hero + .shared-section,
-    .vendor-order-detail-hero + .shared-section + .shared-section,
-    .vendor-order-detail-hero + .shared-section + .shared-section + .shared-section,
-    .vendor-order-detail-hero + .shared-section + .shared-section + .shared-section + .shared-section,
+    .vendor-shell[data-page="vendor-order-detail"] .vendor-main > .shared-section,
     .vendor-notifications-hero,
     .vendor-notifications-list {
         grid-column: 1 / -1;

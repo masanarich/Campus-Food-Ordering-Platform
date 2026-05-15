@@ -17,6 +17,7 @@
 .customer-portal .tracking-notification-card,
 .customer-portal .order-detail-overview,
 .customer-portal .order-detail-items,
+.customer-portal .order-detail-payment,
 .customer-portal .order-detail-timeline,
 .customer-portal .order-detail-help {
     position: relative;
@@ -32,6 +33,7 @@
 .customer-portal .tracking-notification-card::before,
 .customer-portal .order-detail-overview::before,
 .customer-portal .order-detail-items::before,
+.customer-portal .order-detail-payment::before,
 .customer-portal .order-detail-timeline::before,
 .customer-portal .order-detail-help::before {
     content: "";
@@ -145,13 +147,35 @@
 }
 
 .customer-portal .order-detail-overview,
-.customer-portal .order-detail-items {
+.customer-portal .order-detail-items,
+.customer-portal .order-detail-payment,
+.customer-portal .order-detail-timeline {
     grid-column: span 6;
 }
 
-.customer-portal .order-detail-timeline,
 .customer-portal .order-detail-help {
     grid-column: 1 / -1;
+}
+
+.customer-portal .order-detail-overview,
+.customer-portal .order-detail-items,
+.customer-portal .order-detail-payment,
+.customer-portal .order-detail-timeline,
+.customer-portal .order-detail-help {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.customer-portal .order-detail-payment p,
+.customer-portal .order-detail-timeline p,
+.customer-portal #order-detail-payment p,
+.customer-portal #order-detail-timeline p,
+.customer-portal #order-detail-summary p,
+.customer-portal #order-detail-items p {
+    margin: 0.35rem 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .customer-portal .order-summary-list,
@@ -183,6 +207,7 @@
 .customer-portal #notifications-container,
 .customer-portal #order-detail-summary,
 .customer-portal #order-detail-items,
+.customer-portal #order-detail-payment,
 .customer-portal #order-detail-timeline {
     min-height: 4rem;
 }
@@ -194,8 +219,9 @@
 
     .customer-portal .order-detail-overview,
     .customer-portal .order-detail-items,
+    .customer-portal .order-detail-payment,
     .customer-portal .order-detail-timeline,
     .customer-portal .order-detail-help {
-        grid-column: auto;
+        grid-column: 1 / -1;
     }
 }
