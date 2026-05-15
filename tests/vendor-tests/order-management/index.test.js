@@ -724,3 +724,332 @@ describe("vendor/order-management/index.js - data loading and init", () => {
         expect(dom.container.textContent).toContain("no vendor orders");
     });
 });
+
+describe("vendor/order-management/index.js - filter, sort, paginate", () => {
+    function makeOrder(overrides) {
+        return {
+            orderId: "order-x",
+            vendorUid: "vendor-1",
+            customerUid: "customer-x",
+            customerName: "Sample Student",
+            itemCount: 1,
+            total: 100,
+            status: "pending",
+            paymentStatus: "unpaid",
+            paymentReference: "",
+            createdAt: "2026-04-20T12:00:00.000Z",
+            updatedAt: "2026-04-20T12:00:00.000Z",
+            ...overrides
+        };
+    }
+
+    test("sortOrders defaults to newest first", () => {
+        const orders = [
+            makeOrder({ orderId: "a", updatedAt: "2026-01-01T00:00:00Z" }),
+            makeOrder({ orderId: "b", updatedAt: "2026-05-01T00:00:00Z" }),
+            makeOrder({ orderId: "c", updatedAt: "2026-03-01T00:00:00Z" })
+        ];
+
+        const sorted = vendorOrderManagementPage.sortOrders(orders, "newest");
+
+        expect(sorted.map(o => o.orderId)).toEqual(["b", "c", "a"]);
+    });
+
+    test("sortOrders supports oldest, price, and customer sorts", () => {
+        const orders = [
+            makeOrder({ orderId: "a", customerName: "Alice", total: 50, updatedAt: "2026-01-01T00:00:00Z" }),
+            makeOrder({ orderId: "b", customerName: "Charlie", total: 200, updatedAt: "2026-05-01T00:00:00Z" }),
+            makeOrder({ orderId: "c", customerName: "Bob", total: 120, updatedAt: "2026-03-01T00:00:00Z" })
+        ];
+
+        expect(vendorOrderManagementPage.sortOrders(orders, "oldest").map(o => o.orderId))
+            .toEqual(["a", "c", "b"]);
+        expect(vendorOrderManagementPage.sortOrders(orders, "price-desc").map(o => o.orderId))
+            .toEqual(["b", "c", "a"]);
+        expect(vendorOrderManagementPage.sortOrders(orders, "price-asc").map(o => o.orderId))
+            .toEqual(["a", "c", "b"]);
+        expect(vendorOrderManagementPage.sortOrders(orders, "customer-asc").map(o => o.orderId))
+            .toEqual(["a", "c", "b"]);
+        expect(vendorOrderManagementPage.sortOrders(orders, "customer-desc").map(o => o.orderId))
+            .toEqual(["b", "c", "a"]);
+    });
+
+    test("filterOrders narrows by status, payment, and search across customer/order/reference", () => {
+        const orders = [
+            makeOrder({ orderId: "a", customerName: "Alice", status: "ready", paymentStatus: "paid", paymentReference: "ref-aaa" }),
+            makeOrder({ orderId: "b", customerName: "Bob", status: "preparing", paymentStatus: "pending", paymentReference: "ref-bbb" }),
+            makeOrder({ orderId: "c", customerName: "Charlie", status: "cancelled", paymentStatus: "paid", paymentReference: "ref-ccc" })
+        ];
+
+        expect(vendorOrderManagementPage.filterOrders(orders, { status: "ready" }).map(o => o.orderId))
+            .toEqual(["a"]);
+        expect(vendorOrderManagementPage.filterOrders(orders, { status: "cancelled" }).map(o => o.orderId))
+            .toEqual(["c"]);
+        expect(vendorOrderManagementPage.filterOrders(orders, { payment: "paid" }).map(o => o.orderId))
+            .toEqual(["a", "c"]);
+        expect(vendorOrderManagementPage.filterOrders(orders, { search: "bob" }).map(o => o.orderId))
+            .toEqual(["b"]);
+        expect(vendorOrderManagementPage.filterOrders(orders, { search: "ref-ccc" }).map(o => o.orderId))
+            .toEqual(["c"]);
+    });
+
+    test("filterOrders treats the 'incoming' status as pending plus accepted", () => {
+        const orders = [
+            makeOrder({ orderId: "a", status: "pending" }),
+            makeOrder({ orderId: "b", status: "accepted" }),
+            makeOrder({ orderId: "c", status: "preparing" }),
+            makeOrder({ orderId: "d", status: "ready" })
+        ];
+
+        expect(vendorOrderManagementPage.filterOrders(orders, { status: "incoming" }).map(o => o.orderId))
+            .toEqual(["a", "b"]);
+    });
+
+    test("paginateOrders returns the correct slice and clamps the page index", () => {
+        const orders = Array.from({ length: 15 }, (_, index) => makeOrder({ orderId: `order-${index + 1}` }));
+
+        const page1 = vendorOrderManagementPage.paginateOrders(orders, 1, 6);
+        expect(page1.pageOrders).toHaveLength(6);
+        expect(page1.totalPages).toBe(3);
+        expect(page1.page).toBe(1);
+
+        const page3 = vendorOrderManagementPage.paginateOrders(orders, 3, 6);
+        expect(page3.pageOrders).toHaveLength(3);
+        expect(page3.pageOrders[0].orderId).toBe("order-13");
+
+        const clamped = vendorOrderManagementPage.paginateOrders(orders, 99, 6);
+        expect(clamped.page).toBe(3);
+
+        const empty = vendorOrderManagementPage.paginateOrders([], 1, 6);
+        expect(empty.totalPages).toBe(1);
+        expect(empty.pageOrders).toHaveLength(0);
+    });
+
+    test("buildResultSummary distinguishes filtered vs unfiltered counts", () => {
+        expect(vendorOrderManagementPage.buildResultSummary(0, 0)).toBe("");
+        expect(vendorOrderManagementPage.buildResultSummary(5, 5)).toBe("Showing all 5 orders.");
+        expect(vendorOrderManagementPage.buildResultSummary(2, 5)).toBe("Showing 2 of 5 orders.");
+        expect(vendorOrderManagementPage.buildResultSummary(1, 1)).toBe("Showing all 1 order.");
+    });
+
+    test("applyQuickFilter updates the form selects to the right preset", () => {
+        document.body.innerHTML = `
+            <form id="qf-form">
+                <select name="status">
+                    <option value="all" selected>All</option>
+                    <option value="incoming">Incoming</option>
+                    <option value="preparing">Preparing</option>
+                    <option value="ready">Ready</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <select name="payment">
+                    <option value="all" selected>All</option>
+                    <option value="paid">Paid</option>
+                </select>
+                <select name="sort">
+                    <option value="newest" selected>Newest</option>
+                </select>
+                <input name="search" />
+            </form>
+        `;
+        const form = document.getElementById("qf-form");
+
+        const incoming = vendorOrderManagementPage.applyQuickFilter(form, "incoming");
+        expect(incoming).toEqual(expect.objectContaining({ status: "incoming", payment: "all" }));
+
+        const paid = vendorOrderManagementPage.applyQuickFilter(form, "paid");
+        expect(paid).toEqual(expect.objectContaining({ status: "all", payment: "paid" }));
+
+        const cancelled = vendorOrderManagementPage.applyQuickFilter(form, "cancelled");
+        expect(cancelled).toEqual(expect.objectContaining({ status: "cancelled", payment: "all" }));
+
+        const reset = vendorOrderManagementPage.applyQuickFilter(form, "all");
+        expect(reset).toEqual(expect.objectContaining({ status: "all", payment: "all" }));
+
+        expect(vendorOrderManagementPage.applyQuickFilter(form, "unknown-key")).toBeNull();
+    });
+});
+
+describe("vendor/order-management/index.js - toolbar integration", () => {
+    function setupToolbarDom() {
+        document.body.innerHTML = `
+            <p id="vendor-order-management-status"></p>
+            <section id="vendor-order-management-summary"></section>
+            <form id="vendor-orders-filter-form">
+                <input id="vendor-orders-search" name="search" type="search" />
+                <select id="vendor-orders-status-filter" name="status">
+                    <option value="all" selected>All statuses</option>
+                    <option value="incoming">Incoming</option>
+                    <option value="preparing">Preparing</option>
+                    <option value="ready">Ready</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <select id="vendor-orders-payment-filter" name="payment">
+                    <option value="all" selected>All</option>
+                    <option value="paid">Paid</option>
+                </select>
+                <select id="vendor-orders-sort" name="sort">
+                    <option value="newest" selected>Newest</option>
+                    <option value="price-desc">Price high → low</option>
+                </select>
+            </form>
+            <p id="vendor-orders-results-summary"></p>
+            <menu class="vendor-orders-quick-filters">
+                <li><button type="button" data-quick-filter="all">All</button></li>
+                <li><button type="button" data-quick-filter="incoming">Incoming</button></li>
+                <li><button type="button" data-quick-filter="ready">Ready</button></li>
+                <li><button type="button" data-quick-filter="paid">Paid</button></li>
+                <li><button type="button" data-quick-filter="cancelled">Cancelled</button></li>
+            </menu>
+            <section id="vendor-orders-container"></section>
+            <nav id="vendor-orders-pagination" hidden>
+                <p id="vendor-orders-pagination-status"></p>
+                <menu>
+                    <li><button type="button" data-page-action="prev">Prev</button></li>
+                    <li><button type="button" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
+        `;
+
+        return {
+            statusElement: document.getElementById("vendor-order-management-status"),
+            summaryElement: document.getElementById("vendor-order-management-summary"),
+            container: document.getElementById("vendor-orders-container"),
+            form: document.getElementById("vendor-orders-filter-form"),
+            statusSelect: document.getElementById("vendor-orders-status-filter"),
+            paymentSelect: document.getElementById("vendor-orders-payment-filter"),
+            sortSelect: document.getElementById("vendor-orders-sort"),
+            resultsSummary: document.getElementById("vendor-orders-results-summary"),
+            quickFilters: document.querySelector(".vendor-orders-quick-filters"),
+            pagination: document.getElementById("vendor-orders-pagination"),
+            paginationStatus: document.getElementById("vendor-orders-pagination-status")
+        };
+    }
+
+    function createOrder(overrides = {}) {
+        return {
+            orderId: "order-1",
+            vendorUid: "vendor-1",
+            customerName: "Student One",
+            itemCount: 2,
+            total: 85,
+            status: "pending",
+            paymentStatus: "paid",
+            paymentReference: "paystack-ref",
+            createdAt: "2026-04-20T12:00:00Z",
+            updatedAt: "2026-04-20T12:15:00Z",
+            ...overrides
+        };
+    }
+
+    function approvedProfile(overrides = {}) {
+        return {
+            uid: "vendor-1",
+            displayName: "Campus Bites",
+            email: "vendor@example.com",
+            vendorStatus: "approved",
+            accountStatus: "active",
+            isAdmin: false,
+            ...overrides
+        };
+    }
+
+    test("init wires the filter form so changing status narrows the rendered cards", async () => {
+        const dom = setupToolbarDom();
+
+        const getVendorOrders = jest.fn(async () => [
+            createOrder({ orderId: "order-1", customerName: "Alice", status: "pending" }),
+            createOrder({ orderId: "order-2", customerName: "Bob", status: "ready" }),
+            createOrder({ orderId: "order-3", customerName: "Carol", status: "ready" })
+        ]);
+
+        await vendorOrderManagementPage.init({
+            currentUser: { uid: "vendor-1" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => approvedProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getVendorOrders }
+        });
+
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(3);
+        expect(dom.resultsSummary.textContent).toContain("all 3");
+
+        dom.statusSelect.value = "ready";
+        dom.form.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
+        expect(dom.resultsSummary.textContent).toContain("2 of 3");
+    });
+
+    test("init paginates with the configured page size and Next moves to the next page", async () => {
+        const dom = setupToolbarDom();
+
+        const orders = Array.from({ length: 8 }, (_, index) => createOrder({
+            orderId: `order-${index + 1}`,
+            customerName: `Student ${index + 1}`,
+            status: index % 2 === 0 ? "pending" : "ready",
+            updatedAt: `2026-04-${String(index + 1).padStart(2, "0")}T00:00:00Z`
+        }));
+
+        const getVendorOrders = jest.fn(async () => orders);
+
+        await vendorOrderManagementPage.init({
+            currentUser: { uid: "vendor-1" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => approvedProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getVendorOrders },
+            pageSize: 3
+        });
+
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(3);
+        expect(dom.pagination.hasAttribute("hidden")).toBe(false);
+        expect(dom.paginationStatus.textContent).toBe("Page 1 of 3");
+
+        dom.pagination.querySelector('[data-page-action="next"]').click();
+
+        expect(dom.paginationStatus.textContent).toBe("Page 2 of 3");
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(3);
+    });
+
+    test("quick filter buttons activate the right preset and mark the active chip", async () => {
+        const dom = setupToolbarDom();
+
+        const getVendorOrders = jest.fn(async () => [
+            createOrder({ orderId: "order-1", status: "pending", paymentStatus: "unpaid" }),
+            createOrder({ orderId: "order-2", status: "ready", paymentStatus: "paid" }),
+            createOrder({ orderId: "order-3", status: "ready", paymentStatus: "paid" })
+        ]);
+
+        await vendorOrderManagementPage.init({
+            currentUser: { uid: "vendor-1" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => approvedProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getVendorOrders }
+        });
+
+        const paidButton = dom.quickFilters.querySelector('[data-quick-filter="paid"]');
+        paidButton.click();
+
+        expect(dom.paymentSelect.value).toBe("paid");
+        expect(dom.statusSelect.value).toBe("all");
+        expect(paidButton.dataset.active).toBe("true");
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
+
+        const readyButton = dom.quickFilters.querySelector('[data-quick-filter="ready"]');
+        readyButton.click();
+
+        expect(dom.statusSelect.value).toBe("ready");
+        expect(dom.paymentSelect.value).toBe("all");
+        expect(readyButton.dataset.active).toBe("true");
+        expect(paidButton.dataset.active).toBeUndefined();
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
+    });
+});

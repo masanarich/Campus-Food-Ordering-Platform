@@ -2,7 +2,21 @@
     "use strict";
 
     const MODULE_NAME = "vendor/order-management/index";
+    const DEFAULT_PAGE_SIZE = 6;
+    const DEFAULT_SORT = "newest";
+    const INCOMING_STATUSES = ["pending", "accepted"];
     let initInFlight = null;
+    const pageState = {
+        allOrders: [],
+        filters: {
+            search: "",
+            status: "all",
+            payment: "all",
+            sort: DEFAULT_SORT
+        },
+        currentPage: 1,
+        pageSize: DEFAULT_PAGE_SIZE
+    };
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
@@ -440,6 +454,8 @@
         const article = globalScope.document.createElement("article");
         article.className = "vendor-order-card";
         article.setAttribute("data-order-id", order.orderId);
+        article.setAttribute("data-status", order.status);
+        article.setAttribute("data-payment-status", order.paymentStatus);
 
         const heading = globalScope.document.createElement("h4");
         heading.className = "vendor-order-card-heading";
@@ -562,7 +578,8 @@
         if (safeOrders.length === 0) {
             const message = globalScope.document.createElement("p");
             message.className = "empty-state-message";
-            message.textContent = "There are no vendor orders to manage right now.";
+            message.textContent = normalizeText(options.emptyMessage)
+                || "There are no vendor orders to manage right now.";
             container.appendChild(message);
             return;
         }
@@ -570,6 +587,403 @@
         safeOrders.forEach(function appendOrder(order) {
             container.appendChild(createOrderCard(order, options));
         });
+    }
+
+    function getOrderTimestamp(orderRecord) {
+        const safe = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const value = safe.updatedAt || safe.createdAt;
+
+        if (!value) {
+            return 0;
+        }
+
+        if (typeof value === "number" && Number.isFinite(value)) {
+            return value;
+        }
+
+        if (typeof value === "string") {
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        if (typeof value.toMillis === "function") {
+            const millis = value.toMillis();
+            return Number.isFinite(millis) ? millis : 0;
+        }
+
+        if (value instanceof Date) {
+            return value.getTime();
+        }
+
+        if (typeof value.seconds === "number" && Number.isFinite(value.seconds)) {
+            return value.seconds * 1000;
+        }
+
+        return 0;
+    }
+
+    function sortOrders(orders, sortKey) {
+        const safe = Array.isArray(orders) ? orders.slice() : [];
+        const key = normalizeLowerText(sortKey) || DEFAULT_SORT;
+
+        if (key === "oldest") {
+            safe.sort(function byOldest(a, b) {
+                return getOrderTimestamp(a) - getOrderTimestamp(b);
+            });
+            return safe;
+        }
+
+        if (key === "price-desc") {
+            safe.sort(function byPriceDesc(a, b) {
+                return Number(b && b.total || 0) - Number(a && a.total || 0);
+            });
+            return safe;
+        }
+
+        if (key === "price-asc") {
+            safe.sort(function byPriceAsc(a, b) {
+                return Number(a && a.total || 0) - Number(b && b.total || 0);
+            });
+            return safe;
+        }
+
+        if (key === "customer-asc") {
+            safe.sort(function byCustomerAsc(a, b) {
+                return normalizeLowerText(a && a.customerName).localeCompare(
+                    normalizeLowerText(b && b.customerName)
+                );
+            });
+            return safe;
+        }
+
+        if (key === "customer-desc") {
+            safe.sort(function byCustomerDesc(a, b) {
+                return normalizeLowerText(b && b.customerName).localeCompare(
+                    normalizeLowerText(a && a.customerName)
+                );
+            });
+            return safe;
+        }
+
+        safe.sort(function byNewest(a, b) {
+            return getOrderTimestamp(b) - getOrderTimestamp(a);
+        });
+        return safe;
+    }
+
+    function filterOrders(orders, filters = {}) {
+        const safe = Array.isArray(orders) ? orders : [];
+        const searchTerm = normalizeLowerText(filters.search);
+        const statusFilter = normalizeLowerText(filters.status) || "all";
+        const paymentFilter = normalizeLowerText(filters.payment) || "all";
+
+        return safe.filter(function byFilters(order) {
+            if (!order) {
+                return false;
+            }
+
+            const orderStatus = normalizeLowerText(order.status);
+
+            if (statusFilter === "incoming") {
+                if (INCOMING_STATUSES.indexOf(orderStatus) < 0) {
+                    return false;
+                }
+            } else if (statusFilter !== "all" && orderStatus !== statusFilter) {
+                return false;
+            }
+
+            if (paymentFilter !== "all" && normalizeLowerText(order.paymentStatus) !== paymentFilter) {
+                return false;
+            }
+
+            if (searchTerm) {
+                const customer = normalizeLowerText(order.customerName);
+                const orderId = normalizeLowerText(order.orderId);
+                const reference = normalizeLowerText(order.paymentReference);
+                if (
+                    customer.indexOf(searchTerm) === -1 &&
+                    orderId.indexOf(searchTerm) === -1 &&
+                    reference.indexOf(searchTerm) === -1
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }
+
+    function paginateOrders(orders, page, pageSize) {
+        const safe = Array.isArray(orders) ? orders : [];
+        const size = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0
+            ? Math.floor(Number(pageSize))
+            : DEFAULT_PAGE_SIZE;
+        const totalPages = Math.max(1, Math.ceil(safe.length / size));
+        const safePage = Math.min(Math.max(1, Math.floor(Number(page) || 1)), totalPages);
+        const start = (safePage - 1) * size;
+        const pageItems = safe.slice(start, start + size);
+
+        return {
+            pageOrders: pageItems,
+            page: safePage,
+            pageSize: size,
+            totalPages,
+            totalCount: safe.length
+        };
+    }
+
+    function buildResultSummary(filteredCount, totalCount) {
+        if (totalCount === 0) {
+            return "";
+        }
+
+        if (filteredCount === totalCount) {
+            return `Showing all ${totalCount} order${totalCount === 1 ? "" : "s"}.`;
+        }
+
+        return `Showing ${filteredCount} of ${totalCount} order${totalCount === 1 ? "" : "s"}.`;
+    }
+
+    function updatePaginationControls(paginationElement, statusElement, paginationInfo) {
+        if (!paginationElement) {
+            return;
+        }
+
+        const totalCount = paginationInfo && Number(paginationInfo.totalCount) || 0;
+
+        if (totalCount === 0) {
+            paginationElement.setAttribute("hidden", "");
+        } else {
+            paginationElement.removeAttribute("hidden");
+        }
+
+        if (statusElement) {
+            statusElement.textContent = `Page ${paginationInfo.page} of ${paginationInfo.totalPages}`;
+        }
+
+        const prevButton = paginationElement.querySelector('[data-page-action="prev"]');
+        const nextButton = paginationElement.querySelector('[data-page-action="next"]');
+
+        if (prevButton) {
+            prevButton.disabled = paginationInfo.page <= 1;
+        }
+
+        if (nextButton) {
+            nextButton.disabled = paginationInfo.page >= paginationInfo.totalPages;
+        }
+    }
+
+    function updateQuickFilterActiveState(quickFiltersElement, filters) {
+        if (!quickFiltersElement) {
+            return;
+        }
+
+        const buttons = quickFiltersElement.querySelectorAll("[data-quick-filter]");
+        const status = normalizeLowerText(filters && filters.status) || "all";
+        const payment = normalizeLowerText(filters && filters.payment) || "all";
+        let activeKey;
+
+        if (payment === "paid" && status === "all") {
+            activeKey = "paid";
+        } else if (status === "all" && payment === "all") {
+            activeKey = "all";
+        } else if (status === "incoming" && payment === "all") {
+            activeKey = "incoming";
+        } else if (status === "preparing" && payment === "all") {
+            activeKey = "preparing";
+        } else if (status === "ready" && payment === "all") {
+            activeKey = "ready";
+        } else if (status === "cancelled" && payment === "all") {
+            activeKey = "cancelled";
+        } else {
+            activeKey = null;
+        }
+
+        buttons.forEach(function syncButton(button) {
+            const key = button.getAttribute("data-quick-filter");
+            if (key === activeKey) {
+                button.setAttribute("aria-pressed", "true");
+                button.dataset.active = "true";
+            } else {
+                button.setAttribute("aria-pressed", "false");
+                delete button.dataset.active;
+            }
+        });
+    }
+
+    function renderCurrentPage(elements, options = {}) {
+        const container = elements && elements.container;
+        if (!container) {
+            return null;
+        }
+
+        const filtered = filterOrders(pageState.allOrders, pageState.filters);
+        const sorted = sortOrders(filtered, pageState.filters.sort);
+        const paginated = paginateOrders(sorted, pageState.currentPage, pageState.pageSize);
+        pageState.currentPage = paginated.page;
+
+        const hasOrders = pageState.allOrders.length > 0;
+        const emptyMessage = hasOrders
+            ? "No orders match your filters. Try clearing them to see more."
+            : "There are no vendor orders to manage right now.";
+
+        renderOrders(paginated.pageOrders, container, {
+            ...options,
+            emptyMessage
+        });
+
+        if (elements.resultsSummary) {
+            elements.resultsSummary.textContent = buildResultSummary(
+                sorted.length,
+                pageState.allOrders.length
+            );
+        }
+
+        updateQuickFilterActiveState(elements.quickFilters, pageState.filters);
+        updatePaginationControls(elements.pagination, elements.paginationStatus, paginated);
+
+        return paginated;
+    }
+
+    function readFiltersFromForm(form) {
+        if (!form) {
+            return null;
+        }
+
+        const data = new globalScope.FormData(form);
+
+        return {
+            search: normalizeText(data.get("search")),
+            status: normalizeText(data.get("status")) || "all",
+            payment: normalizeText(data.get("payment")) || "all",
+            sort: normalizeText(data.get("sort")) || DEFAULT_SORT
+        };
+    }
+
+    function applyQuickFilter(form, quickFilterKey) {
+        if (!form) {
+            return null;
+        }
+
+        const statusSelect = form.querySelector('select[name="status"]');
+        const paymentSelect = form.querySelector('select[name="payment"]');
+        const key = normalizeLowerText(quickFilterKey);
+
+        if (!statusSelect || !paymentSelect) {
+            return null;
+        }
+
+        switch (key) {
+            case "all":
+                statusSelect.value = "all";
+                paymentSelect.value = "all";
+                break;
+            case "incoming":
+                statusSelect.value = "incoming";
+                paymentSelect.value = "all";
+                break;
+            case "preparing":
+                statusSelect.value = "preparing";
+                paymentSelect.value = "all";
+                break;
+            case "ready":
+                statusSelect.value = "ready";
+                paymentSelect.value = "all";
+                break;
+            case "cancelled":
+                statusSelect.value = "cancelled";
+                paymentSelect.value = "all";
+                break;
+            case "paid":
+                statusSelect.value = "all";
+                paymentSelect.value = "paid";
+                break;
+            default:
+                return null;
+        }
+
+        return readFiltersFromForm(form);
+    }
+
+    function attachToolbarHandlers(elements, options = {}) {
+        const form = elements && elements.form;
+
+        if (form && !form.dataset.vendorOrdersFormBound) {
+            form.dataset.vendorOrdersFormBound = "true";
+
+            form.addEventListener("input", function onInput() {
+                const next = readFiltersFromForm(form);
+                if (next) {
+                    pageState.filters = next;
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }
+            });
+
+            form.addEventListener("change", function onChange() {
+                const next = readFiltersFromForm(form);
+                if (next) {
+                    pageState.filters = next;
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }
+            });
+
+            form.addEventListener("reset", function onReset() {
+                globalScope.setTimeout(function applyReset() {
+                    pageState.filters = {
+                        search: "",
+                        status: "all",
+                        payment: "all",
+                        sort: DEFAULT_SORT
+                    };
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }, 0);
+            });
+        }
+
+        const pagination = elements && elements.pagination;
+
+        if (pagination && !pagination.dataset.vendorOrdersPaginationBound) {
+            pagination.dataset.vendorOrdersPaginationBound = "true";
+
+            pagination.addEventListener("click", function onPaginationClick(event) {
+                const target = event.target.closest("[data-page-action]");
+                if (!target) {
+                    return;
+                }
+
+                const action = target.getAttribute("data-page-action");
+                if (action === "prev") {
+                    pageState.currentPage = Math.max(1, pageState.currentPage - 1);
+                } else if (action === "next") {
+                    pageState.currentPage = pageState.currentPage + 1;
+                }
+
+                renderCurrentPage(elements, options);
+            });
+        }
+
+        const quickFilters = elements && elements.quickFilters;
+
+        if (quickFilters && !quickFilters.dataset.vendorOrdersQuickFiltersBound) {
+            quickFilters.dataset.vendorOrdersQuickFiltersBound = "true";
+
+            quickFilters.addEventListener("click", function onQuickFilterClick(event) {
+                const target = event.target.closest("[data-quick-filter]");
+                if (!target) {
+                    return;
+                }
+
+                const next = applyQuickFilter(form, target.getAttribute("data-quick-filter"));
+                if (next) {
+                    pageState.filters = next;
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }
+            });
+        }
     }
 
     async function init(options = {}) {
@@ -591,6 +1005,21 @@
             const container = globalScope.document.querySelector(
                 options.containerSelector || "#vendor-orders-container"
             );
+            const resultsSummaryElement = globalScope.document.querySelector(
+                options.resultsSummarySelector || "#vendor-orders-results-summary"
+            );
+            const formElement = globalScope.document.querySelector(
+                options.formSelector || "#vendor-orders-filter-form"
+            );
+            const paginationElement = globalScope.document.querySelector(
+                options.paginationSelector || "#vendor-orders-pagination"
+            );
+            const paginationStatusElement = globalScope.document.querySelector(
+                options.paginationStatusSelector || "#vendor-orders-pagination-status"
+            );
+            const quickFiltersElement = globalScope.document.querySelector(
+                options.quickFiltersSelector || ".vendor-orders-quick-filters"
+            );
 
             if (!summaryElement || !container) {
                 return {
@@ -599,13 +1028,45 @@
                 };
             }
 
+            const elements = {
+                container,
+                resultsSummary: resultsSummaryElement,
+                form: formElement,
+                pagination: paginationElement,
+                paginationStatus: paginationStatusElement,
+                quickFilters: quickFiltersElement
+            };
+
+            const initialFilters = readFiltersFromForm(formElement);
+            if (initialFilters) {
+                pageState.filters = initialFilters;
+            } else {
+                pageState.filters = {
+                    search: "",
+                    status: "all",
+                    payment: "all",
+                    sort: DEFAULT_SORT
+                };
+            }
+            pageState.currentPage = 1;
+            pageState.pageSize = Number(options.pageSize) > 0
+                ? Math.floor(Number(options.pageSize))
+                : DEFAULT_PAGE_SIZE;
+
             setStatusMessage(statusElement, "Loading your vendor orders...", "loading");
 
             const currentUser = options.currentUser || await waitForAuthReady(auth, authFns);
 
             if (!currentUser || !normalizeText(currentUser.uid)) {
+                pageState.allOrders = [];
                 renderSummary(summaryElement, [], null, options);
                 renderOrders([], container, options);
+                if (resultsSummaryElement) {
+                    resultsSummaryElement.textContent = "";
+                }
+                if (paginationElement) {
+                    paginationElement.setAttribute("hidden", "");
+                }
                 setStatusMessage(statusElement, "Please sign in to manage vendor orders.", "error");
                 return {
                     success: false,
@@ -621,8 +1082,15 @@
             });
 
             if (!canAccessVendorWorkspace(vendorProfile)) {
+                pageState.allOrders = [];
                 renderSummary(summaryElement, [], vendorProfile, options);
                 renderOrders([], container, options);
+                if (resultsSummaryElement) {
+                    resultsSummaryElement.textContent = "";
+                }
+                if (paginationElement) {
+                    paginationElement.setAttribute("hidden", "");
+                }
                 setStatusMessage(statusElement, "You do not have vendor order access right now.", "error");
                 return {
                     success: false,
@@ -638,8 +1106,15 @@
             });
 
             if (!result.success) {
+                pageState.allOrders = [];
                 renderSummary(summaryElement, [], vendorProfile, options);
                 renderOrders([], container, options);
+                if (resultsSummaryElement) {
+                    resultsSummaryElement.textContent = "";
+                }
+                if (paginationElement) {
+                    paginationElement.setAttribute("hidden", "");
+                }
                 setStatusMessage(
                     statusElement,
                     result.error && result.error.message
@@ -655,8 +1130,16 @@
                 };
             }
 
-            renderSummary(summaryElement, result.orders, vendorProfile, options);
-            renderOrders(result.orders, container, options);
+            pageState.allOrders = Array.isArray(result.orders) ? result.orders.slice() : [];
+
+            renderSummary(summaryElement, pageState.allOrders, vendorProfile, options);
+
+            if (formElement || paginationElement || quickFiltersElement) {
+                attachToolbarHandlers(elements, options);
+                renderCurrentPage(elements, options);
+            } else {
+                renderOrders(pageState.allOrders, container, options);
+            }
 
             if (result.orders.length === 0) {
                 setStatusMessage(statusElement, "There are no vendor orders to manage right now.", "info");
@@ -684,6 +1167,9 @@
 
     const vendorOrderManagementPage = {
         MODULE_NAME,
+        DEFAULT_PAGE_SIZE,
+        DEFAULT_SORT,
+        INCOMING_STATUSES,
         normalizeText,
         normalizeLowerText,
         resolveFirestore,
@@ -706,6 +1192,12 @@
         createOrderCard,
         renderSummary,
         renderOrders,
+        getOrderTimestamp,
+        sortOrders,
+        filterOrders,
+        paginateOrders,
+        buildResultSummary,
+        applyQuickFilter,
         init
     };
 
