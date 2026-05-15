@@ -361,6 +361,65 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
         expect(dom.statusElement.textContent).toContain("Please sign in");
     });
 
+    test("init wires the filter form so changing status narrows the rendered cards", async () => {
+        document.body.innerHTML = `
+            <p id="order-tracking-status"></p>
+            <form id="orders-filter-form">
+                <input id="orders-search" name="search" type="search" />
+                <select id="orders-status-filter" name="status">
+                    <option value="all" selected>All</option>
+                    <option value="ready">Ready</option>
+                </select>
+                <select id="orders-payment-filter" name="payment">
+                    <option value="all" selected>All</option>
+                </select>
+                <select id="orders-sort" name="sort">
+                    <option value="newest" selected>Newest</option>
+                </select>
+            </form>
+            <p id="tracked-orders-summary"></p>
+            <section id="tracked-orders-container"></section>
+            <nav id="tracked-orders-pagination" hidden>
+                <p id="orders-pagination-status"></p>
+                <menu>
+                    <li><button type="button" data-page-action="prev">Prev</button></li>
+                    <li><button type="button" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
+        `;
+
+        const container = document.getElementById("tracked-orders-container");
+        const summary = document.getElementById("tracked-orders-summary");
+        const statusSelect = document.getElementById("orders-status-filter");
+        const form = document.getElementById("orders-filter-form");
+
+        const getCustomerOrders = jest.fn(async () => [
+            createOrder({ orderId: "order-1", vendorName: "Campus Bites", status: "preparing" }),
+            createOrder({ orderId: "order-2", vendorName: "Fresh Drinks", status: "ready" }),
+            createOrder({ orderId: "order-3", vendorName: "Sweet Treats", status: "ready" })
+        ]);
+
+        await customerOrderTrackingPage.init({
+            currentUser: { uid: "customer-1" },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getCustomerOrders },
+            orderStatus,
+            orderFormatters,
+            paymentStatus,
+            paymentFormatters
+        });
+
+        expect(container.querySelectorAll(".tracking-order-card")).toHaveLength(3);
+        expect(summary.textContent).toContain("all 3");
+
+        statusSelect.value = "ready";
+        form.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(container.querySelectorAll(".tracking-order-card")).toHaveLength(2);
+        expect(summary.textContent).toContain("2 of 3");
+    });
+
     test("init renders fetched orders for the current customer", async () => {
         const getCustomerOrders = jest.fn(async () => [
             createOrder({
@@ -399,5 +458,96 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
         expect(dom.container.textContent).toContain("Payment: Paid");
         expect(dom.container.textContent).toContain("Payment: Payment Pending");
         expect(dom.container.textContent).toContain("Reference: paystack-ref-1");
+    });
+});
+
+describe("customer/order-tracking/index.js - filter, sort, paginate", () => {
+    function makeOrder(overrides) {
+        return {
+            orderId: "order-x",
+            vendorName: "Sample Vendor",
+            status: "pending",
+            paymentStatus: "unpaid",
+            paymentReference: "",
+            total: 100,
+            updatedAt: "2026-04-20T12:00:00.000Z",
+            ...overrides
+        };
+    }
+
+    test("sortOrders defaults to newest first", () => {
+        const orders = [
+            makeOrder({ orderId: "a", updatedAt: "2026-01-01T00:00:00Z" }),
+            makeOrder({ orderId: "b", updatedAt: "2026-05-01T00:00:00Z" }),
+            makeOrder({ orderId: "c", updatedAt: "2026-03-01T00:00:00Z" })
+        ];
+
+        const sorted = customerOrderTrackingPage.sortOrders(orders, "newest");
+
+        expect(sorted.map(o => o.orderId)).toEqual(["b", "c", "a"]);
+    });
+
+    test("sortOrders supports oldest, price-desc, price-asc", () => {
+        const orders = [
+            makeOrder({ orderId: "a", total: 50, updatedAt: "2026-01-01T00:00:00Z" }),
+            makeOrder({ orderId: "b", total: 200, updatedAt: "2026-05-01T00:00:00Z" }),
+            makeOrder({ orderId: "c", total: 120, updatedAt: "2026-03-01T00:00:00Z" })
+        ];
+
+        expect(customerOrderTrackingPage.sortOrders(orders, "oldest").map(o => o.orderId))
+            .toEqual(["a", "c", "b"]);
+        expect(customerOrderTrackingPage.sortOrders(orders, "price-desc").map(o => o.orderId))
+            .toEqual(["b", "c", "a"]);
+        expect(customerOrderTrackingPage.sortOrders(orders, "price-asc").map(o => o.orderId))
+            .toEqual(["a", "c", "b"]);
+    });
+
+    test("filterOrders narrows by status, payment, and search across vendor/order/reference", () => {
+        const orders = [
+            makeOrder({ orderId: "a", vendorName: "Campus Bites", status: "ready", paymentStatus: "paid", paymentReference: "ref-aaa" }),
+            makeOrder({ orderId: "b", vendorName: "Fresh Drinks", status: "preparing", paymentStatus: "pending", paymentReference: "ref-bbb" }),
+            makeOrder({ orderId: "c", vendorName: "Sweet Treats", status: "ready", paymentStatus: "paid", paymentReference: "ref-ccc" })
+        ];
+
+        expect(customerOrderTrackingPage.filterOrders(orders, { status: "ready" }).map(o => o.orderId))
+            .toEqual(["a", "c"]);
+        expect(customerOrderTrackingPage.filterOrders(orders, { payment: "pending" }).map(o => o.orderId))
+            .toEqual(["b"]);
+        expect(customerOrderTrackingPage.filterOrders(orders, { search: "fresh" }).map(o => o.orderId))
+            .toEqual(["b"]);
+        expect(customerOrderTrackingPage.filterOrders(orders, { search: "ref-ccc" }).map(o => o.orderId))
+            .toEqual(["c"]);
+        expect(customerOrderTrackingPage.filterOrders(orders, {
+            status: "ready",
+            payment: "paid",
+            search: "campus"
+        }).map(o => o.orderId)).toEqual(["a"]);
+    });
+
+    test("paginateOrders returns the correct slice and clamps the page index", () => {
+        const orders = Array.from({ length: 15 }, (_, index) => makeOrder({ orderId: `order-${index + 1}` }));
+
+        const page1 = customerOrderTrackingPage.paginateOrders(orders, 1, 6);
+        expect(page1.pageOrders).toHaveLength(6);
+        expect(page1.totalPages).toBe(3);
+        expect(page1.page).toBe(1);
+
+        const page3 = customerOrderTrackingPage.paginateOrders(orders, 3, 6);
+        expect(page3.pageOrders).toHaveLength(3);
+        expect(page3.pageOrders[0].orderId).toBe("order-13");
+
+        const clamped = customerOrderTrackingPage.paginateOrders(orders, 99, 6);
+        expect(clamped.page).toBe(3);
+
+        const empty = customerOrderTrackingPage.paginateOrders([], 1, 6);
+        expect(empty.totalPages).toBe(1);
+        expect(empty.pageOrders).toHaveLength(0);
+    });
+
+    test("buildResultSummary distinguishes filtered vs unfiltered counts", () => {
+        expect(customerOrderTrackingPage.buildResultSummary(0, 0)).toBe("");
+        expect(customerOrderTrackingPage.buildResultSummary(5, 5)).toBe("Showing all 5 orders.");
+        expect(customerOrderTrackingPage.buildResultSummary(2, 5)).toBe("Showing 2 of 5 orders.");
+        expect(customerOrderTrackingPage.buildResultSummary(1, 1)).toBe("Showing all 1 order.");
     });
 });

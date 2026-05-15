@@ -2,7 +2,20 @@
     "use strict";
 
     const MODULE_NAME = "customer/order-tracking/index";
+    const DEFAULT_PAGE_SIZE = 6;
+    const DEFAULT_SORT = "newest";
     let initInFlight = null;
+    const pageState = {
+        allOrders: [],
+        filters: {
+            search: "",
+            status: "all",
+            payment: "all",
+            sort: DEFAULT_SORT
+        },
+        currentPage: 1,
+        pageSize: DEFAULT_PAGE_SIZE
+    };
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
@@ -422,7 +435,8 @@
         if (safeOrders.length === 0) {
             const message = globalScope.document.createElement("p");
             message.className = "empty-state-message";
-            message.textContent = "You do not have any orders to track yet.";
+            message.textContent = normalizeText(options.emptyMessage)
+                || "You do not have any orders to track yet.";
             container.appendChild(message);
             return;
         }
@@ -430,6 +444,272 @@
         safeOrders.forEach(function appendOrder(order) {
             container.appendChild(createOrderCard(order, options));
         });
+    }
+
+    function getOrderTimestamp(orderRecord) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const value = safeOrder.updatedAt || safeOrder.createdAt;
+
+        if (!value) {
+            return 0;
+        }
+
+        if (typeof value === "number" && Number.isFinite(value)) {
+            return value;
+        }
+
+        if (typeof value === "string") {
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        if (typeof value.toMillis === "function") {
+            const millis = value.toMillis();
+            return Number.isFinite(millis) ? millis : 0;
+        }
+
+        if (value instanceof Date) {
+            return value.getTime();
+        }
+
+        if (typeof value.seconds === "number" && Number.isFinite(value.seconds)) {
+            return value.seconds * 1000;
+        }
+
+        return 0;
+    }
+
+    function sortOrders(orders, sortKey) {
+        const safeOrders = Array.isArray(orders) ? orders.slice() : [];
+        const key = normalizeText(sortKey).toLowerCase() || DEFAULT_SORT;
+
+        if (key === "oldest") {
+            safeOrders.sort(function byOldest(a, b) {
+                return getOrderTimestamp(a) - getOrderTimestamp(b);
+            });
+            return safeOrders;
+        }
+
+        if (key === "price-desc") {
+            safeOrders.sort(function byPriceDesc(a, b) {
+                return Number(b && b.total || 0) - Number(a && a.total || 0);
+            });
+            return safeOrders;
+        }
+
+        if (key === "price-asc") {
+            safeOrders.sort(function byPriceAsc(a, b) {
+                return Number(a && a.total || 0) - Number(b && b.total || 0);
+            });
+            return safeOrders;
+        }
+
+        safeOrders.sort(function byNewest(a, b) {
+            return getOrderTimestamp(b) - getOrderTimestamp(a);
+        });
+        return safeOrders;
+    }
+
+    function filterOrders(orders, filters = {}) {
+        const safeOrders = Array.isArray(orders) ? orders : [];
+        const searchTerm = normalizeText(filters.search).toLowerCase();
+        const statusFilter = normalizeText(filters.status).toLowerCase() || "all";
+        const paymentFilter = normalizeText(filters.payment).toLowerCase() || "all";
+
+        return safeOrders.filter(function byFilters(order) {
+            if (!order) {
+                return false;
+            }
+
+            if (statusFilter !== "all" && normalizeText(order.status).toLowerCase() !== statusFilter) {
+                return false;
+            }
+
+            if (paymentFilter !== "all" && normalizeText(order.paymentStatus).toLowerCase() !== paymentFilter) {
+                return false;
+            }
+
+            if (searchTerm) {
+                const vendorName = normalizeText(order.vendorName).toLowerCase();
+                const orderId = normalizeText(order.orderId).toLowerCase();
+                const reference = normalizeText(order.paymentReference).toLowerCase();
+                if (
+                    vendorName.indexOf(searchTerm) === -1 &&
+                    orderId.indexOf(searchTerm) === -1 &&
+                    reference.indexOf(searchTerm) === -1
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }
+
+    function paginateOrders(orders, page, pageSize) {
+        const safeOrders = Array.isArray(orders) ? orders : [];
+        const size = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0
+            ? Math.floor(Number(pageSize))
+            : DEFAULT_PAGE_SIZE;
+        const totalPages = Math.max(1, Math.ceil(safeOrders.length / size));
+        const safePage = Math.min(Math.max(1, Math.floor(Number(page) || 1)), totalPages);
+        const start = (safePage - 1) * size;
+        const pageOrders = safeOrders.slice(start, start + size);
+
+        return {
+            pageOrders,
+            page: safePage,
+            pageSize: size,
+            totalPages,
+            totalCount: safeOrders.length
+        };
+    }
+
+    function updatePaginationControls(paginationElement, statusElement, paginationInfo) {
+        if (!paginationElement) {
+            return;
+        }
+
+        const totalCount = paginationInfo && Number(paginationInfo.totalCount) || 0;
+
+        if (totalCount === 0) {
+            paginationElement.setAttribute("hidden", "");
+        } else {
+            paginationElement.removeAttribute("hidden");
+        }
+
+        if (statusElement) {
+            statusElement.textContent = `Page ${paginationInfo.page} of ${paginationInfo.totalPages}`;
+        }
+
+        const prevButton = paginationElement.querySelector('[data-page-action="prev"]');
+        const nextButton = paginationElement.querySelector('[data-page-action="next"]');
+
+        if (prevButton) {
+            prevButton.disabled = paginationInfo.page <= 1;
+        }
+
+        if (nextButton) {
+            nextButton.disabled = paginationInfo.page >= paginationInfo.totalPages;
+        }
+    }
+
+    function buildResultSummary(filteredCount, totalCount) {
+        if (totalCount === 0) {
+            return "";
+        }
+
+        if (filteredCount === totalCount) {
+            return `Showing all ${totalCount} order${totalCount === 1 ? "" : "s"}.`;
+        }
+
+        return `Showing ${filteredCount} of ${totalCount} order${totalCount === 1 ? "" : "s"}.`;
+    }
+
+    function renderCurrentPage(elements, options = {}) {
+        const container = elements && elements.container;
+        if (!container) {
+            return null;
+        }
+
+        const filtered = filterOrders(pageState.allOrders, pageState.filters);
+        const sorted = sortOrders(filtered, pageState.filters.sort);
+        const paginated = paginateOrders(sorted, pageState.currentPage, pageState.pageSize);
+        pageState.currentPage = paginated.page;
+
+        const hasOrders = pageState.allOrders.length > 0;
+        const emptyMessage = hasOrders
+            ? "No orders match your filters. Try clearing them to see more."
+            : "You do not have any orders to track yet.";
+
+        renderOrders(paginated.pageOrders, container, {
+            ...options,
+            emptyMessage
+        });
+
+        if (elements.summary) {
+            elements.summary.textContent = buildResultSummary(sorted.length, pageState.allOrders.length);
+        }
+
+        updatePaginationControls(elements.pagination, elements.paginationStatus, paginated);
+
+        return paginated;
+    }
+
+    function readFiltersFromForm(form) {
+        if (!form) {
+            return null;
+        }
+
+        const data = new globalScope.FormData(form);
+
+        return {
+            search: normalizeText(data.get("search")),
+            status: normalizeText(data.get("status")) || "all",
+            payment: normalizeText(data.get("payment")) || "all",
+            sort: normalizeText(data.get("sort")) || DEFAULT_SORT
+        };
+    }
+
+    function attachToolbarHandlers(elements, options = {}) {
+        const form = elements && elements.form;
+
+        if (form && !form.dataset.trackingFormBound) {
+            form.dataset.trackingFormBound = "true";
+
+            form.addEventListener("input", function onInput() {
+                const next = readFiltersFromForm(form);
+                if (next) {
+                    pageState.filters = next;
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }
+            });
+
+            form.addEventListener("change", function onChange() {
+                const next = readFiltersFromForm(form);
+                if (next) {
+                    pageState.filters = next;
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }
+            });
+
+            form.addEventListener("reset", function onReset() {
+                globalScope.setTimeout(function applyReset() {
+                    pageState.filters = {
+                        search: "",
+                        status: "all",
+                        payment: "all",
+                        sort: DEFAULT_SORT
+                    };
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }, 0);
+            });
+        }
+
+        const pagination = elements && elements.pagination;
+
+        if (pagination && !pagination.dataset.trackingPaginationBound) {
+            pagination.dataset.trackingPaginationBound = "true";
+
+            pagination.addEventListener("click", function onPaginationClick(event) {
+                const target = event.target.closest("[data-page-action]");
+                if (!target) {
+                    return;
+                }
+
+                const action = target.getAttribute("data-page-action");
+                if (action === "prev") {
+                    pageState.currentPage = Math.max(1, pageState.currentPage - 1);
+                } else if (action === "next") {
+                    pageState.currentPage = pageState.currentPage + 1;
+                }
+
+                renderCurrentPage(elements, options);
+            });
+        }
     }
 
     async function init(options = {}) {
@@ -447,6 +727,18 @@
 
             const container = globalScope.document.querySelector(containerSelector);
             const statusElement = globalScope.document.querySelector(statusSelector);
+            const summaryElement = globalScope.document.querySelector(
+                options.summarySelector || "#tracked-orders-summary"
+            );
+            const formElement = globalScope.document.querySelector(
+                options.formSelector || "#orders-filter-form"
+            );
+            const paginationElement = globalScope.document.querySelector(
+                options.paginationSelector || "#tracked-orders-pagination"
+            );
+            const paginationStatusElement = globalScope.document.querySelector(
+                options.paginationStatusSelector || "#orders-pagination-status"
+            );
 
             if (!container) {
                 return {
@@ -455,12 +747,43 @@
                 };
             }
 
+            const elements = {
+                container,
+                summary: summaryElement,
+                form: formElement,
+                pagination: paginationElement,
+                paginationStatus: paginationStatusElement
+            };
+
+            const initialFilters = readFiltersFromForm(formElement);
+            if (initialFilters) {
+                pageState.filters = initialFilters;
+            } else {
+                pageState.filters = {
+                    search: "",
+                    status: "all",
+                    payment: "all",
+                    sort: DEFAULT_SORT
+                };
+            }
+            pageState.currentPage = 1;
+            pageState.pageSize = Number(options.pageSize) > 0
+                ? Math.floor(Number(options.pageSize))
+                : DEFAULT_PAGE_SIZE;
+
             setStatusMessage(statusElement, "Loading your orders...", "loading");
 
             const currentUser = options.currentUser || await waitForAuthReady(auth, authFns);
 
             if (!currentUser || !normalizeText(currentUser.uid)) {
+                pageState.allOrders = [];
                 renderOrders([], container, options);
+                if (summaryElement) {
+                    summaryElement.textContent = "";
+                }
+                if (paginationElement) {
+                    paginationElement.setAttribute("hidden", "");
+                }
                 setStatusMessage(statusElement, "Please sign in to track your orders.", "error");
                 return {
                     success: false,
@@ -476,7 +799,14 @@
             });
 
             if (!result.success) {
+                pageState.allOrders = [];
                 renderOrders([], container, options);
+                if (summaryElement) {
+                    summaryElement.textContent = "";
+                }
+                if (paginationElement) {
+                    paginationElement.setAttribute("hidden", "");
+                }
                 setStatusMessage(
                     statusElement,
                     result.error && result.error.message
@@ -492,14 +822,21 @@
                 };
             }
 
-            renderOrders(result.orders, container, options);
+            pageState.allOrders = Array.isArray(result.orders)
+                ? result.orders.map(function mapAndKeep(order) {
+                    return mapOrderRecord(order, options);
+                })
+                : [];
 
-            if (result.orders.length === 0) {
+            attachToolbarHandlers(elements, options);
+            renderCurrentPage(elements, options);
+
+            if (pageState.allOrders.length === 0) {
                 setStatusMessage(statusElement, "You do not have any orders to track yet.", "info");
             } else {
                 setStatusMessage(
                     statusElement,
-                    `Tracking ${result.orders.length} order${result.orders.length === 1 ? "" : "s"}.`,
+                    `Tracking ${pageState.allOrders.length} order${pageState.allOrders.length === 1 ? "" : "s"}.`,
                     "success"
                 );
             }
@@ -519,6 +856,8 @@
 
     const customerOrderTrackingPage = {
         MODULE_NAME,
+        DEFAULT_PAGE_SIZE,
+        DEFAULT_SORT,
         normalizeText,
         resolveFirestore,
         resolveAuth,
@@ -537,6 +876,11 @@
         buildOrderDetailUrl,
         createOrderCard,
         renderOrders,
+        getOrderTimestamp,
+        sortOrders,
+        filterOrders,
+        paginateOrders,
+        buildResultSummary,
         init
     };
 
