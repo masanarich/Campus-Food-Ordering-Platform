@@ -29,6 +29,11 @@
     grid-column: span 4;
 }
 
+.vendor-shell[data-page="vendor-order-notifications"] .vendor-notifications-list,
+.vendor-shell[data-page="vendor-order-notifications"] .vendor-notifications-toolbar {
+    grid-column: 1 / -1;
+}
+
 .vendor-orders-list-section {
     grid-column: span 8;
 }
@@ -354,6 +359,204 @@
     .vendor-notifications-hero,
     .vendor-notifications-list {
         grid-column: 1 / -1;
+    }
+}
+
+/* Vendor notifications toolbar (filter/sort) */
+.vendor-notifications-toolbar {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 5;
+}
+
+.vendor-notifications-filter-form {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto;
+    gap: 0.85rem 1rem;
+    align-items: end;
+    margin: 0;
+}
+
+.vendor-notifications-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    min-width: 0;
+}
+
+.vendor-notifications-filter-field label {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+.vendor-notifications-filter-field input,
+.vendor-notifications-filter-field select {
+    width: 100%;
+    min-height: 2.6rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-strong);
+    color: var(--text);
+    font: inherit;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.vendor-notifications-filter-field input:focus,
+.vendor-notifications-filter-field select:focus {
+    outline: none;
+    border-color: rgba(197, 106, 26, 0.55);
+    box-shadow: 0 0 0 3px rgba(197, 106, 26, 0.18);
+}
+
+.vendor-notifications-filter-actions {
+    display: flex;
+    align-items: flex-end;
+    margin: 0;
+}
+
+.vendor-notifications-filter-actions button {
+    min-height: 2.6rem;
+    white-space: nowrap;
+}
+
+/* Summary line + bulk actions row */
+.vendor-notifications-results-summary {
+    margin: 0 0 0.75rem;
+    font-weight: 600;
+    color: var(--text-soft);
+}
+
+.vendor-notifications-results-summary:empty {
+    display: none;
+}
+
+.vendor-notifications-bulk-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.9rem;
+    padding: 0;
+    list-style: none;
+}
+
+.vendor-notifications-bulk-actions:empty,
+.vendor-notifications-bulk-actions li > button[hidden] {
+    display: none;
+}
+
+/* Notification card grid — fills the row instead of stacking single-column */
+.vendor-notifications-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.15rem;
+    margin: 0;
+    padding: 0;
+}
+
+.vendor-notifications-grid > .vendor-notification-card {
+    margin: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.vendor-notifications-grid > .vendor-notification-card + .vendor-notification-card {
+    margin-top: 0;
+}
+
+.vendor-notifications-grid > .vendor-notification-card .vendor-notification-message {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.vendor-notifications-grid > .vendor-notification-card .vendor-notification-actions {
+    margin-top: auto;
+}
+
+.vendor-notifications-grid > .vendor-notification-card[data-read="true"] {
+    background: rgba(252, 248, 243, 0.85);
+}
+
+.vendor-notifications-grid > .empty-state-message,
+.vendor-notifications-grid > .loading-message {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    background: rgba(255, 252, 248, 0.6);
+}
+
+/* Pagination controls */
+.vendor-notifications-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.vendor-notifications-pagination[hidden] {
+    display: none;
+}
+
+.vendor-notifications-pagination-status {
+    margin: 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.vendor-notifications-pagination-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vendor-notifications-pagination-menu button {
+    min-height: 2.6rem;
+    padding: 0.55rem 1.1rem;
+}
+
+.vendor-notifications-pagination-menu button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+    .vendor-notifications-filter-form {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .vendor-notifications-filter-field-search,
+    .vendor-notifications-filter-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .vendor-notifications-toolbar {
+        position: static;
+    }
+
+    .vendor-notifications-filter-form {
+        grid-template-columns: 1fr;
+    }
+
+    .vendor-notifications-pagination {
+        justify-content: center;
     }
 }
 
