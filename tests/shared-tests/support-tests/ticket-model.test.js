@@ -87,8 +87,9 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.BODY_MAX_LENGTH).toBeGreaterThan(0);
     });
 
-    test("resolveTicketStatus accepts explicit modules, falls back to global, and returns null when no real module exists", () => {
+    test("resolveTicketStatus accepts explicit modules, falls back to global, and falls through to require()", () => {
         const fakeStatus = createFakeTicketStatus();
+        const realTicketStatus = require("../../../public/shared/support/ticket-status.js");
 
         expect(ticketModel.resolveTicketStatus(fakeStatus)).toBe(fakeStatus);
 
@@ -97,11 +98,12 @@ describe("shared/support/ticket-model.js", () => {
 
         delete global.ticketStatus;
 
-        // The on-disk ticket-status.js is still a placeholder lacking the required
-        // methods, so require() finds it but the resolver rejects it.
-        expect(ticketModel.resolveTicketStatus()).toBeNull();
+        // ticket-status.js is now a real module that satisfies the resolver contract,
+        // so require() returns it as the last-resort fallback.
+        expect(ticketModel.resolveTicketStatus()).toBe(realTicketStatus);
 
-        expect(ticketModel.resolveTicketStatus({ getDefaultTicketStatus: () => "open" })).toBeNull();
+        // A partial object that does not expose the full contract is rejected.
+        expect(ticketModel.resolveTicketStatus({ getDefaultTicketStatus: () => "open" })).toBe(realTicketStatus);
     });
 
     test("resolveTicketCategories follows the same explicit/global/require/null pattern", () => {
@@ -201,9 +203,11 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.normalizeTimelineEventType("garbage", "replied")).toBe("replied");
     });
 
-    test("getTicketStatusLabel and getTicketCategoryLabel use internal labels and external modules", () => {
+    test("getTicketStatusLabel and getTicketCategoryLabel use real modules when present and internal labels otherwise", () => {
+        // ticket-status.js is now a real module that ticket-model picks up via require().
+        // ticket-categories.js is still a placeholder, so the internal label map is used for it.
         expect(ticketModel.getTicketStatusLabel("in_progress")).toBe("In Progress");
-        expect(ticketModel.getTicketStatusLabel("nonsense")).toBe("Open");
+        expect(ticketModel.getTicketStatusLabel("nonsense")).toBe("Unknown Status");
         expect(ticketModel.getTicketCategoryLabel("order_issue")).toBe("Order Issue");
         expect(ticketModel.getTicketCategoryLabel("nonsense")).toBe("General");
 
