@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Help & Support | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="View and manage your support tickets as a customer.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Customer support navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="./index.html" aria-current="page">Help &amp; Support</a>
+            <a href="./new.html">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <section aria-labelledby="customer-support-heading">
+            <h2 id="customer-support-heading">Help &amp; Support</h2>
+
+            <p>
+                Lodge a complaint, ask about an order, request a refund, or contact the team about
+                anything else. Your open and past tickets will appear here.
+            </p>
+
+            <p id="customer-support-status" aria-live="polite">Coming soon.</p>
+
+            <menu aria-label="Customer support actions">
+                <li><a href="./new.html">Open a New Ticket</a></li>
+                <li><a href="../index.html">Back to Dashboard</a></li>
+            </menu>
+        </section>
+
+        <section aria-labelledby="customer-support-list-heading">
+            <h3 id="customer-support-list-heading">My Tickets</h3>
+            <p>Your tickets will be listed here once this feature is implemented.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./index.js"></script>
+    <script>
+        window.customerSupportListPage.initializeCustomerSupportListPage();
+    </script>
+</body>
+
+</html>

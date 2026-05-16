@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket Detail | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="View one of your support tickets and its replies.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Customer ticket detail navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="./index.html">Help &amp; Support</a>
+            <a href="./new.html">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <section aria-labelledby="customer-ticket-detail-heading">
+            <h2 id="customer-ticket-detail-heading">Support Ticket</h2>
+
+            <p>
+                Review the conversation on this ticket and reply when the support team or vendor
+                gets back to you.
+            </p>
+
+            <p id="customer-ticket-detail-status" aria-live="polite">Coming soon.</p>
+
+            <menu aria-label="Ticket detail actions">
+                <li><a href="./index.html">Back to My Tickets</a></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./ticket-detail.js"></script>
+    <script>
+        window.customerSupportTicketDetailPage.initializeCustomerSupportTicketDetailPage();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Support & Disputes | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="View and manage your support tickets as a vendor.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Vendor support navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-management/index.html">Manage Orders</a>
+            <a href="./index.html" aria-current="page">Support &amp; Disputes</a>
+            <a href="./new.html">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <section aria-labelledby="vendor-support-heading">
+            <h2 id="vendor-support-heading">Support &amp; Disputes</h2>
+
+            <p>
+                Report a problem with an order, a payment, or any other vendor concern. Your open
+                and past tickets will appear here.
+            </p>
+
+            <p id="vendor-support-status" aria-live="polite">Coming soon.</p>
+
+            <menu aria-label="Vendor support actions">
+                <li><a href="./new.html">Open a New Ticket</a></li>
+                <li><a href="../index.html">Back to Dashboard</a></li>
+            </menu>
+        </section>
+
+        <section aria-labelledby="vendor-support-list-heading">
+            <h3 id="vendor-support-list-heading">My Tickets</h3>
+            <p>Your tickets will be listed here once this feature is implemented.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./index.js"></script>
+    <script>
+        window.vendorSupportListPage.initializeVendorSupportListPage();
+    </script>
+</body>
+
+</html>

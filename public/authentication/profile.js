@@ -727,6 +727,12 @@ function getBackRouteFromReferrer(authUtils) {
         if (path.endsWith("/authentication/login.html")) {
             return routes.login;
         }
+
+        if (path.endsWith("/authentication/profile.html")) {
+            return "";
+        }
+
+        return referrerUrl.href;
     } catch (error) {
         return "";
     }

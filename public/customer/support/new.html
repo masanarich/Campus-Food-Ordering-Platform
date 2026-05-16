@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>New Support Ticket | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Open a new support ticket as a customer.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Customer new ticket navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="./index.html">Help &amp; Support</a>
+            <a href="./new.html" aria-current="page">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <section aria-labelledby="customer-new-ticket-heading">
+            <h2 id="customer-new-ticket-heading">Open a New Support Ticket</h2>
+
+            <p>
+                Tell us what is happening. You can optionally link this ticket to a specific order
+                you placed.
+            </p>
+
+            <p id="customer-new-ticket-status" aria-live="polite">Coming soon.</p>
+
+            <menu aria-label="New ticket actions">
+                <li><a href="./index.html">Back to My Tickets</a></li>
+                <li><a href="../index.html">Back to Dashboard</a></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./new.js"></script>
+    <script>
+        window.customerSupportNewPage.initializeCustomerSupportNewPage();
+    </script>
+</body>
+
+</html>
