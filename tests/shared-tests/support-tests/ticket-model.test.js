@@ -106,8 +106,9 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.resolveTicketStatus({ getDefaultTicketStatus: () => "open" })).toBe(realTicketStatus);
     });
 
-    test("resolveTicketCategories follows the same explicit/global/require/null pattern", () => {
+    test("resolveTicketCategories follows the explicit/global/require pattern", () => {
         const fakeCategories = createFakeTicketCategories();
+        const realTicketCategories = require("../../../public/shared/support/ticket-categories.js");
 
         expect(ticketModel.resolveTicketCategories(fakeCategories)).toBe(fakeCategories);
 
@@ -115,11 +116,15 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.resolveTicketCategories()).toBe(fakeCategories);
 
         delete global.ticketCategories;
-        expect(ticketModel.resolveTicketCategories()).toBeNull();
 
+        // ticket-categories.js is now a real module that satisfies the resolver contract,
+        // so require() returns it as the last-resort fallback.
+        expect(ticketModel.resolveTicketCategories()).toBe(realTicketCategories);
+
+        // A partial object that does not expose the full contract is rejected, then require() runs.
         expect(ticketModel.resolveTicketCategories({
             normalizeTicketCategory: () => "general"
-        })).toBeNull();
+        })).toBe(realTicketCategories);
     });
 
     test("normalizes primitive values safely", () => {
@@ -203,13 +208,14 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.normalizeTimelineEventType("garbage", "replied")).toBe("replied");
     });
 
-    test("getTicketStatusLabel and getTicketCategoryLabel use real modules when present and internal labels otherwise", () => {
-        // ticket-status.js is now a real module that ticket-model picks up via require().
-        // ticket-categories.js is still a placeholder, so the internal label map is used for it.
+    test("getTicketStatusLabel and getTicketCategoryLabel delegate to real modules when present", () => {
+        // Both ticket-status.js and ticket-categories.js are real modules now and are picked up
+        // via require(), so unknown inputs go through their richer "Unknown Status" / "Unknown Category"
+        // fallbacks instead of the model's tiny internal label map.
         expect(ticketModel.getTicketStatusLabel("in_progress")).toBe("In Progress");
         expect(ticketModel.getTicketStatusLabel("nonsense")).toBe("Unknown Status");
         expect(ticketModel.getTicketCategoryLabel("order_issue")).toBe("Order Issue");
-        expect(ticketModel.getTicketCategoryLabel("nonsense")).toBe("General");
+        expect(ticketModel.getTicketCategoryLabel("nonsense")).toBe("Unknown Category");
 
         const fakeStatus = createFakeTicketStatus();
         expect(ticketModel.getTicketStatusLabel("resolved", fakeStatus)).toBe("[STATUS:resolved]");
