@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Verification | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description"
+        content="Verify your Paystack test-mode payment and confirm your campus food order.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./order-management.css">
+</head>
+
+<body class="customer-portal" data-page="customer-payment-callback">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Customer navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="./browse-vendors.html">Browse Vendors</a>
+            <a href="./cart.html">Cart</a>
+            <a href="../order-tracking/index.html">My Orders</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="payment-callback-heading">
+            <h2 id="payment-callback-heading">Payment Verification</h2>
+
+            <p>
+                We are confirming your Paystack test-mode payment. This page will update once the result is known.
+                No real money is charged for this school project.
+            </p>
+
+            <p id="payment-callback-status" aria-live="polite" aria-atomic="true">
+                Verifying your payment with Paystack...
+            </p>
+
+            <menu class="action-menu" aria-label="Payment callback shortcuts">
+                <li id="payment-callback-back-host"></li>
+                <li><a href="../index.html" class="button-secondary">Home</a></li>
+                <li><a href="../order-tracking/index.html" class="button-secondary">My Orders</a></li>
+                <li><a href="./cart.html" class="button-secondary">Back to Cart</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section" aria-labelledby="payment-callback-summary-heading">
+            <h3 id="payment-callback-summary-heading">Payment Summary</h3>
+            <output id="payment-callback-summary" for="payment-callback-status" aria-live="polite">
+                <p class="loading-message">Loading payment details...</p>
+            </output>
+        </section>
+
+        <section class="shared-section" aria-labelledby="payment-callback-actions-heading">
+            <h3 id="payment-callback-actions-heading">Next Steps</h3>
+            <menu id="payment-callback-actions" class="action-menu" aria-label="Next steps actions"></menu>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="../../shared/payments/payment-status.js"></script>
+    <script src="../../shared/payments/payment-model.js"></script>
+    <script src="../../shared/payments/payment-validation.js"></script>
+    <script src="../../shared/payments/payment-formatters.js"></script>
+    <script src="../../shared/payments/payment-service.js"></script>
+    <script src="./payment-callback.js"></script>
+
+    <script type="module">
+        import { db, auth, functions } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import { httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-functions.js";
+        import {
+            collection,
+            doc,
+            getDocs,
+            updateDoc,
+            query,
+            where,
+            limit
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.functions = functions;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.functionsFns = {
+            httpsCallable
+        };
+        window.firestoreFns = {
+            collection,
+            doc,
+            getDocs,
+            updateDoc,
+            query,
+            where,
+            limit
+        };
+
+        if (!window.paymentCallback || typeof window.paymentCallback.init !== "function") {
+            const statusElement = document.getElementById("payment-callback-status");
+            if (statusElement) {
+                statusElement.textContent = "Payment verification script failed to load.";
+                statusElement.setAttribute("data-state", "error");
+            }
+        } else {
+            try {
+                await window.paymentCallback.init({
+                    db,
+                    auth,
+                    functions,
+                    authFns: window.authFns,
+                    functionsFns: window.functionsFns,
+                    firestoreFns: window.firestoreFns,
+                    paymentFormatters: window.paymentFormatters,
+                    paymentStatus: window.paymentStatus
+                });
+            } catch (error) {
+                console.error("Payment callback init failed:", error);
+                const statusElement = document.getElementById("payment-callback-status");
+                if (statusElement) {
+                    statusElement.textContent = error?.message || "Failed to verify payment.";
+                    statusElement.setAttribute("data-state", "error");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

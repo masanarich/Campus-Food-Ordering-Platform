@@ -1,41 +1,35 @@
 {
-  "scripts": {
-    "test": "jest",
-    "test:coverage": "jest --coverage"
-  },
-  "dependencies": {
-    "firebase": "^12.11.0"
-  },
-  "devDependencies": {
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "jest": "^30.3.0",
-    "jest-environment-jsdom": "^30.3.0"
-  },
-  "jest": {
-    "testEnvironment": "jsdom",
-    "collectCoverageFrom": [
-      "public/**/*.js",
-      "!public/authentication/config.js",
-      "!public/authentication/auth.js"
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
     ],
-    "coverageDirectory": "coverage",
-    "setupFilesAfterEnv": [
-      "<rootDir>/jest.setup.js"
-    ],
-    "moduleNameMapper": {
-      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-app\\.js": "<rootDir>/tests/__mocks__/firebase-app.js",
-      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-firestore\\.js": "<rootDir>/tests/__mocks__/firebase-firestore.js",
-      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-auth\\.js": "<rootDir>/tests/__mocks__/firebase-auth.js",
-      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-storage\\.js": "<rootDir>/tests/__mocks__/firebase-storage.js",
-      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-functions\\.js": "<rootDir>/tests/__mocks__/firebase-functions.js",
-      "https://www\\.gstatic\\.com/firebasejs/.*?/firebase-analytics\\.js": "<rootDir>/tests/__mocks__/firebase-analytics.js",
-      "\\.\\./authentication/config\\.js": "<rootDir>/tests/__mocks__/config.js",
-      "\\.\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js",
-      "\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js",
-      "\\.\\./\\.\\./firebase-config\\.js": "<rootDir>/tests/__mocks__/firebase-config.js"
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:;"
+          }
+        ]
+      }
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
     }
-  },
+  ],
   "emulators": {
     "apphosting": {
       "port": 8080,
@@ -53,5 +47,4 @@
     },
     "singleProjectMode": true
   }
-  
 }

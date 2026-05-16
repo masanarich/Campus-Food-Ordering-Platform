@@ -237,7 +237,40 @@ button:focus {
     background: linear-gradient(180deg, #fffdf8, #f7ebdd);
 }
 
+menu a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.1rem;
+    padding: 0.95rem 1.3rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--text);
+    background: linear-gradient(180deg, #fffaf4, #f4e8d8);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+menu a:hover,
+menu a:focus {
+    outline: none;
+    transform: translateY(-1px);
+    border-color: var(--border-strong);
+    box-shadow: 0 14px 30px rgba(64, 35, 20, 0.12);
+    background: linear-gradient(180deg, #fffdf8, #f7ebdd);
+    color: var(--accent-dark);
+}
+
 #go-profile-button,
+#browse-vendors-button,
+#view-cart-button,
+#go-checkout-button,
+#view-orders-button,
+#track-orders-button,
+#view-notifications-button,
 #go-vendor-application-button,
 #go-admin-application-button,
 #go-customer-portal-button,
@@ -252,6 +285,18 @@ button:focus {
 
 #go-profile-button:hover,
 #go-profile-button:focus,
+#browse-vendors-button:hover,
+#browse-vendors-button:focus,
+#view-cart-button:hover,
+#view-cart-button:focus,
+#go-checkout-button:hover,
+#go-checkout-button:focus,
+#view-orders-button:hover,
+#view-orders-button:focus,
+#track-orders-button:hover,
+#track-orders-button:focus,
+#view-notifications-button:hover,
+#view-notifications-button:focus,
 #go-vendor-application-button:hover,
 #go-vendor-application-button:focus,
 #go-admin-application-button:hover,
@@ -268,6 +313,10 @@ button:focus {
 #go-admin-portal-button:focus {
     background: linear-gradient(135deg, #d97b27, #904207);
     color: #fffaf4;
+}
+
+#ordering-shortcuts-heading + p + menu a {
+    min-width: 11rem;
 }
 
 #sign-out-button,

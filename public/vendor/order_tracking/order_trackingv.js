@@ -28,7 +28,7 @@ function updateSteps(stage) {
       stepEl.classList.add("active");
     }
   }
-}
+} m
 
 if (!orderId) {
   orderTitle.textContent = "No order ID found.";

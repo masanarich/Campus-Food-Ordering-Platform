@@ -14,9 +14,10 @@
     <nav aria-label="Customer dashboard navigation">
       <a href="./index.html" aria-current="page">Dashboard</a>
       <a href="../authentication/profile.html">Profile</a>
-      <a href="./browse-stores.html">Browse Stores</a>
-      <a href="./my-orders.html">My Orders</a>
-      <a href="./support.html">Support</a>
+      <a href="./order-management/browse-vendors.html">Browse Vendors</a>
+      <a href="./order-management/cart.html">Cart</a>
+      <a href="./order-tracking/index.html">My Orders</a>
+      <a href="./order-tracking/notifications.html">Notifications</a>
     </nav>
   </header>
 
@@ -24,19 +25,22 @@
     <section aria-labelledby="customer-home-heading">
       <h2 id="customer-home-heading">Customer Dashboard</h2>
       <p>
-        This is your customer base. From here you can track your access, apply for extra roles,
-        and move into the parts of the platform that matter to you.
+        Use this page as your customer home base. You can browse vendors, review your cart,
+        place orders, check order progress, and stay on top of new notifications from vendors.
       </p>
 
       <p id="customer-home-status" aria-live="polite"></p>
 
       <menu aria-label="Main customer actions">
         <li><button id="go-profile-button" type="button">Open Profile</button></li>
+        <li><button id="browse-vendors-button" type="button">Browse Vendors</button></li>
+        <li><button id="view-cart-button" type="button">View Cart</button></li>
+        <li><button id="go-checkout-button" type="button">Checkout</button></li>
+        <li><button id="view-orders-button" type="button">My Orders</button></li>
+        <li><button id="track-orders-button" type="button">Track Orders</button></li>
+        <li><button id="view-notifications-button" type="button">Notifications</button></li>
         <li><button id="go-vendor-application-button" type="button">Apply to Become a Vendor</button></li>
         <li><button id="go-admin-application-button" type="button">Apply to Become an Admin</button></li>
-        <li><button id="browse-stores-button" type="button">Browse Stores</button></li>
-        <li><button id="view-orders-button" type="button">View My Orders</button></li>
-        <li><button id="get-support-button" type="button">Get Support</button></li>
         <li><button id="choose-portal-button" type="button">Choose Portal</button></li>
         <li><button id="sign-out-button" type="button">Sign Out</button></li>
       </menu>
@@ -71,6 +75,20 @@
       <h3 id="application-status-heading">Role Applications</h3>
       <p id="vendor-application-note">Vendor application information will appear here.</p>
       <p id="admin-application-note">Admin application information will appear here.</p>
+    </section>
+
+    <section aria-labelledby="ordering-shortcuts-heading">
+      <h3 id="ordering-shortcuts-heading">Ordering Shortcuts</h3>
+      <p id="ordering-shortcuts-summary">
+        Jump straight into browsing, cart review, checkout, live order tracking, or notifications.
+      </p>
+      <menu aria-label="Ordering shortcuts">
+        <li><a id="browse-vendors-link" href="./order-management/browse-vendors.html">Available Vendors</a></li>
+        <li><a id="cart-link" href="./order-management/cart.html">Cart</a></li>
+        <li><a id="checkout-link" href="./order-management/checkout.html">Checkout</a></li>
+        <li><a id="orders-link" href="./order-tracking/index.html">Order List</a></li>
+        <li><a id="notifications-link" href="./order-tracking/notifications.html">Notifications</a></li>
+      </menu>
     </section>
   </main>
 

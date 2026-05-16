@@ -20,7 +20,12 @@ const {
     clearFileInput,
     createMenuItemId,
     buildMenuItemPhotoPath,
-    createVendorProductsPage
+    createVendorProductsPage,
+    getSelectedAllergenTags,
+    getSelectedDietaryTags,
+    setCheckedTags,
+    validateTags,
+    renderTagCheckboxes
 } = require("../../public/vendor/products.js");
 
 function createMockSnapshot(records) {
@@ -79,10 +84,27 @@ function createDom() {
                     <option value="unavailable">Unavailable</option>
                 </select>
                 <p id="product-availability-error" hidden></p>
-                <input id="product-dietary-tags" type="text">
-                <p id="product-dietary-tags-error" hidden></p>
-                <input id="product-allergen-tags" type="text">
-                <p id="product-allergen-tags-error" hidden></p>
+                <section class="tags-section">
+                    <section class="tag-picker-panel">
+                        <fieldset class="tag-picker-group tag-picker-group-scroll">
+                            <legend>Allergens</legend>
+                            <section class="tag-options-scroll">
+                                <ul id="allergen-tags-container" class="tag-options" role="list"></ul>
+                            </section>
+                        </fieldset>
+                        <p id="product-allergenTags-error" hidden></p>
+
+                        <fieldset class="tag-picker-group">
+                            <legend>Dietary Labels</legend>
+                            <section class="tag-options-scroll tag-options-scroll-compact">
+                                <ul id="dietary-tags-container" class="tag-options" role="list"></ul>
+                            </section>
+                        </fieldset>
+                        <p id="product-dietaryTags-error" hidden></p>
+
+                        <p id="tag-error" hidden>Please select at least one allergen or dietary tag.</p>
+                    </section>
+                </section>
                 <input id="product-sold-out" type="checkbox">
                 <button id="save-product-button" type="submit">Save</button>
                 <button id="clear-product-button" type="reset">Clear</button>
@@ -151,8 +173,8 @@ function buildDependencies(options = {}) {
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 availability: "available",
                 soldOut: false,
-                dietaryTags: ["halal"],
-                allergenTags: ["gluten"]
+                dietaryTags: ["Vegan"],
+                allergenTags: ["Nuts"]
             },
             {
                 id: "item-2",
@@ -165,8 +187,8 @@ function buildDependencies(options = {}) {
                 photoPath: "",
                 availability: "available",
                 soldOut: true,
-                dietaryTags: ["vegetarian"],
-                allergenTags: ["dairy"]
+                dietaryTags: ["Vegetarian"],
+                allergenTags: ["Dairy"]
             }
         ];
 
@@ -262,8 +284,20 @@ function fillValidForm() {
     document.getElementById("product-description").value = "A juicy chicken burger with chips.";
     document.getElementById("product-price").value = "55.00";
     document.getElementById("product-availability").value = "available";
-    document.getElementById("product-dietary-tags").value = "halal, grilled";
-    document.getElementById("product-allergen-tags").value = "gluten";
+    document.querySelectorAll('input[name="dietaryTag"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+
+    document.querySelectorAll('input[name="allergenTag"]').forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+    document.querySelector(
+    'input[name="dietaryTag"][value="Vegan"]'
+    ).checked = true;
+
+    document.querySelector(
+    'input[name="allergenTag"][value="Nuts"]'
+    ).checked = true;
     document.getElementById("product-sold-out").checked = false;
 }
 
@@ -295,8 +329,8 @@ describe("products.js helpers", () => {
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 availability: "unavailable",
                 soldOut: true,
-                dietaryTags: "halal,grilled",
-                allergenTags: ["gluten", "dairy"]
+                dietaryTags: "Vegan,Halal",
+                allergenTags: ["Nuts", "Dairy"]
             }, "fallback")
         ).toEqual({
             id: "item-1",
@@ -309,8 +343,8 @@ describe("products.js helpers", () => {
             photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
             availability: "unavailable",
             soldOut: true,
-            dietaryTags: ["halal", "grilled"],
-            allergenTags: ["gluten", "dairy"],
+            dietaryTags: ["vegan", "halal"],
+            allergenTags: ["nuts", "dairy"],
             createdAt: null,
             updatedAt: null
         });
@@ -330,8 +364,8 @@ describe("products.js helpers", () => {
                 photoURL: "https://files.example/menu.jpg",
                 photoPath: "menuItemPhotos/vendor-1/abc/cover.jpg",
                 availability: "unavailable",
-                dietaryTags: "halal",
-                allergenTags: "gluten",
+                dietaryTags: "Vegan",
+                allergenTags: "Nuts",
                 soldOut: true
             })
         ).toEqual(expect.objectContaining({
@@ -355,6 +389,32 @@ describe("products.js helpers", () => {
         expect(result.errors.category).toBe("Please use a longer category name.");
         expect(result.errors.description).toBe("Please enter a longer item description.");
         expect(result.errors.price).toBe("Please enter a valid price of R0.00 or more.");
+    });
+
+    test("renderTagCheckboxes creates compact selectable tag options without duplicates", () => {
+        createDom();
+
+        renderTagCheckboxes();
+        renderTagCheckboxes();
+        setCheckedTags("allergen", ["nuts", "milk"]);
+        setCheckedTags("dietary", ["vegan"]);
+
+        expect(document.querySelectorAll('input[name="allergenTag"]')).toHaveLength(14);
+        expect(document.querySelectorAll('input[name="dietaryTag"]')).toHaveLength(6);
+        expect(document.querySelectorAll(".tag-choice-label")[0].textContent).toBe("Gluten");
+        expect(getSelectedAllergenTags()).toEqual(["Milk", "Nuts"]);
+        expect(getSelectedDietaryTags()).toEqual(["Vegan"]);
+        expect(validateTags()).toBe(true);
+        expect(document.getElementById("tag-error").hidden).toBe(true);
+    });
+
+    test("validateTags shows grouped picker error when no tags are selected", () => {
+        createDom();
+        renderTagCheckboxes();
+
+        expect(validateTags()).toBe(false);
+        expect(document.getElementById("tag-error").hidden).toBe(false);
+        expect(document.querySelector(".tag-picker-group").getAttribute("aria-invalid")).toBe("true");
     });
 
     test("clearFileInput clears a file input safely and ids can be generated", () => {
@@ -564,6 +624,9 @@ describe("createVendorProductsPage", () => {
 
     test("saveCurrentProduct shows validation errors for invalid form", async () => {
         await page.initializeProductsPage();
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
@@ -577,6 +640,9 @@ describe("createVendorProductsPage", () => {
         page.openCreateModal();
         fillValidForm();
         attachFile(document.getElementById("product-photo-file"), createMockFile("burger.jpg", "image/jpeg"));
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
@@ -599,8 +665,8 @@ describe("createVendorProductsPage", () => {
                 photoPath: "menuItemPhotos/vendor-1/created-1/cover.jpg",
                 availability: "available",
                 soldOut: false,
-                dietaryTags: ["halal", "grilled"],
-                allergenTags: ["gluten"],
+                dietaryTags: ["vegan"],
+                allergenTags: ["nuts"],
                 createdAt: "SERVER_TIME",
                 updatedAt: "SERVER_TIME"
             })
@@ -614,6 +680,9 @@ describe("createVendorProductsPage", () => {
 
         page.editProductById("item-1");
         document.getElementById("product-price").value = "60.00";
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 
@@ -638,6 +707,9 @@ describe("createVendorProductsPage", () => {
 
         page.editProductById("item-1");
         page.removeSelectedPhoto();
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
         const result = await page.saveCurrentProduct();
 
         expect(result.success).toBe(true);
@@ -750,6 +822,9 @@ describe("createVendorProductsPage", () => {
         page.openCreateModal();
         fillValidForm();
         attachFile(document.getElementById("product-photo-file"), createMockFile("burger.jpg", "image/jpeg"));
+        document.querySelector(
+            'input[name="dietaryTag"][value="Vegan"]'
+        ).checked = true;
 
         const result = await page.saveCurrentProduct();
 

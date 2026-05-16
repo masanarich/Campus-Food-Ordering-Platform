@@ -18,6 +18,8 @@
             <a href="./index.html" aria-current="page">Dashboard</a>
             <a href="./shop.html">Shop Details</a>
             <a href="./products.html">Manage Menu</a>
+            <a href="./order-management/index.html">Manage Orders</a>
+            <a href="./order-management/notifications.html">Notifications</a>
             <a href="../authentication/profile.html">Profile</a>
         </nav>
     </header>
@@ -49,6 +51,9 @@
                 <li><button id="go-profile-button" class="button-primary" type="button">Open Profile</button></li>
                 <li><button id="go-shop-button" class="button-primary" type="button">Shop Details</button></li>
                 <li><button id="go-products-button" class="button-primary" type="button">Manage Menu</button></li>
+                <li><button id="go-order-management-button" class="button-primary" type="button">Manage Orders</button></li>
+                <li><button id="go-order-detail-button" class="button-secondary" type="button">Update Order Status</button></li>
+                <li><button id="go-order-notifications-button" class="button-secondary" type="button">Order Notifications</button></li>
                 <li><button id="choose-portal-button" class="button-secondary" type="button">Choose Portal</button></li>
                 <li><button id="sign-out-button" class="button-danger" type="button">Sign Out</button></li>
             </menu>
@@ -95,6 +100,22 @@
                         menu changes during the day.
                     </p>
                 </article>
+
+                <article class="workspace-card">
+                    <h4>Order Management</h4>
+                    <p>
+                        Review incoming orders, approve or reject them, move them through preparation,
+                        and mark them ready for collection.
+                    </p>
+                </article>
+
+                <article class="workspace-card">
+                    <h4>Order Notifications</h4>
+                    <p>
+                        Keep track of order events and customer-facing updates as you manage the
+                        collection process.
+                    </p>
+                </article>
             </section>
         </section>
 
@@ -110,6 +131,21 @@
                 <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer Portal</button></li>
                 <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button></li>
                 <li><button id="go-admin-portal-button" class="button-secondary" type="button">Admin Portal</button></li>
+            </menu>
+        </section>
+
+        <section class="shared-section order-panel" aria-labelledby="order-shortcuts-heading">
+            <h3 id="order-shortcuts-heading">Order Shortcuts</h3>
+
+            <p>
+                Jump directly into the vendor order workspace when you need to approve new requests,
+                update preparation progress, or monitor order notifications.
+            </p>
+
+            <menu class="action-menu" aria-label="Vendor order shortcuts">
+                <li><a class="dashboard-link" href="./order-management/index.html">Incoming Orders</a></li>
+                <li><a class="dashboard-link" href="./order-management/order-detail.html">Order Detail</a></li>
+                <li><a class="dashboard-link" href="./order-management/notifications.html">Order Notifications</a></li>
             </menu>
         </section>
 
