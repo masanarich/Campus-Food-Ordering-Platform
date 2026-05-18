@@ -486,6 +486,26 @@
         return url.toString();
     }
 
+    function canReportIssueOnOrder(order) {
+        if (!order || typeof order !== "object") {
+            return false;
+        }
+        const status = normalizeText(order.status).toLowerCase();
+        const paymentStatus = normalizeText(order.paymentStatus).toLowerCase();
+        // Vendor can lodge a support ticket once a customer has paid (so there's something
+        // real to support against) OR once the order is fully completed.
+        return paymentStatus === "paid" || status === "completed";
+    }
+
+    function buildReportIssueUrl(orderId) {
+        const safeOrderId = normalizeText(orderId);
+        const url = new URL("../support/new.html", globalScope.location.href);
+        if (safeOrderId) {
+            url.searchParams.set("orderId", safeOrderId);
+        }
+        return url.toString();
+    }
+
     function createOrderCard(orderRecord, options = {}) {
         const order = mapOrderRecord(orderRecord, options);
         const article = globalScope.document.createElement("article");
@@ -541,6 +561,17 @@
         detailItem.appendChild(detailLink);
 
         actions.appendChild(detailItem);
+
+        if (canReportIssueOnOrder(order)) {
+            const reportItem = globalScope.document.createElement("li");
+            const reportLink = globalScope.document.createElement("a");
+            reportLink.href = buildReportIssueUrl(order.orderId);
+            reportLink.className = "button-secondary vendor-order-card-report-link";
+            reportLink.setAttribute("data-order-id", order.orderId);
+            reportLink.textContent = "Report an issue";
+            reportItem.appendChild(reportLink);
+            actions.appendChild(reportItem);
+        }
 
         article.appendChild(heading);
         article.appendChild(summary);
@@ -1262,6 +1293,8 @@
         fetchVendorOrders,
         setStatusMessage,
         buildOrderDetailUrl,
+        canReportIssueOnOrder,
+        buildReportIssueUrl,
         createOrderCard,
         renderSummary,
         renderOrders,

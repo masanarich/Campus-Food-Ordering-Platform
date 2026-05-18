@@ -74,7 +74,9 @@ function createPaymentStatusStub() {
                 failed: "error"
             };
             return tones[status] || "neutral";
-        })
+        }),
+        isPaymentPaid: jest.fn(status => status === "paid"),
+        isPaymentBlockingOrder: jest.fn(status => ["unpaid", "pending", "failed"].indexOf(status) >= 0)
     };
 }
 
@@ -259,6 +261,32 @@ describe("vendor/order-management/index.js - helpers", () => {
         expect(url).toContain("orderId=order-77");
     });
 
+    test("canReportIssueOnOrder is true for paid or completed orders only", () => {
+        expect(vendorOrderManagementPage.canReportIssueOnOrder({
+            status: "preparing", paymentStatus: "paid"
+        })).toBe(true);
+        expect(vendorOrderManagementPage.canReportIssueOnOrder({
+            status: "completed", paymentStatus: "unpaid"
+        })).toBe(true);
+        expect(vendorOrderManagementPage.canReportIssueOnOrder({
+            status: "pending", paymentStatus: "unpaid"
+        })).toBe(false);
+        expect(vendorOrderManagementPage.canReportIssueOnOrder({
+            status: "cancelled", paymentStatus: "failed"
+        })).toBe(false);
+        expect(vendorOrderManagementPage.canReportIssueOnOrder(null)).toBe(false);
+    });
+
+    test("buildReportIssueUrl points at the vendor support new-ticket page with orderId", () => {
+        const url = vendorOrderManagementPage.buildReportIssueUrl("order-88");
+        expect(url).toContain("support/new.html");
+        expect(url).toContain("orderId=order-88");
+
+        const noOrder = vendorOrderManagementPage.buildReportIssueUrl("");
+        expect(noOrder).toContain("support/new.html");
+        expect(noOrder).not.toContain("orderId=");
+    });
+
     test("setStatusMessage safely ignores missing elements", () => {
         expect(vendorOrderManagementPage.setStatusMessage(null, "Ignored")).toBeUndefined();
     });
@@ -426,6 +454,8 @@ describe("vendor/order-management/index.js - rendering", () => {
         expect(mapped.isPaid).toBe(true);
         expect(mapped.isPaymentBlocked).toBe(false);
         expect(mapped.paymentGuardMessage).toBe("");
+        expect(paymentStatus.isPaymentPaid).toHaveBeenCalledWith("paid");
+        expect(paymentStatus.isPaymentBlockingOrder).toHaveBeenCalledWith("paid");
     });
 
     test("renderSummary and renderOrders safely ignore missing containers", () => {
