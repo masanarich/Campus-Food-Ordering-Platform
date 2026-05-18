@@ -135,8 +135,10 @@ describe("shared/support/ticket-service.js", () => {
         global.ticketQueries = fakeQueries;
         expect(ticketService.resolveTicketQueries()).toBe(fakeQueries);
         delete global.ticketQueries;
-        // ticket-queries.js is still a placeholder lacking getTicketDocRef, so resolver returns null.
-        expect(ticketService.resolveTicketQueries()).toBeNull();
+        // ticket-queries.js is now a real module that satisfies the resolver contract,
+        // so require() returns it as the last-resort fallback.
+        const realTicketQueries = require("../../../public/shared/support/ticket-queries.js");
+        expect(ticketService.resolveTicketQueries()).toBe(realTicketQueries);
 
         const fakeValidation = { validateCreateTicketInput: jest.fn() };
         expect(ticketService.resolveTicketValidation(fakeValidation)).toBe(fakeValidation);
@@ -268,13 +270,24 @@ describe("shared/support/ticket-service.js", () => {
         expect(ticketService.getRepliesCollectionRef({ kind: "db" }, "t-1", firestoreFns, ticketQueries)).toBe("queries-replies");
         expect(ticketService.getReplyDocRef({ kind: "db" }, "t-1", "r-1", firestoreFns, ticketQueries)).toBe("queries-reply");
 
-        // Missing db or firestoreFns → null.
-        expect(ticketService.getTicketDocRef(null, "t-1", firestoreFns)).toBeNull();
-        expect(ticketService.getTicketDocRef({}, "t-1", {})).toBeNull();
-        expect(ticketService.getRepliesCollectionRef(null, "t-1", firestoreFns)).toBeNull();
-        expect(ticketService.getReplyDocRef(null, "t-1", "r-1", firestoreFns)).toBeNull();
+        // The internal collection-ref fallback always returns null when its own inputs are bad.
         expect(ticketService.getTicketsCollectionRefFallback(null, firestoreFns)).toBeNull();
         expect(ticketService.getTicketsCollectionRefFallback({}, {})).toBeNull();
+
+        // The service-level ref helpers fall back to direct firestore-fns calls only when no
+        // ticket-queries module is reachable. Since ticket-queries.js is now real, we exercise
+        // the service-level fallback by temporarily disabling the queries surface.
+        const realTicketQueriesModule = require("../../../public/shared/support/ticket-queries.js");
+        const savedGetTicketDocRef = realTicketQueriesModule.getTicketDocRef;
+        realTicketQueriesModule.getTicketDocRef = undefined;
+        try {
+            expect(ticketService.getTicketDocRef(null, "t-1", firestoreFns)).toBeNull();
+            expect(ticketService.getTicketDocRef({}, "t-1", {})).toBeNull();
+            expect(ticketService.getRepliesCollectionRef(null, "t-1", firestoreFns)).toBeNull();
+            expect(ticketService.getReplyDocRef(null, "t-1", "r-1", firestoreFns)).toBeNull();
+        } finally {
+            realTicketQueriesModule.getTicketDocRef = savedGetTicketDocRef;
+        }
     });
 
     test("buildTicketWritePayload normalises a record via the model and respects option overrides", () => {
