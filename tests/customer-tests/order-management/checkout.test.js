@@ -26,9 +26,6 @@ function createDOM() {
         <h2 id="checkout-vendor-heading">Checkout</h2>
         <section id="checkout-items-container"></section>
         <section id="checkout-summary"></section>
-        <p id="checkout-session-status"></p>
-        <button id="resume-payment-button" type="button">Resume Payment</button>
-        <button id="cancel-checkout-button" type="button">Cancel Checkout</button>
         <textarea id="checkout-notes"></textarea>
         <button id="place-order-button" type="button">Place Order</button>
     `;
@@ -39,9 +36,6 @@ function createDOM() {
         vendorHeading: document.getElementById("checkout-vendor-heading"),
         container: document.getElementById("checkout-items-container"),
         summarySection: document.getElementById("checkout-summary"),
-        sessionStatusElement: document.getElementById("checkout-session-status"),
-        resumePaymentButton: document.getElementById("resume-payment-button"),
-        cancelCheckoutButton: document.getElementById("cancel-checkout-button"),
         notesInput: document.getElementById("checkout-notes"),
         placeOrderButton: document.getElementById("place-order-button")
     };
@@ -84,31 +78,6 @@ function resetCheckoutGlobals() {
     delete global.functionsFns;
     delete window.orderService;
     delete global.orderService;
-    delete window.checkoutStatus;
-    delete global.checkoutStatus;
-    delete window.checkoutModel;
-    delete global.checkoutModel;
-    delete window.checkoutValidation;
-    delete global.checkoutValidation;
-    delete window.checkoutQueries;
-    delete global.checkoutQueries;
-    delete window.checkoutService;
-    delete global.checkoutService;
-}
-
-function createCheckoutFirestoreFns(overrides = {}) {
-    return {
-        doc: jest.fn((first, collectionName, docId) => ({
-            first,
-            collectionName,
-            docId,
-            id: docId || "generated-checkout"
-        })),
-        setDoc: jest.fn(async () => true),
-        updateDoc: jest.fn(async () => true),
-        serverTimestamp: jest.fn(() => "server-time"),
-        ...overrides
-    };
 }
 
 describe("customer/order-management/checkout.js - helpers", () => {
@@ -320,16 +289,6 @@ describe("customer/order-management/checkout.js - helpers", () => {
         expect(customerCheckout.getPaymentCallbackUrl({
             paymentCallbackUrl: "https://example.com/callback.html"
         })).toBe("https://example.com/callback.html");
-        expect(customerCheckout.appendUrlQueryParam(
-            "https://example.com/callback.html?reference=ref-1",
-            "checkoutId",
-            "checkout-1"
-        )).toBe("https://example.com/callback.html?reference=ref-1&checkoutId=checkout-1");
-        expect(customerCheckout.getPaymentCallbackUrlForCheckout({
-            checkoutId: "checkout-1"
-        }, {
-            paymentCallbackUrl: "https://example.com/callback.html"
-        })).toBe("https://example.com/callback.html?checkoutId=checkout-1");
     });
 });
 
@@ -390,39 +349,6 @@ describe("customer/order-management/checkout.js - rendering", () => {
         expect(dom.statusElement.textContent).toContain("ready to order");
         expect(dom.placeOrderButton.disabled).toBe(false);
     });
-
-    test("renderCheckoutSession enables resume and cancel actions for unfinished payment", () => {
-        const checkout = {
-            checkoutId: "checkout-1",
-            status: "payment_pending",
-            paymentReference: "paystack-ref",
-            paymentAuthorizationUrl: "https://checkout.paystack.com/test"
-        };
-
-        customerCheckout.renderCheckoutSession(checkout, {
-            sessionStatusElement: dom.sessionStatusElement,
-            resumePaymentButton: dom.resumePaymentButton,
-            cancelCheckoutButton: dom.cancelCheckoutButton
-        });
-
-        expect(dom.sessionStatusElement.textContent).toContain("Payment Pending");
-        expect(dom.sessionStatusElement.textContent).toContain("paystack-ref");
-        expect(dom.resumePaymentButton.disabled).toBe(false);
-        expect(dom.cancelCheckoutButton.disabled).toBe(false);
-        expect(dom.resumePaymentButton.dataset.checkoutId).toBe("checkout-1");
-    });
-
-    test("renderCheckoutSession disables actions when no checkout is available", () => {
-        customerCheckout.renderCheckoutSession(null, {
-            sessionStatusElement: dom.sessionStatusElement,
-            resumePaymentButton: dom.resumePaymentButton,
-            cancelCheckoutButton: dom.cancelCheckoutButton
-        });
-
-        expect(dom.sessionStatusElement.textContent).toContain("No unfinished checkout");
-        expect(dom.resumePaymentButton.disabled).toBe(true);
-        expect(dom.cancelCheckoutButton.disabled).toBe(true);
-    });
 });
 
 describe("customer/order-management/checkout.js - placeOrder and init", () => {
@@ -477,9 +403,7 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         const noFirestoreResult = await customerCheckout.placeOrder({
             search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
             currentUser: {
-                uid: "customer-1",
-                displayName: "Ama",
-                email: "ama@example.com"
+                uid: "customer-1"
             },
             db: { kind: "db" },
             firestoreFns: {}
@@ -488,33 +412,25 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(noDbResult.success).toBe(false);
         expect(noDbResult.error.code).toBe("checkout/no-db");
         expect(noFirestoreResult.success).toBe(false);
-        expect(noFirestoreResult.error.code).toBe("checkout/create-unavailable");
+        expect(noFirestoreResult.error.code).toBe("checkout/no-firestore-fns");
     });
 
-    test("placeOrder creates a checkout session and keeps cart items until payment is confirmed", async () => {
+    test("placeOrder submits through orderService and removes ordered vendor items from cart", async () => {
         seedCart([
             createCartItem({ menuItemId: "item-1", vendorUid: "vendor-1", vendorName: "Campus Bites", quantity: 2, price: 10 }),
             createCartItem({ menuItemId: "item-2", vendorUid: "vendor-2", vendorName: "Fresh Drinks", quantity: 1, price: 5 })
         ]);
 
-        const createOrders = jest.fn();
-        const firestoreFns = createCheckoutFirestoreFns();
+        const createOrders = jest.fn(async () => ({
+            success: true,
+            orders: [{ orderId: "order-1" }]
+        }));
 
         const result = await customerCheckout.placeOrder({
             search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
             db: { kind: "db" },
-            firestoreFns,
+            firestoreFns: { doc: jest.fn(), setDoc: jest.fn() },
             orderService: { createOrders },
-            checkoutId: "checkout-1",
-            initializePaymentCallable: jest.fn(async () => ({
-                data: {
-                    success: true,
-                    authorizationUrl: "https://checkout.paystack.com/test",
-                    accessCode: "access-code",
-                    reference: "paystack-ref"
-                }
-            })),
-            navigateToPayment: jest.fn(),
             currentUser: {
                 uid: "customer-1",
                 displayName: "Ama",
@@ -524,13 +440,12 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         });
 
         expect(result.success).toBe(true);
-        expect(result.source).toBe("checkout-session");
-        expect(result.checkout.checkoutId).toBe("checkout-1");
-        expect(result.checkout.notes).toBe("Please prepare quickly");
-        expect(createOrders).not.toHaveBeenCalled();
-        expect(firestoreFns.setDoc).toHaveBeenCalledTimes(1);
-        expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(2);
-        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(2);
+        expect(createOrders).toHaveBeenCalledWith(expect.objectContaining({
+            notes: "Please prepare quickly"
+        }));
+        const remainingCart = JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY));
+        expect(remainingCart).toHaveLength(1);
+        expect(remainingCart[0].vendorUid).toBe("vendor-2");
     });
 
     test("placeOrder initializes payment when a callable payment function is available", async () => {
@@ -540,25 +455,39 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         ]);
 
         const navigateToPayment = jest.fn();
-        const firestoreFns = createCheckoutFirestoreFns();
-        const initializePaymentCallable = jest.fn(async () => ({
-            data: {
-                success: true,
-                authorizationUrl: "https://checkout.paystack.com/test",
-                accessCode: "access-code",
-                reference: "paystack-ref",
-                payment: {
-                    orderId: "checkout-2",
-                    status: "pending"
-                }
-            }
-        }));
+        const updateDoc = jest.fn(async () => true);
         const result = await customerCheckout.placeOrder({
             search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
             db: { kind: "db" },
-            firestoreFns,
-            checkoutId: "checkout-2",
-            initializePaymentCallable,
+            firestoreFns: {
+                doc: jest.fn((db, collectionName, orderId) => ({ db, collectionName, orderId })),
+                setDoc: jest.fn(),
+                updateDoc
+            },
+            orderService: {
+                createOrders: jest.fn(async () => ({
+                    success: true,
+                    orders: [{
+                        orderId: "order-1",
+                        customerUid: "customer-1",
+                        customerEmail: "ama@example.com",
+                        vendorUid: "vendor-1",
+                        vendorName: "Campus Bites",
+                        total: 20
+                    }]
+                }))
+            },
+            initializePaymentCallable: jest.fn(async () => ({
+                data: {
+                    success: true,
+                    authorizationUrl: "https://checkout.paystack.com/test",
+                    reference: "paystack-ref",
+                    patch: {
+                        paymentStatus: "pending",
+                        paymentReference: "paystack-ref"
+                    }
+                }
+            })),
             navigateToPayment,
             currentUser: {
                 uid: "customer-1",
@@ -570,67 +499,9 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(result.success).toBe(true);
         expect(result.payment.paymentRequired).toBe(true);
         expect(result.payment.reference).toBe("paystack-ref");
-        expect(initializePaymentCallable).toHaveBeenCalledWith({
-            order: expect.objectContaining({
-                orderId: "checkout-2",
-                checkoutId: "checkout-2",
-                paymentAmount: 20,
-                paymentAmountInMinorUnits: 2000
-            }),
-            options: expect.objectContaining({
-                reference: expect.stringContaining("checkout-checkout-2"),
-                metadata: expect.objectContaining({
-                    checkoutId: "checkout-2",
-                    source: "checkout-session"
-                })
-            })
-        });
-        expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(2);
+        expect(updateDoc).toHaveBeenCalledTimes(1);
         expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/test");
-        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(2);
-    });
-
-    test("placeOrder resumes an unfinished checkout instead of creating a duplicate session", async () => {
-        seedCart([
-            createCartItem({ vendorUid: "vendor-1", vendorName: "Campus Bites", quantity: 1, price: 10 })
-        ]);
-
-        const navigateToPayment = jest.fn();
-        const createCheckout = jest.fn();
-        const fetchResumableCustomerCheckout = jest.fn(async () => ({
-            checkoutId: "checkout-existing",
-            customerUid: "customer-1",
-            vendorUid: "vendor-1",
-            status: "payment_pending",
-            paymentAuthorizationUrl: "https://checkout.paystack.com/existing"
-        }));
-        const result = await customerCheckout.placeOrder({
-            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
-            db: { kind: "db" },
-            firestoreFns: createCheckoutFirestoreFns({
-                getDocs: jest.fn()
-            }),
-            checkoutQueries: {
-                fetchResumableCustomerCheckout
-            },
-            checkoutService: {
-                createCheckout
-            },
-            navigateToPayment,
-            currentUser: {
-                uid: "customer-1",
-                displayName: "Ama",
-                email: "ama@example.com"
-            }
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.source).toBe("checkout-session-resume");
-        expect(createCheckout).not.toHaveBeenCalled();
-        expect(fetchResumableCustomerCheckout).toHaveBeenCalledWith(expect.objectContaining({
-            customerUid: "customer-1"
-        }));
-        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/existing");
+        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(1);
     });
 
     test("createOrderDirectly creates an order and vendor or customer notifications", async () => {
@@ -785,100 +656,6 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(updateDoc).not.toHaveBeenCalled();
     });
 
-    test("buildPaymentOrderFromCheckout maps checkout sessions into payment payloads", () => {
-        expect(customerCheckout.buildPaymentOrderFromCheckout({
-            checkoutId: "checkout-1",
-            customerUid: "customer-1",
-            customerName: "Ama",
-            customerEmail: "ama@example.com",
-            vendorUid: "vendor-1",
-            vendorName: "Campus Bites",
-            total: 42.5,
-            paymentReference: "paystack-ref"
-        })).toEqual(expect.objectContaining({
-            orderId: "checkout-1",
-            checkoutId: "checkout-1",
-            customerEmail: "ama@example.com",
-            vendorUid: "vendor-1",
-            paymentAmount: 42.5,
-            paymentAmountInMinorUnits: 4250,
-            paymentReference: "paystack-ref",
-            metadata: expect.objectContaining({
-                checkoutId: "checkout-1",
-                source: "checkout-session"
-            })
-        }));
-    });
-
-    test("resumeCheckoutPayment navigates immediately when the checkout has an authorization URL", async () => {
-        const navigateToPayment = jest.fn();
-        const result = await customerCheckout.resumeCheckoutPayment({
-            checkoutId: "checkout-1",
-            status: "payment_pending",
-            paymentAuthorizationUrl: "https://checkout.paystack.com/test"
-        }, {
-            navigateToPayment
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.resumed).toBe(true);
-        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/test");
-    });
-
-    test("cancelCheckoutSession delegates unpaid cancellation to the checkout service", async () => {
-        const cancelCheckout = jest.fn(async options => ({
-            success: true,
-            checkout: {
-                ...options.checkout,
-                status: "cancelled"
-            }
-        }));
-        const result = await customerCheckout.cancelCheckoutSession({
-            checkoutId: "checkout-1",
-            status: "payment_pending"
-        }, {
-            checkoutService: {
-                createCheckout: jest.fn(),
-                cancelCheckout
-            }
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.checkout.status).toBe("cancelled");
-        expect(cancelCheckout).toHaveBeenCalledWith(expect.objectContaining({
-            checkout: expect.objectContaining({ checkoutId: "checkout-1" }),
-            actorRole: "customer"
-        }));
-    });
-
-    test("findResumableCheckout can load a requested checkout by id", async () => {
-        const checkout = {
-            checkoutId: "checkout-1",
-            customerUid: "customer-1",
-            vendorUid: "vendor-1",
-            status: "payment_pending"
-        };
-        const getCheckoutById = jest.fn(async () => checkout);
-        const result = await customerCheckout.findResumableCheckout({
-            vendorUid: "vendor-1"
-        }, {
-            uid: "customer-1"
-        }, {
-            search: "?checkoutId=checkout-1",
-            db: { kind: "db" },
-            firestoreFns: createCheckoutFirestoreFns(),
-            checkoutService: {
-                createCheckout: jest.fn(),
-                getCheckoutById
-            }
-        });
-
-        expect(result).toBe(checkout);
-        expect(getCheckoutById).toHaveBeenCalledWith(expect.objectContaining({
-            checkoutId: "checkout-1"
-        }));
-    });
-
     test("createOrderDirectly rejects missing Firestore helpers", async () => {
         await expect(
             customerCheckout.createOrderDirectly({
@@ -898,19 +675,23 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         ).rejects.toThrow("Firestore functions not available.");
     });
 
-    test("placeOrder does not create vendor orders when checkout session creation cannot be saved", async () => {
+    test("placeOrder falls back to direct Firestore creation when shared order creation fails", async () => {
+        const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
         seedCart([
             createCartItem({ menuItemId: "item-1", vendorUid: "vendor-1", vendorName: "Campus Bites", quantity: 2, price: 10 }),
             createCartItem({ menuItemId: "item-2", vendorUid: "vendor-2", vendorName: "Fresh Drinks", quantity: 1, price: 5 })
         ]);
 
-        const addDoc = jest.fn();
         const result = await customerCheckout.placeOrder({
             search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
             db: { kind: "db" },
             firestoreFns: {
                 collection: jest.fn((db, name) => ({ db, name })),
-                addDoc,
+                addDoc: jest.fn()
+                    .mockResolvedValueOnce({ id: "order-7" })
+                    .mockResolvedValueOnce({ id: "notification-1" })
+                    .mockResolvedValueOnce({ id: "notification-2" }),
                 serverTimestamp: jest.fn(() => "server-time")
             },
             orderService: {
@@ -929,32 +710,31 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
             }
         });
 
-        expect(result.success).toBe(false);
-        expect(result.error.code).toBe("checkout/create-unavailable");
-        expect(addDoc).not.toHaveBeenCalled();
-        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(2);
+        expect(result.success).toBe(true);
+        expect(result.source).toBe("direct-firestore");
+        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(1);
+
+        warnSpy.mockRestore();
     });
 
-    test("placeOrder returns checkout payment errors and leaves the cart untouched", async () => {
+    test("placeOrder returns the shared service error when no direct fallback exists", async () => {
         seedCart([
             createCartItem({ vendorUid: "vendor-1", vendorName: "Campus Bites" })
         ]);
 
-        const firestoreFns = createCheckoutFirestoreFns();
         const result = await customerCheckout.placeOrder({
             search: "?vendorUid=vendor-1&vendorName=Campus%20Bites",
             db: { kind: "db" },
-            firestoreFns,
-            checkoutId: "checkout-failed-payment",
-            initializePaymentCallable: jest.fn(async () => ({
-                data: {
+            firestoreFns: { doc: jest.fn(), setDoc: jest.fn() },
+            orderService: {
+                createOrders: jest.fn(async () => ({
                     success: false,
                     error: {
-                        code: "payments/failed",
-                        message: "Payment service failed."
+                        code: "orders/failed",
+                        message: "Service failed."
                     }
-                }
-            })),
+                }))
+            },
             currentUser: {
                 uid: "customer-1",
                 displayName: "Ama",
@@ -964,12 +744,9 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
 
         expect(result.success).toBe(false);
         expect(result.error).toEqual({
-            code: "payments/failed",
-            message: "Payment service failed."
+            code: "orders/failed",
+            message: "Service failed."
         });
-        expect(firestoreFns.setDoc).toHaveBeenCalledTimes(1);
-        expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(2);
-        expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(1);
     });
 
     test("init renders vendor checkout state and wires the back button", async () => {
@@ -1008,38 +785,29 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
                 email: "ama@example.com"
             },
             db: { kind: "db" },
-            firestoreFns: createCheckoutFirestoreFns(),
-            checkoutId: "checkout-click",
-            initializePaymentCallable: jest.fn(async () => ({
-                data: {
+            firestoreFns: { doc: jest.fn(), setDoc: jest.fn() },
+            orderService: {
+                createOrders: jest.fn(async () => ({
                     success: true,
-                    authorizationUrl: "https://checkout.paystack.com/test",
-                    accessCode: "access-code",
-                    reference: "paystack-ref"
-                }
-            })),
-            navigateToPayment: jest.fn(),
+                    orders: [{ orderId: "order-9" }]
+                }))
+            },
             containerSelector: "#checkout-items-container",
             summarySelector: "#checkout-summary",
             statusSelector: "#checkout-status",
             vendorNameSelector: "#checkout-vendor-heading",
             notesSelector: "#checkout-notes",
             placeOrderButtonSelector: "#place-order-button",
-            backButtonHostSelector: "#checkout-back-button-host",
-            sessionStatusSelector: "#checkout-session-status",
-            resumePaymentButtonSelector: "#resume-payment-button",
-            cancelCheckoutButtonSelector: "#cancel-checkout-button"
+            backButtonHostSelector: "#checkout-back-button-host"
         });
 
         dom.notesInput.value = "No onions";
         dom.placeOrderButton.click();
 
         await new Promise(resolve => setTimeout(resolve, 0));
-        await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(dom.statusElement.textContent).toContain("Checkout saved");
-        expect(dom.sessionStatusElement.textContent).toContain("Payment Pending");
-        expect(dom.container.textContent).toContain("Burger");
+        expect(dom.statusElement.textContent).toContain("Order placed successfully");
+        expect(dom.container.textContent).toContain("No cart items are available");
     });
 
     test("setupEventListeners reports empty checkout clicks immediately", () => {

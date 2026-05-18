@@ -257,74 +257,6 @@
         return url.toString();
     }
 
-    function buildCheckoutLinkState(cartItems) {
-        const groupedItems = groupCartItemsByVendor(cartItems);
-
-        if (groupedItems.length === 0) {
-            return {
-                enabled: false,
-                href: getFallbackRoutes().checkout,
-                label: "Checkout",
-                message: "Add items to your cart before checkout."
-            };
-        }
-
-        if (groupedItems.length === 1) {
-            return {
-                enabled: true,
-                href: buildCheckoutUrl(groupedItems[0]),
-                label: "Checkout",
-                message: "Continue to checkout for this vendor."
-            };
-        }
-
-        return {
-            enabled: false,
-            href: getFallbackRoutes().checkout,
-            label: "Choose Vendor Checkout",
-            message: "Choose a vendor checkout below so each payment creates only one paid order."
-        };
-    }
-
-    function applyCheckoutLinkState(link, state) {
-        if (!link) {
-            return;
-        }
-
-        const safeState = state && typeof state === "object"
-            ? state
-            : buildCheckoutLinkState([]);
-
-        link.href = normalizeText(safeState.href) || getFallbackRoutes().checkout;
-        link.textContent = normalizeText(safeState.label) || "Checkout";
-        link.setAttribute("aria-disabled", safeState.enabled ? "false" : "true");
-        link.classList.toggle("is-disabled", !safeState.enabled);
-        link.dataset.checkoutState = safeState.enabled ? "ready" : "blocked";
-        link.dataset.checkoutMessage = normalizeText(safeState.message);
-    }
-
-    function handleCheckoutLinkClick(event, options = {}) {
-        const target = event && event.target ? event.target : null;
-
-        if (!target || typeof target.getAttribute !== "function") {
-            return true;
-        }
-
-        if (target.getAttribute("aria-disabled") !== "true") {
-            return true;
-        }
-
-        if (typeof event.preventDefault === "function") {
-            event.preventDefault();
-        }
-
-        const message = normalizeText(target.dataset.checkoutMessage) ||
-            "Choose a vendor checkout before continuing.";
-
-        setStatusMessage(options.statusElement || null, message, "info");
-        return false;
-    }
-
     function createCartItemArticle(item) {
         const safeItem = normalizeCartItem(item);
         const article = globalScope.document.createElement("article");
@@ -501,7 +433,6 @@
         const safeOptions = options && typeof options === "object" ? options : {};
         const cartItems = getNormalizedCart();
         const summary = calculateCartSummary(cartItems);
-        const checkoutLinkState = buildCheckoutLinkState(cartItems);
 
         renderCart(cartItems, safeOptions.container || null);
         renderCartSummary(summary, safeOptions.summarySection || null);
@@ -509,33 +440,26 @@
         if (safeOptions.statusElement) {
             if (summary.lineCount === 0) {
                 setStatusMessage(safeOptions.statusElement, "Your cart is empty.", "info");
-            } else if (summary.vendorCount > 1) {
-                setStatusMessage(
-                    safeOptions.statusElement,
-                    `${summary.itemCount} items ready across ${summary.vendorCount} vendors. Choose one vendor checkout below.`,
-                    "info"
-                );
             } else {
                 setStatusMessage(
                     safeOptions.statusElement,
-                    `${summary.itemCount} item${summary.itemCount === 1 ? "" : "s"} ready for checkout.`,
+                    `${summary.itemCount} item${summary.itemCount === 1 ? "" : "s"} ready for checkout across ${summary.vendorCount} vendor${summary.vendorCount === 1 ? "" : "s"}.`,
                     "success"
                 );
             }
         }
 
         if (safeOptions.checkoutLink) {
-            applyCheckoutLinkState(safeOptions.checkoutLink, checkoutLinkState);
-        }
-
-        if (safeOptions.summaryCheckoutLink && safeOptions.summaryCheckoutLink !== safeOptions.checkoutLink) {
-            applyCheckoutLinkState(safeOptions.summaryCheckoutLink, checkoutLinkState);
+            safeOptions.checkoutLink.setAttribute(
+                "aria-disabled",
+                summary.lineCount === 0 ? "true" : "false"
+            );
+            safeOptions.checkoutLink.classList.toggle("is-disabled", summary.lineCount === 0);
         }
 
         return {
             cartItems,
-            summary,
-            checkoutLinkState
+            summary
         };
     }
 
@@ -603,17 +527,6 @@
             });
         }
 
-        [safeOptions.checkoutLink, safeOptions.summaryCheckoutLink].forEach(function bindCheckoutLink(link) {
-            if (!link || link.dataset.boundCheckoutGuard) {
-                return;
-            }
-
-            link.dataset.boundCheckoutGuard = "true";
-            link.addEventListener("click", function onCheckoutLinkClick(event) {
-                handleCheckoutLinkClick(event, safeOptions);
-            });
-        });
-
         if (backButtonHost && !backButtonHost.querySelector(".cart-back-button")) {
             backButtonHost.appendChild(createBackButton({
                 fallbackRoute: getFallbackRoutes().browseVendors
@@ -632,7 +545,6 @@
             const statusSelector = options.statusSelector || "#cart-status";
             const clearButtonSelector = options.clearButtonSelector || "#clear-cart-button";
             const checkoutLinkSelector = options.checkoutLinkSelector || "#checkout-link";
-            const summaryCheckoutLinkSelector = options.summaryCheckoutLinkSelector || "#summary-checkout-link";
             const backButtonHostSelector = options.backButtonHostSelector || "#cart-back-button-host";
 
             const container = globalScope.document.querySelector(containerSelector);
@@ -640,7 +552,6 @@
             const statusElement = globalScope.document.querySelector(statusSelector);
             const clearButton = globalScope.document.querySelector(clearButtonSelector);
             const checkoutLink = globalScope.document.querySelector(checkoutLinkSelector);
-            const summaryCheckoutLink = globalScope.document.querySelector(summaryCheckoutLinkSelector);
             const backButtonHost = globalScope.document.querySelector(backButtonHostSelector);
 
             if (!container) {
@@ -654,8 +565,7 @@
                 container,
                 summarySection,
                 statusElement,
-                checkoutLink,
-                summaryCheckoutLink
+                checkoutLink
             });
 
             setupEventListeners({
@@ -664,7 +574,6 @@
                 statusElement,
                 clearButton,
                 checkoutLink,
-                summaryCheckoutLink,
                 backButtonHost
             });
 
@@ -703,9 +612,6 @@
         setStatusMessage,
         createBackButton,
         buildCheckoutUrl,
-        buildCheckoutLinkState,
-        applyCheckoutLinkState,
-        handleCheckoutLinkClick,
         createCartItemArticle,
         createVendorGroupSection,
         renderCart,

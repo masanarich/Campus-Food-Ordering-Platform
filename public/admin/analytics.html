@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analytics — Campus Food Platform</title>
+  <link rel="stylesheet" href="./analytics.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --pink:    #f9a8c9;
+      --pink-d:  #e05f8e;
+      --peach:   #ffd6b0;
+      --peach-d: #f09050;
+      --mint:    #b8f0d8;
+      --mint-d:  #2daf74;
+      --lavender:#d8ccf8;
+      --lav-d:   #7c5cdc;
+      --cream:   #fff9f2;
+      --white:   #ffffff;
+      --ink:     #2a1f3d;
+      --muted:   #8b7fa0;
+      --border:  rgba(42,31,61,0.10);
+      --radius:  16px;
+      --font:    'Nunito', sans-serif;
+      --display: 'Fraunces', serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--cream);
+      color: var(--ink);
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 100vh;
+    }
+
+    nav.sidebar {
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      font-family: var(--display);
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-logo .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--pink), var(--peach));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      font-style: normal;
+    }
+
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+
+    nav.sidebar ul li a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 12px;
+      text-decoration: none; color: var(--muted);
+      font-weight: 600; font-size: 0.9rem; transition: all 0.2s;
+    }
+
+    nav.sidebar ul li a:hover { background: var(--cream); color: var(--ink); }
+    nav.sidebar ul li a.active { background: var(--lavender); color: var(--lav-d); }
+    nav.sidebar ul li a .nav-icon { font-size: 1.1rem; font-style: normal; }
+
+    main {
+      padding: 2.5rem 2rem;
+      display: flex; flex-direction: column; gap: 1.5rem;
+      max-width: 1100px;
+    }
+
+    header.page-header {
+      display: flex; align-items: flex-end;
+      justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    }
+
+    header.page-header hgroup h1 {
+      font-family: var(--display);
+      font-size: 2rem; font-weight: 700; color: var(--ink);
+      letter-spacing: -0.03em; line-height: 1.1;
+    }
+
+    header.page-header hgroup p { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+
+    .controls-bar {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 18px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    }
+
+    .controls-bar select,
+    .controls-bar input[type="date"] {
+      font-family: var(--font); font-size: 0.85rem;
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 7px 12px; background: var(--cream); color: var(--ink);
+      outline: none; cursor: pointer;
+    }
+
+    .controls-bar select:focus,
+    .controls-bar input[type="date"]:focus {
+      border-color: var(--lav-d);
+      box-shadow: 0 0 0 3px var(--lavender);
+    }
+
+    .date-sep { color: var(--muted); font-size: 0.85rem; font-style: normal; }
+    .controls-bar .spacer { flex: 1; border: none; }
+
+    .btn {
+      font-family: var(--font); font-size: 0.85rem; font-weight: 700;
+      padding: 8px 16px; border-radius: 10px;
+      border: 1.5px solid var(--border); background: var(--white);
+      color: var(--ink); cursor: pointer; transition: all 0.18s;
+    }
+
+    .btn:hover { background: var(--cream); border-color: var(--muted); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--pink-d), var(--peach-d));
+      color: white; border-color: transparent;
+    }
+
+    .btn-primary:hover { opacity: 0.88; background: linear-gradient(135deg, var(--pink-d), var(--peach-d)); }
+    .btn-block { width: 100%; text-align: center; }
+
+    .tabs {
+      display: flex; gap: 6px;
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 6px; width: fit-content;
+    }
+
+    .tab {
+      font-family: var(--font); font-size: 0.85rem; font-weight: 700;
+      padding: 8px 18px; border-radius: 10px; border: none;
+      background: transparent; color: var(--muted);
+      cursor: pointer; transition: all 0.18s;
+    }
+
+    .tab:hover { background: var(--cream); color: var(--ink); }
+    .tab.active { background: linear-gradient(135deg, var(--pink), var(--peach)); color: var(--ink); }
+
+    .tab-panel { display: none; flex-direction: column; gap: 1.5rem; }
+    .tab-panel.active { display: flex; }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    article.metric-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.2rem 1.4rem;
+      display: flex; flex-direction: column; gap: 6px;
+      position: relative; overflow: hidden;
+    }
+
+    article.metric-card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+    }
+
+    article.metric-card:nth-child(1)::before { background: linear-gradient(90deg, var(--pink), var(--peach)); }
+    article.metric-card:nth-child(2)::before { background: linear-gradient(90deg, var(--mint), var(--mint-d)); }
+    article.metric-card:nth-child(3)::before { background: linear-gradient(90deg, var(--lavender), var(--lav-d)); }
+    article.metric-card:nth-child(4)::before { background: linear-gradient(90deg, var(--peach), var(--peach-d)); }
+
+    article.metric-card .metric-label {
+      font-size: 0.78rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+
+    article.metric-card .metric-value {
+      font-family: var(--display); font-size: 1.8rem;
+      font-weight: 700; color: var(--ink); line-height: 1;
+    }
+
+    article.metric-card .metric-sub { font-size: 0.78rem; color: var(--mint-d); font-weight: 700; }
+
+    article.metric-card.skeleton {
+      background: var(--cream); border-color: transparent;
+      animation: shimmer 1.4s infinite;
+    }
+
+    @keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+    section.chart-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1rem;
+    }
+
+    .chart-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 1rem;
+    }
+
+    .chart-header h3 {
+      font-family: var(--display); font-size: 1.1rem;
+      font-weight: 700; color: var(--ink); letter-spacing: -0.02em;
+    }
+
+    .chart-header p { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
+
+    figure.chart-wrap { position: relative; height: 280px; }
+    figure.chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+    .custom-layout {
+      display: grid; grid-template-columns: 240px 1fr;
+      gap: 1.5rem; align-items: start;
+    }
+
+    aside.custom-sidebar {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1.2rem;
+      position: sticky; top: 1rem;
+    }
+
+    aside.custom-sidebar h3 { font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--ink); }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+    .form-group label {
+      font-size: 0.78rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    .form-group select,
+    .form-group input[type="date"] {
+      font-family: var(--font); font-size: 0.85rem;
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 12px; background: var(--cream); color: var(--ink); outline: none;
+    }
+
+    .form-group select:focus,
+    .form-group input[type="date"]:focus {
+      border-color: var(--lav-d); box-shadow: 0 0 0 3px var(--lavender);
+    }
+
+    .checkbox-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .checkbox-list label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.85rem; font-weight: 600; color: var(--ink);
+      text-transform: none; letter-spacing: 0; cursor: pointer;
+    }
+
+    .checkbox-list input[type="checkbox"] { accent-color: var(--pink-d); width: 16px; height: 16px; }
+
+    .vendor-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .vendor-table thead tr { border-bottom: 2px solid var(--border); }
+
+    .vendor-table thead th {
+      padding: 10px 12px; text-align: left;
+      font-size: 0.75rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    .vendor-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+    .vendor-table tbody tr:hover { background: var(--cream); }
+    .vendor-table tbody td { padding: 11px 12px; color: var(--ink); font-weight: 600; }
+
+    #heatmapWrap { overflow-x: auto; }
+
+    table.heatmap { border-collapse: separate; border-spacing: 3px; font-size: 0.75rem; }
+    table.heatmap th { padding: 4px 8px; color: var(--muted); font-weight: 700; text-align: center; }
+
+    table.heatmap td {
+      width: 36px; height: 30px; border-radius: 6px;
+      text-align: center; font-weight: 700; font-size: 0.7rem;
+      color: var(--ink); transition: transform 0.15s; cursor: default;
+    }
+
+    table.heatmap td:hover { transform: scale(1.2); z-index: 1; position: relative; }
+
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    .loading-text { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 2rem; }
+
+    .error-text { color: var(--pink-d); font-size: 0.9rem; text-align: center; padding: 2rem; }
+
+    @media (max-width: 860px) {
+      body { grid-template-columns: 1fr; }
+      nav.sidebar { display: none; }
+      .two-col { grid-template-columns: 1fr; }
+      .custom-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+    <header class="sidebar-logo">
+      <i class="logo-icon" aria-hidden="true">🍔</i>
+      Campus Eats
+    </header>
+    <ul>
+      <li><a href="index.html"><i class="nav-icon" aria-hidden="true">🏠</i> Dashboard</a></li>
+      <li><a href="users.html"><i class="nav-icon" aria-hidden="true">👥</i> Users</a></li>
+      <li><a href="disputes.html"><i class="nav-icon" aria-hidden="true">⚖️</i> Disputes</a></li>
+      <li><a href="analytics.html" class="active" aria-current="page"><i class="nav-icon" aria-hidden="true">📊</i> Analytics</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <header class="page-header">
+      <hgroup>
+        <h1>Analytics ✨</h1>
+        <p>Sales reports, ordering trends, and custom views across all vendors.</p>
+      </hgroup>
+    </header>
+
+    <fieldset class="controls-bar" style="border:none;">
+      <legend style="display:none;">Filters and export</legend>
+      <select id="vendorFilter" aria-label="Filter by vendor">
+        <option value="all">🏪 All vendors</option>
+      </select>
+      <input type="date" id="dateFrom" aria-label="Date from" />
+      <i class="date-sep" aria-hidden="true">→</i>
+      <input type="date" id="dateTo" aria-label="Date to" />
+      <button class="btn" onclick="loadAll()">↺ Refresh</button>
+      <hr class="spacer" />
+      <button class="btn" onclick="exportCSV()">↓ Export CSV</button>
+      <button class="btn btn-primary" onclick="exportPDF()">↓ Export PDF</button>
+    </fieldset>
+
+    <nav class="tabs" role="tablist" aria-label="Analytics views">
+      <button class="tab active" role="tab" aria-selected="true"  aria-controls="tab-sales"  onclick="switchTab('sales',  this)">🛒 Sales per vendor</button>
+      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-peak"   onclick="switchTab('peak',   this)">⏰ Peak ordering hours</button>
+      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-custom" onclick="switchTab('custom', this)">🔧 Custom view</button>
+    </nav>
+
+    <section class="tab-panel active" id="tab-sales" role="tabpanel">
+      <section class="metrics-grid" id="salesMetrics" aria-label="Summary metrics">
+        <article class="metric-card skeleton" aria-hidden="true"></article>
+        <article class="metric-card skeleton" aria-hidden="true"></article>
+        <article class="metric-card skeleton" aria-hidden="true"></article>
+        <article class="metric-card skeleton" aria-hidden="true"></article>
+      </section>
+
+      <section class="chart-card">
+        <header class="chart-header">
+          <hgroup><h3>Revenue over time</h3><p>Daily sales per vendor</p></hgroup>
+        </header>
+        <figure class="chart-wrap">
+          <canvas id="salesChart" role="img" aria-label="Line chart of daily revenue per vendor"></canvas>
+        </figure>
+        <footer class="chart-legend" id="salesLegend"></footer>
+      </section>
+
+      <section class="chart-card">
+        <header class="chart-header"><h3>Vendor breakdown</h3></header>
+        <output id="vendorTableWrap"><p class="loading-text">Loading…</p></output>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="tab-peak" role="tabpanel">
+      <section class="two-col">
+        <section class="chart-card">
+          <header class="chart-header">
+            <hgroup><h3>Orders by hour</h3><p>Daily average across all vendors</p></hgroup>
+          </header>
+          <figure class="chart-wrap">
+            <canvas id="hourlyChart" role="img" aria-label="Bar chart of orders per hour"></canvas>
+          </figure>
+        </section>
+
+        <section class="chart-card">
+          <header class="chart-header">
+            <hgroup><h3>Orders by day of week</h3><p>Total orders per weekday</p></hgroup>
+          </header>
+          <figure class="chart-wrap">
+            <canvas id="weekdayChart" role="img" aria-label="Bar chart of orders per weekday"></canvas>
+          </figure>
+        </section>
+      </section>
+
+      <section class="chart-card">
+        <header class="chart-header">
+          <hgroup><h3>Heatmap — orders by hour &amp; weekday</h3><p>Darker cell = more orders</p></hgroup>
+        </header>
+        <output id="heatmapWrap"></output>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="tab-custom" role="tabpanel">
+      <section class="custom-layout">
+        <aside class="custom-sidebar" aria-label="Report builder">
+          <h3>Build your report 🔮</h3>
+
+          <section class="form-group">
+            <label for="customMetric">Metric</label>
+            <select id="customMetric">
+              <option value="revenue">Revenue (R)</option>
+              <option value="orders">Order count</option>
+              <option value="avg_order">Average order value</option>
+            </select>
+          </section>
+
+          <section class="form-group">
+            <label for="customGroup">Group by</label>
+            <select id="customGroup">
+              <option value="vendor">Vendor</option>
+              <option value="hour">Hour of day</option>
+              <option value="day">Day of week</option>
+            </select>
+          </section>
+
+          <section class="form-group">
+            <label for="customChartType">Chart type</label>
+            <select id="customChartType">
+              <option value="bar">Bar</option>
+              <option value="line">Line</option>
+              <option value="doughnut">Doughnut</option>
+            </select>
+          </section>
+
+          <section class="form-group">
+            <label>Date range</label>
+            <input type="date" id="customFrom" aria-label="Custom report start date" />
+            <input type="date" id="customTo" aria-label="Custom report end date" style="margin-top:6px;" />
+          </section>
+
+          <fieldset class="form-group" style="border:none; padding:0;">
+            <legend style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">Show columns</legend>
+            <section class="checkbox-list">
+              <label><input type="checkbox" id="col-total" checked /> Total value</label>
+              <label><input type="checkbox" id="col-avg" checked /> vs Average</label>
+              <label><input type="checkbox" id="col-pct" checked /> % of total</label>
+            </section>
+          </fieldset>
+
+          <button class="btn btn-primary btn-block" onclick="buildCustom()">Generate report ✨</button>
+        </aside>
+
+        <section class="custom-output">
+          <section class="chart-card">
+            <header class="chart-header">
+              <hgroup>
+                <h3 id="customTitle">Custom report</h3>
+                <p id="customSubtitle">Configure options and click Generate</p>
+              </hgroup>
+              <button class="btn" onclick="exportCustomCSV()">↓ CSV</button>
+            </header>
+
+            <figure class="chart-wrap">
+              <canvas id="customChart" role="img" aria-label="Custom report chart"></canvas>
+            </figure>
+
+            <output id="customTableWrap" style="margin-top:1.5rem;"></output>
+          </section>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="./analytics.js"></script>
+</body>
+</html>

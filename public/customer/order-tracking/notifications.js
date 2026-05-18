@@ -2,20 +2,7 @@
     "use strict";
 
     const MODULE_NAME = "customer/order-tracking/notifications";
-    const DEFAULT_PAGE_SIZE = 6;
-    const DEFAULT_SORT = "newest";
     let initInFlight = null;
-    const pageState = {
-        allNotifications: [],
-        filters: {
-            search: "",
-            read: "all",
-            type: "all",
-            sort: DEFAULT_SORT
-        },
-        currentPage: 1,
-        pageSize: DEFAULT_PAGE_SIZE
-    };
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
@@ -192,11 +179,6 @@
             stateLine.textContent = "Read";
             stateLine.setAttribute("data-tone", "info");
         }
-
-        const markButton = article.querySelector('button[data-action-type="mark_read"]');
-        if (markButton) {
-            markButton.remove();
-        }
     }
 
     async function fetchNotifications(options = {}) {
@@ -340,20 +322,6 @@
             }
 
             applyReadStateToCard(article);
-            const target = pageState.allNotifications.find(function matchesId(item) {
-                return item && item.notificationId === notification.notificationId;
-            });
-            if (target) {
-                target.read = true;
-            }
-
-            if (typeof options.onReadStateChange === "function") {
-                try {
-                    options.onReadStateChange();
-                } catch (callbackError) {
-                    // Callback errors should not break the click handler.
-                }
-            }
 
             return markNotificationRead(notification.notificationId, options)
                 .catch(function onError(error) {
@@ -423,6 +391,7 @@
             markButton.dataset.actionType = "mark_read";
             markButton.addEventListener("click", function onMarkRead() {
                 persistReadState();
+                markButton.remove();
             });
             markItem.appendChild(markButton);
             actions.appendChild(markItem);
@@ -446,8 +415,7 @@
         if (safeNotifications.length === 0) {
             const message = globalScope.document.createElement("p");
             message.className = "empty-state-message";
-            message.textContent = normalizeText(options.emptyMessage)
-                || "You do not have any notifications yet.";
+            message.textContent = "You do not have any notifications yet.";
             container.appendChild(message);
             return;
         }
@@ -455,398 +423,6 @@
         safeNotifications.forEach(function appendNotification(notification) {
             container.appendChild(createNotificationArticle(notification, options));
         });
-    }
-
-    function getNotificationTimestamp(notificationRecord) {
-        const safe = notificationRecord && typeof notificationRecord === "object" ? notificationRecord : {};
-        const value = safe.createdAt || safe.updatedAt;
-
-        if (!value) {
-            return 0;
-        }
-
-        if (typeof value === "number" && Number.isFinite(value)) {
-            return value;
-        }
-
-        if (typeof value === "string") {
-            const parsed = Date.parse(value);
-            return Number.isFinite(parsed) ? parsed : 0;
-        }
-
-        if (typeof value.toMillis === "function") {
-            const millis = value.toMillis();
-            return Number.isFinite(millis) ? millis : 0;
-        }
-
-        if (value instanceof Date) {
-            return value.getTime();
-        }
-
-        if (typeof value.seconds === "number" && Number.isFinite(value.seconds)) {
-            return value.seconds * 1000;
-        }
-
-        return 0;
-    }
-
-    function sortNotifications(notifications, sortKey) {
-        const safe = Array.isArray(notifications) ? notifications.slice() : [];
-        const key = normalizeText(sortKey).toLowerCase() || DEFAULT_SORT;
-
-        if (key === "oldest") {
-            safe.sort(function byOldest(a, b) {
-                return getNotificationTimestamp(a) - getNotificationTimestamp(b);
-            });
-            return safe;
-        }
-
-        if (key === "unread-first") {
-            safe.sort(function byUnreadFirst(a, b) {
-                const aRead = a && (a.read === true || a.isRead === true) ? 1 : 0;
-                const bRead = b && (b.read === true || b.isRead === true) ? 1 : 0;
-                if (aRead !== bRead) {
-                    return aRead - bRead;
-                }
-                return getNotificationTimestamp(b) - getNotificationTimestamp(a);
-            });
-            return safe;
-        }
-
-        safe.sort(function byNewest(a, b) {
-            return getNotificationTimestamp(b) - getNotificationTimestamp(a);
-        });
-        return safe;
-    }
-
-    function filterNotifications(notifications, filters = {}) {
-        const safe = Array.isArray(notifications) ? notifications : [];
-        const searchTerm = normalizeText(filters.search).toLowerCase();
-        const readFilter = normalizeText(filters.read).toLowerCase() || "all";
-        const typeFilter = normalizeText(filters.type).toLowerCase() || "all";
-
-        return safe.filter(function byFilters(notification) {
-            if (!notification) {
-                return false;
-            }
-
-            const isRead = notification.read === true || notification.isRead === true;
-
-            if (readFilter === "read" && !isRead) {
-                return false;
-            }
-
-            if (readFilter === "unread" && isRead) {
-                return false;
-            }
-
-            if (typeFilter !== "all") {
-                const itemType = normalizeText(notification.type).toLowerCase();
-                if (itemType !== typeFilter) {
-                    return false;
-                }
-            }
-
-            if (searchTerm) {
-                const title = normalizeText(notification.title).toLowerCase();
-                const messageText = normalizeText(notification.message).toLowerCase();
-                const orderId = normalizeText(notification.orderId).toLowerCase();
-                const notificationId = normalizeText(notification.notificationId).toLowerCase();
-                if (
-                    title.indexOf(searchTerm) === -1 &&
-                    messageText.indexOf(searchTerm) === -1 &&
-                    orderId.indexOf(searchTerm) === -1 &&
-                    notificationId.indexOf(searchTerm) === -1
-                ) {
-                    return false;
-                }
-            }
-
-            return true;
-        });
-    }
-
-    function paginateNotifications(notifications, page, pageSize) {
-        const safe = Array.isArray(notifications) ? notifications : [];
-        const size = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0
-            ? Math.floor(Number(pageSize))
-            : DEFAULT_PAGE_SIZE;
-        const totalPages = Math.max(1, Math.ceil(safe.length / size));
-        const safePage = Math.min(Math.max(1, Math.floor(Number(page) || 1)), totalPages);
-        const start = (safePage - 1) * size;
-        const pageItems = safe.slice(start, start + size);
-
-        return {
-            pageNotifications: pageItems,
-            page: safePage,
-            pageSize: size,
-            totalPages,
-            totalCount: safe.length
-        };
-    }
-
-    function buildResultSummary(filteredCount, totalCount, unreadCount) {
-        if (totalCount === 0) {
-            return "";
-        }
-
-        const unreadSuffix = Number.isFinite(Number(unreadCount)) && Number(unreadCount) > 0
-            ? ` (${unreadCount} unread)`
-            : "";
-
-        if (filteredCount === totalCount) {
-            return `Showing all ${totalCount} notification${totalCount === 1 ? "" : "s"}${unreadSuffix}.`;
-        }
-
-        return `Showing ${filteredCount} of ${totalCount} notification${totalCount === 1 ? "" : "s"}${unreadSuffix}.`;
-    }
-
-    function countUnread(notifications) {
-        const safe = Array.isArray(notifications) ? notifications : [];
-        let count = 0;
-        for (let i = 0; i < safe.length; i += 1) {
-            const item = safe[i];
-            if (item && (item.read === true || item.isRead === true)) {
-                continue;
-            }
-            count += 1;
-        }
-        return count;
-    }
-
-    function updatePaginationControls(paginationElement, statusElement, paginationInfo) {
-        if (!paginationElement) {
-            return;
-        }
-
-        const totalCount = paginationInfo && Number(paginationInfo.totalCount) || 0;
-
-        if (totalCount === 0) {
-            paginationElement.setAttribute("hidden", "");
-        } else {
-            paginationElement.removeAttribute("hidden");
-        }
-
-        if (statusElement) {
-            statusElement.textContent = `Page ${paginationInfo.page} of ${paginationInfo.totalPages}`;
-        }
-
-        const prevButton = paginationElement.querySelector('[data-page-action="prev"]');
-        const nextButton = paginationElement.querySelector('[data-page-action="next"]');
-
-        if (prevButton) {
-            prevButton.disabled = paginationInfo.page <= 1;
-        }
-
-        if (nextButton) {
-            nextButton.disabled = paginationInfo.page >= paginationInfo.totalPages;
-        }
-    }
-
-    function populateTypeFilter(form, notifications) {
-        if (!form) {
-            return;
-        }
-        const select = form.querySelector('select[name="type"]');
-        if (!select) {
-            return;
-        }
-
-        const previousValue = normalizeText(select.value) || "all";
-        const safe = Array.isArray(notifications) ? notifications : [];
-        const types = new Set();
-        safe.forEach(function collectTypes(notification) {
-            const itemType = normalizeText(notification && notification.type).toLowerCase();
-            if (itemType) {
-                types.add(itemType);
-            }
-        });
-
-        while (select.options.length > 1) {
-            select.remove(1);
-        }
-
-        Array.from(types).sort().forEach(function addOption(typeValue) {
-            const option = globalScope.document.createElement("option");
-            option.value = typeValue;
-            option.textContent = typeValue
-                .split(/[_-]+/)
-                .map(function capitalize(word) {
-                    return word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
-                })
-                .join(" ");
-            select.appendChild(option);
-        });
-
-        if (Array.from(select.options).some(function matches(opt) { return opt.value === previousValue; })) {
-            select.value = previousValue;
-        } else {
-            select.value = "all";
-        }
-    }
-
-    function updateBulkActions(bulkButton, unreadCount) {
-        if (!bulkButton) {
-            return;
-        }
-
-        if (Number(unreadCount) > 0) {
-            bulkButton.removeAttribute("hidden");
-            bulkButton.textContent = `Mark all as read (${unreadCount})`;
-            bulkButton.disabled = false;
-        } else {
-            bulkButton.setAttribute("hidden", "");
-        }
-    }
-
-    function renderCurrentPage(elements, options = {}) {
-        const container = elements && elements.container;
-        if (!container) {
-            return null;
-        }
-
-        const filtered = filterNotifications(pageState.allNotifications, pageState.filters);
-        const sorted = sortNotifications(filtered, pageState.filters.sort);
-        const paginated = paginateNotifications(sorted, pageState.currentPage, pageState.pageSize);
-        pageState.currentPage = paginated.page;
-
-        const hasNotifications = pageState.allNotifications.length > 0;
-        const emptyMessage = hasNotifications
-            ? "No notifications match your filters. Try clearing them to see more."
-            : "You do not have any notifications yet.";
-
-        renderNotifications(paginated.pageNotifications, container, {
-            ...options,
-            emptyMessage,
-            onReadStateChange: function onReadStateChange() {
-                renderCurrentPage(elements, options);
-            }
-        });
-
-        const unreadCount = countUnread(pageState.allNotifications);
-
-        if (elements.summary) {
-            elements.summary.textContent = buildResultSummary(
-                sorted.length,
-                pageState.allNotifications.length,
-                unreadCount
-            );
-        }
-
-        updateBulkActions(elements.bulkMarkAllButton, unreadCount);
-        updatePaginationControls(elements.pagination, elements.paginationStatus, paginated);
-
-        return paginated;
-    }
-
-    function readFiltersFromForm(form) {
-        if (!form) {
-            return null;
-        }
-
-        const data = new globalScope.FormData(form);
-
-        return {
-            search: normalizeText(data.get("search")),
-            read: normalizeText(data.get("read")) || "all",
-            type: normalizeText(data.get("type")) || "all",
-            sort: normalizeText(data.get("sort")) || DEFAULT_SORT
-        };
-    }
-
-    async function markAllAsRead(elements, options = {}) {
-        const unread = pageState.allNotifications.filter(function isUnread(item) {
-            return item && item.read !== true && item.isRead !== true;
-        });
-
-        if (unread.length === 0) {
-            return;
-        }
-
-        if (elements.bulkMarkAllButton) {
-            elements.bulkMarkAllButton.disabled = true;
-        }
-
-        unread.forEach(function setLocal(item) {
-            item.read = true;
-        });
-
-        renderCurrentPage(elements, options);
-
-        await Promise.all(unread.map(function persistOne(item) {
-            return markNotificationRead(item.notificationId, options).catch(function onError(error) {
-                console.warn(`${MODULE_NAME}: bulk mark-as-read failed for ${item.notificationId}.`, error);
-            });
-        }));
-    }
-
-    function attachToolbarHandlers(elements, options = {}) {
-        const form = elements && elements.form;
-
-        if (form && !form.dataset.notificationsFormBound) {
-            form.dataset.notificationsFormBound = "true";
-
-            form.addEventListener("input", function onInput() {
-                const next = readFiltersFromForm(form);
-                if (next) {
-                    pageState.filters = next;
-                    pageState.currentPage = 1;
-                    renderCurrentPage(elements, options);
-                }
-            });
-
-            form.addEventListener("change", function onChange() {
-                const next = readFiltersFromForm(form);
-                if (next) {
-                    pageState.filters = next;
-                    pageState.currentPage = 1;
-                    renderCurrentPage(elements, options);
-                }
-            });
-
-            form.addEventListener("reset", function onReset() {
-                globalScope.setTimeout(function applyReset() {
-                    pageState.filters = {
-                        search: "",
-                        read: "all",
-                        type: "all",
-                        sort: DEFAULT_SORT
-                    };
-                    pageState.currentPage = 1;
-                    renderCurrentPage(elements, options);
-                }, 0);
-            });
-        }
-
-        const pagination = elements && elements.pagination;
-
-        if (pagination && !pagination.dataset.notificationsPaginationBound) {
-            pagination.dataset.notificationsPaginationBound = "true";
-
-            pagination.addEventListener("click", function onPaginationClick(event) {
-                const target = event.target.closest("[data-page-action]");
-                if (!target) {
-                    return;
-                }
-
-                const action = target.getAttribute("data-page-action");
-                if (action === "prev") {
-                    pageState.currentPage = Math.max(1, pageState.currentPage - 1);
-                } else if (action === "next") {
-                    pageState.currentPage = pageState.currentPage + 1;
-                }
-
-                renderCurrentPage(elements, options);
-            });
-        }
-
-        const bulkButton = elements && elements.bulkMarkAllButton;
-        if (bulkButton && !bulkButton.dataset.notificationsBulkBound) {
-            bulkButton.dataset.notificationsBulkBound = "true";
-            bulkButton.addEventListener("click", function onMarkAll() {
-                markAllAsRead(elements, options);
-            });
-        }
     }
 
     async function init(options = {}) {
@@ -864,21 +440,6 @@
 
             const container = globalScope.document.querySelector(containerSelector);
             const statusElement = globalScope.document.querySelector(statusSelector);
-            const summaryElement = globalScope.document.querySelector(
-                options.summarySelector || "#notifications-results-summary"
-            );
-            const formElement = globalScope.document.querySelector(
-                options.formSelector || "#notifications-filter-form"
-            );
-            const paginationElement = globalScope.document.querySelector(
-                options.paginationSelector || "#notifications-pagination"
-            );
-            const paginationStatusElement = globalScope.document.querySelector(
-                options.paginationStatusSelector || "#notifications-pagination-status"
-            );
-            const bulkMarkAllButton = globalScope.document.querySelector(
-                options.bulkMarkAllSelector || "#notifications-mark-all-read"
-            );
 
             if (!container) {
                 return {
@@ -887,47 +448,12 @@
                 };
             }
 
-            const elements = {
-                container,
-                summary: summaryElement,
-                form: formElement,
-                pagination: paginationElement,
-                paginationStatus: paginationStatusElement,
-                bulkMarkAllButton
-            };
-
-            const initialFilters = readFiltersFromForm(formElement);
-            if (initialFilters) {
-                pageState.filters = initialFilters;
-            } else {
-                pageState.filters = {
-                    search: "",
-                    read: "all",
-                    type: "all",
-                    sort: DEFAULT_SORT
-                };
-            }
-            pageState.currentPage = 1;
-            pageState.pageSize = Number(options.pageSize) > 0
-                ? Math.floor(Number(options.pageSize))
-                : DEFAULT_PAGE_SIZE;
-
             setStatusMessage(statusElement, "Loading your notifications...", "loading");
 
             const currentUser = options.currentUser || await waitForAuthReady(auth, authFns);
 
             if (!currentUser || !normalizeText(currentUser.uid)) {
-                pageState.allNotifications = [];
                 renderNotifications([], container);
-                if (summaryElement) {
-                    summaryElement.textContent = "";
-                }
-                if (paginationElement) {
-                    paginationElement.setAttribute("hidden", "");
-                }
-                if (bulkMarkAllButton) {
-                    bulkMarkAllButton.setAttribute("hidden", "");
-                }
                 setStatusMessage(statusElement, "Please sign in to view your notifications.", "error");
                 return {
                     success: false,
@@ -943,17 +469,7 @@
             });
 
             if (!result.success) {
-                pageState.allNotifications = [];
                 renderNotifications([], container);
-                if (summaryElement) {
-                    summaryElement.textContent = "";
-                }
-                if (paginationElement) {
-                    paginationElement.setAttribute("hidden", "");
-                }
-                if (bulkMarkAllButton) {
-                    bulkMarkAllButton.setAttribute("hidden", "");
-                }
                 setStatusMessage(
                     statusElement,
                     result.error && result.error.message
@@ -969,26 +485,17 @@
                 };
             }
 
-            pageState.allNotifications = Array.isArray(result.notifications)
-                ? result.notifications.map(function mapAndKeep(notification) {
-                    return mapNotificationRecord(notification);
-                })
-                : [];
+            renderNotifications(result.notifications, container, {
+                db,
+                firestoreFns
+            });
 
-            populateTypeFilter(formElement, pageState.allNotifications);
-            attachToolbarHandlers(elements, { db, firestoreFns });
-            renderCurrentPage(elements, { db, firestoreFns });
-
-            const unread = countUnread(pageState.allNotifications);
-
-            if (pageState.allNotifications.length === 0) {
+            if (result.notifications.length === 0) {
                 setStatusMessage(statusElement, "You do not have any notifications yet.", "info");
             } else {
-                const total = pageState.allNotifications.length;
-                const unreadSuffix = unread > 0 ? ` (${unread} unread)` : "";
                 setStatusMessage(
                     statusElement,
-                    `You have ${total} notification${total === 1 ? "" : "s"}${unreadSuffix}.`,
+                    `You have ${result.notifications.length} notification${result.notifications.length === 1 ? "" : "s"}.`,
                     "success"
                 );
             }
@@ -1008,8 +515,6 @@
 
     const customerOrderNotificationsPage = {
         MODULE_NAME,
-        DEFAULT_PAGE_SIZE,
-        DEFAULT_SORT,
         normalizeText,
         resolveFirestore,
         resolveAuth,
@@ -1026,12 +531,6 @@
         buildOrderDetailUrl,
         createNotificationArticle,
         renderNotifications,
-        getNotificationTimestamp,
-        sortNotifications,
-        filterNotifications,
-        paginateNotifications,
-        buildResultSummary,
-        countUnread,
         init
     };
 
