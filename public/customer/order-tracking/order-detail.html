@@ -29,8 +29,8 @@
             <h2 id="order-detail-heading">Order Detail</h2>
 
             <p>
-                Review the vendor, items, running total, and the latest order progress from
-                order received through collection.
+                Review the vendor, items, payment state, and the latest order progress from
+                paid order creation through collection.
             </p>
 
             <p id="order-tracking-detail-status" aria-live="polite" aria-atomic="true"></p>
@@ -82,9 +82,9 @@
                 <article class="order-detail-help" aria-labelledby="order-help-heading">
                     <h4 class="order-section-heading" id="order-help-heading">What This Means</h4>
                     <p class="order-detail-caption">
-                        Use this page to see the full state of one order. When a vendor accepts,
-                        prepares, or marks the order ready, those updates appear here and in your
-                        notifications.
+                        Use this page to see the full state of one paid order. If an old unpaid
+                        record appears here, complete payment from the payment section before the
+                        vendor can fulfil it.
                     </p>
                     <menu class="action-menu" aria-label="Helpful shortcuts">
                         <li><a href="../order-management/cart.html" class="button-secondary">Cart</a></li>
@@ -107,6 +107,7 @@
     <script src="../../shared/orders/order-queries.js"></script>
     <script src="../../shared/orders/order-service.js"></script>
     <script src="../../shared/orders/order-formatters.js"></script>
+    <script src="../../shared/checkout/checkout-status.js"></script>
     <script src="../../shared/payments/payment-status.js"></script>
     <script src="../../shared/payments/payment-model.js"></script>
     <script src="../../shared/payments/payment-formatters.js"></script>
@@ -142,6 +143,7 @@
                 orderService: window.orderService,
                 orderStatus: window.orderStatus,
                 orderFormatters: window.orderFormatters,
+                checkoutStatus: window.checkoutStatus,
                 paymentStatus: window.paymentStatus,
                 paymentFormatters: window.paymentFormatters
             });
