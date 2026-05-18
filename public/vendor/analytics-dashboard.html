@@ -9,137 +9,137 @@
 </head>
 <body>
     <!-- Main Analytics Layout -->
-    <div class="analytics-layout">
+    <main class="analytics-layout">
         <!-- Sidebar Navigation -->
         <aside class="analytics-sidebar">
-            <div class="sidebar-header">
+            <header class="sidebar-header">
                 <h2>📊 Shop Analytics</h2>
                 <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
-            </div>
+            </header>
 
             <!-- Navigation Menu -->
             <nav class="sidebar-nav" id="sidebar-nav">
                 <a href="#" class="sidebar-link active" data-page="overview">
-                    <span class="icon">📈</span>
-                    <span class="label">Dashboard Overview</span>
+                    <i class="icon" aria-hidden="true">📈</i>
+                    <strong class="label">Dashboard Overview</strong>
                 </a>
                 <a href="#" class="sidebar-link" data-page="revenue">
-                    <span class="icon">💰</span>
-                    <span class="label">Revenue Analytics</span>
+                    <i class="icon" aria-hidden="true">💰</i>
+                    <strong class="label">Revenue Analytics</strong>
                 </a>
                 <a href="#" class="sidebar-link" data-page="products">
-                    <span class="icon">🍕</span>
-                    <span class="label">Product Performance</span>
+                    <i class="icon" aria-hidden="true">🍕</i>
+                    <strong class="label">Product Performance</strong>
                 </a>
                 <a href="#" class="sidebar-link" data-page="patterns">
-                    <span class="icon">🕐</span>
-                    <span class="label">Peak Hours</span>
+                    <i class="icon" aria-hidden="true">🕐</i>
+                    <strong class="label">Peak Hours</strong>
                 </a>
                 <a href="#" class="sidebar-link" data-page="orders">
-                    <span class="icon">📦</span>
-                    <span class="label">Orders Summary</span>
+                    <i class="icon" aria-hidden="true">📦</i>
+                    <strong class="label">Orders Summary</strong>
                 </a>
-                <div class="sidebar-divider"></div>
+                <hr class="sidebar-divider">
                 <a href="#" class="sidebar-link" data-page="settings">
-                    <span class="icon">⚙️</span>
-                    <span class="label">Settings & Export</span>
+                    <i class="icon" aria-hidden="true">⚙️</i>
+                    <strong class="label">Settings & Export</strong>
                 </a>
             </nav>
 
             <!-- Filter Section -->
-            <div class="filter-section">
+            <section class="filter-section">
                 <h4>Date Range</h4>
-                <div class="filter-group compact">
+                <section class="filter-group compact">
                     <label class="label-compact">Start Date</label>
                     <input type="date" id="startDate-sidebar" class="input-compact">
-                </div>
-                <div class="filter-group compact">
+                </section>
+                <section class="filter-group compact">
                     <label class="label-compact">End Date</label>
                     <input type="date" id="endDate-sidebar" class="input-compact">
-                </div>
-                <div class="filter-actions-compact">
+                </section>
+                <section class="filter-actions-compact">
                     <button class="button-small" id="apply-filter-sidebar">Apply</button>
                     <button class="button-small secondary" id="reset-filter-sidebar">Reset</button>
-                </div>
-            </div>
+                </section>
+            </section>
 
             <!-- Export Section -->
-            <div class="export-section">
+            <section class="export-section">
                 <h4>Export</h4>
                 <button class="button-sidebar" id="export-csv-sidebar">📥 Export as CSV</button>
                 <button class="button-sidebar" id="export-pdf-sidebar">📄 Export as PDF</button>
-            </div>
+            </section>
         </aside>
 
         <!-- Main Content Area -->
         <main class="analytics-main">
             <!-- Status Bar -->
-            <div class="status-bar" id="status-bar"></div>
+            <section class="status-bar" id="status-bar"></section>
 
             <!-- PAGE: OVERVIEW DASHBOARD -->
-            <div class="analytics-page active" data-page="overview">
-                <div class="page-header">
+            <section class="analytics-page active" data-page="overview">
+                <header class="page-header">
                     <h2>Dashboard Overview</h2>
                     <p>Quick summary of your shop's performance</p>
-                </div>
+                </header>
 
                 <!-- KPI Metrics -->
-                <div class="metrics-grid" id="overview-metrics">
+                <section class="metrics-grid" id="overview-metrics">
                     <!-- Populated by JavaScript -->
-                </div>
+                </section>
 
                 <!-- Recent Orders Preview -->
-                <div class="recent-orders-preview">
+                <section class="recent-orders-preview">
                     <h3>📦 Recent Orders</h3>
-                    <div id="recent-orders-mini">
+                    <section id="recent-orders-mini">
                         <!-- Populated by JavaScript -->
-                    </div>
-                </div>
+                    </section>
+                </section>
 
                 <!-- Insights -->
-                <div style="margin-top: 2rem;">
+                <section style="margin-top: 2rem;">
                     <h3 style="margin: 0 0 1rem 0; color: #333;">💡 Smart Insights</h3>
-                    <div class="insights-container" id="insights-container">
+                    <section class="insights-container" id="insights-container">
                         <!-- Populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
+                    </section>
+                </section>
+            </section>
 
             <!-- PAGE: REVENUE ANALYTICS -->
-            <div class="analytics-page" data-page="revenue">
-                <div class="page-header">
+            <section class="analytics-page" data-page="revenue">
+                <header class="page-header">
                     <h2>Revenue Analytics</h2>
                     <p>Track your revenue trends and performance</p>
-                </div>
+                </header>
 
                 <!-- Revenue Metrics -->
-                <div class="metrics-grid" id="revenue-metrics">
+                <section class="metrics-grid" id="revenue-metrics">
                     <!-- Populated by JavaScript -->
-                </div>
+                </section>
 
                 <!-- Revenue Charts -->
-                <div class="charts-grid">
-                    <div class="chart-card">
+                <section class="charts-grid">
+                    <article class="chart-card">
                         <h4>📊 Daily Revenue Trend</h4>
                         <p class="chart-description">Your revenue over time</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="revenueTrendChart"></canvas>
-                        </div>
-                    </div>
+                        </figure>
+                    </article>
 
-                    <div class="chart-card">
+                    <article class="chart-card">
                         <h4>📈 Category Revenue</h4>
                         <p class="chart-description">Revenue breakdown by category</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="categoryRevenueChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+                        </figure>
+                    </article>
+                </section>
 
                 <!-- Revenue Summary Table -->
-                <div class="analytics-details">
+                <section class="analytics-details">
                     <h3>💵 Daily Revenue Breakdown</h3>
-                    <div class="table-wrapper">
+                    <section class="table-wrapper">
                         <table class="analytics-table" id="revenue-table">
                             <thead>
                                 <tr>
@@ -153,47 +153,47 @@
                                 <!-- Populated by JavaScript -->
                             </tbody>
                         </table>
-                    </div>
-                </div>
-            </div>
+                    </section>
+                </section>
+            </section>
 
             <!-- PAGE: PRODUCT PERFORMANCE -->
-            <div class="analytics-page" data-page="products">
-                <div class="page-header">
+            <section class="analytics-page" data-page="products">
+                <header class="page-header">
                     <h2>Product Performance</h2>
                     <p>Analyze which items are performing best and worst</p>
-                </div>
+                </header>
 
                 <!-- Product Metrics -->
-                <div class="metrics-grid" id="products-metrics">
+                <section class="metrics-grid" id="products-metrics">
                     <!-- Populated by JavaScript -->
-                </div>
+                </section>
 
                 <!-- Product Charts -->
-                <div class="charts-grid">
-                    <div class="chart-card">
+                <section class="charts-grid">
+                    <article class="chart-card">
                         <h4>⭐ Top Selling Items</h4>
                         <p class="chart-description">Your best-selling menu items</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="topItemsChart"></canvas>
-                        </div>
-                    </div>
+                        </figure>
+                    </article>
 
-                    <div class="chart-card">
+                    <article class="chart-card">
                         <h4>🍱 Category Performance</h4>
                         <p class="chart-description">Sales by menu category</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="categoryPerformanceChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+                        </figure>
+                    </article>
+                </section>
 
                 <!-- Top and Bottom Items Tables -->
-                <div class="details-grid">
+                <section class="details-grid">
                     <!-- Top Items Table -->
-                    <div class="details-card">
+                    <article class="details-card">
                         <h4>🌟 Top 10 Items</h4>
-                        <div class="table-wrapper">
+                        <section class="table-wrapper">
                             <table id="top-items-table" class="analytics-table" aria-label="Top performing items">
                                 <thead>
                                     <tr>
@@ -211,13 +211,13 @@
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
+                        </section>
+                    </article>
 
                     <!-- Bottom Items Table -->
-                    <div class="details-card">
+                    <article class="details-card">
                         <h4>⚠️ Bottom Items (Needs Attention)</h4>
-                        <div class="table-wrapper">
+                        <section class="table-wrapper">
                             <table id="bottom-items-table" class="analytics-table" aria-label="Bottom performing items">
                                 <thead>
                                     <tr>
@@ -235,132 +235,131 @@
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        </section>
+                    </article>
+                </section>
+            </section>
 
             <!-- PAGE: PEAK HOURS -->
-            <div class="analytics-page" data-page="patterns">
-                <div class="page-header">
+            <section class="analytics-page" data-page="patterns">
+                <header class="page-header">
                     <h2>Peak Hours Analysis</h2>
                     <p>Understand when your customers order most</p>
-                </div>
+                </header>
 
                 <!-- Patterns Metrics -->
-                <div class="metrics-grid" id="patterns-metrics">
+                <section class="metrics-grid" id="patterns-metrics">
                     <!-- Populated by JavaScript -->
-                </div>
+                </section>
 
                 <!-- Pattern Charts -->
-                <div class="charts-grid">
-                    <div class="chart-card">
+                <section class="charts-grid">
+                    <article class="chart-card">
                         <h4>🕐 Orders by Hour</h4>
                         <p class="chart-description">Peak hours throughout the day</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="peakHoursChart"></canvas>
-                        </div>
-                    </div>
+                        </figure>
+                    </article>
 
-                    <div class="chart-card">
+                    <article class="chart-card">
                         <h4>📅 Orders by Day</h4>
                         <p class="chart-description">Order distribution by day of week</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="dayOfWeekChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+                        </figure>
+                    </article>
+                </section>
 
                 <!-- Pattern Summary -->
-                <div class="insights-container" id="pattern-summary">
+                <section class="insights-container" id="pattern-summary">
                     <!-- Populated by JavaScript -->
-                </div>
-            </div>
+                </section>
+            </section>
 
             <!-- PAGE: ORDERS SUMMARY -->
-            <div class="analytics-page" data-page="orders">
-                <div class="page-header">
+            <section class="analytics-page" data-page="orders">
+                <header class="page-header">
                     <h2>Orders Summary</h2>
                     <p>Overview of all orders and their status</p>
-                </div>
+                </header>
 
                 <!-- Orders Metrics -->
-                <div class="metrics-grid" id="orders-metrics">
+                <section class="metrics-grid" id="orders-metrics">
                     <!-- Populated by JavaScript -->
-                </div>
+                </section>
 
                 <!-- Order Status Chart -->
-                <div class="charts-grid" style="margin-bottom: 2rem;">
-                    <div class="chart-card">
+                <section class="charts-grid" style="margin-bottom: 2rem;">
+                    <article class="chart-card">
                         <h4>📊 Order Status Distribution</h4>
                         <p class="chart-description">Completed, pending, and cancelled orders</p>
-                        <div class="chart-wrapper">
+                        <figure class="chart-wrapper">
                             <canvas id="statusDistributionChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+                        </figure>
+                    </article>
+                </section>
 
                 <!-- Orders Grid -->
-                <div class="analytics-details">
+                <section class="analytics-details">
                     <h3>📦 Orders</h3>
-                    <div id="orders-grid" class="orders-grid">
+                    <section id="orders-grid" class="orders-grid">
                         <!-- Populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
+                    </section>
+                </section>
+            </section>
 
             <!-- PAGE: SETTINGS & EXPORT -->
-            <div class="analytics-page" data-page="settings">
-                <div class="page-header">
+            <section class="analytics-page" data-page="settings">
+                <header class="page-header">
                     <h2>Settings & Export</h2>
                     <p>Manage your analytics preferences and data export</p>
-                </div>
+                </header>
 
                 <!-- Settings Cards -->
-                <div class="settings-cards">
+                <section class="settings-cards">
                     <!-- Export Options -->
-                    <div class="settings-card">
+                    <article class="settings-card">
                         <h3>📥 Export Your Data</h3>
                         <p>Download your analytics in various formats for further analysis</p>
-                        <div class="settings-actions">
+                        <section class="settings-actions">
                             <button class="button-primary" id="export-csv-button">📊 Export as CSV</button>
                             <button class="button-primary" id="export-pdf-button">📄 Export as PDF</button>
                             <button class="button-primary" id="export-json-button">📝 Export as JSON</button>
-                        </div>
-                    </div>
+                        </section>
+                    </article>
 
                     <!-- Analytics Information -->
-                    <div class="settings-card">
+                    <article class="settings-card">
                         <h3>ℹ️ Analytics Information</h3>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <span class="info-label">Data Available Since:</span>
-                                <span class="info-value" id="data-start-date">Loading...</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Last Updated:</span>
-                                <span class="info-value" id="last-updated">Loading...</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Total Records:</span>
-                                <span class="info-value" id="total-records">Loading...</span>
-                            </div>
-                        </div>
-                    </div>
+                        <section class="info-grid">
+                            <section class="info-item">
+                                <strong class="info-label">Data Available Since:</strong>
+                                <output class="info-value" id="data-start-date">Loading...</output>
+                            </section>
+                            <section class="info-item">
+                                <strong class="info-label">Last Updated:</strong>
+                                <output class="info-value" id="last-updated">Loading...</output>
+                            </section>
+                            <section class="info-item">
+                                <strong class="info-label">Total Records:</strong>
+                                <output class="info-value" id="total-records">Loading...</output>
+                            </section>
+                        </section>
+                    </article>
 
                     <!-- Filter & Refresh -->
-                    <div class="settings-card">
+                    <article class="settings-card">
                         <h3>🔄 Refresh Data</h3>
                         <p>Manually refresh your analytics data</p>
-                        <div class="settings-actions">
+                        <section class="settings-actions">
                             <button class="button-secondary" id="refresh-data-button">🔄 Refresh Now</button>
                             <button class="button-secondary" id="clear-filters-button">🔃 Reset All Filters</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        </section>
+                    </article>
+                </section>
+            </section>
         </main>
-    </div>
 
     <!-- Scripts -->
     <script src="../authentication/auth-utils.js"></script>
