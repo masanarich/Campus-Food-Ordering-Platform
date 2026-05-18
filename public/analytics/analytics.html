@@ -19,24 +19,10 @@
 </head>
 
 <body>
-
-
 <header class="site-header">
     <nav class="site-nav" aria-label="Main navigation">
-        <a class="brand" href="../index.html">Campus Food Ordering Platform</a>
-
-        <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="menuList"
-            aria-label="Toggle menu">
-            Menu
-        </button>
-
         <ul class="nav-list" id="menuList">
-            <li><a href="../index.html#about">About</a></li>
-            <li><a href="../index.html#features">Features</a></li>
-            <li><a href="../index.html#get-started">Get Started</a></li>
-            <li><a href="../index.html#contact">Contact</a></li>
-            <li><a class="nav-button active" href="analytics.html">Analytics</a></li>
-            <li><a class="nav-button" href="../authentication/login.html">Sign In</a></li>
+            <li><a class="nav-button active" href="../admin/index.html"> ← Back to Admin Dashboard </a></li>
         </ul>
     </nav>
 </header>
@@ -44,98 +30,98 @@
 
 <main class="analytics-main">
 
-  <!-- HERO -->
+  <!-- PAGE HEADING -->
   <section class="analytics-hero">
-    <div class="analytics-hero-text">
+    <section class="analytics-hero-text">
       <h1> Analytics Dashboard</h1>
-    </div>
+    </section>
   </section>
 
   <!-- SALES -->
   <section id="report-sales" class="report-section">
 
-    <div class="report-header">
-      <div class="report-title-group">
+    <section class="report-header">
+      <section class="report-title-group">
         <h2>Sales Per Vendor</h2>
         <p class="report-description">
           Monthly and total vendor sales analytics.
         </p>
-      </div>
+      </section>
 
-      <div class="report-actions">
+      <section class="report-actions">
         <button class="button secondary" id="exportSalesCSV">Export Excel</button>
         <button class="button secondary" id="exportSalesPDF">Export PDF</button>
-      </div>
-    </div>
+      </section>
+    </section>
 
     <figure class="chart-container">
       <canvas id="salesChart"></canvas>
     </figure>
 
-    <div class="report-table-wrapper">
+    <section class="report-table-wrapper">
       <table id="salesTable" class="report-table">
         <thead>
           <tr id="salesHeaderRow">
             <th>Vendor</th>
-            <!-- months injected dynamically -->
+            
             <th>Total</th>
           </tr>
         </thead>
         <tbody id="salesTableBody"></tbody>
       </table>
-    </div>
+    </section>
 
   </section>
 
   <!-- PEAK -->
   <section id="report-peak" class="report-section">
 
-    <div class="report-header">
-      <div class="report-title-group">
+    <section class="report-header">
+      <section class="report-title-group">
         <h2>Peak Ordering Hours</h2>
         <p class="report-description">
           Track the busiest ordering times throughout the day.
         </p>
-      </div>
+      </section>
 
-      <div class="report-actions">
+      <section class="report-actions">
         <button class="button secondary" id="exportPeakCSV">Export Excel</button>
         <button class="button secondary" id="exportPeakPDF">Export PDF</button>
-      </div>
-    </div>
+      </section>
+    </section>
 
     <figure class="chart-container">
       <canvas id="peakChart"></canvas>
     </figure>
 
-    <div id="peakInsight" class="peak-insight"></div>
+    <section id="peakInsight" class="peak-insight"></section>
 
   </section>
 
   <!-- POPULAR -->
   <section id="report-popular" class="report-section">
 
-    <div class="report-header">
-      <div class="report-title-group">
+    <section class="report-header">
+      <section class="report-title-group">
         <h2>Popular Items</h2>
         <p class="report-description">
           Most ordered menu items ranked by order count.
         </p>
-      </div>
+      </section>
 
-      <div class="report-actions">
+      <section class="report-actions">
         <button class="button secondary" id="exportPopularCSV">Export Excel</button>
         <button class="button secondary" id="exportPopularPDF">Export PDF</button>
-      </div>
-    </div>
+      </section>
+    </section>
 
-    <div class="popular-layout">
+    <section class="popular-layout">
 
       <figure class="chart-container chart-container--doughnut">
         <canvas id="popularChart"></canvas>
       </figure>
 
-      <div class="report-table-wrapper">
+      <section class="report-table-wrapper">
         <table class="report-table">
           <thead>
             <tr>
@@ -146,9 +132,9 @@
           </thead>
           <tbody id="popularTableBody"></tbody>
         </table>
-      </div>
+      </section>
 
-    </div>
+    </section>
 
   </section>
 

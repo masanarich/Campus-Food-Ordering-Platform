@@ -1,10 +1,5 @@
-// analytics.js — REAL-TIME + DYNAMIC FIRESTORE ANALYTICS
-
-import {
-  initializeApp,
-  getApps,
-  getApp
-} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+//REAL-TIME + DYNAMIC FIRESTORE ANALYTICS
+import { db, auth } from "../authentication/config.js";
 
 import {
   getFirestore,
@@ -15,23 +10,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 import {
-  getAuth,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-
-// ---------------- FIREBASE ----------------
-const firebaseConfig = {
-  apiKey: "AIzaSyCoKYtzrL8ib4VDfd0Wr0cMjVPfgUkPtVA",
-  authDomain: "campus-food-ordering-platform.firebaseapp.com",
-  projectId: "campus-food-ordering-platform",
-  storageBucket: "campus-food-ordering-platform.firebasestorage.app",
-  messagingSenderId: "808109232496",
-  appId: "1:808109232496:web:0c1bcd968c1493e3bbffb5"
-};
-
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const db  = getFirestore(app);
-const auth = getAuth(app);
 
 // ---------------- STATE ----------------
 let salesChart   = null;
