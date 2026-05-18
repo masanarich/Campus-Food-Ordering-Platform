@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Analytics - Campus Food Ordering</title>
+    <link rel="stylesheet" href="analytics-dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Main Analytics Layout -->
+    <div class="analytics-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="analytics-sidebar">
+            <div class="sidebar-header">
+                <h2>📊 Shop Analytics</h2>
+                <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <a href="#" class="sidebar-link active" data-page="overview">
+                    <span class="icon">📈</span>
+                    <span class="label">Dashboard Overview</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="revenue">
+                    <span class="icon">💰</span>
+                    <span class="label">Revenue Analytics</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="products">
+                    <span class="icon">🍕</span>
+                    <span class="label">Product Performance</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="patterns">
+                    <span class="icon">🕐</span>
+                    <span class="label">Peak Hours</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="orders">
+                    <span class="icon">📦</span>
+                    <span class="label">Orders Summary</span>
+                </a>
+                <div class="sidebar-divider"></div>
+                <a href="#" class="sidebar-link" data-page="settings">
+                    <span class="icon">⚙️</span>
+                    <span class="label">Settings & Export</span>
+                </a>
+            </nav>
+
+            <!-- Filter Section -->
+            <div class="filter-section">
+                <h4>Date Range</h4>
+                <div class="filter-group compact">
+                    <label class="label-compact">Start Date</label>
+                    <input type="date" id="startDate-sidebar" class="input-compact">
+                </div>
+                <div class="filter-group compact">
+                    <label class="label-compact">End Date</label>
+                    <input type="date" id="endDate-sidebar" class="input-compact">
+                </div>
+                <div class="filter-actions-compact">
+                    <button class="button-small" id="apply-filter-sidebar">Apply</button>
+                    <button class="button-small secondary" id="reset-filter-sidebar">Reset</button>
+                </div>
+            </div>
+
+            <!-- Export Section -->
+            <div class="export-section">
+                <h4>Export</h4>
+                <button class="button-sidebar" id="export-csv-sidebar">📥 Export as CSV</button>
+                <button class="button-sidebar" id="export-pdf-sidebar">📄 Export as PDF</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="analytics-main">
+            <!-- Status Bar -->
+            <div class="status-bar" id="status-bar"></div>
+
+            <!-- PAGE: OVERVIEW DASHBOARD -->
+            <div class="analytics-page active" data-page="overview">
+                <div class="page-header">
+                    <h2>Dashboard Overview</h2>
+                    <p>Quick summary of your shop's performance</p>
+                </div>
+
+                <!-- KPI Metrics -->
+                <div class="metrics-grid" id="overview-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Recent Orders Preview -->
+                <div class="recent-orders-preview">
+                    <h3>📦 Recent Orders</h3>
+                    <div id="recent-orders-mini">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Insights -->
+                <div style="margin-top: 2rem;">
+                    <h3 style="margin: 0 0 1rem 0; color: #333;">💡 Smart Insights</h3>
+                    <div class="insights-container" id="insights-container">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: REVENUE ANALYTICS -->
+            <div class="analytics-page" data-page="revenue">
+                <div class="page-header">
+                    <h2>Revenue Analytics</h2>
+                    <p>Track your revenue trends and performance</p>
+                </div>
+
+                <!-- Revenue Metrics -->
+                <div class="metrics-grid" id="revenue-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Revenue Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>📊 Daily Revenue Trend</h4>
+                        <p class="chart-description">Your revenue over time</p>
+                        <div class="chart-wrapper">
+                            <canvas id="revenueTrendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>📈 Category Revenue</h4>
+                        <p class="chart-description">Revenue breakdown by category</p>
+                        <div class="chart-wrapper">
+                            <canvas id="categoryRevenueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Revenue Summary Table -->
+                <div class="analytics-details">
+                    <h3>💵 Daily Revenue Breakdown</h3>
+                    <div class="table-wrapper">
+                        <table class="analytics-table" id="revenue-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Orders</th>
+                                    <th>Revenue</th>
+                                    <th>Avg Order Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: PRODUCT PERFORMANCE -->
+            <div class="analytics-page" data-page="products">
+                <div class="page-header">
+                    <h2>Product Performance</h2>
+                    <p>Analyze which items are performing best and worst</p>
+                </div>
+
+                <!-- Product Metrics -->
+                <div class="metrics-grid" id="products-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Product Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>⭐ Top Selling Items</h4>
+                        <p class="chart-description">Your best-selling menu items</p>
+                        <div class="chart-wrapper">
+                            <canvas id="topItemsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>🍱 Category Performance</h4>
+                        <p class="chart-description">Sales by menu category</p>
+                        <div class="chart-wrapper">
+                            <canvas id="categoryPerformanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top and Bottom Items Tables -->
+                <div class="details-grid">
+                    <!-- Top Items Table -->
+                    <div class="details-card">
+                        <h4>🌟 Top 10 Items</h4>
+                        <div class="table-wrapper">
+                            <table id="top-items-table" class="analytics-table" aria-label="Top performing items">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Item Name</th>
+                                        <th>Category</th>
+                                        <th>Qty Sold</th>
+                                        <th>Revenue</th>
+                                        <th>Avg Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="loading-message">Loading item data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Items Table -->
+                    <div class="details-card">
+                        <h4>⚠️ Bottom Items (Needs Attention)</h4>
+                        <div class="table-wrapper">
+                            <table id="bottom-items-table" class="analytics-table" aria-label="Bottom performing items">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Item Name</th>
+                                        <th>Category</th>
+                                        <th>Qty Sold</th>
+                                        <th>Revenue</th>
+                                        <th>Avg Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="loading-message">Loading item data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: PEAK HOURS -->
+            <div class="analytics-page" data-page="patterns">
+                <div class="page-header">
+                    <h2>Peak Hours Analysis</h2>
+                    <p>Understand when your customers order most</p>
+                </div>
+
+                <!-- Patterns Metrics -->
+                <div class="metrics-grid" id="patterns-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Pattern Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>🕐 Orders by Hour</h4>
+                        <p class="chart-description">Peak hours throughout the day</p>
+                        <div class="chart-wrapper">
+                            <canvas id="peakHoursChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>📅 Orders by Day</h4>
+                        <p class="chart-description">Order distribution by day of week</p>
+                        <div class="chart-wrapper">
+                            <canvas id="dayOfWeekChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pattern Summary -->
+                <div class="insights-container" id="pattern-summary">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- PAGE: ORDERS SUMMARY -->
+            <div class="analytics-page" data-page="orders">
+                <div class="page-header">
+                    <h2>Orders Summary</h2>
+                    <p>Overview of all orders and their status</p>
+                </div>
+
+                <!-- Orders Metrics -->
+                <div class="metrics-grid" id="orders-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Order Status Chart -->
+                <div class="charts-grid" style="margin-bottom: 2rem;">
+                    <div class="chart-card">
+                        <h4>📊 Order Status Distribution</h4>
+                        <p class="chart-description">Completed, pending, and cancelled orders</p>
+                        <div class="chart-wrapper">
+                            <canvas id="statusDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders Grid -->
+                <div class="analytics-details">
+                    <h3>📦 Orders</h3>
+                    <div id="orders-grid" class="orders-grid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: SETTINGS & EXPORT -->
+            <div class="analytics-page" data-page="settings">
+                <div class="page-header">
+                    <h2>Settings & Export</h2>
+                    <p>Manage your analytics preferences and data export</p>
+                </div>
+
+                <!-- Settings Cards -->
+                <div class="settings-cards">
+                    <!-- Export Options -->
+                    <div class="settings-card">
+                        <h3>📥 Export Your Data</h3>
+                        <p>Download your analytics in various formats for further analysis</p>
+                        <div class="settings-actions">
+                            <button class="button-primary" id="export-csv-button">📊 Export as CSV</button>
+                            <button class="button-primary" id="export-pdf-button">📄 Export as PDF</button>
+                            <button class="button-primary" id="export-json-button">📝 Export as JSON</button>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Information -->
+                    <div class="settings-card">
+                        <h3>ℹ️ Analytics Information</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Data Available Since:</span>
+                                <span class="info-value" id="data-start-date">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Last Updated:</span>
+                                <span class="info-value" id="last-updated">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Total Records:</span>
+                                <span class="info-value" id="total-records">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter & Refresh -->
+                    <div class="settings-card">
+                        <h3>🔄 Refresh Data</h3>
+                        <p>Manually refresh your analytics data</p>
+                        <div class="settings-actions">
+                            <button class="button-secondary" id="refresh-data-button">🔄 Refresh Now</button>
+                            <button class="button-secondary" id="clear-filters-button">🔃 Reset All Filters</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="../shared/orders/order-status.js"></script>
+    <script src="../shared/orders/order-model.js"></script>
+    <script src="../shared/orders/order-queries.js"></script>
+    <script src="../shared/orders/order-service.js"></script>
+    <script src="../shared/orders/order-formatters.js"></script>
+    <script src="../shared/payments/payment-status.js"></script>
+    <script src="../shared/payments/payment-model.js"></script>
+    <script src="../shared/payments/payment-formatters.js"></script>
+    <script src="./analytics-dashboard.js"></script>
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db, auth } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+    </script>
+</body>
+</html>
