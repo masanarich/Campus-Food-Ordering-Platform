@@ -43,17 +43,21 @@
         return {};
     }
 
+    function isTicketServiceShape(value) {
+        return !!(value && typeof value === "object" && (
+            typeof value.getTicketById === "function" ||
+            typeof value.addReply === "function" ||
+            typeof value.closeTicketByReporter === "function" ||
+            typeof value.reopenTicket === "function" ||
+            typeof value.updateTicketStatus === "function"
+        ));
+    }
+
     function resolveTicketService(explicitTicketService) {
-        if (
-            explicitTicketService &&
-            typeof explicitTicketService.getTicketById === "function"
-        ) {
+        if (isTicketServiceShape(explicitTicketService)) {
             return explicitTicketService;
         }
-        if (
-            globalScope.ticketService &&
-            typeof globalScope.ticketService.getTicketById === "function"
-        ) {
+        if (isTicketServiceShape(globalScope.ticketService)) {
             return globalScope.ticketService;
         }
         return null;
@@ -911,6 +915,7 @@
         resolveAuth,
         resolveAuthFns,
         resolveFirestoreFns,
+        isTicketServiceShape,
         resolveTicketService,
         resolveTicketFormatters,
         resolveTicketStatus,
