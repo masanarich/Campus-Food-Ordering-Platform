@@ -384,6 +384,7 @@ function getHomeState(profile, authUtils) {
         showAdminPortal,
         showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
         manageUsersRoute: getPortalRoute("users", authUtils),
+        analyticsRoute: './analytics.html',
         disputesRoute: getPortalRoute("disputes", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
@@ -659,6 +660,7 @@ async function initializeAdminHomePage(options = {}) {
         adminAccessNoteElement: document.querySelector("#admin-access-note"),
         profileButton: document.querySelector("#go-profile-button"),
         manageUsersButton: document.querySelector("#manage-users-button"),
+        analyticsButton: document.querySelector("#go-analytics-button"),
         reviewDisputesButton: document.querySelector("#review-disputes-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
@@ -711,6 +713,12 @@ async function initializeAdminHomePage(options = {}) {
             navigate
         });
 
+        const analyticsController = attachNavigationHandler({
+            button: elements.analyticsButton,
+            route: result.state.analyticsRoute,
+            navigate
+        });
+
         const choosePortalController = result.state.showChoosePortal
             ? attachNavigationHandler({
                 button: elements.choosePortalButton,
@@ -748,6 +756,7 @@ async function initializeAdminHomePage(options = {}) {
             state: result.state,
             profileController,
             manageUsersController,
+            analyticsController,
             reviewDisputesController,
             choosePortalController,
             customerPortalController,
