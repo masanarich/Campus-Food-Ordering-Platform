@@ -3,18 +3,19 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Help & Support | Campus Food Ordering Platform</title>
+    <title>Help &amp; Support | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="View and manage your support tickets as a customer.">
     <link rel="stylesheet" href="../index.css">
     <link rel="stylesheet" href="./index.css">
 </head>
 
-<body>
-    <header>
+<body class="customer-portal customer-support" data-page="customer-support-list">
+
+    <header class="app-header">
         <h1>Campus Food Ordering Platform</h1>
 
-        <nav aria-label="Customer support navigation">
+        <nav class="app-nav" aria-label="Customer support navigation">
             <a href="../index.html">Dashboard</a>
             <a href="../order-tracking/index.html">My Orders</a>
             <a href="./index.html" aria-current="page">Help &amp; Support</a>
@@ -23,36 +24,145 @@
         </nav>
     </header>
 
-    <main>
-        <section aria-labelledby="customer-support-heading">
+    <main class="customer-main">
+        <section class="page-hero shared-section" aria-labelledby="customer-support-heading">
             <h2 id="customer-support-heading">Help &amp; Support</h2>
 
             <p>
                 Lodge a complaint, ask about an order, request a refund, or contact the team about
-                anything else. Your open and past tickets will appear here.
+                anything else. Your open and past tickets live here.
             </p>
 
-            <p id="customer-support-status" aria-live="polite">Coming soon.</p>
+            <p id="customer-support-status" aria-live="polite" aria-atomic="true"></p>
 
-            <menu aria-label="Customer support actions">
-                <li><a href="./new.html">Open a New Ticket</a></li>
-                <li><a href="../index.html">Back to Dashboard</a></li>
+            <menu class="action-menu" aria-label="Support page actions">
+                <li><a href="./new.html" class="button-primary">Open a New Ticket</a></li>
+                <li><a href="../index.html" class="button-secondary">Back to Dashboard</a></li>
             </menu>
         </section>
 
-        <section aria-labelledby="customer-support-list-heading">
-            <h3 id="customer-support-list-heading">My Tickets</h3>
-            <p>Your tickets will be listed here once this feature is implemented.</p>
+        <section class="shared-section tickets-toolbar-section" aria-labelledby="tickets-toolbar-heading">
+            <h3 id="tickets-toolbar-heading">Filter &amp; Sort</h3>
+            <form id="tickets-filter-form" class="tickets-filter-form" role="search"
+                aria-label="Filter and sort tickets">
+                <p class="tickets-filter-field tickets-filter-field-search">
+                    <label for="tickets-search">Search</label>
+                    <input id="tickets-search" name="search" type="search"
+                        placeholder="Search by subject, ticket ID, or order ID" autocomplete="off">
+                </p>
+
+                <p class="tickets-filter-field">
+                    <label for="tickets-status-filter">Status</label>
+                    <select id="tickets-status-filter" name="status">
+                        <option value="all">All statuses</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="awaiting_user">Awaiting You</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </p>
+
+                <p class="tickets-filter-field">
+                    <label for="tickets-category-filter">Category</label>
+                    <select id="tickets-category-filter" name="category">
+                        <option value="all">All categories</option>
+                        <option value="order_issue">Order Issue</option>
+                        <option value="payment">Payment Issue</option>
+                        <option value="refund">Refund Request</option>
+                        <option value="account">Account</option>
+                        <option value="abuse">Abuse or Safety</option>
+                        <option value="general">General</option>
+                    </select>
+                </p>
+
+                <p class="tickets-filter-field">
+                    <label for="tickets-sort">Sort by</label>
+                    <select id="tickets-sort" name="sort">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="last-reply">Latest reply</option>
+                    </select>
+                </p>
+
+                <p class="tickets-filter-actions">
+                    <button type="reset" class="button-secondary">Clear filters</button>
+                </p>
+            </form>
+        </section>
+
+        <section class="shared-section tickets-results-section" aria-labelledby="my-tickets-heading">
+            <h3 id="my-tickets-heading">My Tickets</h3>
+            <p id="my-tickets-summary" class="tickets-results-summary" aria-live="polite"></p>
+            <section id="my-tickets-container" class="tickets-grid" aria-live="polite">
+                <p class="loading-message">Loading your tickets...</p>
+            </section>
+            <nav id="my-tickets-pagination" class="tickets-pagination"
+                aria-label="Tickets pagination" hidden>
+                <p id="tickets-pagination-status" class="tickets-pagination-status"
+                    aria-live="polite">Page 1 of 1</p>
+                <menu class="tickets-pagination-menu" aria-label="Pagination controls">
+                    <li><button type="button" class="button-secondary" data-page-action="prev">Previous</button></li>
+                    <li><button type="button" class="button-secondary" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
         </section>
     </main>
 
-    <footer>
+    <footer class="app-footer">
         <p>Campus Food Ordering Platform &copy; 2026</p>
     </footer>
 
+    <script src="../../shared/support/ticket-status.js"></script>
+    <script src="../../shared/support/ticket-categories.js"></script>
+    <script src="../../shared/support/ticket-model.js"></script>
+    <script src="../../shared/support/ticket-queries.js"></script>
+    <script src="../../shared/support/ticket-service.js"></script>
+    <script src="../../shared/support/ticket-formatters.js"></script>
     <script src="./index.js"></script>
-    <script>
-        window.customerSupportListPage.initializeCustomerSupportListPage();
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            doc,
+            query,
+            where,
+            orderBy,
+            limit
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            doc,
+            query,
+            where,
+            orderBy,
+            limit
+        };
+
+        if (
+            window.customerSupportListPage &&
+            typeof window.customerSupportListPage.init === "function"
+        ) {
+            await window.customerSupportListPage.init({
+                db,
+                auth,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                ticketService: window.ticketService,
+                ticketStatus: window.ticketStatus,
+                ticketCategories: window.ticketCategories,
+                ticketFormatters: window.ticketFormatters
+            });
+        }
     </script>
 </body>
 

@@ -1,1 +1,183 @@
-/* customer/support/index.css — styles for the customer support pages. Coming soon. */
+.customer-portal.customer-support {
+    background:
+        radial-gradient(circle at top left, rgba(197, 106, 26, 0.10), transparent 28%),
+        radial-gradient(circle at top right, rgba(108, 138, 107, 0.10), transparent 26%),
+        linear-gradient(180deg, #fcf8f3 0%, #f6efe7 46%, #efe3d3 100%);
+}
+
+.customer-portal.customer-support .page-hero h2 {
+    max-width: 14ch;
+}
+
+.customer-portal.customer-support .tickets-filter-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem 1rem;
+    align-items: end;
+    margin: 0;
+}
+
+.customer-portal.customer-support .tickets-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+}
+
+.customer-portal.customer-support .tickets-filter-field label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4a2d1b;
+}
+
+.customer-portal.customer-support .tickets-filter-field input,
+.customer-portal.customer-support .tickets-filter-field select {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(130, 88, 67, 0.3);
+    border-radius: 0.7rem;
+    background: #fffaf3;
+    font: inherit;
+    color: #2f1b12;
+}
+
+.customer-portal.customer-support .tickets-filter-actions {
+    margin: 0;
+    display: flex;
+    align-items: end;
+    justify-content: flex-end;
+}
+
+.customer-portal.customer-support .tickets-results-summary {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #4a2d1b;
+    font-style: italic;
+}
+
+.customer-portal.customer-support .tickets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.customer-portal.customer-support .support-ticket-card {
+    position: relative;
+    overflow: hidden;
+    padding: 1.25rem;
+    border: 1px solid rgba(130, 88, 67, 0.18);
+    border-radius: 1.2rem;
+    background: rgba(255, 252, 248, 0.96);
+    box-shadow: 0 14px 28px rgba(64, 35, 20, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.customer-portal.customer-support .support-ticket-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 0.32rem;
+    background: linear-gradient(90deg, rgba(197, 106, 26, 0.9), rgba(121, 160, 117, 0.82));
+}
+
+.customer-portal.customer-support .support-ticket-card[data-status="resolved"]::before {
+    background: linear-gradient(90deg, rgba(121, 160, 117, 0.9), rgba(94, 142, 88, 0.85));
+}
+
+.customer-portal.customer-support .support-ticket-card[data-status="closed"]::before {
+    background: linear-gradient(90deg, rgba(150, 130, 115, 0.7), rgba(120, 100, 90, 0.6));
+}
+
+.customer-portal.customer-support .support-ticket-card[data-status="awaiting_user"]::before {
+    background: linear-gradient(90deg, rgba(212, 165, 90, 0.95), rgba(197, 106, 26, 0.85));
+}
+
+.customer-portal.customer-support .support-ticket-subject {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #2f1b12;
+}
+
+.customer-portal.customer-support .support-ticket-status,
+.customer-portal.customer-support .support-ticket-category {
+    margin: 0;
+    font-weight: 600;
+    color: #2f1b12;
+}
+
+.customer-portal.customer-support .support-ticket-status[data-tone="success"],
+.customer-portal.customer-support .support-ticket-category[data-tone="success"] {
+    color: #2f5d2a;
+}
+
+.customer-portal.customer-support .support-ticket-status[data-tone="error"],
+.customer-portal.customer-support .support-ticket-category[data-tone="error"] {
+    color: #8a2424;
+}
+
+.customer-portal.customer-support .support-ticket-status[data-tone="warning"],
+.customer-portal.customer-support .support-ticket-category[data-tone="warning"] {
+    color: #8a5b15;
+}
+
+.customer-portal.customer-support .support-ticket-status[data-tone="loading"] {
+    color: #5b3a8b;
+}
+
+.customer-portal.customer-support .support-ticket-status[data-tone="muted"] {
+    color: #6b5a4f;
+}
+
+.customer-portal.customer-support .support-ticket-replies,
+.customer-portal.customer-support .support-ticket-order,
+.customer-portal.customer-support .support-ticket-activity {
+    margin: 0;
+    color: #4a2d1b;
+    font-size: 0.92rem;
+}
+
+.customer-portal.customer-support .support-ticket-actions {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.customer-portal.customer-support .support-ticket-actions li {
+    margin: 0;
+}
+
+.customer-portal.customer-support .tickets-pagination {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.customer-portal.customer-support .tickets-pagination-status {
+    margin: 0;
+    color: #4a2d1b;
+}
+
+.customer-portal.customer-support .tickets-pagination-menu {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.customer-portal.customer-support .empty-state-message,
+.customer-portal.customer-support .loading-message {
+    margin: 0;
+    padding: 1rem;
+    color: #4a2d1b;
+    text-align: center;
+    font-style: italic;
+}

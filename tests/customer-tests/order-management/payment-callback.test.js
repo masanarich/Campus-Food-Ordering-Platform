@@ -29,11 +29,23 @@ function resetGlobals() {
     delete window.functionsFns;
     delete window.paymentFormatters;
     delete window.paymentStatus;
+    delete window.checkoutStatus;
+    delete window.checkoutModel;
+    delete window.checkoutValidation;
+    delete window.checkoutQueries;
+    delete window.checkoutService;
+    delete window.orderService;
     delete global.db;
     delete global.auth;
     delete global.functions;
     delete global.functionsFns;
     delete global.firestoreFns;
+    delete global.checkoutStatus;
+    delete global.checkoutModel;
+    delete global.checkoutValidation;
+    delete global.checkoutQueries;
+    delete global.checkoutService;
+    delete global.orderService;
 }
 
 function createOrderRecord(overrides = {}) {
@@ -53,6 +65,41 @@ function createOrderRecord(overrides = {}) {
         paymentCurrency: "ZAR",
         paymentStatus: "pending",
         total: 42.5,
+        ...overrides
+    };
+}
+
+function createCheckoutRecord(overrides = {}) {
+    return {
+        checkoutId: "checkout-1",
+        customerUid: "customer-1",
+        customerEmail: "ama@example.com",
+        customerName: "Ama",
+        vendorUid: "vendor-1",
+        vendorName: "Campus Bites",
+        items: [
+            {
+                menuItemId: "item-1",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                name: "Burger",
+                category: "Meals",
+                price: 42.5,
+                quantity: 1
+            }
+        ],
+        itemCount: 1,
+        subtotal: 42.5,
+        total: 42.5,
+        status: "payment_pending",
+        paymentProvider: "paystack",
+        paymentReference: "paystack-ref",
+        paymentAccessCode: "access-code",
+        paymentAuthorizationUrl: "https://checkout.paystack.com/test",
+        paymentAmount: 42.5,
+        paymentAmountInMinorUnits: 4250,
+        paymentCurrency: "ZAR",
+        notes: "No onions",
         ...overrides
     };
 }
@@ -111,6 +158,14 @@ describe("customer/order-management/payment-callback.js - helpers", () => {
         expect(paymentCallback.getPaymentReference({ search: "" })).toBe("");
     });
 
+    test("getCheckoutId reads explicit option then callback query string", () => {
+        expect(paymentCallback.getCheckoutId({ checkoutId: "checkout-explicit" })).toBe("checkout-explicit");
+        expect(paymentCallback.getCheckoutId({ sessionId: "session-explicit" })).toBe("session-explicit");
+        expect(paymentCallback.getCheckoutId({ search: "?checkoutId=checkout-1" })).toBe("checkout-1");
+        expect(paymentCallback.getCheckoutId({ search: "?sessionId=session-1" })).toBe("session-1");
+        expect(paymentCallback.getCheckoutId({ search: "" })).toBe("");
+    });
+
     test("resolveFirestore and friends fall back to globals", () => {
         window.db = { kind: "db" };
         window.auth = { kind: "auth" };
@@ -120,6 +175,12 @@ describe("customer/order-management/payment-callback.js - helpers", () => {
         window.authFns = { onAuthStateChanged: jest.fn() };
         window.paymentFormatters = { formatPaymentAmount: jest.fn(() => "R0.00") };
         window.paymentStatus = { getPaymentStatusLabel: jest.fn(() => "Paid") };
+        window.checkoutStatus = { normalizeCheckoutStatus: jest.fn(value => value) };
+        window.checkoutModel = { createOrderDraftFromCheckout: jest.fn() };
+        window.checkoutValidation = { validateCheckoutConversion: jest.fn() };
+        window.checkoutQueries = { fetchCheckoutById: jest.fn() };
+        window.checkoutService = { convertCheckoutToOrder: jest.fn() };
+        window.orderService = { createOrders: jest.fn() };
 
         expect(paymentCallback.resolveFirestore()).toBe(window.db);
         expect(paymentCallback.resolveAuth()).toBe(window.auth);
@@ -129,6 +190,12 @@ describe("customer/order-management/payment-callback.js - helpers", () => {
         expect(paymentCallback.resolveFunctionsFns()).toBe(window.functionsFns);
         expect(paymentCallback.resolvePaymentFormatters()).toBe(window.paymentFormatters);
         expect(paymentCallback.resolvePaymentStatus()).toBe(window.paymentStatus);
+        expect(paymentCallback.resolveCheckoutStatus()).toBe(window.checkoutStatus);
+        expect(paymentCallback.resolveCheckoutModel()).toBe(window.checkoutModel);
+        expect(paymentCallback.resolveCheckoutValidation()).toBe(window.checkoutValidation);
+        expect(paymentCallback.resolveCheckoutQueries()).toBe(window.checkoutQueries);
+        expect(paymentCallback.resolveCheckoutService()).toBe(window.checkoutService);
+        expect(paymentCallback.resolveOrderService()).toBe(window.orderService);
     });
 
     test("formatAmount uses payment formatters when available", () => {
@@ -240,6 +307,27 @@ describe("customer/order-management/payment-callback.js - helpers", () => {
         expect(slice.amount).toBe(30);
         expect(slice.amountInMinorUnits).toBe(3000);
         expect(slice.currency).toBe("ZAR");
+    });
+
+    test("buildPaymentSliceFromCheckout maps checkout payment fields", () => {
+        const slice = paymentCallback.buildPaymentSliceFromCheckout(createCheckoutRecord(), "paystack-ref");
+
+        expect(slice).toEqual(expect.objectContaining({
+            orderId: "checkout-1",
+            checkoutId: "checkout-1",
+            customerEmail: "ama@example.com",
+            vendorUid: "vendor-1",
+            reference: "paystack-ref",
+            amount: 42.5,
+            amountInMinorUnits: 4250,
+            currency: "ZAR",
+            provider: "paystack",
+            status: "payment_pending",
+            metadata: expect.objectContaining({
+                checkoutId: "checkout-1",
+                source: "checkout-session"
+            })
+        }));
     });
 
     test("supportsOrderQuery and supportsOrderUpdate detect required helpers", () => {
@@ -427,6 +515,60 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
         errorSpy.mockRestore();
     });
 
+    test("findCheckoutForCallback prefers checkoutId lookup through checkout service", async () => {
+        const checkout = createCheckoutRecord();
+        const getCheckoutById = jest.fn(async () => checkout);
+        const result = await paymentCallback.findCheckoutForCallback("paystack-ref", {
+            search: "?reference=paystack-ref&checkoutId=checkout-1",
+            db: { kind: "db" },
+            firestoreFns: createFirestoreFns(),
+            checkoutService: {
+                getCheckoutById
+            }
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.checkoutId).toBe("checkout-1");
+        expect(result.data).toBe(checkout);
+        expect(getCheckoutById).toHaveBeenCalledWith(expect.objectContaining({
+            checkoutId: "checkout-1"
+        }));
+    });
+
+    test("findCheckoutForCallback can fall back to payment reference lookup", async () => {
+        const checkout = createCheckoutRecord();
+        const fetchCheckoutByPaymentReference = jest.fn(async () => checkout);
+        const result = await paymentCallback.findCheckoutForCallback("paystack-ref", {
+            search: "?reference=paystack-ref",
+            db: { kind: "db" },
+            firestoreFns: createFirestoreFns(),
+            checkoutQueries: {
+                fetchCheckoutByPaymentReference
+            }
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.checkoutId).toBe("checkout-1");
+        expect(fetchCheckoutByPaymentReference).toHaveBeenCalledWith(expect.objectContaining({
+            paymentReference: "paystack-ref"
+        }));
+    });
+
+    test("findCheckoutForCallback reports checkout-not-found when checkoutId is present", async () => {
+        const result = await paymentCallback.findCheckoutForCallback("paystack-ref", {
+            search: "?reference=paystack-ref&checkoutId=missing-checkout",
+            db: { kind: "db" },
+            firestoreFns: createFirestoreFns(),
+            checkoutService: {
+                getCheckoutById: jest.fn(async () => null)
+            }
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.skipped).toBeUndefined();
+        expect(result.error.code).toBe("payment-callback/checkout-not-found");
+    });
+
     test("updateOrderPatch writes the patch via updateDoc", async () => {
         const firestoreFns = createFirestoreFns();
         const result = await paymentCallback.updateOrderPatch(
@@ -550,6 +692,95 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
         errorSpy.mockRestore();
     });
 
+    test("verifyPaymentForCheckout calls the callable with checkout payment details", async () => {
+        const callable = jest.fn(async () => ({
+            data: {
+                success: true,
+                payment: { amount: 42.5, currency: "ZAR", reference: "paystack-ref" },
+                verification: { reference: "paystack-ref", amountInMinorUnits: 4250, currency: "ZAR" },
+                reference: "paystack-ref"
+            }
+        }));
+
+        const result = await paymentCallback.verifyPaymentForCheckout(
+            "paystack-ref",
+            createCheckoutRecord(),
+            { verifyPaymentCallable: callable }
+        );
+
+        expect(result.success).toBe(true);
+        expect(callable).toHaveBeenCalledWith({
+            payment: expect.objectContaining({
+                checkoutId: "checkout-1",
+                reference: "paystack-ref"
+            }),
+            reference: "paystack-ref"
+        });
+    });
+
+    test("createOrderFromPaidCheckout can persist a paid checkout directly", async () => {
+        const firestoreFns = createFirestoreFns({
+            setDoc: jest.fn(async () => true),
+            serverTimestamp: jest.fn(() => "server-time")
+        });
+        const result = await paymentCallback.createOrderFromPaidCheckout(
+            createCheckoutRecord({
+                status: "paid",
+                paymentPaidAt: "paid-at",
+                paymentVerifiedAt: "verified-at"
+            }),
+            {
+                db: { kind: "db" },
+                firestoreFns,
+                orderId: "order-from-checkout",
+                orderService: null
+            }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.orderId).toBe("order-from-checkout");
+        expect(result.order).toEqual(expect.objectContaining({
+            orderId: "order-from-checkout",
+            checkoutId: "checkout-1",
+            paymentStatus: "paid",
+            vendorUid: "vendor-1"
+        }));
+        expect(firestoreFns.setDoc).toHaveBeenCalledWith(
+            { db: { kind: "db" }, name: "orders", id: "order-from-checkout" },
+            expect.objectContaining({
+                checkoutId: "checkout-1",
+                paymentStatus: "paid"
+            })
+        );
+    });
+
+    test("convertCheckoutAfterOrder patches checkout when checkout service is unavailable", async () => {
+        const firestoreFns = createFirestoreFns({
+            updateDoc: jest.fn(async () => true),
+            serverTimestamp: jest.fn(() => "server-time")
+        });
+        const result = await paymentCallback.convertCheckoutAfterOrder(
+            createCheckoutRecord({ status: "paid" }),
+            "order-1",
+            {
+                db: { kind: "db" },
+                firestoreFns,
+                checkoutService: null
+            }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.checkout.status).toBe("converted");
+        expect(result.checkout.convertedOrderId).toBe("order-1");
+        expect(firestoreFns.updateDoc).toHaveBeenCalledWith(
+            { db: { kind: "db" }, name: "checkoutSessions", id: "checkout-1" },
+            expect.objectContaining({
+                status: "converted",
+                convertedOrderId: "order-1"
+            })
+        );
+    });
+
     test("processPaymentCallback runs the full happy path", async () => {
         const firestoreFns = createFirestoreFns();
         const callable = jest.fn(async () => ({
@@ -573,6 +804,141 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
         expect(result.outcome).toBe("success");
         expect(callable).toHaveBeenCalledTimes(1);
         expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(1);
+    });
+
+    test("processPaymentCallback verifies checkout, creates order, and converts checkout", async () => {
+        const firestoreFns = createFirestoreFns();
+        const checkout = createCheckoutRecord();
+        const paidCheckout = createCheckoutRecord({
+            status: "paid",
+            paymentPaidAt: "paid-at",
+            paymentVerifiedAt: "verified-at"
+        });
+        const convertedCheckout = {
+            ...paidCheckout,
+            status: "converted",
+            convertedOrderId: "order-checkout-1"
+        };
+        const checkoutService = {
+            getCheckoutById: jest.fn(async () => checkout),
+            applyVerifiedPayment: jest.fn(() => ({
+                success: true,
+                checkout: paidCheckout,
+                patch: { status: "paid" }
+            })),
+            updateCheckoutWithPlan: jest.fn(async plan => plan),
+            convertCheckoutToOrder: jest.fn(async () => ({
+                success: true,
+                checkout: convertedCheckout,
+                order: createOrderRecord({ orderId: "order-checkout-1", checkoutId: "checkout-1" })
+            }))
+        };
+        const orderService = {
+            createOrders: jest.fn(async () => ({
+                success: true,
+                orders: [createOrderRecord({ orderId: "order-checkout-1", checkoutId: "checkout-1" })]
+            }))
+        };
+        const callable = jest.fn(async () => ({
+            data: {
+                success: true,
+                payment: { amount: 42.5, currency: "ZAR", reference: "paystack-ref" },
+                verification: { reference: "paystack-ref", amountInMinorUnits: 4250, currency: "ZAR" },
+                reference: "paystack-ref"
+            }
+        }));
+
+        const result = await paymentCallback.processPaymentCallback({
+            search: "?reference=paystack-ref&checkoutId=checkout-1",
+            db: { kind: "db" },
+            firestoreFns,
+            checkoutService,
+            orderService,
+            verifyPaymentCallable: callable
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.outcome).toBe("success");
+        expect(result.checkout.status).toBe("converted");
+        expect(result.orderId).toBe("order-checkout-1");
+        expect(checkoutService.getCheckoutById).toHaveBeenCalledWith(expect.objectContaining({
+            checkoutId: "checkout-1"
+        }));
+        expect(checkoutService.applyVerifiedPayment).toHaveBeenCalledWith(
+            checkout,
+            expect.objectContaining({
+                reference: "paystack-ref",
+                amountInMinorUnits: 4250,
+                currency: "ZAR"
+            }),
+            expect.objectContaining({
+                actorRole: "system"
+            })
+        );
+        expect(orderService.createOrders).toHaveBeenCalledWith(expect.objectContaining({
+            cartItems: checkout.items,
+            initialPaymentStatus: "paid",
+            paymentReference: "paystack-ref"
+        }));
+        expect(checkoutService.convertCheckoutToOrder).toHaveBeenCalledWith(expect.objectContaining({
+            checkout: paidCheckout,
+            orderId: "order-checkout-1"
+        }));
+    });
+
+    test("processPaymentCallback marks checkout failed when checkout verification fails", async () => {
+        const failedCheckout = createCheckoutRecord({
+            status: "payment_failed",
+            paymentFailureReason: "Card was declined."
+        });
+        const checkoutService = {
+            getCheckoutById: jest.fn(async () => createCheckoutRecord()),
+            applyFailedPayment: jest.fn(() => ({
+                success: true,
+                checkout: failedCheckout,
+                patch: { status: "payment_failed" }
+            })),
+            updateCheckoutWithPlan: jest.fn(async plan => plan)
+        };
+        const callable = jest.fn(async () => ({
+            data: {
+                success: false,
+                error: { code: "payments/declined", message: "Card was declined." }
+            }
+        }));
+
+        const result = await paymentCallback.processPaymentCallback({
+            search: "?reference=paystack-ref&checkoutId=checkout-1",
+            db: { kind: "db" },
+            firestoreFns: createFirestoreFns(),
+            checkoutService,
+            verifyPaymentCallable: callable
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.outcome).toBe("failed");
+        expect(result.checkout.status).toBe("payment_failed");
+        expect(checkoutService.applyFailedPayment).toHaveBeenCalledWith(
+            expect.objectContaining({ checkoutId: "checkout-1" }),
+            expect.objectContaining({ message: "Card was declined." }),
+            expect.objectContaining({ actorRole: "system" })
+        );
+    });
+
+    test("processPaymentCallback reports checkout-not-found when callback contains checkoutId", async () => {
+        const result = await paymentCallback.processPaymentCallback({
+            search: "?reference=paystack-ref&checkoutId=missing-checkout",
+            db: { kind: "db" },
+            firestoreFns: createFirestoreFns(),
+            checkoutService: {
+                getCheckoutById: jest.fn(async () => null)
+            },
+            verifyPaymentCallable: jest.fn()
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.outcome).toBe("checkout-not-found");
+        expect(result.error.code).toBe("payment-callback/checkout-not-found");
     });
 
     test("processPaymentCallback reports missing reference", async () => {
