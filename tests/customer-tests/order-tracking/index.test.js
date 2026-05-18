@@ -22,14 +22,34 @@ function createOrder(overrides = {}) {
     };
 }
 
+function createCheckout(overrides = {}) {
+    return {
+        checkoutId: "checkout-1",
+        vendorUid: "vendor-1",
+        vendorName: "Campus Bites",
+        itemCount: 2,
+        total: 120,
+        status: "payment_pending",
+        paymentReference: "checkout-ref",
+        paymentAmount: 120,
+        paymentCurrency: "ZAR",
+        updatedAt: "2026-04-20T12:00:00.000Z",
+        ...overrides
+    };
+}
+
 function createDOM() {
     document.body.innerHTML = `
         <p id="order-tracking-status"></p>
+        <p id="active-checkouts-summary"></p>
+        <section id="active-checkouts-container"></section>
         <section id="tracked-orders-container"></section>
     `;
 
     return {
         statusElement: document.getElementById("order-tracking-status"),
+        checkoutsSummary: document.getElementById("active-checkouts-summary"),
+        checkoutsContainer: document.getElementById("active-checkouts-container"),
         container: document.getElementById("tracked-orders-container")
     };
 }
@@ -106,6 +126,40 @@ function createPaymentFormattersStub() {
     };
 }
 
+function createCheckoutStatusStub() {
+    return {
+        normalizeCheckoutStatus: jest.fn((status, fallbackStatus = "draft") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getCheckoutStatusLabel: jest.fn(status => {
+            const labels = {
+                draft: "Checkout Draft",
+                payment_pending: "Payment Pending",
+                payment_failed: "Payment Failed"
+            };
+            return labels[status] || "Unknown Checkout Status";
+        }),
+        getCheckoutStatusTone: jest.fn(status => {
+            const tones = {
+                draft: "neutral",
+                payment_pending: "loading",
+                payment_failed: "error"
+            };
+            return tones[status] || "neutral";
+        }),
+        getCheckoutStatusActionLabel: jest.fn(status => {
+            const labels = {
+                draft: "Start Payment",
+                payment_pending: "Resume Payment",
+                payment_failed: "Retry Payment"
+            };
+            return labels[status] || "Resume Payment";
+        }),
+        getResumableCheckoutStatusList: jest.fn(() => ["draft", "payment_pending", "payment_failed"])
+    };
+}
+
 describe("customer/order-tracking/index.js - helpers", () => {
     test("mapOrderRecord formats status and total text", () => {
         const orderStatus = createOrderStatusStub();
@@ -158,11 +212,45 @@ describe("customer/order-tracking/index.js - helpers", () => {
         expect(mapped.paymentProvider).toBe("paystack");
     });
 
+    test("mapCheckoutRecord formats unfinished checkout status and payment amount", () => {
+        const checkoutStatus = createCheckoutStatusStub();
+        const orderFormatters = createOrderFormattersStub();
+        const paymentFormatters = createPaymentFormattersStub();
+
+        const mapped = customerOrderTrackingPage.mapCheckoutRecord(createCheckout(), {
+            checkoutStatus,
+            orderFormatters,
+            paymentFormatters
+        });
+
+        expect(mapped.checkoutId).toBe("checkout-1");
+        expect(mapped.status).toBe("payment_pending");
+        expect(mapped.statusLabel).toBe("Payment Pending");
+        expect(mapped.tone).toBe("loading");
+        expect(mapped.actionLabel).toBe("Resume Payment");
+        expect(mapped.totalText).toBe("R120.00");
+        expect(mapped.paymentAmountText).toBe("R120.00");
+        expect(mapped.paymentReference).toBe("checkout-ref");
+    });
+
     test("buildOrderDetailUrl includes the orderId query parameter", () => {
         const url = customerOrderTrackingPage.buildOrderDetailUrl("order-55");
 
         expect(url).toContain("order-detail.html");
         expect(url).toContain("orderId=order-55");
+    });
+
+    test("buildCheckoutUrl includes checkout and vendor details", () => {
+        const url = customerOrderTrackingPage.buildCheckoutUrl(createCheckout({
+            checkoutId: "checkout-55",
+            vendorUid: "vendor-55",
+            vendorName: "Campus Bites"
+        }));
+
+        expect(url).toContain("checkout.html");
+        expect(url).toContain("checkoutId=checkout-55");
+        expect(url).toContain("vendorUid=vendor-55");
+        expect(url).toContain("vendorName=Campus+Bites");
     });
 
     test("resolvePaymentStatus and resolvePaymentFormatters prefer explicit then globals", () => {
@@ -183,6 +271,27 @@ describe("customer/order-tracking/index.js - helpers", () => {
         } finally {
             delete window.paymentStatus;
             delete window.paymentFormatters;
+        }
+    });
+
+    test("resolveCheckout helpers prefer explicit then globals", () => {
+        const checkoutStatus = createCheckoutStatusStub();
+        const checkoutQueries = { fetchCustomerCheckouts: jest.fn() };
+
+        expect(customerOrderTrackingPage.resolveCheckoutStatus(checkoutStatus)).toBe(checkoutStatus);
+        expect(customerOrderTrackingPage.resolveCheckoutQueries(checkoutQueries)).toBe(checkoutQueries);
+        expect(customerOrderTrackingPage.resolveCheckoutStatus(null)).toBe(null);
+        expect(customerOrderTrackingPage.resolveCheckoutQueries(null)).toBe(null);
+
+        window.checkoutStatus = checkoutStatus;
+        window.checkoutQueries = checkoutQueries;
+
+        try {
+            expect(customerOrderTrackingPage.resolveCheckoutStatus()).toBe(checkoutStatus);
+            expect(customerOrderTrackingPage.resolveCheckoutQueries()).toBe(checkoutQueries);
+        } finally {
+            delete window.checkoutStatus;
+            delete window.checkoutQueries;
         }
     });
 });
@@ -284,6 +393,37 @@ describe("customer/order-tracking/index.js - rendering", () => {
         expect(card.querySelector(".tracking-order-payment-reference")).toBeNull();
     });
 
+    test("renderCheckouts creates unfinished checkout cards with resume links", () => {
+        const checkoutStatus = createCheckoutStatusStub();
+
+        customerOrderTrackingPage.renderCheckouts([
+            createCheckout({
+                checkoutId: "checkout-1",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites"
+            })
+        ], dom.checkoutsContainer, {
+            checkoutStatus,
+            orderFormatters,
+            paymentFormatters
+        });
+
+        const card = dom.checkoutsContainer.querySelector(".tracking-checkout-card");
+        const link = card.querySelector("a");
+
+        expect(card.textContent).toContain("Checkout: Payment Pending");
+        expect(card.textContent).toContain("This checkout has not become an order yet.");
+        expect(link.textContent).toBe("Resume Payment");
+        expect(link.getAttribute("href")).toContain("checkoutId=checkout-1");
+        expect(link.getAttribute("href")).toContain("vendorUid=vendor-1");
+    });
+
+    test("renderCheckouts shows empty state when there are no active sessions", () => {
+        customerOrderTrackingPage.renderCheckouts([], dom.checkoutsContainer);
+
+        expect(dom.checkoutsContainer.textContent).toContain("unfinished checkout payments");
+    });
+
     test("setStatusMessage updates status text and tone", () => {
         customerOrderTrackingPage.setStatusMessage(dom.statusElement, "Tracking 2 orders.", "success");
 
@@ -350,6 +490,65 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
         expect(firestoreFns.collection).toHaveBeenCalledWith({ kind: "db" }, "orders");
     });
 
+    test("fetchCustomerCheckouts uses checkout queries when available", async () => {
+        const fetchCustomerCheckouts = jest.fn(async () => [
+            createCheckout({ checkoutId: "checkout-1" })
+        ]);
+        const checkoutStatus = createCheckoutStatusStub();
+
+        const result = await customerOrderTrackingPage.fetchCustomerCheckouts({
+            db: { kind: "db" },
+            firestoreFns: {},
+            customerUid: "customer-1",
+            checkoutQueries: { fetchCustomerCheckouts },
+            checkoutStatus
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.checkouts).toHaveLength(1);
+        expect(fetchCustomerCheckouts).toHaveBeenCalledWith(expect.objectContaining({
+            customerUid: "customer-1",
+            statuses: ["draft", "payment_pending", "payment_failed"],
+            checkoutStatus
+        }));
+    });
+
+    test("fetchCustomerCheckouts falls back to Firestore query", async () => {
+        const firestoreFns = {
+            collection: jest.fn(() => ({ kind: "collection" })),
+            where: jest.fn((field, op, value) => ({ field, op, value })),
+            query: jest.fn(() => ({ kind: "query" })),
+            getDocs: jest.fn(async () => ({
+                forEach(callback) {
+                    callback({
+                        id: "checkout-1",
+                        data: () => createCheckout()
+                    });
+                    callback({
+                        id: "checkout-converted",
+                        data: () => createCheckout({
+                            checkoutId: "checkout-converted",
+                            status: "converted"
+                        })
+                    });
+                }
+            }))
+        };
+
+        const result = await customerOrderTrackingPage.fetchCustomerCheckouts({
+            db: { kind: "db" },
+            firestoreFns,
+            customerUid: "customer-1",
+            checkoutQueries: null
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.checkouts).toHaveLength(1);
+        expect(result.checkouts[0].checkoutId).toBe("checkout-1");
+        expect(firestoreFns.collection).toHaveBeenCalledWith({ kind: "db" }, "checkoutSessions");
+        expect(firestoreFns.where).toHaveBeenCalledWith("customerUid", "==", "customer-1");
+    });
+
     test("init requires a signed-in user", async () => {
         const result = await customerOrderTrackingPage.init({
             currentUser: null,
@@ -378,6 +577,8 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
                 </select>
             </form>
             <p id="tracked-orders-summary"></p>
+            <p id="active-checkouts-summary"></p>
+            <section id="active-checkouts-container"></section>
             <section id="tracked-orders-container"></section>
             <nav id="tracked-orders-pagination" hidden>
                 <p id="orders-pagination-status"></p>
@@ -389,6 +590,7 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
         `;
 
         const container = document.getElementById("tracked-orders-container");
+        const checkoutsContainer = document.getElementById("active-checkouts-container");
         const summary = document.getElementById("tracked-orders-summary");
         const statusSelect = document.getElementById("orders-status-filter");
         const form = document.getElementById("orders-filter-form");
@@ -407,10 +609,17 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
             orderStatus,
             orderFormatters,
             paymentStatus,
-            paymentFormatters
+            paymentFormatters,
+            checkoutStatus: createCheckoutStatusStub(),
+            checkoutQueries: {
+                fetchCustomerCheckouts: jest.fn(async () => [
+                    createCheckout({ checkoutId: "checkout-1" })
+                ])
+            }
         });
 
         expect(container.querySelectorAll(".tracking-order-card")).toHaveLength(3);
+        expect(checkoutsContainer.querySelectorAll(".tracking-checkout-card")).toHaveLength(1);
         expect(summary.textContent).toContain("all 3");
 
         statusSelect.value = "ready";
@@ -437,6 +646,13 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
                 paymentReference: "paystack-ref-2"
             })
         ]);
+        const fetchCustomerCheckouts = jest.fn(async () => [
+            createCheckout({
+                checkoutId: "checkout-1",
+                vendorName: "Campus Bites",
+                status: "payment_pending"
+            })
+        ]);
 
         const result = await customerOrderTrackingPage.init({
             currentUser: { uid: "customer-1" },
@@ -447,14 +663,21 @@ describe("customer/order-tracking/index.js - fetching and init", () => {
             orderFormatters,
             paymentStatus,
             paymentFormatters,
+            checkoutStatus: createCheckoutStatusStub(),
+            checkoutQueries: { fetchCustomerCheckouts },
             containerSelector: "#tracked-orders-container",
-            statusSelector: "#order-tracking-status"
+            statusSelector: "#order-tracking-status",
+            checkoutsContainerSelector: "#active-checkouts-container",
+            checkoutsSummarySelector: "#active-checkouts-summary"
         });
 
         expect(result.success).toBe(true);
         expect(result.orders).toHaveLength(2);
+        expect(result.checkouts).toHaveLength(1);
         expect(dom.container.querySelectorAll(".tracking-order-card")).toHaveLength(2);
-        expect(dom.statusElement.textContent).toContain("Tracking 2 orders");
+        expect(dom.checkoutsContainer.querySelectorAll(".tracking-checkout-card")).toHaveLength(1);
+        expect(dom.checkoutsSummary.textContent).toContain("1 unfinished checkout payment");
+        expect(dom.statusElement.textContent).toContain("Tracking 2 orders and 1 unfinished checkout");
         expect(dom.container.textContent).toContain("Payment: Paid");
         expect(dom.container.textContent).toContain("Payment: Payment Pending");
         expect(dom.container.textContent).toContain("Reference: paystack-ref-1");

@@ -7,6 +7,7 @@
     let initInFlight = null;
     const pageState = {
         allOrders: [],
+        allCheckouts: [],
         filters: {
             search: "",
             status: "all",
@@ -141,11 +142,60 @@
         return null;
     }
 
+    function resolveCheckoutQueries(explicitCheckoutQueries) {
+        if (explicitCheckoutQueries && typeof explicitCheckoutQueries.fetchCustomerCheckouts === "function") {
+            return explicitCheckoutQueries;
+        }
+
+        if (explicitCheckoutQueries !== undefined) {
+            return null;
+        }
+
+        if (globalScope.checkoutQueries && typeof globalScope.checkoutQueries.fetchCustomerCheckouts === "function") {
+            return globalScope.checkoutQueries;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-queries.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutStatus(explicitCheckoutStatus) {
+        if (explicitCheckoutStatus && typeof explicitCheckoutStatus.getCheckoutStatusLabel === "function") {
+            return explicitCheckoutStatus;
+        }
+
+        if (explicitCheckoutStatus !== undefined) {
+            return null;
+        }
+
+        if (globalScope.checkoutStatus && typeof globalScope.checkoutStatus.getCheckoutStatusLabel === "function") {
+            return globalScope.checkoutStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-status.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function getFallbackRoutes() {
         return {
             home: "../index.html",
             notifications: "./notifications.html",
             browseVendors: "../order-management/browse-vendors.html",
+            checkout: "../order-management/checkout.html",
             detail: "./order-detail.html"
         };
     }
@@ -252,6 +302,73 @@
         };
     }
 
+    function getDefaultResumableCheckoutStatuses(options = {}) {
+        const checkoutStatus = resolveCheckoutStatus(options.checkoutStatus);
+
+        if (checkoutStatus && typeof checkoutStatus.getResumableCheckoutStatusList === "function") {
+            return checkoutStatus.getResumableCheckoutStatusList();
+        }
+
+        return ["draft", "payment_pending", "payment_failed"];
+    }
+
+    function mapCheckoutRecord(checkoutRecord, options = {}) {
+        const safeCheckout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const checkoutStatus = resolveCheckoutStatus(options.checkoutStatus);
+        const orderFormatters = resolveOrderFormatters(options.orderFormatters);
+        const paymentFormatters = resolvePaymentFormatters(options.paymentFormatters);
+        const rawStatus = normalizeText(safeCheckout.status);
+        const normalizedStatus =
+            checkoutStatus && typeof checkoutStatus.normalizeCheckoutStatus === "function"
+                ? checkoutStatus.normalizeCheckoutStatus(rawStatus, "draft")
+                : rawStatus.toLowerCase() || "draft";
+        const statusLabel =
+            checkoutStatus && typeof checkoutStatus.getCheckoutStatusLabel === "function"
+                ? checkoutStatus.getCheckoutStatusLabel(normalizedStatus)
+                : normalizedStatus;
+        const tone =
+            checkoutStatus && typeof checkoutStatus.getCheckoutStatusTone === "function"
+                ? checkoutStatus.getCheckoutStatusTone(normalizedStatus)
+                : "info";
+        const actionLabel =
+            checkoutStatus && typeof checkoutStatus.getCheckoutStatusActionLabel === "function"
+                ? checkoutStatus.getCheckoutStatusActionLabel(normalizedStatus)
+                : "Resume Payment";
+        const total = Number.isFinite(Number(safeCheckout.total)) ? Number(safeCheckout.total) : 0;
+        const totalText =
+            orderFormatters && typeof orderFormatters.formatCurrency === "function"
+                ? orderFormatters.formatCurrency(total)
+                : `R${total.toFixed(2)}`;
+        const paymentCurrency = normalizeText(safeCheckout.paymentCurrency) || "ZAR";
+        const paymentAmount = Number.isFinite(Number(safeCheckout.paymentAmount))
+            ? Number(safeCheckout.paymentAmount)
+            : total;
+        const paymentAmountText =
+            paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
+                ? paymentFormatters.formatPaymentAmount(paymentAmount, paymentCurrency)
+                : (paymentCurrency === "ZAR"
+                    ? `R${paymentAmount.toFixed(2)}`
+                    : `${paymentCurrency} ${paymentAmount.toFixed(2)}`);
+
+        return {
+            checkoutId: normalizeText(safeCheckout.checkoutId || safeCheckout.id),
+            vendorUid: normalizeText(safeCheckout.vendorUid),
+            vendorName: normalizeText(safeCheckout.vendorName) || "Unknown Vendor",
+            itemCount: Number.isFinite(Number(safeCheckout.itemCount)) ? Number(safeCheckout.itemCount) : 0,
+            total,
+            totalText,
+            status: normalizedStatus,
+            statusLabel,
+            tone,
+            actionLabel,
+            paymentAmount,
+            paymentAmountText,
+            paymentCurrency,
+            paymentReference: normalizeText(safeCheckout.paymentReference),
+            updatedAt: safeCheckout.updatedAt || safeCheckout.createdAt || null
+        };
+    }
+
     async function fetchCustomerOrders(options = {}) {
         const db = options.db || resolveFirestore();
         const firestoreFns = resolveFirestoreFns(options.firestoreFns);
@@ -344,6 +461,112 @@
         }
     }
 
+    async function fetchCustomerCheckouts(options = {}) {
+        const db = options.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
+        const checkoutQueries = resolveCheckoutQueries(options.checkoutQueries);
+        const checkoutStatus = resolveCheckoutStatus(options.checkoutStatus);
+        const customerUid = normalizeText(options.customerUid);
+        const statuses = Array.isArray(options.checkoutStatuses)
+            ? options.checkoutStatuses
+            : getDefaultResumableCheckoutStatuses({ checkoutStatus });
+
+        if (!customerUid) {
+            return {
+                success: false,
+                checkouts: [],
+                error: {
+                    code: "no-customer-uid",
+                    message: "A signed-in customer is required."
+                }
+            };
+        }
+
+        if (checkoutQueries && typeof checkoutQueries.fetchCustomerCheckouts === "function" && db) {
+            try {
+                const checkouts = await checkoutQueries.fetchCustomerCheckouts({
+                    db,
+                    firestoreFns,
+                    customerUid,
+                    statuses,
+                    checkoutStatus
+                });
+
+                return {
+                    success: true,
+                    checkouts: Array.isArray(checkouts) ? checkouts : []
+                };
+            } catch (error) {
+                console.error(`${MODULE_NAME}: Error fetching checkout sessions via query helper:`, error);
+            }
+        }
+
+        if (
+            !db ||
+            typeof firestoreFns.collection !== "function" ||
+            typeof firestoreFns.getDocs !== "function"
+        ) {
+            return {
+                success: true,
+                checkouts: []
+            };
+        }
+
+        try {
+            const checkoutsCollection = firestoreFns.collection(db, "checkoutSessions");
+            const constraints = [];
+
+            if (typeof firestoreFns.where === "function") {
+                constraints.push(firestoreFns.where("customerUid", "==", customerUid));
+
+                if (statuses.length === 1) {
+                    constraints.push(firestoreFns.where("status", "==", statuses[0]));
+                } else if (statuses.length > 1) {
+                    constraints.push(firestoreFns.where("status", "in", statuses));
+                }
+            }
+
+            const checkoutsQuery =
+                typeof firestoreFns.query === "function" && constraints.length > 0
+                    ? firestoreFns.query(checkoutsCollection, ...constraints)
+                    : checkoutsCollection;
+            const snapshot = await firestoreFns.getDocs(checkoutsQuery);
+            const checkouts = [];
+            const iterate = typeof snapshot?.forEach === "function"
+                ? snapshot.forEach.bind(snapshot)
+                : function iterateDocs(callback) {
+                    const docs = Array.isArray(snapshot?.docs) ? snapshot.docs : [];
+                    docs.forEach(callback);
+                };
+
+            iterate(function onEachCheckout(docSnapshot) {
+                const data = typeof docSnapshot.data === "function" ? (docSnapshot.data() || {}) : {};
+                const checkout = {
+                    checkoutId: normalizeText(docSnapshot.id) || normalizeText(data.checkoutId),
+                    ...data
+                };
+
+                if (statuses.indexOf(normalizeText(checkout.status).toLowerCase()) >= 0) {
+                    checkouts.push(checkout);
+                }
+            });
+
+            return {
+                success: true,
+                checkouts
+            };
+        } catch (error) {
+            return {
+                success: false,
+                checkouts: [],
+                error: {
+                    code: normalizeText(error && error.code) || "fetch-checkouts-error",
+                    message: normalizeText(error && error.message) || "Failed to load unfinished checkout payments."
+                }
+            };
+        }
+    }
+
     function setStatusMessage(element, message, state = "info") {
         if (!element) {
             return;
@@ -356,6 +579,27 @@
     function buildOrderDetailUrl(orderId) {
         const url = new URL(getFallbackRoutes().detail, globalScope.location.href);
         url.searchParams.set("orderId", normalizeText(orderId));
+        return url.toString();
+    }
+
+    function buildCheckoutUrl(checkoutRecord) {
+        const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const url = new URL(getFallbackRoutes().checkout, globalScope.location.href);
+        const checkoutId = normalizeText(checkout.checkoutId);
+        const vendorUid = normalizeText(checkout.vendorUid);
+
+        if (checkoutId) {
+            url.searchParams.set("checkoutId", checkoutId);
+        }
+
+        if (vendorUid) {
+            url.searchParams.set("vendorUid", vendorUid);
+        }
+
+        if (normalizeText(checkout.vendorName)) {
+            url.searchParams.set("vendorName", normalizeText(checkout.vendorName));
+        }
+
         return url.toString();
     }
 
@@ -424,6 +668,70 @@
         return article;
     }
 
+    function createCheckoutCard(checkoutRecord, options = {}) {
+        const checkout = mapCheckoutRecord(checkoutRecord, options);
+        const article = globalScope.document.createElement("article");
+        article.className = "tracking-order-card tracking-checkout-card";
+        article.setAttribute("data-checkout-id", checkout.checkoutId);
+
+        const heading = globalScope.document.createElement("h3");
+        heading.className = "tracking-order-heading";
+        heading.textContent = checkout.vendorName;
+
+        const statusLine = globalScope.document.createElement("p");
+        statusLine.className = "tracking-order-status";
+        statusLine.textContent = `Checkout: ${checkout.statusLabel}`;
+        statusLine.setAttribute("data-tone", checkout.tone);
+
+        const itemsLine = globalScope.document.createElement("p");
+        itemsLine.className = "tracking-order-items";
+        itemsLine.textContent = `${checkout.itemCount} item${checkout.itemCount === 1 ? "" : "s"}`;
+
+        const totalLine = globalScope.document.createElement("p");
+        totalLine.className = "tracking-order-total";
+        totalLine.textContent = `Total: ${checkout.totalText}`;
+
+        const paymentAmountLine = globalScope.document.createElement("p");
+        paymentAmountLine.className = "tracking-order-payment-amount";
+        paymentAmountLine.textContent = `Payment Amount: ${checkout.paymentAmountText}`;
+
+        const noteLine = globalScope.document.createElement("p");
+        noteLine.className = "tracking-order-payment-status";
+        noteLine.setAttribute("data-tone", checkout.tone);
+        noteLine.setAttribute("data-checkout-status", checkout.status);
+        noteLine.textContent = "This checkout has not become an order yet.";
+
+        const footer = globalScope.document.createElement("menu");
+        footer.className = "action-menu tracking-order-actions";
+        footer.setAttribute("aria-label", `${checkout.vendorName} checkout actions`);
+
+        const resumeItem = globalScope.document.createElement("li");
+        const resumeLink = globalScope.document.createElement("a");
+        resumeLink.href = buildCheckoutUrl(checkout);
+        resumeLink.className = "button-primary";
+        resumeLink.textContent = checkout.actionLabel || "Resume Payment";
+        resumeItem.appendChild(resumeLink);
+        footer.appendChild(resumeItem);
+
+        article.appendChild(heading);
+        article.appendChild(statusLine);
+        article.appendChild(itemsLine);
+        article.appendChild(totalLine);
+        article.appendChild(paymentAmountLine);
+        article.appendChild(noteLine);
+
+        if (checkout.paymentReference) {
+            const paymentReferenceLine = globalScope.document.createElement("p");
+            paymentReferenceLine.className = "tracking-order-payment-reference";
+            paymentReferenceLine.textContent = `Reference: ${checkout.paymentReference}`;
+            article.appendChild(paymentReferenceLine);
+        }
+
+        article.appendChild(footer);
+
+        return article;
+    }
+
     function renderOrders(orders, container, options = {}) {
         if (!container) {
             return;
@@ -443,6 +751,28 @@
 
         safeOrders.forEach(function appendOrder(order) {
             container.appendChild(createOrderCard(order, options));
+        });
+    }
+
+    function renderCheckouts(checkouts, container, options = {}) {
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = "";
+        const safeCheckouts = Array.isArray(checkouts) ? checkouts : [];
+
+        if (safeCheckouts.length === 0) {
+            const message = globalScope.document.createElement("p");
+            message.className = "empty-state-message";
+            message.textContent = normalizeText(options.emptyMessage)
+                || "You do not have any unfinished checkout payments.";
+            container.appendChild(message);
+            return;
+        }
+
+        safeCheckouts.forEach(function appendCheckout(checkout) {
+            container.appendChild(createCheckoutCard(checkout, options));
         });
     }
 
@@ -606,6 +936,37 @@
         return `Showing ${filteredCount} of ${totalCount} order${totalCount === 1 ? "" : "s"}.`;
     }
 
+    function buildCheckoutSummary(count) {
+        const total = Number.isFinite(Number(count)) ? Number(count) : 0;
+
+        if (total === 0) {
+            return "";
+        }
+
+        return `${total} unfinished checkout payment${total === 1 ? "" : "s"} can still be resumed or cancelled.`;
+    }
+
+    function renderCheckoutPanel(elements, options = {}) {
+        const container = elements && elements.checkoutsContainer;
+        const summary = elements && elements.checkoutsSummary;
+
+        if (!container) {
+            if (summary) {
+                summary.textContent = buildCheckoutSummary(pageState.allCheckouts.length);
+            }
+            return;
+        }
+
+        renderCheckouts(pageState.allCheckouts, container, {
+            ...options,
+            emptyMessage: "You do not have any unfinished checkout payments."
+        });
+
+        if (summary) {
+            summary.textContent = buildCheckoutSummary(pageState.allCheckouts.length);
+        }
+    }
+
     function renderCurrentPage(elements, options = {}) {
         const container = elements && elements.container;
         if (!container) {
@@ -739,6 +1100,12 @@
             const paginationStatusElement = globalScope.document.querySelector(
                 options.paginationStatusSelector || "#orders-pagination-status"
             );
+            const checkoutsContainer = globalScope.document.querySelector(
+                options.checkoutsContainerSelector || "#active-checkouts-container"
+            );
+            const checkoutsSummary = globalScope.document.querySelector(
+                options.checkoutsSummarySelector || "#active-checkouts-summary"
+            );
 
             if (!container) {
                 return {
@@ -752,7 +1119,9 @@
                 summary: summaryElement,
                 form: formElement,
                 pagination: paginationElement,
-                paginationStatus: paginationStatusElement
+                paginationStatus: paginationStatusElement,
+                checkoutsContainer,
+                checkoutsSummary
             };
 
             const initialFilters = readFiltersFromForm(formElement);
@@ -777,7 +1146,9 @@
 
             if (!currentUser || !normalizeText(currentUser.uid)) {
                 pageState.allOrders = [];
+                pageState.allCheckouts = [];
                 renderOrders([], container, options);
+                renderCheckoutPanel(elements, options);
                 if (summaryElement) {
                     summaryElement.textContent = "";
                 }
@@ -797,10 +1168,18 @@
                 firestoreFns,
                 customerUid: currentUser.uid
             });
+            const checkoutResult = await fetchCustomerCheckouts({
+                ...options,
+                db,
+                firestoreFns,
+                customerUid: currentUser.uid
+            });
 
             if (!result.success) {
                 pageState.allOrders = [];
+                pageState.allCheckouts = [];
                 renderOrders([], container, options);
+                renderCheckoutPanel(elements, options);
                 if (summaryElement) {
                     summaryElement.textContent = "";
                 }
@@ -827,23 +1206,36 @@
                     return mapOrderRecord(order, options);
                 })
                 : [];
+            pageState.allCheckouts = checkoutResult.success && Array.isArray(checkoutResult.checkouts)
+                ? checkoutResult.checkouts.map(function mapAndKeepCheckout(checkout) {
+                    return mapCheckoutRecord(checkout, options);
+                })
+                : [];
 
             attachToolbarHandlers(elements, options);
+            renderCheckoutPanel(elements, options);
             renderCurrentPage(elements, options);
 
-            if (pageState.allOrders.length === 0) {
+            if (pageState.allOrders.length === 0 && pageState.allCheckouts.length === 0) {
                 setStatusMessage(statusElement, "You do not have any orders to track yet.", "info");
             } else {
+                const orderCount = pageState.allOrders.length;
+                const checkoutCount = pageState.allCheckouts.length;
+                const orderPart = `${orderCount} order${orderCount === 1 ? "" : "s"}`;
+                const checkoutPart = `${checkoutCount} unfinished checkout${checkoutCount === 1 ? "" : "s"}`;
                 setStatusMessage(
                     statusElement,
-                    `Tracking ${pageState.allOrders.length} order${pageState.allOrders.length === 1 ? "" : "s"}.`,
+                    checkoutCount > 0
+                        ? `Tracking ${orderPart} and ${checkoutPart}.`
+                        : `Tracking ${orderPart}.`,
                     "success"
                 );
             }
 
             return {
                 success: true,
-                orders: result.orders
+                orders: result.orders,
+                checkouts: checkoutResult.checkouts || []
             };
         })();
 
@@ -868,19 +1260,29 @@
         resolveOrderFormatters,
         resolvePaymentStatus,
         resolvePaymentFormatters,
+        resolveCheckoutQueries,
+        resolveCheckoutStatus,
         getFallbackRoutes,
         waitForAuthReady,
         mapOrderRecord,
+        getDefaultResumableCheckoutStatuses,
+        mapCheckoutRecord,
         fetchCustomerOrders,
+        fetchCustomerCheckouts,
         setStatusMessage,
         buildOrderDetailUrl,
+        buildCheckoutUrl,
         createOrderCard,
+        createCheckoutCard,
         renderOrders,
+        renderCheckouts,
         getOrderTimestamp,
         sortOrders,
         filterOrders,
         paginateOrders,
         buildResultSummary,
+        buildCheckoutSummary,
+        renderCheckoutPanel,
         init
     };
 
