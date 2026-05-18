@@ -7,6 +7,16 @@ describe("shared/orders/order-status.js", () => {
         expect(orderStatus.ORDER_STATUSES.READY).toBe("ready");
         expect(orderStatus.ORDER_ACTOR_ROLES.CUSTOMER).toBe("customer");
         expect(orderStatus.ORDER_ACTOR_ROLES.VENDOR).toBe("vendor");
+        expect(orderStatus.PAYMENT_REQUIRED_ORDER_STATUSES).toEqual([
+            "pending",
+            "accepted",
+            "preparing",
+            "ready"
+        ]);
+        expect(orderStatus.REFUND_REVIEW_ORDER_STATUSES).toEqual([
+            "rejected",
+            "cancelled"
+        ]);
     });
 
     test("normalizes order status aliases into canonical values", () => {
@@ -76,16 +86,46 @@ describe("shared/orders/order-status.js", () => {
             "rejected",
             "cancelled"
         ]);
+        expect(orderStatus.getPaymentRequiredOrderStatusList()).toEqual([
+            "pending",
+            "accepted",
+            "preparing",
+            "ready"
+        ]);
+        expect(orderStatus.getRefundReviewOrderStatusList()).toEqual([
+            "rejected",
+            "cancelled"
+        ]);
         expect(orderStatus.getStatusProgressIndex("preparing")).toBe(2);
         expect(orderStatus.getStatusProgressIndex("rejected")).toBe(-1);
     });
 
-    test("identifies known and terminal statuses", () => {
+    test("returns fresh status lists that callers can mutate safely", () => {
+        const paymentRequired = orderStatus.getPaymentRequiredOrderStatusList();
+        const refundReview = orderStatus.getRefundReviewOrderStatusList();
+
+        paymentRequired.push("mutated");
+        refundReview.push("mutated");
+
+        expect(orderStatus.getPaymentRequiredOrderStatusList()).not.toContain("mutated");
+        expect(orderStatus.getRefundReviewOrderStatusList()).not.toContain("mutated");
+    });
+
+    test("identifies known, terminal, payment-required, and refund-review statuses", () => {
         expect(orderStatus.isKnownOrderStatus("ready for pickup")).toBe(true);
         expect(orderStatus.isKnownOrderStatus("unknown")).toBe(false);
         expect(orderStatus.isTerminalOrderStatus("completed")).toBe(true);
         expect(orderStatus.isTerminalOrderStatus("cancelled")).toBe(true);
         expect(orderStatus.isTerminalOrderStatus("accepted")).toBe(false);
+        expect(orderStatus.orderStatusRequiresPaidPayment("Order Received")).toBe(true);
+        expect(orderStatus.orderStatusRequiresPaidPayment("ready-for-collection")).toBe(true);
+        expect(orderStatus.orderStatusRequiresPaidPayment("completed")).toBe(false);
+        expect(orderStatus.orderStatusRequiresPaidPayment("rejected")).toBe(false);
+        expect(orderStatus.orderStatusRequiresPaidPayment("mystery")).toBe(false);
+        expect(orderStatus.orderStatusRequiresRefundReview("declined")).toBe(true);
+        expect(orderStatus.orderStatusRequiresRefundReview("canceled")).toBe(true);
+        expect(orderStatus.orderStatusRequiresRefundReview("completed")).toBe(false);
+        expect(orderStatus.orderStatusRequiresRefundReview("mystery")).toBe(false);
     });
 
     test("returns allowed next statuses for each actor", () => {

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket Detail | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Admin ticket detail and triage workspace placeholder.">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body>
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Admin ticket detail navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./users.html">Manage Users</a>
+            <a href="./disputes.html">Support Inbox</a>
+            <a href="./ticket-detail.html" aria-current="page">Ticket Detail</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <section aria-labelledby="admin-ticket-detail-heading">
+            <h2 id="admin-ticket-detail-heading">Ticket Detail</h2>
+
+            <p>
+                Review the full conversation on a single support ticket, change its status, and
+                reply to the reporter from one place.
+            </p>
+
+            <p id="admin-ticket-detail-status" aria-live="polite">Coming soon.</p>
+
+            <menu aria-label="Admin ticket detail actions">
+                <li><a href="./disputes.html">Back to Support Inbox</a></li>
+                <li><a href="./index.html">Back to Admin Dashboard</a></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="./ticket-detail.js"></script>
+    <script>
+        window.adminTicketDetailPage.initializeAdminTicketDetailPage();
+    </script>
+</body>
+
+</html>

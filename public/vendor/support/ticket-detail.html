@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket Detail | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="View one of your support tickets and its replies.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body class="vendor-shell vendor-support" data-page="vendor-support-detail">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor ticket detail navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-management/index.html">Manage Orders</a>
+            <a href="./index.html">Support &amp; Disputes</a>
+            <a href="./new.html">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="page-hero shared-section" aria-labelledby="ticket-detail-heading">
+            <h2 id="ticket-detail-heading">Support Ticket</h2>
+
+            <p>
+                Review your ticket, the support team's replies, and the timeline of updates.
+                Send another reply or close the ticket if it is resolved.
+            </p>
+
+            <p id="ticket-detail-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Ticket detail page actions">
+                <li><a href="./index.html" class="button-secondary">Back to My Tickets</a></li>
+                <li><a href="./new.html" class="button-secondary">Open Another Ticket</a></li>
+            </menu>
+        </section>
+
+        <section id="ticket-summary-section" class="shared-section ticket-summary-section"
+            aria-labelledby="ticket-summary-heading" hidden>
+            <h3 id="ticket-summary-heading">
+                <output id="ticket-summary-subject">Loading...</output>
+            </h3>
+
+            <section class="ticket-summary-grid" aria-label="Ticket overview">
+                <p><strong>Ticket ID:</strong> <output id="ticket-summary-id">—</output></p>
+                <p><strong>Status:</strong> <output id="ticket-summary-status">—</output></p>
+                <p><strong>Category:</strong> <output id="ticket-summary-category">—</output></p>
+                <p><strong>Priority:</strong> <output id="ticket-summary-priority">—</output></p>
+                <p><strong>Reporter:</strong> <output id="ticket-summary-reporter">—</output></p>
+                <p><strong>Related order:</strong> <output id="ticket-summary-order">—</output></p>
+                <p><strong>Opened:</strong> <output id="ticket-summary-opened">—</output></p>
+                <p><strong>Replies:</strong> <output id="ticket-summary-replies">—</output></p>
+            </section>
+
+            <p id="ticket-summary-resolution" class="ticket-summary-resolution"
+                aria-live="polite" hidden></p>
+
+            <section class="ticket-description" aria-labelledby="ticket-description-heading">
+                <h4 id="ticket-description-heading">Original message</h4>
+                <p id="ticket-description-body" class="ticket-description-body">—</p>
+            </section>
+        </section>
+
+        <section id="ticket-progress-section" class="shared-section ticket-progress-section"
+            aria-labelledby="ticket-progress-heading" hidden>
+            <h3 id="ticket-progress-heading">Activity Timeline</h3>
+            <ol id="ticket-progress-steps" class="ticket-timeline"></ol>
+        </section>
+
+        <section id="ticket-replies-section" class="shared-section ticket-replies-section"
+            aria-labelledby="ticket-replies-heading" hidden>
+            <h3 id="ticket-replies-heading">Conversation</h3>
+            <p id="ticket-replies-empty" class="ticket-replies-empty" hidden>
+                No replies yet. The support team will get back to you here.
+            </p>
+            <ol id="ticket-replies-list" class="ticket-replies-list"></ol>
+        </section>
+
+        <section id="ticket-reply-form-section" class="shared-section ticket-reply-form-section"
+            aria-labelledby="ticket-reply-form-heading" hidden>
+            <h3 id="ticket-reply-form-heading">Reply</h3>
+
+            <form id="ticket-reply-form" class="ticket-reply-form" novalidate
+                aria-describedby="ticket-reply-form-heading">
+                <p class="ticket-reply-field">
+                    <label for="ticket-reply-body">Your message</label>
+                </p>
+                <p class="ticket-reply-field-input">
+                    <textarea id="ticket-reply-body" name="body" rows="5" maxlength="4000"
+                        required aria-describedby="ticket-reply-error"
+                        placeholder="Add more detail or answer the support team's questions."></textarea>
+                </p>
+                <p id="ticket-reply-error" class="ticket-reply-error" aria-live="polite"></p>
+
+                <menu class="action-menu ticket-reply-actions" aria-label="Reply actions">
+                    <li><button id="ticket-reply-submit" type="submit" class="button-primary">Send Reply</button></li>
+                </menu>
+            </form>
+        </section>
+
+        <section id="ticket-actions-section" class="shared-section ticket-actions-section"
+            aria-labelledby="ticket-actions-heading" hidden>
+            <h3 id="ticket-actions-heading">Ticket Actions</h3>
+
+            <p id="ticket-actions-note">
+                Once the support team has resolved your issue, you can close the ticket. If a
+                problem comes back, you can reopen a closed ticket within a reasonable timeframe.
+            </p>
+
+            <menu class="action-menu ticket-actions-menu" aria-label="Ticket actions">
+                <li><button id="ticket-close-button" type="button" class="button-secondary" hidden>Close Ticket</button></li>
+                <li><button id="ticket-reopen-button" type="button" class="button-primary" hidden>Reopen Ticket</button></li>
+            </menu>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="../../shared/support/ticket-status.js"></script>
+    <script src="../../shared/support/ticket-categories.js"></script>
+    <script src="../../shared/support/ticket-model.js"></script>
+    <script src="../../shared/support/ticket-queries.js"></script>
+    <script src="../../shared/support/ticket-validation.js"></script>
+    <script src="../../shared/support/ticket-service.js"></script>
+    <script src="../../shared/support/ticket-formatters.js"></script>
+    <script src="./ticket-detail.js"></script>
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection, doc, getDoc, getDocs, setDoc, updateDoc,
+            query, where, orderBy, limit, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection, doc, getDoc, getDocs, setDoc, updateDoc,
+            query, where, orderBy, limit, serverTimestamp
+        };
+
+        if (window.vendorSupportTicketDetailPage && typeof window.vendorSupportTicketDetailPage.init === "function") {
+            await window.vendorSupportTicketDetailPage.init({
+                db, auth,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                ticketService: window.ticketService,
+                ticketStatus: window.ticketStatus,
+                ticketCategories: window.ticketCategories,
+                ticketFormatters: window.ticketFormatters
+            });
+        }
+    </script>
+</body>
+
+</html>

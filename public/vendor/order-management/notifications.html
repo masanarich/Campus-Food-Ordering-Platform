@@ -41,11 +41,67 @@
             </menu>
         </section>
 
+        <section class="shared-section vendor-notifications-toolbar" aria-labelledby="vendor-notifications-toolbar-heading">
+            <h3 id="vendor-notifications-toolbar-heading">Filter &amp; Sort</h3>
+            <form id="vendor-notifications-filter-form" class="vendor-notifications-filter-form" role="search" aria-label="Filter and sort vendor notifications">
+                <p class="vendor-notifications-filter-field vendor-notifications-filter-field-search">
+                    <label for="vendor-notifications-search">Search</label>
+                    <input id="vendor-notifications-search" name="search" type="search"
+                        placeholder="Search by title, message or order ID" autocomplete="off">
+                </p>
+
+                <p class="vendor-notifications-filter-field">
+                    <label for="vendor-notifications-read-filter">Read status</label>
+                    <select id="vendor-notifications-read-filter" name="read">
+                        <option value="all">All notifications</option>
+                        <option value="unread">Unread only</option>
+                        <option value="read">Read only</option>
+                    </select>
+                </p>
+
+                <p class="vendor-notifications-filter-field">
+                    <label for="vendor-notifications-type-filter">Type</label>
+                    <select id="vendor-notifications-type-filter" name="type">
+                        <option value="all">All types</option>
+                    </select>
+                </p>
+
+                <p class="vendor-notifications-filter-field">
+                    <label for="vendor-notifications-sort">Sort by</label>
+                    <select id="vendor-notifications-sort" name="sort">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="unread-first">Unread first</option>
+                    </select>
+                </p>
+
+                <p class="vendor-notifications-filter-actions">
+                    <button type="reset" class="button-secondary">Clear filters</button>
+                </p>
+            </form>
+        </section>
+
         <section class="shared-section vendor-notifications-list" aria-labelledby="vendor-notifications-list-heading">
             <h3 id="vendor-notifications-list-heading">Recent Vendor Notifications</h3>
-            <section id="vendor-notifications-container" aria-live="polite">
+            <p id="vendor-notifications-results-summary" class="vendor-notifications-results-summary" aria-live="polite"></p>
+            <menu class="action-menu vendor-notifications-bulk-actions" aria-label="Bulk vendor notification actions">
+                <li>
+                    <button id="vendor-notifications-mark-all-read" type="button" class="button-secondary" hidden>
+                        Mark all as read
+                    </button>
+                </li>
+            </menu>
+            <section id="vendor-notifications-container" class="vendor-notifications-grid" aria-live="polite">
                 <p class="loading-message">Loading your notifications...</p>
             </section>
+            <nav id="vendor-notifications-pagination" class="vendor-notifications-pagination"
+                aria-label="Vendor notifications pagination" hidden>
+                <p id="vendor-notifications-pagination-status" class="vendor-notifications-pagination-status" aria-live="polite">Page 1 of 1</p>
+                <menu class="vendor-notifications-pagination-menu" aria-label="Pagination controls">
+                    <li><button type="button" class="button-secondary" data-page-action="prev">Previous</button></li>
+                    <li><button type="button" class="button-secondary" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
         </section>
     </main>
 

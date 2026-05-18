@@ -20,6 +20,7 @@
             <a href="../order-management/browse-vendors.html">Browse Vendors</a>
             <a href="./index.html" aria-current="page">My Orders</a>
             <a href="./notifications.html">Notifications</a>
+            <a href="../support/index.html">Help &amp; Support</a>
             <a href="../../authentication/profile.html">Profile</a>
         </nav>
     </header>
@@ -29,8 +30,7 @@
             <h2 id="tracking-heading">Track Your Orders</h2>
 
             <p>
-                View the latest status for every order you have placed, then open one order to see
-                its full progress and detail timeline.
+                View paid orders that vendors can prepare, and resume any checkout payment that was not completed.
             </p>
 
             <p id="order-tracking-status" aria-live="polite" aria-atomic="true"></p>
@@ -42,11 +42,78 @@
             </menu>
         </section>
 
-        <section class="shared-section" aria-labelledby="tracked-orders-heading">
+        <section class="shared-section orders-toolbar-section" aria-labelledby="orders-toolbar-heading">
+            <h3 id="orders-toolbar-heading">Filter &amp; Sort</h3>
+            <form id="orders-filter-form" class="orders-filter-form" role="search" aria-label="Filter and sort orders">
+                <p class="orders-filter-field orders-filter-field-search">
+                    <label for="orders-search">Search</label>
+                    <input id="orders-search" name="search" type="search"
+                        placeholder="Search by vendor or order ID" autocomplete="off">
+                </p>
+
+                <p class="orders-filter-field">
+                    <label for="orders-status-filter">Order status</label>
+                    <select id="orders-status-filter" name="status">
+                        <option value="all">All statuses</option>
+                        <option value="pending">Order Received</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="preparing">Preparing</option>
+                        <option value="ready">Ready for Pickup</option>
+                        <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </p>
+
+                <p class="orders-filter-field">
+                    <label for="orders-payment-filter">Payment</label>
+                    <select id="orders-payment-filter" name="payment">
+                        <option value="all">All payments</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="pending">Payment Pending</option>
+                        <option value="paid">Paid</option>
+                        <option value="failed">Payment Failed</option>
+                    </select>
+                </p>
+
+                <p class="orders-filter-field">
+                    <label for="orders-sort">Sort by</label>
+                    <select id="orders-sort" name="sort">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="price-desc">Price: High to Low</option>
+                        <option value="price-asc">Price: Low to High</option>
+                    </select>
+                </p>
+
+                <p class="orders-filter-actions">
+                    <button type="reset" class="button-secondary">Clear filters</button>
+                </p>
+            </form>
+        </section>
+
+        <section class="shared-section orders-results-section" aria-labelledby="active-checkouts-heading">
+            <h3 id="active-checkouts-heading">Unfinished Checkout Payments</h3>
+            <p id="active-checkouts-summary" class="orders-results-summary" aria-live="polite"></p>
+            <section id="active-checkouts-container" class="orders-grid" aria-live="polite">
+                <p class="loading-message">Checking unfinished checkout payments...</p>
+            </section>
+        </section>
+
+        <section class="shared-section orders-results-section" aria-labelledby="tracked-orders-heading">
             <h3 id="tracked-orders-heading">Tracked Orders</h3>
-            <section id="tracked-orders-container" aria-live="polite">
+            <p id="tracked-orders-summary" class="orders-results-summary" aria-live="polite"></p>
+            <section id="tracked-orders-container" class="orders-grid" aria-live="polite">
                 <p class="loading-message">Loading your orders...</p>
             </section>
+            <nav id="tracked-orders-pagination" class="orders-pagination"
+                aria-label="Tracked orders pagination" hidden>
+                <p id="orders-pagination-status" class="orders-pagination-status" aria-live="polite">Page 1 of 1</p>
+                <menu class="orders-pagination-menu" aria-label="Pagination controls">
+                    <li><button type="button" class="button-secondary" data-page-action="prev">Previous</button></li>
+                    <li><button type="button" class="button-secondary" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
         </section>
     </main>
 
@@ -62,6 +129,9 @@
     <script src="../../shared/payments/payment-status.js"></script>
     <script src="../../shared/payments/payment-model.js"></script>
     <script src="../../shared/payments/payment-formatters.js"></script>
+    <script src="../../shared/checkout/checkout-status.js"></script>
+    <script src="../../shared/checkout/checkout-model.js"></script>
+    <script src="../../shared/checkout/checkout-queries.js"></script>
     <script src="./index.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
@@ -99,7 +169,9 @@
                 orderStatus: window.orderStatus,
                 orderFormatters: window.orderFormatters,
                 paymentStatus: window.paymentStatus,
-                paymentFormatters: window.paymentFormatters
+                paymentFormatters: window.paymentFormatters,
+                checkoutStatus: window.checkoutStatus,
+                checkoutQueries: window.checkoutQueries
             });
         }
     </script>

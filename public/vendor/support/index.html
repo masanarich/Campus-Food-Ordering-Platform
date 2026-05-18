@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Support &amp; Disputes | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="View and manage your support tickets as a vendor.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body class="vendor-shell vendor-support" data-page="vendor-support-list">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor support navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-management/index.html">Manage Orders</a>
+            <a href="./index.html" aria-current="page">Support &amp; Disputes</a>
+            <a href="./new.html">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="page-hero shared-section" aria-labelledby="vendor-support-heading">
+            <h2 id="vendor-support-heading">Support &amp; Disputes</h2>
+
+            <p>
+                Report problems with orders, payouts, payment issues, or any other vendor concern.
+                Your open and past tickets live here.
+            </p>
+
+            <p id="vendor-support-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="Support page actions">
+                <li><a href="./new.html" class="button-primary">Open a New Ticket</a></li>
+                <li><a href="../index.html" class="button-secondary">Back to Dashboard</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section vendor-tickets-toolbar-section" aria-labelledby="vendor-tickets-toolbar-heading">
+            <h3 id="vendor-tickets-toolbar-heading">Filter &amp; Sort</h3>
+            <form id="vendor-tickets-filter-form" class="vendor-tickets-filter-form" role="search"
+                aria-label="Filter and sort tickets">
+                <p class="vendor-tickets-filter-field vendor-tickets-filter-field-search">
+                    <label for="vendor-tickets-search">Search</label>
+                    <input id="vendor-tickets-search" name="search" type="search"
+                        placeholder="Search by subject, ticket ID, or order ID" autocomplete="off">
+                </p>
+
+                <p class="vendor-tickets-filter-field">
+                    <label for="vendor-tickets-status-filter">Status</label>
+                    <select id="vendor-tickets-status-filter" name="status">
+                        <option value="all">All statuses</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="awaiting_user">Awaiting You</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </p>
+
+                <p class="vendor-tickets-filter-field">
+                    <label for="vendor-tickets-category-filter">Category</label>
+                    <select id="vendor-tickets-category-filter" name="category">
+                        <option value="all">All categories</option>
+                        <option value="order_issue">Order Issue</option>
+                        <option value="payment">Payment Issue</option>
+                        <option value="refund">Refund Request</option>
+                        <option value="account">Account</option>
+                        <option value="abuse">Abuse or Safety</option>
+                        <option value="general">General</option>
+                    </select>
+                </p>
+
+                <p class="vendor-tickets-filter-field">
+                    <label for="vendor-tickets-sort">Sort by</label>
+                    <select id="vendor-tickets-sort" name="sort">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="last-reply">Latest reply</option>
+                    </select>
+                </p>
+
+                <p class="vendor-tickets-filter-actions">
+                    <button type="reset" class="button-secondary">Clear filters</button>
+                </p>
+            </form>
+        </section>
+
+        <section class="shared-section vendor-tickets-results-section" aria-labelledby="vendor-tickets-heading">
+            <h3 id="vendor-tickets-heading">My Tickets</h3>
+            <p id="vendor-tickets-summary" class="vendor-tickets-results-summary" aria-live="polite"></p>
+            <section id="vendor-tickets-container" class="vendor-tickets-grid" aria-live="polite">
+                <p class="loading-message">Loading your tickets...</p>
+            </section>
+            <nav id="vendor-tickets-pagination" class="vendor-tickets-pagination"
+                aria-label="Tickets pagination" hidden>
+                <p id="vendor-tickets-pagination-status" class="vendor-tickets-pagination-status"
+                    aria-live="polite">Page 1 of 1</p>
+                <menu class="vendor-tickets-pagination-menu" aria-label="Pagination controls">
+                    <li><button type="button" class="button-secondary" data-page-action="prev">Previous</button></li>
+                    <li><button type="button" class="button-secondary" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="../../shared/support/ticket-status.js"></script>
+    <script src="../../shared/support/ticket-categories.js"></script>
+    <script src="../../shared/support/ticket-model.js"></script>
+    <script src="../../shared/support/ticket-queries.js"></script>
+    <script src="../../shared/support/ticket-service.js"></script>
+    <script src="../../shared/support/ticket-formatters.js"></script>
+    <script src="./index.js"></script>
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection, getDocs, getDoc, doc, query, where, orderBy, limit
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = { collection, getDocs, getDoc, doc, query, where, orderBy, limit };
+
+        if (window.vendorSupportListPage && typeof window.vendorSupportListPage.init === "function") {
+            await window.vendorSupportListPage.init({
+                db, auth,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                ticketService: window.ticketService,
+                ticketStatus: window.ticketStatus,
+                ticketCategories: window.ticketCategories,
+                ticketFormatters: window.ticketFormatters
+            });
+        }
+    </script>
+</body>
+
+</html>

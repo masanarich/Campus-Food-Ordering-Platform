@@ -47,6 +47,18 @@
         return normalizeText(params.get("reference") || params.get("trxref"));
     }
 
+    function getCheckoutId(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const explicit = normalizeText(safeOptions.checkoutId || safeOptions.sessionId);
+
+        if (explicit) {
+            return explicit;
+        }
+
+        const params = new URLSearchParams(getLocationSearch(safeOptions));
+        return normalizeText(params.get("checkoutId") || params.get("sessionId"));
+    }
+
     function resolveFirestore(explicitDb) {
         if (explicitDb) {
             return explicitDb;
@@ -153,6 +165,176 @@
         }
 
         return null;
+    }
+
+    function resolveCheckoutStatus(explicitCheckoutStatus) {
+        if (explicitCheckoutStatus && typeof explicitCheckoutStatus.normalizeCheckoutStatus === "function") {
+            return explicitCheckoutStatus;
+        }
+
+        if (globalScope.checkoutStatus && typeof globalScope.checkoutStatus.normalizeCheckoutStatus === "function") {
+            return globalScope.checkoutStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-status.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutModel(explicitCheckoutModel) {
+        if (explicitCheckoutModel && typeof explicitCheckoutModel.createOrderDraftFromCheckout === "function") {
+            return explicitCheckoutModel;
+        }
+
+        if (globalScope.checkoutModel && typeof globalScope.checkoutModel.createOrderDraftFromCheckout === "function") {
+            return globalScope.checkoutModel;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutValidation(explicitCheckoutValidation) {
+        if (explicitCheckoutValidation && typeof explicitCheckoutValidation.validateCheckoutConversion === "function") {
+            return explicitCheckoutValidation;
+        }
+
+        if (
+            globalScope.checkoutValidation &&
+            typeof globalScope.checkoutValidation.validateCheckoutConversion === "function"
+        ) {
+            return globalScope.checkoutValidation;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-validation.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutQueries(explicitCheckoutQueries) {
+        if (
+            explicitCheckoutQueries &&
+            (
+                typeof explicitCheckoutQueries.fetchCheckoutById === "function" ||
+                typeof explicitCheckoutQueries.fetchCheckoutByPaymentReference === "function"
+            )
+        ) {
+            return explicitCheckoutQueries;
+        }
+
+        if (
+            globalScope.checkoutQueries &&
+            (
+                typeof globalScope.checkoutQueries.fetchCheckoutById === "function" ||
+                typeof globalScope.checkoutQueries.fetchCheckoutByPaymentReference === "function"
+            )
+        ) {
+            return globalScope.checkoutQueries;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-queries.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutService(explicitCheckoutService) {
+        if (
+            explicitCheckoutService &&
+            (
+                typeof explicitCheckoutService.convertCheckoutToOrder === "function" ||
+                typeof explicitCheckoutService.applyVerifiedPayment === "function" ||
+                typeof explicitCheckoutService.applyFailedPayment === "function" ||
+                typeof explicitCheckoutService.getCheckoutById === "function"
+            )
+        ) {
+            return explicitCheckoutService;
+        }
+
+        if (explicitCheckoutService !== undefined) {
+            return null;
+        }
+
+        if (
+            globalScope.checkoutService &&
+            (
+                typeof globalScope.checkoutService.convertCheckoutToOrder === "function" ||
+                typeof globalScope.checkoutService.applyVerifiedPayment === "function" ||
+                typeof globalScope.checkoutService.applyFailedPayment === "function" ||
+                typeof globalScope.checkoutService.getCheckoutById === "function"
+            )
+        ) {
+            return globalScope.checkoutService;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveOrderService(explicitOrderService) {
+        if (explicitOrderService && typeof explicitOrderService.createOrders === "function") {
+            return explicitOrderService;
+        }
+
+        if (explicitOrderService !== undefined) {
+            return null;
+        }
+
+        if (globalScope.orderService && typeof globalScope.orderService.createOrders === "function") {
+            return globalScope.orderService;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/orders/order-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function buildCheckoutDependencyOptions(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        return {
+            checkoutStatus: resolveCheckoutStatus(safeOptions.checkoutStatus),
+            checkoutModel: resolveCheckoutModel(safeOptions.checkoutModel),
+            checkoutValidation: resolveCheckoutValidation(safeOptions.checkoutValidation),
+            checkoutQueries: resolveCheckoutQueries(safeOptions.checkoutQueries)
+        };
     }
 
     function formatAmount(amount, currency, options = {}) {
@@ -302,6 +484,40 @@
         };
     }
 
+    function buildPaymentSliceFromCheckout(checkoutData, reference) {
+        const safeCheckout = checkoutData && typeof checkoutData === "object" ? checkoutData : {};
+        const safeReference = normalizeText(reference || safeCheckout.paymentReference);
+        const amount = safeCheckout.paymentAmount !== undefined
+            ? normalizeNumber(safeCheckout.paymentAmount)
+            : normalizeNumber(safeCheckout.total);
+        const amountInMinorUnits = safeCheckout.paymentAmountInMinorUnits !== undefined
+            ? Number.parseInt(safeCheckout.paymentAmountInMinorUnits, 10)
+            : (amount !== null ? Math.round(amount * 100) : null);
+
+        return {
+            orderId: normalizeText(safeCheckout.checkoutId || safeCheckout.id),
+            checkoutId: normalizeText(safeCheckout.checkoutId || safeCheckout.id),
+            customerUid: normalizeText(safeCheckout.customerUid),
+            customerEmail: normalizeText(safeCheckout.customerEmail),
+            customerName: normalizeText(safeCheckout.customerName),
+            vendorUid: normalizeText(safeCheckout.vendorUid),
+            vendorName: normalizeText(safeCheckout.vendorName),
+            provider: normalizeText(safeCheckout.paymentProvider) || "paystack",
+            reference: safeReference,
+            paymentReference: safeReference,
+            accessCode: normalizeText(safeCheckout.paymentAccessCode),
+            authorizationUrl: normalizeText(safeCheckout.paymentAuthorizationUrl),
+            amount: amount !== null ? amount : 0,
+            amountInMinorUnits: Number.isFinite(amountInMinorUnits) ? amountInMinorUnits : 0,
+            currency: normalizeUpperText(safeCheckout.paymentCurrency) || "ZAR",
+            status: normalizeText(safeCheckout.paymentStatus || safeCheckout.status) || "pending",
+            metadata: {
+                checkoutId: normalizeText(safeCheckout.checkoutId || safeCheckout.id),
+                source: "checkout-session"
+            }
+        };
+    }
+
     function supportsOrderQuery(firestoreFns) {
         return !!(
             firestoreFns &&
@@ -397,6 +613,108 @@
                 error: {
                     code: error?.code || "payment-callback/order-lookup-failed",
                     message: error?.message || "Failed to look up the order for this payment."
+                }
+            };
+        }
+    }
+
+    async function findCheckoutForCallback(reference, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkoutQueries = resolveCheckoutQueries(safeOptions.checkoutQueries);
+        const checkoutService = resolveCheckoutService(safeOptions.checkoutService);
+        const db = safeOptions.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+        const checkoutId = getCheckoutId(safeOptions);
+        const safeReference = normalizeText(reference);
+
+        if (!db) {
+            return {
+                success: false,
+                skipped: true,
+                error: {
+                    code: "payment-callback/checkout-firestore-unavailable",
+                    message: "Firestore is not available to look up the checkout."
+                }
+            };
+        }
+
+        try {
+            if (checkoutId) {
+                let checkout = null;
+
+                if (checkoutService && typeof checkoutService.getCheckoutById === "function") {
+                    checkout = await checkoutService.getCheckoutById({
+                        ...safeOptions,
+                        ...buildCheckoutDependencyOptions(safeOptions),
+                        db,
+                        firestoreFns,
+                        checkoutId
+                    });
+                } else if (checkoutQueries && typeof checkoutQueries.fetchCheckoutById === "function") {
+                    checkout = await checkoutQueries.fetchCheckoutById({
+                        ...safeOptions,
+                        ...buildCheckoutDependencyOptions(safeOptions),
+                        db,
+                        firestoreFns,
+                        checkoutId
+                    });
+                }
+
+                if (checkout) {
+                    return {
+                        success: true,
+                        checkoutId,
+                        data: checkout
+                    };
+                }
+
+                return {
+                    success: false,
+                    error: {
+                        code: "payment-callback/checkout-not-found",
+                        message: "No checkout session matches that callback."
+                    }
+                };
+            }
+
+            if (
+                safeReference &&
+                checkoutQueries &&
+                typeof checkoutQueries.fetchCheckoutByPaymentReference === "function"
+            ) {
+                const checkout = await checkoutQueries.fetchCheckoutByPaymentReference({
+                    ...safeOptions,
+                    ...buildCheckoutDependencyOptions(safeOptions),
+                    db,
+                    firestoreFns,
+                    paymentReference: safeReference
+                });
+
+                if (checkout) {
+                    return {
+                        success: true,
+                        checkoutId: normalizeText(checkout.checkoutId),
+                        data: checkout
+                    };
+                }
+            }
+
+            return {
+                success: false,
+                skipped: !checkoutId,
+                error: {
+                    code: "payment-callback/checkout-not-found",
+                    message: "No checkout session matches that callback."
+                }
+            };
+        } catch (error) {
+            console.error(`${MODULE_NAME}: findCheckoutForCallback failed:`, error);
+
+            return {
+                success: false,
+                error: {
+                    code: error?.code || "payment-callback/checkout-lookup-failed",
+                    message: error?.message || "Failed to look up the checkout for this payment."
                 }
             };
         }
@@ -504,6 +822,349 @@
         }
     }
 
+    async function verifyPaymentForCheckout(reference, checkoutRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeReference = normalizeText(reference);
+        const callable = resolveVerifyPaymentCallable(safeOptions);
+
+        if (!callable) {
+            return {
+                success: false,
+                error: {
+                    code: "payment-callback/verify-unavailable",
+                    message: "Payment verification service is not available."
+                }
+            };
+        }
+
+        const paymentSlice = buildPaymentSliceFromCheckout(checkoutRecord, safeReference);
+
+        try {
+            const callableResult = await callable({
+                payment: paymentSlice,
+                reference: safeReference
+            });
+            const result = normalizeCallableResult(callableResult) || {};
+
+            if (result.success !== true) {
+                return {
+                    success: false,
+                    payment: result.payment || null,
+                    patch: result.patch || null,
+                    verification: result.verification || null,
+                    error: result.error || {
+                        code: "payment-callback/verify-failed",
+                        message: "Payment verification failed."
+                    }
+                };
+            }
+
+            return {
+                success: true,
+                payment: result.payment || null,
+                patch: result.patch || null,
+                verification: result.verification || null,
+                reference: result.reference || safeReference
+            };
+        } catch (error) {
+            console.error(`${MODULE_NAME}: verifyPaymentForCheckout failed:`, error);
+
+            return {
+                success: false,
+                error: {
+                    code: error?.code || "payment-callback/verify-failed",
+                    message: error?.message || "Payment verification failed."
+                }
+            };
+        }
+    }
+
+    async function applyCheckoutPaymentFailure(checkoutRecord, verifyResult, options = {}) {
+        const checkoutService = resolveCheckoutService(options.checkoutService);
+
+        if (
+            !checkoutService ||
+            typeof checkoutService.applyFailedPayment !== "function" ||
+            typeof checkoutService.updateCheckoutWithPlan !== "function"
+        ) {
+            return {
+                success: false,
+                skipped: true,
+                checkout: checkoutRecord
+            };
+        }
+
+        const plan = checkoutService.applyFailedPayment(
+            checkoutRecord,
+            (verifyResult && verifyResult.error) || {},
+            {
+                ...options,
+                ...buildCheckoutDependencyOptions(options),
+                actorRole: "system"
+            }
+        );
+
+        return checkoutService.updateCheckoutWithPlan(plan, {
+            ...options,
+            ...buildCheckoutDependencyOptions(options)
+        });
+    }
+
+    async function applyCheckoutPaymentSuccess(checkoutRecord, verifyResult, options = {}) {
+        const checkoutService = resolveCheckoutService(options.checkoutService);
+
+        if (
+            !checkoutService ||
+            typeof checkoutService.applyVerifiedPayment !== "function" ||
+            typeof checkoutService.updateCheckoutWithPlan !== "function"
+        ) {
+            return {
+                success: false,
+                skipped: true,
+                checkout: checkoutRecord
+            };
+        }
+
+        const payment = verifyResult && verifyResult.payment && typeof verifyResult.payment === "object"
+            ? verifyResult.payment
+            : {};
+        const verification = verifyResult && verifyResult.verification && typeof verifyResult.verification === "object"
+            ? verifyResult.verification
+            : {};
+        const reference = normalizeText(
+            payment.reference ||
+            verification.reference ||
+            (verifyResult && verifyResult.reference)
+        );
+        const amountInMinorUnits =
+            verification.amountInMinorUnits !== undefined
+                ? verification.amountInMinorUnits
+                : (
+                    payment.amountInMinorUnits !== undefined
+                        ? payment.amountInMinorUnits
+                        : (
+                            payment.amount !== undefined
+                                ? Math.round(Number(payment.amount) * 100)
+                                : checkoutRecord.paymentAmountInMinorUnits
+                        )
+                );
+        const currency = payment.currency || verification.currency || checkoutRecord.paymentCurrency;
+        const plan = checkoutService.applyVerifiedPayment(
+            checkoutRecord,
+            {
+                status: payment.status || verification.status || "success",
+                reference,
+                amountInMinorUnits,
+                currency
+            },
+            {
+                ...options,
+                ...buildCheckoutDependencyOptions(options),
+                actorRole: "system"
+            }
+        );
+
+        return checkoutService.updateCheckoutWithPlan(plan, {
+            ...options,
+            ...buildCheckoutDependencyOptions(options)
+        });
+    }
+
+    function createOrderIdFromCheckout(checkoutRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const explicit = normalizeText(safeOptions.orderId || checkout.convertedOrderId);
+
+        if (explicit) {
+            return explicit;
+        }
+
+        if (typeof safeOptions.orderIdFactory === "function") {
+            const factoryId = normalizeText(safeOptions.orderIdFactory(checkout));
+
+            if (factoryId) {
+                return factoryId;
+            }
+        }
+
+        const checkoutId = normalizeText(checkout.checkoutId || checkout.id);
+        return checkoutId ? `order-${checkoutId}` : `order-${Date.now()}`;
+    }
+
+    async function createOrderFromPaidCheckout(checkoutRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const existingOrderId = normalizeText(checkout.convertedOrderId);
+
+        if (existingOrderId) {
+            return {
+                success: true,
+                skipped: true,
+                orderId: existingOrderId,
+                order: {
+                    orderId: existingOrderId,
+                    checkoutId: normalizeText(checkout.checkoutId),
+                    ...checkout
+                }
+            };
+        }
+
+        const db = safeOptions.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+        const orderId = createOrderIdFromCheckout(checkout, safeOptions);
+        const orderService = resolveOrderService(safeOptions.orderService);
+
+        if (orderService && typeof orderService.createOrders === "function") {
+            const result = await orderService.createOrders({
+                ...safeOptions,
+                db,
+                firestoreFns,
+                cartItems: checkout.items || [],
+                customer: {
+                    customerUid: checkout.customerUid,
+                    customerName: checkout.customerName,
+                    customerEmail: checkout.customerEmail
+                },
+                status: "pending",
+                initialPaymentStatus: "paid",
+                paymentProvider: checkout.paymentProvider,
+                paymentReference: checkout.paymentReference,
+                paymentAccessCode: checkout.paymentAccessCode,
+                paymentAuthorizationUrl: checkout.paymentAuthorizationUrl,
+                paymentCurrency: checkout.paymentCurrency,
+                notes: checkout.notes,
+                createdByRole: "system",
+                orderIdFactory: function useConvertedOrderId() {
+                    return orderId;
+                }
+            });
+
+            if (!result.success) {
+                return result;
+            }
+
+            const order = Array.isArray(result.orders) ? result.orders[0] : null;
+
+            return {
+                success: true,
+                orderId: normalizeText(order && order.orderId) || orderId,
+                order,
+                result
+            };
+        }
+
+        if (!db || !firestoreFns || typeof firestoreFns.doc !== "function" || typeof firestoreFns.setDoc !== "function") {
+            return {
+                success: false,
+                error: {
+                    code: "payment-callback/order-create-unavailable",
+                    message: "Order service or Firestore setDoc is required to create the paid order."
+                }
+            };
+        }
+
+        const checkoutModel = resolveCheckoutModel(safeOptions.checkoutModel);
+        const now = typeof firestoreFns.serverTimestamp === "function"
+            ? firestoreFns.serverTimestamp()
+            : new Date().toISOString();
+        const order = checkoutModel && typeof checkoutModel.createOrderDraftFromCheckout === "function"
+            ? checkoutModel.createOrderDraftFromCheckout(checkout, {
+                orderId,
+                status: "pending",
+                createdAt: now,
+                updatedAt: now
+            })
+            : {
+                orderId,
+                checkoutId: normalizeText(checkout.checkoutId),
+                customerUid: normalizeText(checkout.customerUid),
+                customerName: normalizeText(checkout.customerName),
+                customerEmail: normalizeText(checkout.customerEmail),
+                vendorUid: normalizeText(checkout.vendorUid),
+                vendorName: normalizeText(checkout.vendorName),
+                items: Array.isArray(checkout.items) ? checkout.items.slice() : [],
+                itemCount: Number.parseInt(checkout.itemCount, 10) || 0,
+                subtotal: normalizeNumber(checkout.subtotal) || 0,
+                total: normalizeNumber(checkout.total) || 0,
+                totalAmount: normalizeNumber(checkout.total) || 0,
+                status: "pending",
+                paymentStatus: "paid",
+                paymentProvider: normalizeText(checkout.paymentProvider) || "paystack",
+                paymentReference: normalizeText(checkout.paymentReference),
+                paymentAccessCode: normalizeText(checkout.paymentAccessCode),
+                paymentAuthorizationUrl: normalizeText(checkout.paymentAuthorizationUrl),
+                paymentAmount: normalizeNumber(checkout.paymentAmount) || 0,
+                paymentAmountInMinorUnits: Number.parseInt(checkout.paymentAmountInMinorUnits, 10) || 0,
+                paymentCurrency: normalizeUpperText(checkout.paymentCurrency) || "ZAR",
+                paymentPaidAt: checkout.paymentPaidAt || now,
+                paymentVerifiedAt: checkout.paymentVerifiedAt || now,
+                paymentFailureReason: "",
+                notes: normalizeText(checkout.notes),
+                createdAt: now,
+                updatedAt: now
+            };
+
+        const docRef = firestoreFns.doc(db, "orders", orderId);
+        await firestoreFns.setDoc(docRef, order);
+
+        return {
+            success: true,
+            orderId,
+            order,
+            docRef
+        };
+    }
+
+    async function convertCheckoutAfterOrder(checkoutRecord, orderId, options = {}) {
+        const checkoutService = resolveCheckoutService(options.checkoutService);
+
+        if (checkoutService && typeof checkoutService.convertCheckoutToOrder === "function") {
+            return checkoutService.convertCheckoutToOrder({
+                ...options,
+                ...buildCheckoutDependencyOptions(options),
+                checkout: checkoutRecord,
+                orderId,
+                actorRole: "system"
+            });
+        }
+
+        const db = options.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
+        const checkoutId = normalizeText(checkoutRecord && checkoutRecord.checkoutId);
+
+        if (!db || !checkoutId || typeof firestoreFns.doc !== "function" || typeof firestoreFns.updateDoc !== "function") {
+            return {
+                success: false,
+                skipped: true,
+                checkout: checkoutRecord,
+                error: {
+                    code: "payment-callback/checkout-conversion-skipped",
+                    message: "Checkout conversion patch could not be saved."
+                }
+            };
+        }
+
+        const now = typeof firestoreFns.serverTimestamp === "function"
+            ? firestoreFns.serverTimestamp()
+            : new Date().toISOString();
+        const patch = {
+            status: "converted",
+            convertedOrderId: normalizeText(orderId),
+            convertedAt: now,
+            updatedAt: now
+        };
+        await firestoreFns.updateDoc(firestoreFns.doc(db, "checkoutSessions", checkoutId), patch);
+
+        return {
+            success: true,
+            checkout: {
+                ...checkoutRecord,
+                ...patch
+            },
+            patch
+        };
+    }
+
     function renderPaymentSummary(summaryElement, info = {}) {
         if (!summaryElement) {
             return;
@@ -543,6 +1204,7 @@
 
         appendDetail("Status", normalizeText(safeInfo.statusLabel));
         appendDetail("Reference", normalizeText(safeInfo.reference));
+        appendDetail("Checkout ID", normalizeText(safeInfo.checkoutId));
         appendDetail("Order ID", normalizeText(safeInfo.orderId));
         appendDetail("Vendor", normalizeText(safeInfo.vendorName));
         appendDetail("Amount", normalizeText(safeInfo.amountLabel));
@@ -608,8 +1270,18 @@
         }
 
         if (safeInfo.outcome === "failed") {
-            const checkoutHref = safeInfo.vendorUid
-                ? `${routes.checkout}?vendorUid=${encodeURIComponent(safeInfo.vendorUid)}`
+            const query = [];
+
+            if (safeInfo.vendorUid) {
+                query.push(`vendorUid=${encodeURIComponent(safeInfo.vendorUid)}`);
+            }
+
+            if (safeInfo.checkoutId) {
+                query.push(`checkoutId=${encodeURIComponent(safeInfo.checkoutId)}`);
+            }
+
+            const checkoutHref = query.length > 0
+                ? `${routes.checkout}?${query.join("&")}`
                 : routes.checkout;
 
             appendActionLink(actionsElement, "Retry from Checkout", checkoutHref, "primary");
@@ -647,6 +1319,7 @@
             heading: "Payment Confirmed",
             statusLabel: getPaymentStatusLabel("paid"),
             reference,
+            checkoutId: normalizeText(safeOrder.checkoutId),
             orderId: normalizeText(safeOrder.orderId || safeOrder.id),
             vendorName: normalizeText(safeOrder.vendorName),
             amountLabel: formatAmount(amount, currency),
@@ -665,6 +1338,7 @@
             heading: "Payment Not Completed",
             statusLabel: getPaymentStatusLabel("failed"),
             reference: normalizeText(reference || safeOrder.paymentReference),
+            checkoutId: normalizeText(safeOrder.checkoutId),
             orderId: normalizeText(safeOrder.orderId || safeOrder.id),
             vendorUid: normalizeText(safeOrder.vendorUid),
             vendorName: normalizeText(safeOrder.vendorName),
@@ -685,6 +1359,93 @@
                     code: "payment-callback/missing-reference",
                     message: "Payment reference is missing from the callback URL."
                 }
+            };
+        }
+
+        const checkoutLookup = await findCheckoutForCallback(reference, safeOptions);
+
+        if (checkoutLookup.success) {
+            const checkoutRecord = checkoutLookup.data;
+            const verifyResult = await verifyPaymentForCheckout(reference, checkoutRecord, safeOptions);
+
+            if (!verifyResult.success) {
+                const checkoutPatchResult = await applyCheckoutPaymentFailure(
+                    checkoutRecord,
+                    verifyResult,
+                    safeOptions
+                );
+
+                return {
+                    success: false,
+                    outcome: "failed",
+                    reference,
+                    checkout: checkoutPatchResult.checkout || checkoutRecord,
+                    verifyResult,
+                    checkoutPatchResult
+                };
+            }
+
+            const paidResult = await applyCheckoutPaymentSuccess(checkoutRecord, verifyResult, safeOptions);
+
+            if (!paidResult.success) {
+                return {
+                    success: false,
+                    outcome: "failed",
+                    reference,
+                    checkout: paidResult.checkout || checkoutRecord,
+                    verifyResult: {
+                        ...verifyResult,
+                        error: paidResult.error || verifyResult.error || {
+                            code: "payment-callback/checkout-payment-update-failed",
+                            message: "Payment was verified, but the checkout could not be marked as paid."
+                        }
+                    },
+                    checkoutPatchResult: paidResult
+                };
+            }
+
+            const paidCheckout = paidResult.checkout || checkoutRecord;
+            const orderResult = await createOrderFromPaidCheckout(paidCheckout, safeOptions);
+
+            if (!orderResult.success) {
+                return {
+                    success: false,
+                    outcome: "order-create-failed",
+                    reference,
+                    checkout: paidCheckout,
+                    verifyResult,
+                    checkoutPatchResult: paidResult,
+                    orderResult,
+                    error: orderResult.error
+                };
+            }
+
+            const conversionResult = await convertCheckoutAfterOrder(
+                paidCheckout,
+                orderResult.orderId,
+                safeOptions
+            );
+
+            return {
+                success: true,
+                outcome: "success",
+                reference,
+                checkout: conversionResult.checkout || paidCheckout,
+                order: orderResult.order,
+                orderId: orderResult.orderId,
+                verifyResult,
+                checkoutPatchResult: paidResult,
+                orderResult,
+                conversionResult
+            };
+        }
+
+        if (!checkoutLookup.skipped && getCheckoutId(safeOptions)) {
+            return {
+                success: false,
+                outcome: "checkout-not-found",
+                reference,
+                error: checkoutLookup.error
             };
         }
 
@@ -758,10 +1519,13 @@
         const safeResult = processResult && typeof processResult === "object" ? processResult : {};
 
         if (safeResult.outcome === "success") {
-            const summaryInfo = buildSuccessSummary(safeResult.verifyResult, safeResult.order);
+            const summaryInfo = buildSuccessSummary(
+                safeResult.verifyResult,
+                safeResult.order || safeResult.checkout
+            );
             setStatusMessage(
                 safeElements.statusElement,
-                "Payment confirmed. Your order is on its way.",
+                "Payment confirmed. Your order has been sent to the vendor.",
                 "success"
             );
             renderPaymentSummary(safeElements.summaryElement, summaryInfo);
@@ -779,6 +1543,24 @@
                 tone: "error",
                 heading: "No Payment Reference",
                 message: "Open this page from a Paystack redirect to verify your payment."
+            });
+            renderActions(safeElements.actionsElement, { outcome: "failed" });
+            return null;
+        }
+
+        if (safeResult.outcome === "checkout-not-found") {
+            setStatusMessage(
+                safeElements.statusElement,
+                "We could not find the checkout session for that payment.",
+                "error"
+            );
+            renderPaymentSummary(safeElements.summaryElement, {
+                tone: "error",
+                heading: "Checkout Not Found",
+                reference: safeResult.reference,
+                message: safeResult.error && safeResult.error.message
+                    ? safeResult.error.message
+                    : "No checkout session matches that payment callback."
             });
             renderActions(safeElements.actionsElement, { outcome: "failed" });
             return null;
@@ -802,9 +1584,31 @@
             return null;
         }
 
+        if (safeResult.outcome === "order-create-failed") {
+            const failureInfo = buildFailureSummary(
+                {
+                    error: safeResult.error || {
+                        message: "Payment was verified, but the order could not be created."
+                    }
+                },
+                safeResult.checkout,
+                safeResult.reference
+            );
+
+            failureInfo.heading = "Order Could Not Be Created";
+            setStatusMessage(
+                safeElements.statusElement,
+                failureInfo.message,
+                "error"
+            );
+            renderPaymentSummary(safeElements.summaryElement, failureInfo);
+            renderActions(safeElements.actionsElement, failureInfo);
+            return failureInfo;
+        }
+
         const failureInfo = buildFailureSummary(
             safeResult.verifyResult,
-            safeResult.order,
+            safeResult.order || safeResult.checkout,
             safeResult.reference
         );
         setStatusMessage(
@@ -887,6 +1691,7 @@
         getFallbackRoutes,
         getLocationSearch,
         getPaymentReference,
+        getCheckoutId,
         resolveFirestore,
         resolveAuth,
         resolveAuthFns,
@@ -895,6 +1700,13 @@
         resolveFunctionsFns,
         resolvePaymentFormatters,
         resolvePaymentStatus,
+        resolveCheckoutStatus,
+        resolveCheckoutModel,
+        resolveCheckoutValidation,
+        resolveCheckoutQueries,
+        resolveCheckoutService,
+        resolveOrderService,
+        buildCheckoutDependencyOptions,
         formatAmount,
         getPaymentStatusLabel,
         setStatusMessage,
@@ -902,11 +1714,19 @@
         normalizeCallableResult,
         resolveVerifyPaymentCallable,
         buildPaymentSliceFromOrder,
+        buildPaymentSliceFromCheckout,
         supportsOrderQuery,
         supportsOrderUpdate,
         findOrderByReference,
+        findCheckoutForCallback,
         updateOrderPatch,
         verifyPaymentForOrder,
+        verifyPaymentForCheckout,
+        applyCheckoutPaymentFailure,
+        applyCheckoutPaymentSuccess,
+        createOrderIdFromCheckout,
+        createOrderFromPaidCheckout,
+        convertCheckoutAfterOrder,
         renderPaymentSummary,
         clearActions,
         appendActionLink,

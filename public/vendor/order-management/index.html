@@ -20,6 +20,7 @@
             <a href="../products.html">Manage Menu</a>
             <a href="./index.html" aria-current="page">Manage Orders</a>
             <a href="./notifications.html">Notifications</a>
+            <a href="../support/index.html">Support &amp; Disputes</a>
             <a href="../../authentication/profile.html">Profile</a>
         </nav>
     </header>
@@ -29,7 +30,7 @@
             <h2 id="vendor-order-management-heading">Vendor Order Management</h2>
 
             <p>
-                Review incoming and active orders for your store, then open one order to accept,
+                Review paid incoming and active orders for your store, then open one order to accept,
                 reject, move it into preparation, or mark it ready for collection.
             </p>
 
@@ -50,12 +51,83 @@
             </section>
         </section>
 
-        <section class="shared-section vendor-orders-list-section" aria-labelledby="vendor-orders-list-heading">
-            <h3 id="vendor-orders-list-heading">Incoming and Active Orders</h3>
+        <section class="shared-section vendor-orders-toolbar-section" aria-labelledby="vendor-orders-toolbar-heading">
+            <h3 id="vendor-orders-toolbar-heading">Filter &amp; Sort</h3>
+            <form id="vendor-orders-filter-form" class="vendor-orders-filter-form" role="search" aria-label="Filter and sort vendor orders">
+                <p class="vendor-orders-filter-field vendor-orders-filter-field-search">
+                    <label for="vendor-orders-search">Search</label>
+                    <input id="vendor-orders-search" name="search" type="search"
+                        placeholder="Search by customer, order ID or reference" autocomplete="off">
+                </p>
 
-            <section id="vendor-orders-container" aria-live="polite">
+                <p class="vendor-orders-filter-field">
+                    <label for="vendor-orders-status-filter">Order status</label>
+                    <select id="vendor-orders-status-filter" name="status">
+                        <option value="all">All statuses</option>
+                        <option value="incoming">Incoming (Pending + Accepted)</option>
+                        <option value="pending">Order Received</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="preparing">Preparing</option>
+                        <option value="ready">Ready for Pickup</option>
+                        <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </p>
+
+                <p class="vendor-orders-filter-field">
+                    <label for="vendor-orders-payment-filter">Payment</label>
+                    <select id="vendor-orders-payment-filter" name="payment">
+                        <option value="paid" selected>Paid only</option>
+                        <option value="all">All payment states</option>
+                        <option value="blocked">Blocked unpaid records</option>
+                        <option value="pending">Payment Pending</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="failed">Payment Failed</option>
+                    </select>
+                </p>
+
+                <p class="vendor-orders-filter-field">
+                    <label for="vendor-orders-sort">Sort by</label>
+                    <select id="vendor-orders-sort" name="sort">
+                        <option value="newest">Latest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="price-desc">Price: High to Low</option>
+                        <option value="price-asc">Price: Low to High</option>
+                        <option value="customer-asc">Customer: A → Z</option>
+                        <option value="customer-desc">Customer: Z → A</option>
+                    </select>
+                </p>
+
+                <p class="vendor-orders-filter-actions">
+                    <button type="reset" class="button-secondary">Clear filters</button>
+                </p>
+            </form>
+        </section>
+
+        <section class="shared-section vendor-orders-list-section" aria-labelledby="vendor-orders-list-heading">
+            <h3 id="vendor-orders-list-heading">Paid Incoming and Active Orders</h3>
+            <p id="vendor-orders-results-summary" class="vendor-orders-results-summary" aria-live="polite"></p>
+            <menu class="action-menu vendor-orders-quick-filters" aria-label="Quick status filters">
+                <li><button type="button" class="button-secondary" data-quick-filter="all">All Paid</button></li>
+                <li><button type="button" class="button-secondary" data-quick-filter="incoming">Incoming</button></li>
+                <li><button type="button" class="button-secondary" data-quick-filter="preparing">Preparing</button></li>
+                <li><button type="button" class="button-secondary" data-quick-filter="ready">Ready for Pickup</button></li>
+                <li><button type="button" class="button-secondary" data-quick-filter="paid">Paid</button></li>
+                <li><button type="button" class="button-secondary" data-quick-filter="blocked-payment">Payment Review</button></li>
+                <li><button type="button" class="button-secondary" data-quick-filter="cancelled">Cancelled</button></li>
+            </menu>
+            <section id="vendor-orders-container" class="vendor-orders-grid" aria-live="polite">
                 <p class="loading-message">Loading vendor orders...</p>
             </section>
+            <nav id="vendor-orders-pagination" class="vendor-orders-pagination"
+                aria-label="Vendor orders pagination" hidden>
+                <p id="vendor-orders-pagination-status" class="vendor-orders-pagination-status" aria-live="polite">Page 1 of 1</p>
+                <menu class="vendor-orders-pagination-menu" aria-label="Pagination controls">
+                    <li><button type="button" class="button-secondary" data-page-action="prev">Previous</button></li>
+                    <li><button type="button" class="button-secondary" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
         </section>
     </main>
 

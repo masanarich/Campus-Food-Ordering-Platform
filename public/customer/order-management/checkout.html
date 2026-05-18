@@ -32,12 +32,18 @@
 
             <p>
                 Review one vendor's items, add an optional note, and continue to secure Paystack test payment.
+                The vendor only receives the order after payment is confirmed.
             </p>
 
             <p id="checkout-status" aria-live="polite" aria-atomic="true"></p>
+            <p id="checkout-session-status" aria-live="polite" aria-atomic="true">
+                Checking for unfinished checkout payments...
+            </p>
 
             <menu class="action-menu" aria-label="Checkout page actions">
                 <li id="checkout-back-button-host"></li>
+                <li><button type="button" class="button-secondary" id="resume-payment-button" disabled>Resume Payment</button></li>
+                <li><button type="button" class="button-secondary" id="cancel-checkout-button" disabled>Cancel Unpaid Checkout</button></li>
                 <li><a href="../index.html" class="button-secondary">Home</a></li>
                 <li><a href="./cart.html" class="button-secondary">Back to Cart</a></li>
                 <li><a href="./browse-vendors.html" class="button-secondary">Browse Vendors</a></li>
@@ -60,7 +66,7 @@
         <section class="shared-section" aria-labelledby="checkout-payment-heading">
             <h3 id="checkout-payment-heading">Payment</h3>
             <p>
-                Payment is processed securely by Paystack in test mode. You will be redirected after the order is created.
+                Payment is processed securely by Paystack in test mode. You will be redirected after checkout is saved.
             </p>
             <p>
                 No real money is charged for this school project.
@@ -72,7 +78,7 @@
 
             <menu class="action-menu" aria-label="Checkout actions">
                 <li><a href="./browse-vendors.html" class="button-secondary">Browse Vendors</a></li>
-                <li><button type="button" class="button-primary" id="place-order-button">Place Order and Pay</button></li>
+                <li><button type="button" class="button-primary" id="place-order-button">Start Checkout Payment</button></li>
             </menu>
         </section>
     </main>
@@ -86,6 +92,11 @@
     <script src="../../shared/orders/order-validation.js"></script>
     <script src="../../shared/orders/order-queries.js"></script>
     <script src="../../shared/orders/order-service.js"></script>
+    <script src="../../shared/checkout/checkout-status.js"></script>
+    <script src="../../shared/checkout/checkout-model.js"></script>
+    <script src="../../shared/checkout/checkout-validation.js"></script>
+    <script src="../../shared/checkout/checkout-queries.js"></script>
+    <script src="../../shared/checkout/checkout-service.js"></script>
     <script src="../../shared/payments/payment-status.js"></script>
     <script src="../../shared/payments/payment-model.js"></script>
     <script src="../../shared/payments/payment-validation.js"></script>
@@ -150,7 +161,12 @@
                     authFns: window.authFns,
                     functionsFns: window.functionsFns,
                     firestoreFns: window.firestoreFns,
-                    orderService: window.orderService
+                    orderService: window.orderService,
+                    checkoutStatus: window.checkoutStatus,
+                    checkoutModel: window.checkoutModel,
+                    checkoutValidation: window.checkoutValidation,
+                    checkoutQueries: window.checkoutQueries,
+                    checkoutService: window.checkoutService
                 });
             } catch (error) {
                 console.error("Checkout init failed:", error);

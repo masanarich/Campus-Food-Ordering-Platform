@@ -7,6 +7,8 @@ const customerOrderDetailPage = require("../../../public/customer/order-tracking
 function createOrder(overrides = {}) {
     return {
         orderId: "order-1",
+        checkoutId: "checkout-1",
+        checkoutStatus: "converted",
         customerUid: "customer-1",
         vendorUid: "vendor-1",
         vendorName: "Campus Bites",
@@ -113,6 +115,32 @@ function createPaymentStatusStub() {
                 failed: "error"
             };
             return tones[status] || "neutral";
+        }),
+        getPaymentStatusActionLabel: jest.fn(status => {
+            const labels = {
+                unpaid: "Start Payment",
+                pending: "Verify Payment",
+                paid: "View Payment",
+                failed: "Retry Payment"
+            };
+            return labels[status] || "Review Payment";
+        })
+    };
+}
+
+function createCheckoutStatusStub() {
+    return {
+        normalizeCheckoutStatus: jest.fn((status, fallbackStatus = "") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getCheckoutStatusLabel: jest.fn(status => {
+            const labels = {
+                converted: "Order Created",
+                payment_pending: "Payment Pending",
+                payment_failed: "Payment Failed"
+            };
+            return labels[status] || "Unknown Checkout Status";
         })
     };
 }
@@ -189,12 +217,75 @@ function createOrderFormattersStub() {
 }
 
 describe("customer/order-tracking/order-detail.js - helpers", () => {
+    afterEach(() => {
+        delete window.db;
+        delete window.auth;
+        delete window.authFns;
+        delete window.firestoreFns;
+        delete window.orderService;
+        delete window.orderFormatters;
+        delete window.orderStatus;
+        delete window.paymentStatus;
+        delete window.paymentFormatters;
+        delete window.checkoutStatus;
+        jest.useRealTimers();
+    });
+
+    test("resolver helpers use explicit values, global values, and safe fallbacks", () => {
+        const db = { kind: "db" };
+        const auth = { currentUser: { uid: "customer-1" } };
+        const authFns = { onAuthStateChanged: jest.fn() };
+        const firestoreFns = { doc: jest.fn(), getDoc: jest.fn() };
+        const orderService = { getOrderById: jest.fn(), confirmOrderCollection: jest.fn() };
+        const orderFormatters = createOrderFormattersStub();
+        const orderStatus = { normalizeOrderStatus: jest.fn() };
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
+        const checkoutStatus = createCheckoutStatusStub();
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = authFns;
+        window.firestoreFns = firestoreFns;
+        window.orderService = orderService;
+        window.orderFormatters = orderFormatters;
+        window.orderStatus = orderStatus;
+        window.paymentStatus = paymentStatus;
+        window.paymentFormatters = paymentFormatters;
+        window.checkoutStatus = checkoutStatus;
+
+        expect(customerOrderDetailPage.resolveFirestore()).toBe(db);
+        expect(customerOrderDetailPage.resolveAuth()).toBe(auth);
+        expect(customerOrderDetailPage.resolveAuthFns()).toBe(authFns);
+        expect(customerOrderDetailPage.resolveFirestoreFns()).toBe(firestoreFns);
+        expect(customerOrderDetailPage.resolveOrderService()).toBe(orderService);
+        expect(customerOrderDetailPage.resolveOrderCollectionService()).toBe(orderService);
+        expect(customerOrderDetailPage.resolveOrderFormatters()).toBe(orderFormatters);
+        expect(customerOrderDetailPage.resolveOrderStatus()).toBe(orderStatus);
+        expect(customerOrderDetailPage.resolvePaymentStatus()).toBe(paymentStatus);
+        expect(customerOrderDetailPage.resolvePaymentFormatters()).toBe(paymentFormatters);
+        expect(customerOrderDetailPage.resolveCheckoutStatus()).toBe(checkoutStatus);
+
+        expect(customerOrderDetailPage.resolveFirestore({ explicit: true })).toEqual({ explicit: true });
+        expect(customerOrderDetailPage.resolveAuth({ explicit: true })).toEqual({ explicit: true });
+    });
+
     test("getOrderIdFromLocation reads the query string", () => {
         const orderId = customerOrderDetailPage.getOrderIdFromLocation({
             href: "http://localhost/public/customer/order-tracking/order-detail.html?orderId=abc-123"
         });
 
         expect(orderId).toBe("abc-123");
+    });
+
+    test("getOrderIdFromLocation returns empty text when href is missing", () => {
+        expect(customerOrderDetailPage.getOrderIdFromLocation({})).toBe("");
+    });
+
+    test("buildVendorDetailUrl handles missing and present order ids", () => {
+        expect(customerOrderDetailPage.buildVendorDetailUrl()).toBe("../../vendor/order-management/order-detail.html");
+        expect(customerOrderDetailPage.buildVendorDetailUrl("order 1"))
+            .toBe("../../vendor/order-management/order-detail.html?orderId=order%201");
     });
 
     test("setStatusMessage updates content and state", () => {
@@ -204,6 +295,27 @@ describe("customer/order-tracking/order-detail.js - helpers", () => {
 
         expect(dom.statusElement.textContent).toBe("Loaded.");
         expect(dom.statusElement.getAttribute("data-state")).toBe("success");
+    });
+
+    test("waitForAuthReady returns current user when auth listener is unavailable", async () => {
+        await expect(customerOrderDetailPage.waitForAuthReady({
+            currentUser: { uid: "customer-1" }
+        }, {})).resolves.toEqual({ uid: "customer-1" });
+    });
+
+    test("waitForAuthReady resolves with the auth listener user", async () => {
+        jest.useFakeTimers();
+        const auth = { currentUser: null };
+        const authFns = {
+            onAuthStateChanged: jest.fn((authValue, onChange) => {
+                onChange({ uid: "listener-user" });
+                return jest.fn();
+            })
+        };
+
+        await expect(customerOrderDetailPage.waitForAuthReady(auth, authFns, 1000))
+            .resolves.toEqual({ uid: "listener-user" });
+        expect(authFns.onAuthStateChanged).toHaveBeenCalledWith(auth, expect.any(Function), expect.any(Function));
     });
 });
 
@@ -263,6 +375,29 @@ describe("customer/order-tracking/order-detail.js - rendering", () => {
         expect(dom.paymentContainer.textContent).toContain("No payment details available");
         expect(dom.actionsContainer.innerHTML).toBe("");
     });
+
+    test("render helpers tolerate missing containers", () => {
+        expect(() => customerOrderDetailPage.renderOrderSummary(createOrder(), null)).not.toThrow();
+        expect(() => customerOrderDetailPage.renderOrderItems(createOrder(), null)).not.toThrow();
+        expect(() => customerOrderDetailPage.renderOrderTimeline(createOrder(), null)).not.toThrow();
+        expect(() => customerOrderDetailPage.renderOrderPayment(createOrder(), null)).not.toThrow();
+        expect(() => customerOrderDetailPage.renderActionButtons(createOrder(), null)).not.toThrow();
+    });
+
+    test("render helpers show empty content fallbacks", () => {
+        customerOrderDetailPage.renderOrderSummary(null, dom.summaryContainer);
+        customerOrderDetailPage.renderOrderItems(createOrder({ items: [] }), dom.itemsContainer);
+        customerOrderDetailPage.renderOrderTimeline(createOrder(), dom.timelineContainer, {
+            orderFormatters: {
+                buildTrackingSteps: jest.fn(() => []),
+                formatTimeline: jest.fn(() => [])
+            }
+        });
+
+        expect(dom.summaryContainer.textContent).toContain("Order summary is unavailable");
+        expect(dom.itemsContainer.textContent).toContain("does not have any saved items");
+        expect(dom.timelineContainer.textContent).toContain("No timeline");
+    });
 });
 
 describe("customer/order-tracking/order-detail.js - payment rendering", () => {
@@ -282,7 +417,8 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         const view = customerOrderDetailPage.buildPaymentView(createOrder(), {
             paymentStatus,
             paymentFormatters,
-            orderFormatters
+            orderFormatters,
+            checkoutStatus: createCheckoutStatusStub()
         });
 
         expect(view.status).toBe("paid");
@@ -291,6 +427,8 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         expect(view.amountText).toBe("R120.00");
         expect(view.providerLabel).toBe("Paystack");
         expect(view.reference).toBe("paystack-ref");
+        expect(view.checkoutId).toBe("checkout-1");
+        expect(view.checkoutStatusLabel).toBe("Order Created");
         expect(view.canRetry).toBe(false);
         expect(view.retryUrl).toBe("");
     });
@@ -307,9 +445,24 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
 
         expect(view.status).toBe("failed");
         expect(view.canRetry).toBe(true);
-        expect(view.retryUrl).toContain("../order-management/checkout.html?vendorUid=vendor-1");
+        expect(view.actionLabel).toBe("Retry Payment");
+        expect(view.retryUrl).toContain("../order-management/checkout.html?checkoutId=checkout-1");
+        expect(view.retryUrl).toContain("vendorUid=vendor-1");
         expect(view.retryUrl).toContain("vendorName=Campus+Bites");
         expect(view.failureReason).toBe("Card was declined.");
+    });
+
+    test("buildPaymentView lets pending payments resume the same checkout", () => {
+        const view = customerOrderDetailPage.buildPaymentView(
+            createOrder({ paymentStatus: "pending", paymentReference: "pending-ref" }),
+            { paymentStatus, paymentFormatters, orderFormatters }
+        );
+
+        expect(view.status).toBe("pending");
+        expect(view.canRetry).toBe(true);
+        expect(view.actionLabel).toBe("Resume Payment");
+        expect(view.retryUrl).toContain("checkoutId=checkout-1");
+        expect(view.guardMessage).toContain("Complete payment");
     });
 
     test("buildPaymentView falls back to order.total when paymentAmount is missing", () => {
@@ -322,6 +475,15 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         expect(view.amount).toBe(120);
         expect(view.amountText).toBe("R120.00");
         expect(view.canRetry).toBe(true);
+    });
+
+    test("payment state helpers work without injected payment status helpers", () => {
+        expect(customerOrderDetailPage.normalizeOrderPaymentStatus(createOrder({ paymentStatus: "" }))).toBe("unpaid");
+        expect(customerOrderDetailPage.isOrderPaymentPaid(createOrder({ paymentStatus: "paid" }))).toBe(true);
+        expect(customerOrderDetailPage.isOrderPaymentPaid(createOrder({ paymentStatus: "pending" }))).toBe(false);
+        expect(customerOrderDetailPage.isOrderPaymentResumable(createOrder({ paymentStatus: "pending" }))).toBe(true);
+        expect(customerOrderDetailPage.isOrderPaymentResumable(createOrder({ paymentStatus: "paid" }))).toBe(false);
+        expect(customerOrderDetailPage.getPaymentActionLabel("unpaid", null)).toBe("Pay Now");
     });
 
     test("renderOrderPayment writes status, amount, reference, and retry link for failed payments", () => {
@@ -347,7 +509,9 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         expect(dom.paymentContainer.querySelector(".order-detail-payment-amount").textContent).toBe("Amount: R120.00");
         expect(dom.paymentContainer.querySelector(".order-detail-payment-provider").textContent).toBe("Provider: Paystack");
         expect(dom.paymentContainer.querySelector(".order-detail-payment-reference").textContent).toBe("Reference: paystack-ref");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-checkout-id").textContent).toBe("Checkout ID: checkout-1");
         expect(dom.paymentContainer.querySelector(".order-detail-payment-failure-reason").textContent).toContain("Card was declined.");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-guard").textContent).toContain("Complete payment");
 
         const retryLink = dom.paymentContainer.querySelector(".order-detail-payment-actions a");
         expect(retryLink).not.toBeNull();
@@ -376,6 +540,7 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         const link = dom.paymentContainer.querySelector(".order-detail-payment-actions a");
         expect(link).not.toBeNull();
         expect(link.textContent).toBe("Pay Now");
+        expect(link.getAttribute("href")).toContain("checkoutId=checkout-1");
         expect(dom.paymentContainer.querySelector(".order-detail-payment-reference")).toBeNull();
     });
 
@@ -390,6 +555,11 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
 
     test("buildRetryPaymentUrl falls back to the checkout route when vendorUid is missing", () => {
         expect(customerOrderDetailPage.buildRetryPaymentUrl({})).toBe("../order-management/checkout.html");
+    });
+
+    test("buildRetryPaymentUrl can target checkoutId without vendor details", () => {
+        expect(customerOrderDetailPage.buildRetryPaymentUrl({ checkoutId: "checkout-solo" }))
+            .toBe("../order-management/checkout.html?checkoutId=checkout-solo");
     });
 });
 
@@ -426,6 +596,19 @@ describe("customer/order-tracking/order-detail.js - collection action", () => {
         )).toBeNull();
     });
 
+    test("getCustomerCollectionAction returns null when ready order is not paid", () => {
+        const action = customerOrderDetailPage.getCustomerCollectionAction(
+            createOrder({
+                status: "ready",
+                paymentStatus: "pending",
+                customerConfirmedCollected: false
+            }),
+            { paymentStatus: createPaymentStatusStub() }
+        );
+
+        expect(action).toBeNull();
+    });
+
     test("renderActionButtons shows the confirm button when ready", () => {
         customerOrderDetailPage.renderActionButtons(
             createOrder({ status: "ready", customerConfirmedCollected: false }),
@@ -458,6 +641,17 @@ describe("customer/order-tracking/order-detail.js - collection action", () => {
         );
 
         expect(dom.actionsContainer.querySelector("button")).toBeNull();
+    });
+
+    test("renderActionButtons explains why unpaid orders have no actions", () => {
+        customerOrderDetailPage.renderActionButtons(
+            createOrder({ status: "ready", paymentStatus: "failed" }),
+            dom.actionsContainer,
+            { paymentStatus: createPaymentStatusStub() }
+        );
+
+        expect(dom.actionsContainer.querySelector("button")).toBeNull();
+        expect(dom.actionsContainer.textContent).toContain("Complete payment");
     });
 
     test("handleConfirmCollection calls orderService.confirmOrderCollection as customer", async () => {
@@ -504,6 +698,16 @@ describe("customer/order-tracking/order-detail.js - collection action", () => {
 
         expect(result.success).toBe(false);
         expect(dom.statusElement.textContent).toContain("Cannot confirm yet.");
+    });
+
+    test("handleConfirmCollection reports when collection service is unavailable", async () => {
+        const result = await customerOrderDetailPage.handleConfirmCollection(
+            { type: "confirm_collection" },
+            { currentOrder: createOrder({ status: "ready" }) }
+        );
+
+        expect(result.success).toBe(false);
+        expect(dom.statusElement.textContent).toContain("not available");
     });
 });
 
@@ -552,6 +756,56 @@ describe("customer/order-tracking/order-detail.js - fetching and init", () => {
         expect(result.success).toBe(true);
         expect(result.order.orderId).toBe("order-1");
         expect(firestoreFns.doc).toHaveBeenCalledWith({ kind: "db" }, "orders", "order-1");
+    });
+
+    test("fetchOrderDetail validates missing order id and unavailable Firestore helpers", async () => {
+        await expect(customerOrderDetailPage.fetchOrderDetail({ orderId: "" }))
+            .resolves.toMatchObject({
+                success: false,
+                error: { code: "missing-order-id" }
+            });
+
+        await expect(customerOrderDetailPage.fetchOrderDetail({ orderId: "order-1" }))
+            .resolves.toMatchObject({
+                success: false,
+                error: { code: "no-firestore" }
+            });
+    });
+
+    test("fetchOrderDetail reports not found and getDoc failures", async () => {
+        const notFoundFns = {
+            doc: jest.fn(() => ({ kind: "doc" })),
+            getDoc: jest.fn(async () => ({
+                exists: () => false
+            }))
+        };
+        const failingFns = {
+            doc: jest.fn(() => ({ kind: "doc" })),
+            getDoc: jest.fn(async () => {
+                throw Object.assign(new Error("Firestore failed."), { code: "permission-denied" });
+            })
+        };
+
+        await expect(customerOrderDetailPage.fetchOrderDetail({
+            db: { kind: "db" },
+            firestoreFns: notFoundFns,
+            orderId: "missing-order"
+        })).resolves.toMatchObject({
+            success: false,
+            error: { code: "not-found" }
+        });
+
+        await expect(customerOrderDetailPage.fetchOrderDetail({
+            db: { kind: "db" },
+            firestoreFns: failingFns,
+            orderId: "order-1"
+        })).resolves.toMatchObject({
+            success: false,
+            error: {
+                code: "permission-denied",
+                message: "Firestore failed."
+            }
+        });
     });
 
     test("init requires a signed-in user", async () => {

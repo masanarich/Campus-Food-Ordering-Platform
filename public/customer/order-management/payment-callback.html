@@ -30,7 +30,7 @@
             <h2 id="payment-callback-heading">Payment Verification</h2>
 
             <p>
-                We are confirming your Paystack test-mode payment. This page will update once the result is known.
+                We are confirming your Paystack test-mode payment and creating the order after payment is verified.
                 No real money is charged for this school project.
             </p>
 
@@ -68,6 +68,16 @@
     <script src="../../shared/payments/payment-validation.js"></script>
     <script src="../../shared/payments/payment-formatters.js"></script>
     <script src="../../shared/payments/payment-service.js"></script>
+    <script src="../../shared/checkout/checkout-status.js"></script>
+    <script src="../../shared/checkout/checkout-model.js"></script>
+    <script src="../../shared/checkout/checkout-validation.js"></script>
+    <script src="../../shared/checkout/checkout-queries.js"></script>
+    <script src="../../shared/checkout/checkout-service.js"></script>
+    <script src="../../shared/orders/order-status.js"></script>
+    <script src="../../shared/orders/order-model.js"></script>
+    <script src="../../shared/orders/order-validation.js"></script>
+    <script src="../../shared/orders/order-queries.js"></script>
+    <script src="../../shared/orders/order-service.js"></script>
     <script src="./payment-callback.js"></script>
 
     <script type="module">
@@ -77,11 +87,15 @@
         import {
             collection,
             doc,
+            getDoc,
             getDocs,
+            setDoc,
             updateDoc,
             query,
             where,
-            limit
+            orderBy,
+            limit,
+            serverTimestamp
         } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
         window.db = db;
@@ -96,11 +110,15 @@
         window.firestoreFns = {
             collection,
             doc,
+            getDoc,
             getDocs,
+            setDoc,
             updateDoc,
             query,
             where,
-            limit
+            orderBy,
+            limit,
+            serverTimestamp
         };
 
         if (!window.paymentCallback || typeof window.paymentCallback.init !== "function") {
@@ -119,7 +137,13 @@
                     functionsFns: window.functionsFns,
                     firestoreFns: window.firestoreFns,
                     paymentFormatters: window.paymentFormatters,
-                    paymentStatus: window.paymentStatus
+                    paymentStatus: window.paymentStatus,
+                    checkoutStatus: window.checkoutStatus,
+                    checkoutModel: window.checkoutModel,
+                    checkoutValidation: window.checkoutValidation,
+                    checkoutQueries: window.checkoutQueries,
+                    checkoutService: window.checkoutService,
+                    orderService: window.orderService
                 });
             } catch (error) {
                 console.error("Payment callback init failed:", error);
