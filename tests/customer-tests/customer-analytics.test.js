@@ -10,6 +10,7 @@
  *  - All CSV row builders
  *  - PDF table drawing helper
  *  - Edge cases (empty orders, missing fields, string totals)
+ *  - DOM rendering (fixed: tables now properly wrapped)
  */
 
 // ─── MOCKS ───────────────────────────────────────────────────────────────────
@@ -509,13 +510,22 @@ describe("drawPDFTable — PDF rendering helper", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FIXED DOM RENDERING TESTS
+// ─────────────────────────────────────────────────────────────────────────────
 
 describe("DOM rendering", () => {
   beforeEach(() => {
+    // Clear and rebuild full DOM with proper table wrappers
     document.body.innerHTML = `
-      <tbody id="historyTableBody"></tbody>
-      <tbody id="vendorsTableBody"></tbody>
-      <tbody id="itemsTableBody"></tbody>
+      <table id="historyTable">
+        <tbody id="historyTableBody"></tbody>
+      </table>
+      <table id="vendorsTable">
+        <tbody id="vendorsTableBody"></tbody>
+      </table>
+      <table id="itemsTable">
+        <tbody id="itemsTableBody"></tbody>
+      </table>
       <canvas id="spendingChart"></canvas>
       <canvas id="vendorsChart"></canvas>
       <canvas id="itemsChart"></canvas>
@@ -523,7 +533,8 @@ describe("DOM rendering", () => {
   });
 
   test("history table renders correct number of rows", () => {
-    const tbody  = document.getElementById("historyTableBody");
+    const tbody = document.getElementById("historyTableBody");
+    if (!tbody) throw new Error("historyTableBody not found");
     tbody.innerHTML = "";
     buildHistoryRows([makeOrder(), makeOrder(), makeOrder()]).forEach(row => {
       const tr = document.createElement("tr");
@@ -535,12 +546,14 @@ describe("DOM rendering", () => {
 
   test("empty-state row displays correct message", () => {
     const tbody = document.getElementById("historyTableBody");
+    if (!tbody) throw new Error("historyTableBody not found");
     tbody.innerHTML = `<tr><td colspan="5">No completed orders yet.</td></tr>`;
     expect(tbody.textContent).toContain("No completed orders yet.");
   });
 
   test("vendors table renders correct number of rows", () => {
-    const tbody  = document.getElementById("vendorsTableBody");
+    const tbody = document.getElementById("vendorsTableBody");
+    if (!tbody) throw new Error("vendorsTableBody not found");
     const sorted = buildVendorsData([
       makeOrder({ vendor: "A", total: 300 }),
       makeOrder({ vendor: "B", total: 200 }),
@@ -556,10 +569,11 @@ describe("DOM rendering", () => {
   });
 
   test("items table renders correct rank numbers", () => {
-    const tbody  = document.getElementById("itemsTableBody");
+    const tbody = document.getElementById("itemsTableBody");
+    if (!tbody) throw new Error("itemsTableBody not found");
     const sorted = buildItemsData([
       makeOrder({ items: [{ name: "Burger", quantity: 5 }] }),
-      makeOrder({ items: [{ name: "Fries",  quantity: 3 }] }),
+      makeOrder({ items: [{ name: "Fries", quantity: 3 }] }),
     ]);
     tbody.innerHTML = "";
     sorted.forEach((item, idx) => {
@@ -605,7 +619,6 @@ describe("Edge cases", () => {
     const { rows } = buildSpendingCSVRows(buildSpendingData(orders));
     expect(rows[0][1]).toBe("33.33");
   });
-  
 
   test("vendors CSV rank increments per entry", () => {
     const sorted = [
