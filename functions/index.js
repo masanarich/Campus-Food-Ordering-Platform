@@ -318,6 +318,7 @@ function createPaymentFunctions(options = {}) {
 }
 
 const paymentFunctions = createPaymentFunctions();
+const analyticsRoutes = require("./analytics.routes.js");
 
 module.exports = {
     DEFAULT_REGION,
@@ -338,5 +339,6 @@ module.exports = {
     createInitializePaymentHandler,
     createVerifyPaymentHandler,
     createPaymentFunctions,
-    ...paymentFunctions
+    ...paymentFunctions,
+    ...analyticsRoutes
 };
