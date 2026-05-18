@@ -247,13 +247,16 @@ describe("shared/support/ticket-validation.js", () => {
     });
 
     test("validateTicketRecord flags missing subject, description, category, and timestamps", () => {
-        const ticket = makeValidTicketInput({
+        // Raw record (not run through the model) so the validation sees the empty fields directly.
+        const ticket = {
+            reporter: { uid: "u-1", role: "customer", displayName: "Naledi" },
             subject: "",
             description: "",
             category: "",
             createdAt: null,
-            updatedAt: null
-        });
+            updatedAt: null,
+            timeline: []
+        };
         const result = ticketValidation.validateTicketRecord(ticket);
 
         expect(result.isValid).toBe(false);
@@ -269,21 +272,41 @@ describe("shared/support/ticket-validation.js", () => {
     });
 
     test("validateTicketRecord enforces length limits on subject and description", () => {
-        const tooShortSubject = ticketValidation.validateTicketRecord(
-            makeValidTicketInput({ subject: "no" })
-        );
+        // Build raw records so length checks see the unclamped values.
+        const baseRaw = {
+            reporter: { uid: "u-1", role: "customer", displayName: "Naledi" },
+            category: "general",
+            createdAt: "T0",
+            updatedAt: "T0",
+            timeline: [
+                {
+                    eventType: "created",
+                    status: "open",
+                    actorRole: "customer",
+                    at: "T0"
+                }
+            ]
+        };
+
+        const tooShortSubject = ticketValidation.validateTicketRecord({
+            ...baseRaw,
+            subject: "no",
+            description: "Long enough description goes here."
+        });
         expect(tooShortSubject.errors.subject).toMatch(/at least/);
 
-        const tooLongSubject = ticketValidation.validateTicketRecord(
-            makeValidTicketInput({ subject: "x".repeat(ticketValidation.DEFAULT_SUBJECT_MAX_LENGTH + 5) }),
-            { ticketModel: { ...ticketModel, normalizeTicketRecord: (r) => r, createReporterSnapshot: ticketModel.createReporterSnapshot } }
-        );
-        // When model is bypassed, no auto-clamping happens, so the over-long subject is flagged.
+        const tooLongSubject = ticketValidation.validateTicketRecord({
+            ...baseRaw,
+            subject: "x".repeat(ticketValidation.DEFAULT_SUBJECT_MAX_LENGTH + 5),
+            description: "Long enough description goes here."
+        });
         expect(tooLongSubject.errors.subject).toMatch(/at most/);
 
-        const tooShortDescription = ticketValidation.validateTicketRecord(
-            makeValidTicketInput({ description: "tiny" })
-        );
+        const tooShortDescription = ticketValidation.validateTicketRecord({
+            ...baseRaw,
+            subject: "Reasonable subject",
+            description: "tiny"
+        });
         expect(tooShortDescription.errors.description).toMatch(/at least/);
     });
 
@@ -301,33 +324,50 @@ describe("shared/support/ticket-validation.js", () => {
     });
 
     test("validateTicketRecord flags an unknown category and a bad status or priority", () => {
-        // Bypass the model so values stay as raw strings instead of being normalised away.
-        const bypass = {
-            normalizeTicketRecord: (r) => r,
-            createReporterSnapshot: ticketModel.createReporterSnapshot
+        const baseRaw = {
+            reporter: { uid: "u-1", role: "customer", displayName: "Naledi" },
+            subject: "Reasonable subject",
+            description: "Long enough description goes here.",
+            createdAt: "T0",
+            updatedAt: "T0",
+            timeline: [
+                { eventType: "created", status: "open", actorRole: "customer", at: "T0" }
+            ]
         };
 
-        const badCategory = ticketValidation.validateTicketRecord(
-            makeValidTicketInput({ category: "nonsense" }),
-            { ticketModel: bypass }
-        );
+        const badCategory = ticketValidation.validateTicketRecord({
+            ...baseRaw,
+            category: "nonsense"
+        });
         expect(badCategory.errors.category).toMatch(/known/);
 
-        const badStatus = ticketValidation.validateTicketRecord(
-            { ...makeValidTicketInput(), status: "nonsense" },
-            { ticketModel: bypass }
-        );
+        const badStatus = ticketValidation.validateTicketRecord({
+            ...baseRaw,
+            category: "general",
+            status: "nonsense"
+        });
         expect(badStatus.errors.status).toBeDefined();
 
-        const badPriority = ticketValidation.validateTicketRecord(
-            { ...makeValidTicketInput(), priority: "urgent" },
-            { ticketModel: bypass }
-        );
+        const badPriority = ticketValidation.validateTicketRecord({
+            ...baseRaw,
+            category: "general",
+            priority: "urgent"
+        });
         expect(badPriority.errors.priority).toMatch(/normal or high/);
     });
 
     test("validateTicketRecord skips timeline check when requireTimeline is false", () => {
-        const noTimeline = makeValidTicketInput({ timeline: [] });
+        // Bypass the model so the empty timeline is preserved (the model would seed a "created" entry).
+        const noTimeline = {
+            reporter: { uid: "u-1", role: "customer", displayName: "Naledi" },
+            subject: "Reasonable subject",
+            description: "Long enough description goes here.",
+            category: "general",
+            createdAt: "T0",
+            updatedAt: "T0",
+            timeline: []
+        };
+
         const strict = ticketValidation.validateTicketRecord(noTimeline);
         expect(strict.isValid).toBe(false);
         expect(strict.errors.timeline).toBeDefined();
@@ -458,6 +498,56 @@ describe("shared/support/ticket-validation.js", () => {
         } finally {
             ticketStatus.validateTicketStatusTransition = saved;
         }
+    });
+
+    test("validateReporterSnapshot flags invalid email even when requireReporterEmail is true", () => {
+        const result = ticketValidation.validateReporterSnapshot(
+            {
+                reporterUid: "u-1",
+                reporterRole: "customer",
+                reporterName: "Naledi",
+                reporterEmail: "no-at-sign"
+            },
+            { requireReporterEmail: true }
+        );
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors.reporterEmail).toMatch(/valid email/);
+    });
+
+    test("validateTicketTimeline flags entries that omit the event type entirely", () => {
+        const result = ticketValidation.validateTicketTimeline([
+            { status: "open", actorRole: "customer", at: "T0" }
+        ]);
+        expect(result.errors["timeline.0.eventType"]).toMatch(/event type/i);
+    });
+
+    test("validateTicketTimeline still flags bad status when ticket-status has no isKnownTicketStatus", () => {
+        const saved = ticketStatus.isKnownTicketStatus;
+        ticketStatus.isKnownTicketStatus = undefined;
+        try {
+            const result = ticketValidation.validateTicketTimeline([
+                { eventType: "created", status: "", actorRole: "customer", at: "T0" }
+            ]);
+            expect(result.errors["timeline.0.status"]).toMatch(/valid ticket status/i);
+        } finally {
+            ticketStatus.isKnownTicketStatus = saved;
+        }
+    });
+
+    test("validateTicketRecord flags a description that exceeds the max length", () => {
+        const oversized = ticketValidation.validateTicketRecord({
+            reporter: { uid: "u-1", role: "customer", displayName: "Naledi" },
+            subject: "Reasonable subject",
+            description: "x".repeat(ticketValidation.DEFAULT_DESCRIPTION_MAX_LENGTH + 5),
+            category: "general",
+            createdAt: "T0",
+            updatedAt: "T0",
+            timeline: [
+                { eventType: "created", status: "open", actorRole: "customer", at: "T0" }
+            ]
+        });
+        expect(oversized.errors.description).toMatch(/at most/);
     });
 
     test("ticket-service picks up ticket-validation via its resolver and routes through it", () => {

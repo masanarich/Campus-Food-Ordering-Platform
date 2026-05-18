@@ -145,8 +145,10 @@ describe("shared/support/ticket-service.js", () => {
         global.ticketValidation = fakeValidation;
         expect(ticketService.resolveTicketValidation()).toBe(fakeValidation);
         delete global.ticketValidation;
-        // ticket-validation.js is still a placeholder, so resolver returns null.
-        expect(ticketService.resolveTicketValidation()).toBeNull();
+        // ticket-validation.js is now a real module that satisfies the resolver contract,
+        // so require() returns it as the last-resort fallback.
+        const realTicketValidation = require("../../../public/shared/support/ticket-validation.js");
+        expect(ticketService.resolveTicketValidation()).toBe(realTicketValidation);
     });
 
     test("primitive helpers behave defensively", () => {
