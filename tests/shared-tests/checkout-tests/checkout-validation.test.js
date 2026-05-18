@@ -60,8 +60,10 @@ describe("shared/checkout/checkout-validation.js", () => {
         expect(checkoutValidation.normalizeUpperText(" zar ")).toBe("ZAR");
         expect(checkoutValidation.normalizeCurrencyAmount("10.235")).toBe(10.24);
         expect(checkoutValidation.normalizeCurrencyAmount(null, "3.2")).toBe(3.2);
+        expect(checkoutValidation.normalizeCurrencyAmount()).toBe(0);
         expect(checkoutValidation.normalizeAmountInMinorUnits("-5")).toBe(0);
         expect(checkoutValidation.normalizeAmountInMinorUnits(null, "250")).toBe(250);
+        expect(checkoutValidation.normalizeAmountInMinorUnits()).toBe(0);
         expect(checkoutValidation.normalizeAllowedValues([" ZAR ", "", "usd"], checkoutValidation.normalizeUpperText))
             .toEqual(["ZAR", "USD"]);
         expect(checkoutValidation.isValidEmail("student@example.com")).toBe(true);
@@ -109,6 +111,23 @@ describe("shared/checkout/checkout-validation.js", () => {
         global.checkoutModel = previousModel;
     });
 
+    test("returns null when checkout dependencies cannot be required", () => {
+        const sourcePath = path.resolve(__dirname, "../../../public/shared/checkout/checkout-validation.js");
+        const source = fs.readFileSync(sourcePath, "utf8");
+        const context = {
+            window: {},
+            require: () => {
+                throw new Error("missing module");
+            }
+        };
+
+        vm.createContext(context);
+        vm.runInContext(source, context);
+
+        expect(context.window.checkoutValidation.resolveCheckoutStatus()).toBeNull();
+        expect(context.window.checkoutValidation.resolveCheckoutModel()).toBeNull();
+    });
+
     test("validates customer and vendor snapshots", () => {
         expect(checkoutValidation.validateCustomerSnapshot({
             uid: "customer-1",
@@ -135,6 +154,11 @@ describe("shared/checkout/checkout-validation.js", () => {
             customerName: "Test Customer"
         }, { requireEmail: false, checkoutModel: null });
         expect(noEmailRequired.isValid).toBe(true);
+
+        expect(checkoutValidation.validateCustomerSnapshot({
+            customerUid: "customer-1",
+            customerName: "Test Customer"
+        }).errors.customerEmail).toBe("Customer email is required.");
 
         const missingVendor = checkoutValidation.validateVendorSnapshot({}, { checkoutModel: null });
         expect(missingVendor.errors).toEqual({
@@ -250,7 +274,7 @@ describe("shared/checkout/checkout-validation.js", () => {
             total: 12,
             paymentAmount: 12,
             paymentAmountInMinorUnits: 1200
-        }, { checkoutModel: null });
+        }, { checkoutModel: {} });
         expect(fallback.isValid).toBe(true);
     });
 
@@ -324,6 +348,30 @@ describe("shared/checkout/checkout-validation.js", () => {
             allowedPaymentCurrencies: ["usd"]
         });
         expect(customAllowed.isValid).toBe(true);
+
+        const missingProviderCurrency = checkoutValidation.validateCheckoutPaymentFields({
+            status: "draft",
+            total: 10,
+            paymentAmount: 10,
+            paymentAmountInMinorUnits: 1000
+        }, {
+            checkoutModel: {},
+            allowedPaymentProviders: [],
+            allowedPaymentCurrencies: []
+        });
+        expect(missingProviderCurrency.errors).toMatchObject({
+            paymentProvider: "Payment provider is required.",
+            paymentCurrency: "Payment currency is required."
+        });
+
+        const mismatchedPayment = checkoutValidation.validateCheckoutPaymentFields(createValidCheckout({
+            paymentAmount: 80,
+            paymentAmountInMinorUnits: 7000
+        }));
+        expect(mismatchedPayment.errors).toMatchObject({
+            paymentAmount: "Payment amount must match the checkout total.",
+            paymentAmountInMinorUnits: "Payment amount in minor units must match the payment amount."
+        });
     });
 
     test("validates a full checkout session record", () => {
@@ -402,6 +450,10 @@ describe("shared/checkout/checkout-validation.js", () => {
         }));
         expect(vendorMismatch.errors["items.0.vendorUid"])
             .toBe("Each item in a checkout must belong to the same vendor as the checkout.");
+
+        expect(checkoutValidation.validateCheckoutSessionRecord(createValidCheckout({
+            status: "not-real"
+        })).errors.status).toBe("Checkout status must be valid.");
     });
 
     test("requires timestamps for cancelled and expired checkout sessions", () => {
