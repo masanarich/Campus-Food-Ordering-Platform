@@ -613,8 +613,11 @@
         const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const view = buildPaymentView(safeOrder, options);
         const orderStatus = normalizeLowerText(safeOrder.status);
-        const terminalOrderStatuses = ["completed", "rejected", "cancelled"];
-        const requiresPayment = terminalOrderStatuses.indexOf(orderStatus) === -1;
+        const orderStatusHelpers = resolveOrderStatus(options.orderStatus);
+        const requiresPayment =
+            orderStatusHelpers && typeof orderStatusHelpers.orderStatusRequiresPaidPayment === "function"
+                ? orderStatusHelpers.orderStatusRequiresPaidPayment(orderStatus)
+                : ["completed", "rejected", "cancelled"].indexOf(orderStatus) === -1;
 
         if (!requiresPayment || view.isPaid) {
             return {

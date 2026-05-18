@@ -173,6 +173,11 @@
 
     function isPaymentBlockedOrder(orderRecord, options = {}) {
         const normalizedStatus = normalizePaymentState(orderRecord, options);
+        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
+
+        if (paymentStatus && typeof paymentStatus.isPaymentBlockingOrder === "function") {
+            return paymentStatus.isPaymentBlockingOrder(normalizedStatus);
+        }
 
         return !isPaidOrder(orderRecord, options) &&
             BLOCKED_PAYMENT_STATUSES.indexOf(normalizedStatus) >= 0;
@@ -739,9 +744,14 @@
             }
 
             const paymentStatusValue = normalizePaymentState(order, filters);
+            const paymentStatus = resolvePaymentStatus(filters.paymentStatus);
 
             if (paymentFilter === "blocked") {
-                if (BLOCKED_PAYMENT_STATUSES.indexOf(paymentStatusValue) < 0) {
+                if (
+                    paymentStatus && typeof paymentStatus.isPaymentBlockingOrder === "function"
+                        ? !paymentStatus.isPaymentBlockingOrder(paymentStatusValue)
+                        : BLOCKED_PAYMENT_STATUSES.indexOf(paymentStatusValue) < 0
+                ) {
                     return false;
                 }
             } else if (paymentFilter !== "all" && paymentStatusValue !== paymentFilter) {

@@ -38,6 +38,18 @@
         ORDER_STATUSES.COMPLETED
     ]);
 
+    const PAYMENT_REQUIRED_ORDER_STATUSES = Object.freeze([
+        ORDER_STATUSES.PENDING,
+        ORDER_STATUSES.ACCEPTED,
+        ORDER_STATUSES.PREPARING,
+        ORDER_STATUSES.READY
+    ]);
+
+    const REFUND_REVIEW_ORDER_STATUSES = Object.freeze([
+        ORDER_STATUSES.REJECTED,
+        ORDER_STATUSES.CANCELLED
+    ]);
+
     const TERMINAL_ORDER_STATUSES = Object.freeze([
         ORDER_STATUSES.COMPLETED,
         ORDER_STATUSES.REJECTED,
@@ -233,6 +245,14 @@
         return TERMINAL_ORDER_STATUSES.slice();
     }
 
+    function getPaymentRequiredOrderStatusList() {
+        return PAYMENT_REQUIRED_ORDER_STATUSES.slice();
+    }
+
+    function getRefundReviewOrderStatusList() {
+        return REFUND_REVIEW_ORDER_STATUSES.slice();
+    }
+
     function isKnownOrderStatus(status) {
         const normalized = normalizeStatusKey(status);
         return Object.prototype.hasOwnProperty.call(ORDER_STATUS_ALIASES, normalized);
@@ -241,6 +261,16 @@
     function isTerminalOrderStatus(status) {
         const normalizedStatus = normalizeOrderStatus(status);
         return TERMINAL_ORDER_STATUSES.indexOf(normalizedStatus) >= 0;
+    }
+
+    function orderStatusRequiresPaidPayment(status) {
+        const normalizedStatus = normalizeOrderStatus(status);
+        return PAYMENT_REQUIRED_ORDER_STATUSES.indexOf(normalizedStatus) >= 0;
+    }
+
+    function orderStatusRequiresRefundReview(status) {
+        const normalizedStatus = normalizeOrderStatus(status);
+        return REFUND_REVIEW_ORDER_STATUSES.indexOf(normalizedStatus) >= 0;
     }
 
     function getOrderStatusMetadata(status) {
@@ -412,6 +442,8 @@
         MODULE_NAME,
         ORDER_STATUSES,
         ORDER_ACTOR_ROLES,
+        PAYMENT_REQUIRED_ORDER_STATUSES,
+        REFUND_REVIEW_ORDER_STATUSES,
         normalizeText,
         normalizeLowerText,
         normalizeStatusKey,
@@ -422,8 +454,12 @@
         getPrimaryOrderStatusList,
         getTrackingOrderStatusList,
         getTerminalOrderStatusList,
+        getPaymentRequiredOrderStatusList,
+        getRefundReviewOrderStatusList,
         isKnownOrderStatus,
         isTerminalOrderStatus,
+        orderStatusRequiresPaidPayment,
+        orderStatusRequiresRefundReview,
         getOrderStatusMetadata,
         getOrderStatusLabel,
         getOrderStatusShortLabel,
