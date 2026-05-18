@@ -350,4 +350,34 @@ describe("shared/checkout/checkout-status.js", () => {
             }
         });
     });
+
+    test("attaches the module to globalThis when window is unavailable", () => {
+        jest.isolateModules(() => {
+            const originalWindow = global.window;
+            const originalCheckoutStatus = global.checkoutStatus;
+
+            try {
+                delete global.window;
+                delete global.checkoutStatus;
+
+                require("../../../public/shared/checkout/checkout-status.js");
+
+                expect(global.checkoutStatus).toBeDefined();
+                expect(global.checkoutStatus.normalizeCheckoutStatus("payment-failed"))
+                    .toBe("payment_failed");
+            } finally {
+                if (originalWindow === undefined) {
+                    delete global.window;
+                } else {
+                    global.window = originalWindow;
+                }
+
+                if (originalCheckoutStatus === undefined) {
+                    delete global.checkoutStatus;
+                } else {
+                    global.checkoutStatus = originalCheckoutStatus;
+                }
+            }
+        });
+    });
 });

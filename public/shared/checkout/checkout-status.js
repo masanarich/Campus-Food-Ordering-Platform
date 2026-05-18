@@ -531,11 +531,14 @@
         validateCheckoutStatusTransition
     };
 
+    /* istanbul ignore else */
     if (typeof module !== "undefined" && module.exports) {
         module.exports = checkoutStatus;
     }
 
+    /* istanbul ignore else */
     if (typeof globalScope !== "undefined") {
         globalScope.checkoutStatus = checkoutStatus;
     }
+/* istanbul ignore next */
 })(typeof window !== "undefined" ? window : globalThis);
