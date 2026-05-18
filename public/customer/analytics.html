@@ -39,20 +39,20 @@
 
             <!-- Date Range Filter -->
             <section class="analytics-filters" aria-label="Analytics filters">
-                <div class="filter-group">
+                <section class="filter-group">
                     <label for="start-date-input">Start Date:</label>
                     <input type="date" id="start-date-input" />
-                </div>
+                </section>
 
-                <div class="filter-group">
+                <section class="filter-group">
                     <label for="end-date-input">End Date:</label>
                     <input type="date" id="end-date-input" />
-                </div>
+                </section>
 
-                <div class="filter-actions">
+                <section class="filter-actions">
                     <button id="apply-filter-button" class="button-primary" type="button">Apply Filter</button>
                     <button id="reset-filter-button" class="button-secondary" type="button">Reset</button>
-                </div>
+                </section>
             </section>
 
             <!-- Action Menu -->
@@ -110,72 +110,72 @@
         <section class="analytics-charts" aria-labelledby="charts-heading">
             <h3 id="charts-heading">Visual Analytics</h3>
 
-            <div class="charts-container">
+            <section class="charts-container">
                 <!-- Monthly Spending Trend -->
                 <article class="chart-card">
                     <h4>Monthly Spending Trend</h4>
                     <p class="chart-description">How much you've spent each month</p>
-                    <div class="chart-wrapper">
+                    <figure class="chart-wrapper">
                         <canvas id="monthly-spending-chart"></canvas>
-                    </div>
+                    </figure>
                 </article>
 
                 <!-- Spending by Vendor -->
                 <article class="chart-card">
                     <h4>Spending by Vendor</h4>
                     <p class="chart-description">Your budget distribution across vendors</p>
-                    <div class="chart-wrapper">
+                    <figure class="chart-wrapper">
                         <canvas id="vendor-spending-chart"></canvas>
-                    </div>
+                    </figure>
                 </article>
 
                 <!-- Most Ordered Items -->
                 <article class="chart-card">
                     <h4>Your Favorite Items</h4>
                     <p class="chart-description">Items you order most frequently</p>
-                    <div class="chart-wrapper">
+                    <figure class="chart-wrapper">
                         <canvas id="favorite-items-chart"></canvas>
-                    </div>
+                    </figure>
                 </article>
 
                 <!-- Order Frequency -->
                 <article class="chart-card">
                     <h4>When You Order</h4>
                     <p class="chart-description">Your ordering patterns by hour of day</p>
-                    <div class="chart-wrapper">
+                    <figure class="chart-wrapper">
                         <canvas id="order-frequency-chart"></canvas>
-                    </div>
+                    </figure>
                 </article>
 
                 <!-- Category Preferences -->
                 <article class="chart-card">
                     <h4>Category Preferences</h4>
                     <p class="chart-description">Spending by food category</p>
-                    <div class="chart-wrapper">
+                    <figure class="chart-wrapper">
                         <canvas id="category-chart"></canvas>
-                    </div>
+                    </figure>
                 </article>
 
                 <!-- Top Vendors -->
                 <article class="chart-card">
                     <h4>Top Vendors</h4>
                     <p class="chart-description">Vendors you order from most</p>
-                    <div class="chart-wrapper">
+                    <figure class="chart-wrapper">
                         <canvas id="top-vendors-chart"></canvas>
-                    </div>
+                    </figure>
                 </article>
-            </div>
+            </section>
         </section>
 
         <!-- Detailed Analysis Section -->
         <section class="analytics-details" aria-labelledby="details-heading">
             <h3 id="details-heading">Your Preferences & Habits</h3>
 
-            <div class="details-grid">
+            <section class="details-grid">
                 <!-- Top Items Table -->
                 <article class="details-card">
                     <h4>🌟 Your Top 10 Items</h4>
-                    <div class="table-wrapper">
+                    <section class="table-wrapper">
                         <table id="favorite-items-table" class="analytics-table" aria-label="Your favorite items">
                             <thead>
                                 <tr>
