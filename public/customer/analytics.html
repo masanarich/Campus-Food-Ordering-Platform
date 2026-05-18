@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>My Analytics | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Customer analytics dashboard showing spending patterns, order history, and preferences.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./analytics.css">
+    <!-- Chart.js for interactive charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+
+    <header>
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav aria-label="Customer analytics navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./analytics.html" aria-current="page">My Analytics</a>
+            <a href="./order-management/browse-vendors.html">Browse Vendors</a>
+            <a href="./order-tracking/index.html">My Orders</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="analytics-hero" aria-labelledby="analytics-heading">
+            <h2 id="analytics-heading">Your Spending Analytics</h2>
+            <p>
+                Track your spending patterns, discover your favorite vendors and items,
+                and get personalized recommendations based on your order history.
+            </p>
+
+            <p id="analytics-status" aria-live="polite" aria-atomic="true"></p>
+
+            <!-- Date Range Filter -->
+            <section class="analytics-filters" aria-label="Analytics filters">
+                <div class="filter-group">
+                    <label for="start-date-input">Start Date:</label>
+                    <input type="date" id="start-date-input" />
+                </div>
+
+                <div class="filter-group">
+                    <label for="end-date-input">End Date:</label>
+                    <input type="date" id="end-date-input" />
+                </div>
+
+                <div class="filter-actions">
+                    <button id="apply-filter-button" class="button-primary" type="button">Apply Filter</button>
+                    <button id="reset-filter-button" class="button-secondary" type="button">Reset</button>
+                </div>
+            </section>
+
+            <!-- Action Menu -->
+            <menu class="action-menu" aria-label="Analytics actions">
+                <li><button id="export-csv-button" class="button-secondary" type="button">📥 Export to CSV</button></li>
+                <li><button id="refresh-data-button" class="button-secondary" type="button">🔄 Refresh Data</button></li>
+                <li><a href="./index.html" class="button-secondary">↩ Back to Dashboard</a></li>
+            </menu>
+        </section>
+
+        <!-- Key Metrics Section -->
+        <section class="analytics-metrics" aria-labelledby="metrics-heading">
+            <h3 id="metrics-heading">Your Spending Overview</h3>
+
+            <section class="metrics-grid" aria-label="Customer analytics metrics">
+                <article class="metric-card">
+                    <h4>Total Spent</h4>
+                    <p class="metric-value" id="total-spent">ZAR 0.00</p>
+                    <p class="metric-label">all time</p>
+                </article>
+
+                <article class="metric-card">
+                    <h4>Total Orders</h4>
+                    <p class="metric-value" id="total-orders">0</p>
+                    <p class="metric-label">orders placed</p>
+                </article>
+
+                <article class="metric-card">
+                    <h4>Average Order Value</h4>
+                    <p class="metric-value" id="avg-order-value">ZAR 0.00</p>
+                    <p class="metric-label">per order</p>
+                </article>
+
+                <article class="metric-card">
+                    <h4>Favorite Vendor</h4>
+                    <p class="metric-value" id="favorite-vendor">—</p>
+                    <p class="metric-label" id="favorite-vendor-label">not determined</p>
+                </article>
+
+                <article class="metric-card">
+                    <h4>Total Items Ordered</h4>
+                    <p class="metric-value" id="total-items">0</p>
+                    <p class="metric-label">units</p>
+                </article>
+
+                <article class="metric-card">
+                    <h4>Most Used Vendor</h4>
+                    <p class="metric-value" id="most-orders-vendor">—</p>
+                    <p class="metric-label" id="most-orders-label">no orders yet</p>
+                </article>
+            </section>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="analytics-charts" aria-labelledby="charts-heading">
+            <h3 id="charts-heading">Visual Analytics</h3>
+
+            <div class="charts-container">
+                <!-- Monthly Spending Trend -->
+                <article class="chart-card">
+                    <h4>Monthly Spending Trend</h4>
+                    <p class="chart-description">How much you've spent each month</p>
+                    <div class="chart-wrapper">
+                        <canvas id="monthly-spending-chart"></canvas>
+                    </div>
+                </article>
+
+                <!-- Spending by Vendor -->
+                <article class="chart-card">
+                    <h4>Spending by Vendor</h4>
+                    <p class="chart-description">Your budget distribution across vendors</p>
+                    <div class="chart-wrapper">
+                        <canvas id="vendor-spending-chart"></canvas>
+                    </div>
+                </article>
+
+                <!-- Most Ordered Items -->
+                <article class="chart-card">
+                    <h4>Your Favorite Items</h4>
+                    <p class="chart-description">Items you order most frequently</p>
+                    <div class="chart-wrapper">
+                        <canvas id="favorite-items-chart"></canvas>
+                    </div>
+                </article>
+
+                <!-- Order Frequency -->
+                <article class="chart-card">
+                    <h4>When You Order</h4>
+                    <p class="chart-description">Your ordering patterns by hour of day</p>
+                    <div class="chart-wrapper">
+                        <canvas id="order-frequency-chart"></canvas>
+                    </div>
+                </article>
+
+                <!-- Category Preferences -->
+                <article class="chart-card">
+                    <h4>Category Preferences</h4>
+                    <p class="chart-description">Spending by food category</p>
+                    <div class="chart-wrapper">
+                        <canvas id="category-chart"></canvas>
+                    </div>
+                </article>
+
+                <!-- Top Vendors -->
+                <article class="chart-card">
+                    <h4>Top Vendors</h4>
+                    <p class="chart-description">Vendors you order from most</p>
+                    <div class="chart-wrapper">
+                        <canvas id="top-vendors-chart"></canvas>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Detailed Analysis Section -->
+        <section class="analytics-details" aria-labelledby="details-heading">
+            <h3 id="details-heading">Your Preferences & Habits</h3>
+
+            <div class="details-grid">
+                <!-- Top Items Table -->
+                <article class="details-card">
+                    <h4>🌟 Your Top 10 Items</h4>
+                    <div class="table-wrapper">
+                        <table id="favorite-items-table" class="analytics-table" aria-label="Your favorite items">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Item Name</th>
+                                    <th>Vendor</th>
+                                    <th>Times Ordered</th>
+                                    <th>Total Spent</th>
+                                    <th>Avg Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="loading-message">Loading your preferences...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <!-- Top Vendors Table -->
+                <article class="details-card">
+                    <h4>🏪 Your Top Vendors</h4>
+                    <div class="table-wrapper">
+                        <table id="top-vendors-table" class="analytics-table" aria-label="Your top vendors">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Vendor Name</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                    <th>Avg Order</th>
+                                    <th>Last Order</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="loading-message">Loading vendor data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Personal Insights Section -->
+        <section class="analytics-insights" aria-labelledby="insights-heading">
+            <h3 id="insights-heading">Your Personal Insights</h3>
+
+            <div id="insights-container" aria-live="polite" aria-atomic="true">
+                <p class="loading-message">Generating insights...</p>
+            </div>
+        </section>
+
+        <!-- Recent Orders Summary -->
+        <section class="analytics-recent" aria-labelledby="recent-heading">
+            <h3 id="recent-heading">Recent Orders</h3>
+
+            <div id="recent-orders-container" aria-live="polite">
+                <p class="loading-message">Loading recent orders...</p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="../shared/orders/order-status.js"></script>
+    <script src="../shared/orders/order-model.js"></script>
+    <script src="../shared/orders/order-queries.js"></script>
+    <script src="../shared/orders/order-service.js"></script>
+    <script src="../shared/orders/order-formatters.js"></script>
+    <script src="../shared/payments/payment-status.js"></script>
+    <script src="../shared/payments/payment-model.js"></script>
+    <script src="../shared/payments/payment-formatters.js"></script>
+    <script src="./analytics.js"></script>
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db, auth } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Analytics - Campus Food Ordering</title>
+    <link rel="stylesheet" href="analytics-dashboard.css">
+</head>
+<body>
+    <!-- Navigation Bar (if needed for overall site navigation) -->
+    <nav id="navbar-container"></nav>
+
+    <!-- Main Analytics Layout -->
+    <div class="analytics-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="analytics-sidebar">
+            <div class="sidebar-header">
+                <h2>📊 My Analytics</h2>
+                <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <a href="#" class="sidebar-link active" data-page="overview">
+                    <span class="icon">📈</span>
+                    <span class="label">Dashboard Overview</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="spending">
+                    <span class="icon">💰</span>
+                    <span class="label">Spending Analysis</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="vendors">
+                    <span class="icon">🏪</span>
+                    <span class="label">Vendor Insights</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="items">
+                    <span class="icon">🍕</span>
+                    <span class="label">Food Preferences</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="patterns">
+                    <span class="icon">🕐</span>
+                    <span class="label">Ordering Patterns</span>
+                </a>
+                <a href="#" class="sidebar-link" data-page="orders">
+                    <span class="icon">📦</span>
+                    <span class="label">Recent Orders</span>
+                </a>
+                <div class="sidebar-divider"></div>
+                <a href="#" class="sidebar-link" data-page="settings">
+                    <span class="icon">⚙️</span>
+                    <span class="label">Settings & Export</span>
+                </a>
+            </nav>
+
+            <!-- Filter Section -->
+            <div class="filter-section">
+                <h4>Date Range</h4>
+                <div class="filter-group compact">
+                    <label class="label-compact">Start Date</label>
+                    <input type="date" id="startDate-sidebar" class="input-compact">
+                </div>
+                <div class="filter-group compact">
+                    <label class="label-compact">End Date</label>
+                    <input type="date" id="endDate-sidebar" class="input-compact">
+                </div>
+                <div class="filter-actions-compact">
+                    <button class="button-small" id="apply-filter-sidebar">Apply</button>
+                    <button class="button-small secondary" id="reset-filter-sidebar">Reset</button>
+                </div>
+            </div>
+
+            <!-- Export Section -->
+            <div class="export-section">
+                <h4>Export</h4>
+                <button class="button-sidebar" id="export-csv-sidebar">📥 Export as CSV</button>
+                <button class="button-sidebar" id="export-pdf-sidebar">📄 Export as PDF</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="analytics-main">
+            <!-- Status Bar -->
+            <div class="status-bar" id="status-bar"></div>
+
+            <!-- PAGE: OVERVIEW DASHBOARD -->
+            <div class="analytics-page active" data-page="overview">
+                <div class="page-header">
+                    <h2>Dashboard Overview</h2>
+                    <p>Quick summary of your ordering and spending activity</p>
+                </div>
+
+                <!-- KPI Metrics -->
+                <div class="metrics-grid" id="overview-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Recent Orders Preview -->
+                <div class="recent-orders-preview">
+                    <h3>📦 Recent Orders</h3>
+                    <div id="recent-orders-mini">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Insights -->
+                <div style="margin-top: 2rem;">
+                    <h3 style="margin: 0 0 1rem 0; color: #333;">💡 Smart Insights</h3>
+                    <div class="insights-container" id="insights-container">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: SPENDING ANALYSIS -->
+            <div class="analytics-page" data-page="spending">
+                <div class="page-header">
+                    <h2>Spending Analysis</h2>
+                    <p>Understand your spending trends and patterns</p>
+                </div>
+
+                <!-- Spending Metrics -->
+                <div class="metrics-grid" id="spending-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Spending Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>📊 Monthly Spending Trend</h4>
+                        <p class="chart-description">Your spending over the last 12 months</p>
+                        <div class="chart-wrapper">
+                            <canvas id="monthlySpendingChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>📈 Spending by Category</h4>
+                        <p class="chart-description">Breakdown of spending by food category</p>
+                        <div class="chart-wrapper">
+                            <canvas id="categorySpendingChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Spending Summary Table -->
+                <div class="analytics-details">
+                    <h3>💵 Monthly Spending Breakdown</h3>
+                    <div class="table-wrapper">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Total Orders</th>
+                                    <th>Total Spent</th>
+                                    <th>Avg Order Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="spending-breakdown-table">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: VENDOR INSIGHTS -->
+            <div class="analytics-page" data-page="vendors">
+                <div class="page-header">
+                    <h2>Vendor Insights</h2>
+                    <p>Analyze your spending and ordering across different vendors</p>
+                </div>
+
+                <!-- Vendor Metrics -->
+                <div class="metrics-grid" id="vendor-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Vendor Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>🏪 Spending by Vendor</h4>
+                        <p class="chart-description">Where you spend the most</p>
+                        <div class="chart-wrapper">
+                            <canvas id="vendorSpendingChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>🛒 Orders by Vendor</h4>
+                        <p class="chart-description">Number of orders per vendor</p>
+                        <div class="chart-wrapper">
+                            <canvas id="vendorOrdersChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Vendors Table -->
+                <div class="analytics-details">
+                    <h3>🏆 Top Vendors</h3>
+                    <div class="table-wrapper">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Vendor</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                    <th>Avg Order</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-vendors-table">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: FOOD PREFERENCES -->
+            <div class="analytics-page" data-page="items">
+                <div class="page-header">
+                    <h2>Food Preferences</h2>
+                    <p>Your favorite items and food categories</p>
+                </div>
+
+                <!-- Item Metrics -->
+                <div class="metrics-grid" id="items-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Item Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>🍕 Most Ordered Items</h4>
+                        <p class="chart-description">Your top 10 favorite items</p>
+                        <div class="chart-wrapper">
+                            <canvas id="topItemsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>🎯 Category Preferences</h4>
+                        <p class="chart-description">Breakdown by food category</p>
+                        <div class="chart-wrapper">
+                            <canvas id="categoriesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Items Table -->
+                <div class="analytics-details">
+                    <h3>⭐ Top Ordered Items</h3>
+                    <div class="table-wrapper">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Item Name</th>
+                                    <th>Times Ordered</th>
+                                    <th>Total Spent</th>
+                                    <th>Vendor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-items-table">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: ORDERING PATTERNS -->
+            <div class="analytics-page" data-page="patterns">
+                <div class="page-header">
+                    <h2>Ordering Patterns</h2>
+                    <p>When and how you order</p>
+                </div>
+
+                <!-- Pattern Metrics -->
+                <div class="metrics-grid" id="patterns-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Pattern Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h4>🕐 Peak Ordering Hours</h4>
+                        <p class="chart-description">Most active ordering times</p>
+                        <div class="chart-wrapper">
+                            <canvas id="peakHoursChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <h4>📅 Orders by Day of Week</h4>
+                        <p class="chart-description">Which days you order most</p>
+                        <div class="chart-wrapper">
+                            <canvas id="dayOfWeekChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Patterns Summary -->
+                <div class="analytics-details">
+                    <h3>📋 Ordering Habits</h3>
+                    <div class="summary-content">
+                        <div class="summary-item">
+                            <span class="summary-label">Most Active Day:</span>
+                            <span class="summary-value" id="most-active-day">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Peak Ordering Hour:</span>
+                            <span class="summary-value" id="peak-hour">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Average Items per Order:</span>
+                            <span class="summary-value" id="avg-items">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Typical Order Time:</span>
+                            <span class="summary-value" id="typical-order-time">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: RECENT ORDERS -->
+            <div class="analytics-page" data-page="orders">
+                <div class="page-header">
+                    <h2>Recent Orders</h2>
+                    <p>View your recent orders in detail</p>
+                </div>
+
+                <!-- Order Summary Stats -->
+                <div class="metrics-grid" id="orders-metrics">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Orders Container -->
+                <div class="orders-container">
+                    <h3>📦 Order History</h3>
+                    <div id="recent-orders-container">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Order Status Legend -->
+                <div class="analytics-details" style="margin-top: 2rem;">
+                    <h3>📌 Order Status Legend</h3>
+                    <div class="summary-content">
+                        <div class="summary-item">
+                            <span class="order-status-badge completed">Completed</span>
+                            <span class="summary-label">Order delivered successfully</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="order-status-badge pending">Pending</span>
+                            <span class="summary-label">Order being prepared or in transit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: SETTINGS & EXPORT -->
+            <div class="analytics-page" data-page="settings">
+                <div class="page-header">
+                    <h2>Settings & Export</h2>
+                    <p>Manage your analytics preferences and export data</p>
+                </div>
+
+                <!-- Export Options -->
+                <div class="analytics-details">
+                    <h3>📥 Export Your Data</h3>
+                    <div class="summary-content">
+                        <div class="summary-item">
+                            <span class="summary-label">Export Complete Analytics</span>
+                            <button class="button-sidebar" id="export-csv-full" style="width: 150px; margin: 0;">CSV</button>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Export as PDF Report</span>
+                            <button class="button-sidebar" id="export-pdf-full" style="width: 150px; margin: 0;">PDF</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Range Settings -->
+                <div class="analytics-details" style="margin-top: 1.5rem;">
+                    <h3>⚙️ Analytics Settings</h3>
+                    <div class="summary-content">
+                        <div class="summary-item">
+                            <span class="summary-label">Date Range Filter</span>
+                            <div style="flex: 1; text-align: right;">
+                                <input type="date" id="startDate-settings" class="input-compact" style="margin-right: 0.5rem;">
+                                <input type="date" id="endDate-settings" class="input-compact">
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Apply Filters</span>
+                            <button class="button-sidebar" id="apply-filter-settings" style="width: 150px; margin: 0;">Apply</button>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Reset All Filters</span>
+                            <button class="button-sidebar" id="reset-filter-settings" style="width: 150px; margin: 0; background: rgba(220, 53, 69, 0.2); border-color: rgba(220, 53, 69, 0.5);">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Section -->
+                <div class="analytics-details" style="margin-top: 1.5rem;">
+                    <h3>ℹ️ Analytics Information</h3>
+                    <div class="summary-content">
+                        <div class="summary-item">
+                            <span class="summary-label">Data Updates</span>
+                            <span class="summary-value">Real-time</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Data Retention</span>
+                            <span class="summary-value">Indefinite</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Last Updated</span>
+                            <span class="summary-value" id="last-updated">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase & Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="../authentication/config.js"></script>
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../shared/orders/order-service.js"></script>
+    <script src="../shared/orders/order-queries.js"></script>
+
+    <!-- Analytics Dashboard Script -->
+    <script src="analytics-dashboard.js"></script>
+                    <span class="icon">🏪</span>
+                    <span class="label">Vendors</span>
+                </a>
+                <a href="#orders" class="sidebar-link" data-page="orders">
+                    <span class="icon">📦</span>
+                    <span class="label">Order History</span>
+                </a>
+                <a href="#insights" class="sidebar-link" data-page="insights">
+                    <span class="icon">💡</span>
+                    <span class="label">Insights</span>
+                </a>
+
+                <div class="sidebar-divider"></div>
+
+                <div class="filter-section">
+                    <h4>Date Range</h4>
+                    <div class="filter-group compact">
+                        <label for="start-date-input" class="label-compact">From:</label>
+                        <input type="date" id="start-date-input" class="input-compact" />
+                    </div>
+                    <div class="filter-group compact">
+                        <label for="end-date-input" class="label-compact">To:</label>
+                        <input type="date" id="end-date-input" class="input-compact" />
+                    </div>
+                    <div class="filter-actions-compact">
+                        <button id="apply-filter-button" class="button-small" type="button">Apply</button>
+                        <button id="reset-filter-button" class="button-small secondary" type="button">Reset</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-divider"></div>
+
+                <div class="export-section">
+                    <button id="export-csv-button" class="button-sidebar" type="button">📥 Export Data</button>
+                    <button id="refresh-data-button" class="button-sidebar" type="button">🔄 Refresh</button>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <section class="analytics-main">
+            <div id="analytics-status" class="status-bar" aria-live="polite"></div>
+
+            <!-- Overview Page -->
+            <div id="page-overview" class="analytics-page active">
+                <div class="page-header">
+                    <h2>Your Spending Overview</h2>
+                    <p>Quick summary of your spending patterns and activity</p>
+                </div>
+
+                <section class="metrics-grid" aria-label="Spending overview metrics">
+                    <article class="metric-card">
+                        <h4>Total Spent</h4>
+                        <p class="metric-value" id="total-spent">ZAR 0.00</p>
+                        <p class="metric-label">all time</p>
+                    </article>
+
+                    <article class="metric-card">
+                        <h4>Total Orders</h4>
+                        <p class="metric-value" id="total-orders">0</p>
+                        <p class="metric-label">orders placed</p>
+                    </article>
+
+                    <article class="metric-card">
+                        <h4>Average Order Value</h4>
+                        <p class="metric-value" id="avg-order-value">ZAR 0.00</p>
+                        <p class="metric-label">per order</p>
+                    </article>
+
+                    <article class="metric-card">
+                        <h4>Favorite Vendor</h4>
+                        <p class="metric-value" id="favorite-vendor">—</p>
+                        <p class="metric-label" id="favorite-vendor-label">not determined</p>
+                    </article>
+
+                    <article class="metric-card">
+                        <h4>Total Items Ordered</h4>
+                        <p class="metric-value" id="total-items">0</p>
+                        <p class="metric-label">units</p>
+                    </article>
+
+                    <article class="metric-card">
+                        <h4>Most Used Vendor</h4>
+                        <p class="metric-value" id="most-orders-vendor">—</p>
+                        <p class="metric-label" id="most-orders-label">no orders yet</p>
+                    </article>
+                </section>
+
+                <section class="recent-orders-preview">
+                    <h3>Recent Activity</h3>
+                    <div id="recent-orders-mini" aria-live="polite">
+                        <p class="loading-message">Loading recent orders...</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Spending & Budget Page -->
+            <div id="page-spending" class="analytics-page">
+                <div class="page-header">
+                    <h2>Spending & Budget</h2>
+                    <p>Track your spending trends over time</p>
+                </div>
+
+                <section class="charts-grid">
+                    <article class="chart-card">
+                        <h4>Monthly Spending Trend</h4>
+                        <p class="chart-description">Your spending over the last 12 months</p>
+                        <div class="chart-wrapper">
+                            <canvas id="monthly-spending-chart"></canvas>
+                        </div>
+                    </article>
+
+                    <article class="chart-card">
+                        <h4>Spending by Vendor</h4>
+                        <p class="chart-description">How your budget is distributed</p>
+                        <div class="chart-wrapper">
+                            <canvas id="vendor-spending-chart"></canvas>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="analytics-details">
+                    <h3>Spending Summary</h3>
+                    <div id="spending-summary" class="summary-content">
+                        <p class="loading-message">Loading spending data...</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Preferences Page -->
+            <div id="page-preferences" class="analytics-page">
+                <div class="page-header">
+                    <h2>Your Preferences</h2>
+                    <p>Your favorite items and categories</p>
+                </div>
+
+                <section class="charts-grid">
+                    <article class="chart-card">
+                        <h4>Your Favorite Items</h4>
+                        <p class="chart-description">Items you order most frequently</p>
+                        <div class="chart-wrapper">
+                            <canvas id="favorite-items-chart"></canvas>
+                        </div>
+                    </article>
+
+                    <article class="chart-card">
+                        <h4>Category Preferences</h4>
+                        <p class="chart-description">Spending by food category</p>
+                        <div class="chart-wrapper">
+                            <canvas id="category-chart"></canvas>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="analytics-details">
+                    <h3>Top Items</h3>
+                    <div class="table-wrapper">
+                        <table id="favorite-items-table" class="analytics-table" aria-label="Your favorite items">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Item Name</th>
+                                    <th>Vendor</th>
+                                    <th>Times Ordered</th>
+                                    <th>Total Spent</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="loading-message">Loading item data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Vendors Page -->
+            <div id="page-vendors" class="analytics-page">
+                <div class="page-header">
+                    <h2>Vendors</h2>
+                    <p>Your favorite vendors and ordering patterns</p>
+                </div>
+
+                <section class="charts-grid">
+                    <article class="chart-card">
+                        <h4>When You Order</h4>
+                        <p class="chart-description">Your peak ordering times</p>
+                        <div class="chart-wrapper">
+                            <canvas id="order-frequency-chart"></canvas>
+                        </div>
+                    </article>
+
+                    <article class="chart-card">
+                        <h4>Top Vendors</h4>
+                        <p class="chart-description">Vendors you order from most</p>
+                        <div class="chart-wrapper">
+                            <canvas id="top-vendors-chart"></canvas>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="analytics-details">
+                    <h3>Vendor Rankings</h3>
+                    <div class="table-wrapper">
+                        <table id="top-vendors-table" class="analytics-table" aria-label="Your top vendors">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Vendor Name</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                    <th>Avg Order</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="loading-message">Loading vendor data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Order History Page -->
+            <div id="page-orders" class="analytics-page">
+                <div class="page-header">
+                    <h2>Order History</h2>
+                    <p>Your recent orders and transaction history</p>
+                </div>
+
+                <section class="orders-container">
+                    <div id="recent-orders-container" aria-live="polite">
+                        <p class="loading-message">Loading order history...</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Insights Page -->
+            <div id="page-insights" class="analytics-page">
+                <div class="page-header">
+                    <h2>Personal Insights</h2>
+                    <p>Recommendations and observations about your ordering habits</p>
+                </div>
+
+                <section class="insights-container">
+                    <div id="insights-container" aria-live="polite">
+                        <p class="loading-message">Generating insights...</p>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="../shared/orders/order-status.js"></script>
+    <script src="../shared/orders/order-model.js"></script>
+    <script src="../shared/orders/order-queries.js"></script>
+    <script src="../shared/orders/order-service.js"></script>
+    <script src="../shared/orders/order-formatters.js"></script>
+    <script src="../shared/payments/payment-status.js"></script>
+    <script src="../shared/payments/payment-model.js"></script>
+    <script src="../shared/payments/payment-formatters.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="./analytics-dashboard.js"></script>
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db, auth } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+    </script>
+</body>
+
+</html>
