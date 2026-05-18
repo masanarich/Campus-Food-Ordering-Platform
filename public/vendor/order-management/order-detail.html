@@ -28,8 +28,8 @@
             <h2 id="vendor-order-detail-heading">Vendor Order Detail</h2>
 
             <p>
-                Review the customer, items, and timeline for this order, then update its status
-                when you accept it, start preparing, or mark it ready for pickup.
+                Review the customer, items, payment, and refund state before moving this order
+                through accepting, preparing, ready for pickup, or collection.
             </p>
 
             <p id="vendor-order-detail-status" aria-live="polite" aria-atomic="true"></p>
@@ -63,9 +63,9 @@
         </section>
 
         <section class="shared-section" aria-labelledby="vendor-order-payment-heading">
-            <h3 id="vendor-order-payment-heading">Payment</h3>
+            <h3 id="vendor-order-payment-heading">Payment and Refund</h3>
             <section id="vendor-order-payment" aria-live="polite">
-                <p class="loading-message">Loading payment details...</p>
+                <p class="loading-message">Loading payment and refund details...</p>
             </section>
         </section>
 
@@ -92,6 +92,7 @@
     <script src="../../shared/payments/payment-status.js"></script>
     <script src="../../shared/payments/payment-model.js"></script>
     <script src="../../shared/payments/payment-formatters.js"></script>
+    <script src="../../shared/payments/refund-status.js"></script>
     <script src="./order-detail.js"></script>
     <script type="module">
         import { authService } from "../../authentication/auth.js";
@@ -140,7 +141,8 @@
                 orderStatus: window.orderStatus,
                 orderFormatters: window.orderFormatters,
                 paymentStatus: window.paymentStatus,
-                paymentFormatters: window.paymentFormatters
+                paymentFormatters: window.paymentFormatters,
+                refundStatus: window.refundStatus
             });
         }
     </script>

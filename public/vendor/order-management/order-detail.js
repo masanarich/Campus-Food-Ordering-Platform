@@ -133,6 +133,24 @@
         return null;
     }
 
+    function resolveRefundStatus(explicitRefundStatus) {
+        if (
+            explicitRefundStatus &&
+            typeof explicitRefundStatus.getRefundStatusLabel === "function"
+        ) {
+            return explicitRefundStatus;
+        }
+
+        if (
+            globalScope.refundStatus &&
+            typeof globalScope.refundStatus.getRefundStatusLabel === "function"
+        ) {
+            return globalScope.refundStatus;
+        }
+
+        return null;
+    }
+
     function waitForAuthReady(auth, authFns, timeoutMs = 5000) {
         if (!auth || !authFns || typeof authFns.onAuthStateChanged !== "function") {
             return Promise.resolve(auth?.currentUser || null);
@@ -485,11 +503,16 @@
         const safeOptions = options && typeof options === "object" ? options : {};
         const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
+        const refundStatus = resolveRefundStatus(safeOptions.refundStatus);
         const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
         const normalizedPaymentStatus =
             paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
                 ? paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid")
                 : rawPaymentStatus.toLowerCase() || "unpaid";
+        const isPaid =
+            paymentStatus && typeof paymentStatus.isPaymentPaid === "function"
+                ? paymentStatus.isPaymentPaid(normalizedPaymentStatus)
+                : normalizedPaymentStatus === "paid";
         const statusLabel =
             paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
                 ? paymentStatus.getPaymentStatusLabel(normalizedPaymentStatus)
@@ -524,6 +547,39 @@
         const failedAtText = orderFormatters && typeof orderFormatters.formatDateTime === "function" && safeOrder.paymentFailedAt
             ? normalizeText(orderFormatters.formatDateTime(safeOrder.paymentFailedAt))
             : "";
+        const rawRefundStatus = normalizeText(safeOrder.refundStatus || safeOrder.paymentRefundStatus);
+        const defaultRefundStatus = refundStatus && typeof refundStatus.getDefaultRefundStatus === "function"
+            ? refundStatus.getDefaultRefundStatus()
+            : "not_requested";
+        const normalizedRefundStatus =
+            refundStatus && typeof refundStatus.normalizeRefundStatus === "function"
+                ? refundStatus.normalizeRefundStatus(rawRefundStatus, defaultRefundStatus)
+                : rawRefundStatus.toLowerCase() || defaultRefundStatus;
+        const refundStatusLabel =
+            refundStatus && typeof refundStatus.getRefundStatusLabel === "function"
+                ? refundStatus.getRefundStatusLabel(normalizedRefundStatus)
+                : normalizedRefundStatus;
+        const refundTone =
+            refundStatus && typeof refundStatus.getRefundStatusTone === "function"
+                ? refundStatus.getRefundStatusTone(normalizedRefundStatus)
+                : "neutral";
+        const refundAmount = Number.isFinite(Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount))
+            ? Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount)
+            : 0;
+        const refundAmountText = refundAmount > 0
+            ? (paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
+                ? paymentFormatters.formatPaymentAmount(refundAmount, currency)
+                : (currency === "ZAR"
+                    ? `R${refundAmount.toFixed(2)}`
+                    : `${currency} ${refundAmount.toFixed(2)}`))
+            : "";
+        const refundRequested =
+            normalizedRefundStatus &&
+            normalizedRefundStatus !== "not_requested";
+        const requiresRefund =
+            isPaid &&
+            normalizeLowerText(safeOrder.status) === "rejected" &&
+            normalizedRefundStatus === "not_requested";
 
         return {
             status: normalizedPaymentStatus,
@@ -536,10 +592,20 @@
             provider,
             providerLabel,
             reference: normalizeText(safeOrder.paymentReference),
+            checkoutId: normalizeText(safeOrder.checkoutId),
             paidAtText,
             failedAtText,
             failureReason: normalizeText(safeOrder.paymentFailureReason),
-            isPaid: normalizedPaymentStatus === "paid"
+            isPaid,
+            refundStatus: normalizedRefundStatus,
+            refundStatusLabel,
+            refundTone,
+            refundRequested,
+            refundAmount,
+            refundAmountText,
+            refundReference: normalizeText(safeOrder.refundReference || safeOrder.paymentRefundReference),
+            refundReason: normalizeText(safeOrder.refundReason || safeOrder.paymentRefundReason),
+            requiresRefund
         };
     }
 
@@ -547,8 +613,8 @@
         const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const view = buildPaymentView(safeOrder, options);
         const orderStatus = normalizeLowerText(safeOrder.status);
-        const gatedOrderStatuses = ["pending", "accepted"];
-        const requiresPayment = gatedOrderStatuses.indexOf(orderStatus) >= 0;
+        const terminalOrderStatuses = ["completed", "rejected", "cancelled"];
+        const requiresPayment = terminalOrderStatuses.indexOf(orderStatus) === -1;
 
         if (!requiresPayment || view.isPaid) {
             return {
@@ -562,7 +628,7 @@
             blocked: true,
             paymentStatus: view.status,
             statusLabel: view.statusLabel,
-            reason: `Customer payment is ${view.statusLabel}. Confirm payment before moving this order forward. You can still reject the order.`
+            reason: `Customer payment is ${view.statusLabel}. Do not accept, prepare, complete, or fulfil this order until payment is completed. You can still reject the order.`
         };
     }
 
@@ -612,13 +678,33 @@
         }
 
         appendDetail("Amount", view.amountText, "vendor-order-payment-amount");
+        appendDetail("Checkout ID", view.checkoutId, "vendor-order-payment-checkout-id");
         appendDetail("Provider", view.providerLabel, "vendor-order-payment-provider");
         appendDetail("Reference", view.reference, "vendor-order-payment-reference");
         appendDetail("Paid at", view.paidAtText, "vendor-order-payment-paid-at");
         appendDetail("Failed at", view.failedAtText, "vendor-order-payment-failed-at");
         appendDetail("Failure reason", view.failureReason, "vendor-order-payment-failure-reason");
+        appendDetail("Refund status", view.refundStatusLabel, "vendor-order-refund-status");
+        appendDetail("Refund amount", view.refundAmountText, "vendor-order-refund-amount");
+        appendDetail("Refund reference", view.refundReference, "vendor-order-refund-reference");
+        appendDetail("Refund reason", view.refundReason, "vendor-order-refund-reason");
 
         container.appendChild(list);
+
+        const refundStatusLine = container.querySelector(".vendor-order-refund-status");
+        if (refundStatusLine) {
+            refundStatusLine.setAttribute("data-tone", view.refundTone);
+            refundStatusLine.setAttribute("data-refund-status", view.refundStatus);
+        }
+
+        if (view.requiresRefund) {
+            const refundNotice = createParagraph(
+                "This paid rejected order must be refunded before it is considered settled.",
+                "vendor-order-refund-notice"
+            );
+            refundNotice.setAttribute("data-tone", "warning");
+            container.appendChild(refundNotice);
+        }
     }
 
     function renderOrderTimeline(orderRecord, container, options = {}) {
@@ -754,6 +840,19 @@
             return {
                 success: false,
                 error: "Order actions are not available right now."
+            };
+        }
+
+        const gate = getPaymentGate(currentOrder, options);
+        const isRejection = normalizeLowerText(safeAction.nextStatus) === "rejected";
+
+        if (gate.blocked && !isRejection) {
+            setStatusMessage(statusElement, gate.reason, "error");
+
+            return {
+                success: false,
+                error: gate.reason,
+                blockedByPayment: true
             };
         }
 
@@ -975,6 +1074,7 @@
         resolveOrderFormatters,
         resolvePaymentStatus,
         resolvePaymentFormatters,
+        resolveRefundStatus,
         waitForAuthReady,
         normalizeVendorProfile,
         canAccessVendorWorkspace,

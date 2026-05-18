@@ -603,6 +603,28 @@
         return url.toString();
     }
 
+    function canReportIssueOnOrder(order) {
+        if (!order || typeof order !== "object") {
+            return false;
+        }
+
+        const status = normalizeText(order.status).toLowerCase();
+        const paymentStatus = normalizeText(order.paymentStatus).toLowerCase();
+
+        // Customer can lodge a complaint once they have actually paid OR once the order is done.
+        // Unpaid / failed-payment / cancelled orders are not "real" enough yet to support against.
+        return paymentStatus === "paid" || status === "completed";
+    }
+
+    function buildReportIssueUrl(orderId) {
+        const safeOrderId = normalizeText(orderId);
+        const url = new URL("../support/new.html", globalScope.location.href);
+        if (safeOrderId) {
+            url.searchParams.set("orderId", safeOrderId);
+        }
+        return url.toString();
+    }
+
     function createOrderCard(orderRecord, options = {}) {
         const order = mapOrderRecord(orderRecord, options);
         const article = globalScope.document.createElement("article");
@@ -648,6 +670,17 @@
         detailItem.appendChild(detailLink);
 
         footer.appendChild(detailItem);
+
+        if (canReportIssueOnOrder(order)) {
+            const reportItem = globalScope.document.createElement("li");
+            const reportLink = globalScope.document.createElement("a");
+            reportLink.href = buildReportIssueUrl(order.orderId);
+            reportLink.className = "button-secondary tracking-order-report-link";
+            reportLink.setAttribute("data-order-id", order.orderId);
+            reportLink.textContent = "Report an issue";
+            reportItem.appendChild(reportLink);
+            footer.appendChild(reportItem);
+        }
 
         article.appendChild(heading);
         article.appendChild(statusLine);
@@ -1272,6 +1305,8 @@
         setStatusMessage,
         buildOrderDetailUrl,
         buildCheckoutUrl,
+        canReportIssueOnOrder,
+        buildReportIssueUrl,
         createOrderCard,
         createCheckoutCard,
         renderOrders,

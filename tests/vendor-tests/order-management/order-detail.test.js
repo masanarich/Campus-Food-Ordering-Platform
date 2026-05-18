@@ -116,7 +116,8 @@ function createPaymentStatusStub() {
                 failed: "error"
             };
             return tones[status] || "neutral";
-        })
+        }),
+        isPaymentPaid: jest.fn(status => status === "paid")
     };
 }
 
@@ -128,6 +129,38 @@ function createPaymentFormattersStub() {
             return currency === "ZAR"
                 ? `R${safeAmount.toFixed(2)}`
                 : `${currency} ${safeAmount.toFixed(2)}`;
+        })
+    };
+}
+
+function createRefundStatusStub() {
+    return {
+        getDefaultRefundStatus: jest.fn(() => "not_requested"),
+        normalizeRefundStatus: jest.fn((status, fallbackStatus = "not_requested") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getRefundStatusLabel: jest.fn(status => {
+            const labels = {
+                not_requested: "Refund Not Requested",
+                requested: "Refund Requested",
+                processing: "Refund Processing",
+                refunded: "Refunded",
+                failed: "Refund Failed",
+                cancelled: "Refund Cancelled"
+            };
+            return labels[status] || "Unknown Refund Status";
+        }),
+        getRefundStatusTone: jest.fn(status => {
+            const tones = {
+                not_requested: "neutral",
+                requested: "loading",
+                processing: "loading",
+                refunded: "success",
+                failed: "error",
+                cancelled: "warning"
+            };
+            return tones[status] || "neutral";
         })
     };
 }
@@ -237,6 +270,8 @@ function resetOrderDetailGlobals() {
     delete global.paymentStatus;
     delete window.paymentFormatters;
     delete global.paymentFormatters;
+    delete window.refundStatus;
+    delete global.refundStatus;
 }
 
 afterEach(() => {
@@ -282,12 +317,16 @@ describe("vendor/order-management/order-detail.js - helpers", () => {
 
             const paymentStatusGlobal = createPaymentStatusStub();
             const paymentFormattersGlobal = createPaymentFormattersStub();
+            const refundStatusGlobal = createRefundStatusStub();
             window.paymentStatus = paymentStatusGlobal;
             window.paymentFormatters = paymentFormattersGlobal;
+            window.refundStatus = refundStatusGlobal;
             expect(vendorOrderDetailPage.resolvePaymentStatus(paymentStatusGlobal)).toBe(paymentStatusGlobal);
             expect(vendorOrderDetailPage.resolvePaymentStatus()).toBe(paymentStatusGlobal);
             expect(vendorOrderDetailPage.resolvePaymentFormatters(paymentFormattersGlobal)).toBe(paymentFormattersGlobal);
             expect(vendorOrderDetailPage.resolvePaymentFormatters()).toBe(paymentFormattersGlobal);
+            expect(vendorOrderDetailPage.resolveRefundStatus(refundStatusGlobal)).toBe(refundStatusGlobal);
+            expect(vendorOrderDetailPage.resolveRefundStatus()).toBe(refundStatusGlobal);
 
             const immediate = await vendorOrderDetailPage.waitForAuthReady(auth, null);
             const listenerUser = await vendorOrderDetailPage.waitForAuthReady(auth, {
@@ -449,7 +488,7 @@ describe("vendor/order-management/order-detail.js - rendering", () => {
 
         const banner = dom.actionContainer.querySelector(".vendor-order-payment-gate");
         expect(banner).not.toBeNull();
-        expect(banner.textContent).toContain("Confirm payment");
+        expect(banner.textContent).toContain("until payment is completed");
         expect(banner.getAttribute("data-payment-status")).toBe("unpaid");
 
         const buttons = dom.actionContainer.querySelectorAll("button");
@@ -505,6 +544,7 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
     let orderFormatters;
     let paymentStatus;
     let paymentFormatters;
+    let refundStatus;
 
     beforeEach(() => {
         dom = createDOM();
@@ -512,13 +552,15 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         orderFormatters = createOrderFormattersStub();
         paymentStatus = createPaymentStatusStub();
         paymentFormatters = createPaymentFormattersStub();
+        refundStatus = createRefundStatusStub();
     });
 
     test("buildPaymentView returns a paid summary", () => {
         const view = vendorOrderDetailPage.buildPaymentView(createOrder(), {
             paymentStatus,
             paymentFormatters,
-            orderFormatters
+            orderFormatters,
+            refundStatus
         });
 
         expect(view.status).toBe("paid");
@@ -528,6 +570,8 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         expect(view.providerLabel).toBe("Paystack");
         expect(view.reference).toBe("paystack-ref");
         expect(view.isPaid).toBe(true);
+        expect(view.refundStatus).toBe("not_requested");
+        expect(view.refundStatusLabel).toBe("Refund Not Requested");
     });
 
     test("buildPaymentView falls back to unpaid with order.total when paymentAmount is missing", () => {
@@ -564,7 +608,7 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         expect(gate.paymentStatus).toBe("failed");
     });
 
-    test("getPaymentGate does not block paid orders or non-gated statuses", () => {
+    test("getPaymentGate does not block paid orders but blocks unpaid fulfilment states", () => {
         const paidGate = vendorOrderDetailPage.getPaymentGate(
             createOrder({ paymentStatus: "paid", status: "pending" }),
             { paymentStatus }
@@ -575,14 +619,30 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         );
 
         expect(paidGate.blocked).toBe(false);
-        expect(readyGate.blocked).toBe(false);
+        expect(readyGate.blocked).toBe(true);
+        expect(readyGate.reason).toContain("complete");
+    });
+
+    test("getPaymentGate allows terminal rejected and completed orders to be reviewed", () => {
+        const rejectedGate = vendorOrderDetailPage.getPaymentGate(
+            createOrder({ paymentStatus: "unpaid", status: "rejected" }),
+            { paymentStatus }
+        );
+        const completedGate = vendorOrderDetailPage.getPaymentGate(
+            createOrder({ paymentStatus: "unpaid", status: "completed" }),
+            { paymentStatus }
+        );
+
+        expect(rejectedGate.blocked).toBe(false);
+        expect(completedGate.blocked).toBe(false);
     });
 
     test("renderOrderPayment writes status, amount, provider, reference for a paid order", () => {
         vendorOrderDetailPage.renderOrderPayment(createOrder(), dom.paymentContainer, {
             paymentStatus,
             paymentFormatters,
-            orderFormatters
+            orderFormatters,
+            refundStatus
         });
 
         const statusLine = dom.paymentContainer.querySelector(".vendor-order-payment-status");
@@ -594,6 +654,46 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         expect(dom.paymentContainer.querySelector(".vendor-order-payment-provider").textContent).toBe("Provider: Paystack");
         expect(dom.paymentContainer.querySelector(".vendor-order-payment-reference").textContent).toBe("Reference: paystack-ref");
         expect(dom.paymentContainer.querySelector(".vendor-order-payment-paid-at").textContent).toContain("Paid at:");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refund Not Requested");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").getAttribute("data-refund-status")).toBe("not_requested");
+    });
+
+    test("renderOrderPayment shows checkout id and refund detail when present", () => {
+        vendorOrderDetailPage.renderOrderPayment(
+            createOrder({
+                checkoutId: "checkout-1",
+                refundStatus: "requested",
+                refundAmount: 25,
+                refundReference: "refund-ref",
+                refundReason: "Vendor rejected order."
+            }),
+            dom.paymentContainer,
+            { paymentStatus, paymentFormatters, orderFormatters, refundStatus }
+        );
+
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-checkout-id").textContent).toBe("Checkout ID: checkout-1");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refund Requested");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").getAttribute("data-tone")).toBe("loading");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-amount").textContent).toBe("Refund amount: R25.00");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-reference").textContent).toContain("refund-ref");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-reason").textContent).toContain("Vendor rejected order.");
+    });
+
+    test("renderOrderPayment warns when a paid rejected order has not been refunded", () => {
+        const view = vendorOrderDetailPage.buildPaymentView(
+            createOrder({ status: "rejected", paymentStatus: "paid" }),
+            { paymentStatus, paymentFormatters, refundStatus }
+        );
+
+        vendorOrderDetailPage.renderOrderPayment(
+            createOrder({ status: "rejected", paymentStatus: "paid" }),
+            dom.paymentContainer,
+            { paymentStatus, paymentFormatters, refundStatus }
+        );
+
+        expect(view.requiresRefund).toBe(true);
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-notice").textContent)
+            .toContain("must be refunded");
     });
 
     test("renderOrderPayment surfaces failure reason for failed payments", () => {
@@ -757,6 +857,60 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
         expect(result.success).toBe(true);
         expect(updateOrderStatus).toHaveBeenCalledWith(expect.objectContaining({
             nextStatus: "accepted",
+            actorRole: "vendor"
+        }));
+    });
+
+    test("handleOrderAction refuses unpaid forward moves before calling the service", async () => {
+        const paymentStatus = createPaymentStatusStub();
+        const updateOrderStatus = jest.fn(async () => ({
+            success: true,
+            order: createOrder({ status: "accepted" })
+        }));
+
+        const result = await vendorOrderDetailPage.handleOrderAction({
+            type: "status_change",
+            nextStatus: "accepted"
+        }, {
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getOrderById: jest.fn(), updateOrderStatus },
+            currentOrder: createOrder({ paymentStatus: "pending", status: "pending" }),
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            paymentStatus,
+            statusSelector: "#vendor-order-detail-status"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.blockedByPayment).toBe(true);
+        expect(result.error).toContain("Payment Pending");
+        expect(updateOrderStatus).not.toHaveBeenCalled();
+        expect(dom.statusElement.textContent).toContain("Payment Pending");
+    });
+
+    test("handleOrderAction still allows vendors to reject an unpaid order", async () => {
+        const paymentStatus = createPaymentStatusStub();
+        const updateOrderStatus = jest.fn(async () => ({
+            success: true,
+            order: createOrder({ status: "rejected", paymentStatus: "unpaid" })
+        }));
+
+        const result = await vendorOrderDetailPage.handleOrderAction({
+            type: "status_change",
+            nextStatus: "rejected"
+        }, {
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getOrderById: jest.fn(), updateOrderStatus },
+            currentOrder: createOrder({ paymentStatus: "unpaid", status: "pending" }),
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            paymentStatus,
+            statusSelector: "#vendor-order-detail-status"
+        });
+
+        expect(result.success).toBe(true);
+        expect(updateOrderStatus).toHaveBeenCalledWith(expect.objectContaining({
+            nextStatus: "rejected",
             actorRole: "vendor"
         }));
     });

@@ -4,14 +4,16 @@
     const MODULE_NAME = "vendor/order-management/index";
     const DEFAULT_PAGE_SIZE = 6;
     const DEFAULT_SORT = "newest";
+    const DEFAULT_PAYMENT_FILTER = "paid";
     const INCOMING_STATUSES = ["pending", "accepted"];
+    const BLOCKED_PAYMENT_STATUSES = ["unpaid", "pending", "failed"];
     let initInFlight = null;
     const pageState = {
         allOrders: [],
         filters: {
             search: "",
             status: "all",
-            payment: "all",
+            payment: DEFAULT_PAYMENT_FILTER,
             sort: DEFAULT_SORT
         },
         currentPage: 1,
@@ -144,6 +146,36 @@
         }
 
         return null;
+    }
+
+    function normalizePaymentState(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
+        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
+
+        if (paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function") {
+            return paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid");
+        }
+
+        return rawPaymentStatus.toLowerCase() || "unpaid";
+    }
+
+    function isPaidOrder(orderRecord, options = {}) {
+        const normalizedStatus = normalizePaymentState(orderRecord, options);
+        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
+
+        if (paymentStatus && typeof paymentStatus.isPaymentPaid === "function") {
+            return paymentStatus.isPaymentPaid(normalizedStatus);
+        }
+
+        return normalizedStatus === "paid";
+    }
+
+    function isPaymentBlockedOrder(orderRecord, options = {}) {
+        const normalizedStatus = normalizePaymentState(orderRecord, options);
+
+        return !isPaidOrder(orderRecord, options) &&
+            BLOCKED_PAYMENT_STATUSES.indexOf(normalizedStatus) >= 0;
     }
 
     function waitForAuthReady(auth, authFns, timeoutMs = 5000) {
@@ -296,11 +328,7 @@
                 ? orderFormatters.formatDateTime(safeOrder.updatedAt || safeOrder.createdAt)
                 : "Unknown time";
 
-        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
-        const normalizedPaymentStatus =
-            paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
-                ? paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid")
-                : rawPaymentStatus.toLowerCase() || "unpaid";
+        const normalizedPaymentStatus = normalizePaymentState(safeOrder, options);
         const paymentStatusLabel =
             paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
                 ? paymentStatus.getPaymentStatusLabel(normalizedPaymentStatus)
@@ -338,7 +366,11 @@
             paymentCurrency,
             paymentReference: normalizeText(safeOrder.paymentReference),
             paymentProvider: normalizeText(safeOrder.paymentProvider) || "paystack",
-            isPaid: normalizedPaymentStatus === "paid"
+            isPaid: isPaidOrder(safeOrder, options),
+            isPaymentBlocked: isPaymentBlockedOrder(safeOrder, options),
+            paymentGuardMessage: normalizedPaymentStatus === "paid"
+                ? ""
+                : "Payment is not confirmed. Do not accept, prepare, or fulfil this order until payment is completed."
         };
     }
 
@@ -456,6 +488,11 @@
         article.setAttribute("data-order-id", order.orderId);
         article.setAttribute("data-status", order.status);
         article.setAttribute("data-payment-status", order.paymentStatus);
+        article.setAttribute("data-fulfillment-ready", order.isPaid ? "true" : "false");
+
+        if (order.isPaymentBlocked) {
+            article.classList.add("vendor-order-card-payment-blocked");
+        }
 
         const heading = globalScope.document.createElement("h4");
         heading.className = "vendor-order-card-heading";
@@ -507,6 +544,14 @@
         article.appendChild(paymentStatusLine);
         article.appendChild(paymentAmountLine);
 
+        if (order.paymentGuardMessage) {
+            const guardLine = globalScope.document.createElement("p");
+            guardLine.className = "vendor-order-card-payment-guard";
+            guardLine.textContent = order.paymentGuardMessage;
+            guardLine.setAttribute("data-payment-status", order.paymentStatus);
+            article.appendChild(guardLine);
+        }
+
         if (order.paymentReference) {
             const paymentReferenceLine = globalScope.document.createElement("p");
             paymentReferenceLine.className = "vendor-order-card-payment-reference";
@@ -532,32 +577,33 @@
         const activeStatuses = ["pending", "accepted", "preparing", "ready"];
         const activeCount = safeOrders.filter(function keepActive(order) {
             const status = normalizeLowerText(order && order.status);
-            return activeStatuses.indexOf(status) >= 0;
+            return activeStatuses.indexOf(status) >= 0 && isPaidOrder(order, options);
         }).length;
         const readyCount = safeOrders.filter(function keepReady(order) {
-            return normalizeLowerText(order && order.status) === "ready";
+            return normalizeLowerText(order && order.status) === "ready" && isPaidOrder(order, options);
         }).length;
-        const totalValue = safeOrders.reduce(function sumOrderTotals(total, order) {
+        const paidOrders = safeOrders.filter(function keepPaidOrder(order) {
+            return isPaidOrder(order, options);
+        });
+        const totalValue = paidOrders.reduce(function sumOrderTotals(total, order) {
             return total + Number(order && order.total ? order.total : 0);
         }, 0);
         const totalValueText =
             orderFormatters && typeof orderFormatters.formatCurrency === "function"
                 ? orderFormatters.formatCurrency(totalValue)
                 : `R${totalValue.toFixed(2)}`;
-        const paidCount = safeOrders.filter(function keepPaid(order) {
-            return normalizeLowerText(order && order.paymentStatus) === "paid";
-        }).length;
+        const paidCount = paidOrders.length;
         const unpaidCount = safeOrders.length - paidCount;
         const summaryList = globalScope.document.createElement("ol");
 
         [
             `Vendor: ${normalizeText(vendorProfile && vendorProfile.displayName) || "Vendor User"}`,
             `Orders loaded: ${safeOrders.length}`,
-            `Active orders: ${activeCount}`,
+            `Fulfilment-ready paid orders: ${paidCount}`,
+            `Active paid orders: ${activeCount}`,
             `Ready for pickup: ${readyCount}`,
-            `Paid orders: ${paidCount}`,
-            `Awaiting payment: ${unpaidCount}`,
-            `Combined order value: ${totalValueText}`
+            `Blocked unpaid records: ${unpaidCount}`,
+            `Paid order value: ${totalValueText}`
         ].forEach(function appendSummaryLine(text) {
             const item = globalScope.document.createElement("li");
             item.textContent = text;
@@ -675,7 +721,7 @@
         const safe = Array.isArray(orders) ? orders : [];
         const searchTerm = normalizeLowerText(filters.search);
         const statusFilter = normalizeLowerText(filters.status) || "all";
-        const paymentFilter = normalizeLowerText(filters.payment) || "all";
+        const paymentFilter = normalizeLowerText(filters.payment) || DEFAULT_PAYMENT_FILTER;
 
         return safe.filter(function byFilters(order) {
             if (!order) {
@@ -692,7 +738,13 @@
                 return false;
             }
 
-            if (paymentFilter !== "all" && normalizeLowerText(order.paymentStatus) !== paymentFilter) {
+            const paymentStatusValue = normalizePaymentState(order, filters);
+
+            if (paymentFilter === "blocked") {
+                if (BLOCKED_PAYMENT_STATUSES.indexOf(paymentStatusValue) < 0) {
+                    return false;
+                }
+            } else if (paymentFilter !== "all" && paymentStatusValue !== paymentFilter) {
                 return false;
             }
 
@@ -780,20 +832,22 @@
 
         const buttons = quickFiltersElement.querySelectorAll("[data-quick-filter]");
         const status = normalizeLowerText(filters && filters.status) || "all";
-        const payment = normalizeLowerText(filters && filters.payment) || "all";
+        const payment = normalizeLowerText(filters && filters.payment) || DEFAULT_PAYMENT_FILTER;
         let activeKey;
 
         if (payment === "paid" && status === "all") {
             activeKey = "paid";
+        } else if (payment === "blocked" && status === "all") {
+            activeKey = "blocked-payment";
         } else if (status === "all" && payment === "all") {
             activeKey = "all";
-        } else if (status === "incoming" && payment === "all") {
+        } else if (status === "incoming" && payment === DEFAULT_PAYMENT_FILTER) {
             activeKey = "incoming";
-        } else if (status === "preparing" && payment === "all") {
+        } else if (status === "preparing" && payment === DEFAULT_PAYMENT_FILTER) {
             activeKey = "preparing";
-        } else if (status === "ready" && payment === "all") {
+        } else if (status === "ready" && payment === DEFAULT_PAYMENT_FILTER) {
             activeKey = "ready";
-        } else if (status === "cancelled" && payment === "all") {
+        } else if (status === "cancelled" && payment === DEFAULT_PAYMENT_FILTER) {
             activeKey = "cancelled";
         } else {
             activeKey = null;
@@ -876,27 +930,31 @@
         switch (key) {
             case "all":
                 statusSelect.value = "all";
-                paymentSelect.value = "all";
+                paymentSelect.value = DEFAULT_PAYMENT_FILTER;
                 break;
             case "incoming":
                 statusSelect.value = "incoming";
-                paymentSelect.value = "all";
+                paymentSelect.value = DEFAULT_PAYMENT_FILTER;
                 break;
             case "preparing":
                 statusSelect.value = "preparing";
-                paymentSelect.value = "all";
+                paymentSelect.value = DEFAULT_PAYMENT_FILTER;
                 break;
             case "ready":
                 statusSelect.value = "ready";
-                paymentSelect.value = "all";
+                paymentSelect.value = DEFAULT_PAYMENT_FILTER;
                 break;
             case "cancelled":
                 statusSelect.value = "cancelled";
-                paymentSelect.value = "all";
+                paymentSelect.value = DEFAULT_PAYMENT_FILTER;
                 break;
             case "paid":
                 statusSelect.value = "all";
                 paymentSelect.value = "paid";
+                break;
+            case "blocked-payment":
+                statusSelect.value = "all";
+                paymentSelect.value = "blocked";
                 break;
             default:
                 return null;
@@ -934,7 +992,7 @@
                     pageState.filters = {
                         search: "",
                         status: "all",
-                        payment: "all",
+                        payment: DEFAULT_PAYMENT_FILTER,
                         sort: DEFAULT_SORT
                     };
                     pageState.currentPage = 1;
@@ -1044,7 +1102,7 @@
                 pageState.filters = {
                     search: "",
                     status: "all",
-                    payment: "all",
+                    payment: DEFAULT_PAYMENT_FILTER,
                     sort: DEFAULT_SORT
                 };
             }
@@ -1169,7 +1227,9 @@
         MODULE_NAME,
         DEFAULT_PAGE_SIZE,
         DEFAULT_SORT,
+        DEFAULT_PAYMENT_FILTER,
         INCOMING_STATUSES,
+        BLOCKED_PAYMENT_STATUSES,
         normalizeText,
         normalizeLowerText,
         resolveFirestore,
@@ -1181,6 +1241,9 @@
         resolveOrderFormatters,
         resolvePaymentStatus,
         resolvePaymentFormatters,
+        normalizePaymentState,
+        isPaidOrder,
+        isPaymentBlockedOrder,
         waitForAuthReady,
         normalizeVendorProfile,
         canAccessVendorWorkspace,

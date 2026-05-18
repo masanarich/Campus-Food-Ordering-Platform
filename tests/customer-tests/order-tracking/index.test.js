@@ -240,6 +240,43 @@ describe("customer/order-tracking/index.js - helpers", () => {
         expect(url).toContain("orderId=order-55");
     });
 
+    test("canReportIssueOnOrder returns true only for paid or completed orders", () => {
+        expect(customerOrderTrackingPage.canReportIssueOnOrder({
+            status: "preparing",
+            paymentStatus: "paid"
+        })).toBe(true);
+        expect(customerOrderTrackingPage.canReportIssueOnOrder({
+            status: "completed",
+            paymentStatus: "paid"
+        })).toBe(true);
+        expect(customerOrderTrackingPage.canReportIssueOnOrder({
+            status: "completed",
+            paymentStatus: "unpaid"
+        })).toBe(true);
+
+        expect(customerOrderTrackingPage.canReportIssueOnOrder({
+            status: "pending",
+            paymentStatus: "unpaid"
+        })).toBe(false);
+        expect(customerOrderTrackingPage.canReportIssueOnOrder({
+            status: "cancelled",
+            paymentStatus: "failed"
+        })).toBe(false);
+
+        expect(customerOrderTrackingPage.canReportIssueOnOrder(null)).toBe(false);
+        expect(customerOrderTrackingPage.canReportIssueOnOrder("not an object")).toBe(false);
+    });
+
+    test("buildReportIssueUrl points at the support new-ticket page with the orderId", () => {
+        const url = customerOrderTrackingPage.buildReportIssueUrl("order-77");
+        expect(url).toContain("../support/new.html".replace("../", ""));
+        expect(url).toContain("orderId=order-77");
+
+        const noOrderUrl = customerOrderTrackingPage.buildReportIssueUrl("");
+        expect(noOrderUrl).toContain("support/new.html");
+        expect(noOrderUrl).not.toContain("orderId=");
+    });
+
     test("buildCheckoutUrl includes checkout and vendor details", () => {
         const url = customerOrderTrackingPage.buildCheckoutUrl(createCheckout({
             checkoutId: "checkout-55",
@@ -337,6 +374,59 @@ describe("customer/order-tracking/index.js - rendering", () => {
         expect(dom.container.textContent).toContain("Campus Bites");
         expect(dom.container.textContent).toContain("Ready for Pickup");
         expect(dom.container.querySelector('a[href*="orderId=order-2"]')).not.toBeNull();
+    });
+
+    test("renderOrders adds a Report an issue link only on paid or completed orders", () => {
+        customerOrderTrackingPage.renderOrders([
+            createOrder({
+                orderId: "order-paid",
+                vendorName: "Paid Vendor",
+                status: "preparing",
+                paymentStatus: "paid"
+            }),
+            createOrder({
+                orderId: "order-done",
+                vendorName: "Done Vendor",
+                status: "completed",
+                paymentStatus: "unpaid"
+            }),
+            createOrder({
+                orderId: "order-unpaid",
+                vendorName: "Unpaid Vendor",
+                status: "pending",
+                paymentStatus: "unpaid"
+            }),
+            createOrder({
+                orderId: "order-cancelled",
+                vendorName: "Cancelled Vendor",
+                status: "cancelled",
+                paymentStatus: "failed"
+            })
+        ], dom.container, {
+            orderStatus,
+            orderFormatters,
+            paymentStatus,
+            paymentFormatters
+        });
+
+        const reportLinks = dom.container.querySelectorAll(".tracking-order-report-link");
+        const reportedOrderIds = Array.from(reportLinks).map((link) => link.getAttribute("data-order-id"));
+        expect(reportedOrderIds).toEqual(["order-paid", "order-done"]);
+
+        const paidLink = dom.container.querySelector(
+            '.tracking-order-report-link[data-order-id="order-paid"]'
+        );
+        expect(paidLink.getAttribute("href")).toContain("support/new.html");
+        expect(paidLink.getAttribute("href")).toContain("orderId=order-paid");
+        expect(paidLink.textContent).toBe("Report an issue");
+
+        // Unpaid + cancelled orders do not get the link.
+        expect(
+            dom.container.querySelector('.tracking-order-report-link[data-order-id="order-unpaid"]')
+        ).toBeNull();
+        expect(
+            dom.container.querySelector('.tracking-order-report-link[data-order-id="order-cancelled"]')
+        ).toBeNull();
     });
 
     test("renderOrders shows payment status, amount, and reference for each order", () => {

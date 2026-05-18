@@ -290,10 +290,11 @@ describe("vendor/order-management/index.js - rendering", () => {
 
         expect(dom.summaryElement.textContent).toContain("Campus Bites");
         expect(dom.summaryElement.textContent).toContain("Orders loaded: 2");
-        expect(dom.summaryElement.textContent).toContain("Ready for pickup: 1");
-        expect(dom.summaryElement.textContent).toContain("Paid orders: 1");
-        expect(dom.summaryElement.textContent).toContain("Awaiting payment: 1");
-        expect(dom.summaryElement.textContent).toContain("R135.00");
+        expect(dom.summaryElement.textContent).toContain("Fulfilment-ready paid orders: 1");
+        expect(dom.summaryElement.textContent).toContain("Active paid orders: 1");
+        expect(dom.summaryElement.textContent).toContain("Ready for pickup: 0");
+        expect(dom.summaryElement.textContent).toContain("Blocked unpaid records: 1");
+        expect(dom.summaryElement.textContent).toContain("R85.00");
     });
 
     test("renderOrders shows empty state when there are no orders", () => {
@@ -344,12 +345,17 @@ describe("vendor/order-management/index.js - rendering", () => {
         expect(firstPaymentStatus.textContent).toBe("Payment: Paid");
         expect(firstPaymentStatus.getAttribute("data-tone")).toBe("success");
         expect(firstPaymentStatus.getAttribute("data-payment-status")).toBe("paid");
+        expect(firstCard.getAttribute("data-fulfillment-ready")).toBe("true");
         expect(firstCard.querySelector(".vendor-order-card-payment-amount").textContent).toBe("Payment Amount: R85.00");
         expect(firstCard.querySelector(".vendor-order-card-payment-reference").textContent).toBe("Reference: paystack-ref-1");
 
         const secondPaymentStatus = cards[1].querySelector(".vendor-order-card-payment-status");
         expect(secondPaymentStatus.textContent).toBe("Payment: Payment Pending");
         expect(secondPaymentStatus.getAttribute("data-tone")).toBe("loading");
+        expect(cards[1].getAttribute("data-fulfillment-ready")).toBe("false");
+        expect(cards[1].classList.contains("vendor-order-card-payment-blocked")).toBe(true);
+        expect(cards[1].querySelector(".vendor-order-card-payment-guard").textContent)
+            .toContain("Payment is not confirmed");
     });
 
     test("renderOrders omits the reference line when no payment reference exists", () => {
@@ -394,11 +400,13 @@ describe("vendor/order-management/index.js - rendering", () => {
             paymentCurrency: "ZAR",
             paymentReference: "",
             paymentProvider: "paystack",
-            isPaid: false
+            isPaid: false,
+            isPaymentBlocked: true,
+            paymentGuardMessage: "Payment is not confirmed. Do not accept, prepare, or fulfil this order until payment is completed."
         });
         expect(dom.summaryElement.textContent).toContain("Vendor: Vendor User");
-        expect(dom.summaryElement.textContent).toContain("Combined order value: R0.00");
-        expect(dom.summaryElement.textContent).toContain("Paid orders: 1");
+        expect(dom.summaryElement.textContent).toContain("Paid order value: R0.00");
+        expect(dom.summaryElement.textContent).toContain("Fulfilment-ready paid orders: 1");
     });
 
     test("mapOrderRecord uses payment helpers when supplied", () => {
@@ -416,6 +424,8 @@ describe("vendor/order-management/index.js - rendering", () => {
         expect(mapped.paymentReference).toBe("paystack-ref");
         expect(mapped.paymentProvider).toBe("paystack");
         expect(mapped.isPaid).toBe(true);
+        expect(mapped.isPaymentBlocked).toBe(false);
+        expect(mapped.paymentGuardMessage).toBe("");
     });
 
     test("renderSummary and renderOrders safely ignore missing containers", () => {
@@ -658,11 +668,12 @@ describe("vendor/order-management/index.js - data loading and init", () => {
         expect(result.success).toBe(true);
         expect(result.orders).toHaveLength(2);
         expect(dom.summaryElement.textContent).toContain("Orders loaded: 2");
-        expect(dom.summaryElement.textContent).toContain("Paid orders: 1");
-        expect(dom.summaryElement.textContent).toContain("Awaiting payment: 1");
+        expect(dom.summaryElement.textContent).toContain("Fulfilment-ready paid orders: 1");
+        expect(dom.summaryElement.textContent).toContain("Blocked unpaid records: 1");
         expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
         expect(dom.container.textContent).toContain("Payment: Paid");
         expect(dom.container.textContent).toContain("Payment: Payment Pending");
+        expect(dom.container.textContent).toContain("Payment is not confirmed");
         expect(dom.container.textContent).toContain("Reference: paystack-ref-1");
         expect(dom.statusElement.textContent).toContain("Loaded 2 vendor orders");
     });
@@ -788,6 +799,8 @@ describe("vendor/order-management/index.js - filter, sort, paginate", () => {
         expect(vendorOrderManagementPage.filterOrders(orders, { payment: "paid" }).map(o => o.orderId))
             .toEqual(["a", "c"]);
         expect(vendorOrderManagementPage.filterOrders(orders, { search: "bob" }).map(o => o.orderId))
+            .toEqual([]);
+        expect(vendorOrderManagementPage.filterOrders(orders, { search: "bob", payment: "all" }).map(o => o.orderId))
             .toEqual(["b"]);
         expect(vendorOrderManagementPage.filterOrders(orders, { search: "ref-ccc" }).map(o => o.orderId))
             .toEqual(["c"]);
@@ -795,14 +808,17 @@ describe("vendor/order-management/index.js - filter, sort, paginate", () => {
 
     test("filterOrders treats the 'incoming' status as pending plus accepted", () => {
         const orders = [
-            makeOrder({ orderId: "a", status: "pending" }),
-            makeOrder({ orderId: "b", status: "accepted" }),
-            makeOrder({ orderId: "c", status: "preparing" }),
-            makeOrder({ orderId: "d", status: "ready" })
+            makeOrder({ orderId: "a", status: "pending", paymentStatus: "paid" }),
+            makeOrder({ orderId: "b", status: "accepted", paymentStatus: "paid" }),
+            makeOrder({ orderId: "c", status: "preparing", paymentStatus: "paid" }),
+            makeOrder({ orderId: "d", status: "ready", paymentStatus: "paid" }),
+            makeOrder({ orderId: "e", status: "pending", paymentStatus: "unpaid" })
         ];
 
         expect(vendorOrderManagementPage.filterOrders(orders, { status: "incoming" }).map(o => o.orderId))
             .toEqual(["a", "b"]);
+        expect(vendorOrderManagementPage.filterOrders(orders, { status: "incoming", payment: "all" }).map(o => o.orderId))
+            .toEqual(["a", "b", "e"]);
     });
 
     test("paginateOrders returns the correct slice and clamps the page index", () => {
@@ -845,6 +861,7 @@ describe("vendor/order-management/index.js - filter, sort, paginate", () => {
                 <select name="payment">
                     <option value="all" selected>All</option>
                     <option value="paid">Paid</option>
+                    <option value="blocked">Blocked</option>
                 </select>
                 <select name="sort">
                     <option value="newest" selected>Newest</option>
@@ -855,16 +872,19 @@ describe("vendor/order-management/index.js - filter, sort, paginate", () => {
         const form = document.getElementById("qf-form");
 
         const incoming = vendorOrderManagementPage.applyQuickFilter(form, "incoming");
-        expect(incoming).toEqual(expect.objectContaining({ status: "incoming", payment: "all" }));
+        expect(incoming).toEqual(expect.objectContaining({ status: "incoming", payment: "paid" }));
 
         const paid = vendorOrderManagementPage.applyQuickFilter(form, "paid");
         expect(paid).toEqual(expect.objectContaining({ status: "all", payment: "paid" }));
 
         const cancelled = vendorOrderManagementPage.applyQuickFilter(form, "cancelled");
-        expect(cancelled).toEqual(expect.objectContaining({ status: "cancelled", payment: "all" }));
+        expect(cancelled).toEqual(expect.objectContaining({ status: "cancelled", payment: "paid" }));
 
         const reset = vendorOrderManagementPage.applyQuickFilter(form, "all");
-        expect(reset).toEqual(expect.objectContaining({ status: "all", payment: "all" }));
+        expect(reset).toEqual(expect.objectContaining({ status: "all", payment: "paid" }));
+
+        const blocked = vendorOrderManagementPage.applyQuickFilter(form, "blocked-payment");
+        expect(blocked).toEqual(expect.objectContaining({ status: "all", payment: "blocked" }));
 
         expect(vendorOrderManagementPage.applyQuickFilter(form, "unknown-key")).toBeNull();
     });
@@ -885,8 +905,9 @@ describe("vendor/order-management/index.js - toolbar integration", () => {
                     <option value="cancelled">Cancelled</option>
                 </select>
                 <select id="vendor-orders-payment-filter" name="payment">
-                    <option value="all" selected>All</option>
-                    <option value="paid">Paid</option>
+                    <option value="all">All</option>
+                    <option value="paid" selected>Paid</option>
+                    <option value="blocked">Blocked</option>
                 </select>
                 <select id="vendor-orders-sort" name="sort">
                     <option value="newest" selected>Newest</option>
@@ -899,6 +920,7 @@ describe("vendor/order-management/index.js - toolbar integration", () => {
                 <li><button type="button" data-quick-filter="incoming">Incoming</button></li>
                 <li><button type="button" data-quick-filter="ready">Ready</button></li>
                 <li><button type="button" data-quick-filter="paid">Paid</button></li>
+                <li><button type="button" data-quick-filter="blocked-payment">Payment Review</button></li>
                 <li><button type="button" data-quick-filter="cancelled">Cancelled</button></li>
             </menu>
             <section id="vendor-orders-container"></section>
@@ -1047,9 +1069,18 @@ describe("vendor/order-management/index.js - toolbar integration", () => {
         readyButton.click();
 
         expect(dom.statusSelect.value).toBe("ready");
-        expect(dom.paymentSelect.value).toBe("all");
+        expect(dom.paymentSelect.value).toBe("paid");
         expect(readyButton.dataset.active).toBe("true");
         expect(paidButton.dataset.active).toBeUndefined();
         expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(2);
+
+        const blockedButton = dom.quickFilters.querySelector('[data-quick-filter="blocked-payment"]');
+        blockedButton.click();
+
+        expect(dom.paymentSelect.value).toBe("blocked");
+        expect(dom.statusSelect.value).toBe("all");
+        expect(blockedButton.dataset.active).toBe("true");
+        expect(dom.container.querySelectorAll(".vendor-order-card")).toHaveLength(1);
+        expect(dom.container.textContent).toContain("Payment is not confirmed");
     });
 });

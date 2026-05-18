@@ -1,1 +1,309 @@
-/* vendor/support/index.css — styles for the vendor support pages. Coming soon. */
+.vendor-shell.vendor-support {
+    background:
+        radial-gradient(circle at top left, rgba(82, 110, 80, 0.10), transparent 30%),
+        radial-gradient(circle at top right, rgba(197, 106, 26, 0.08), transparent 26%),
+        linear-gradient(180deg, #f7faf6 0%, #eef3e9 46%, #e2ead6 100%);
+}
+
+.vendor-shell.vendor-support .page-hero h2 {
+    max-width: 18ch;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-filter-form,
+.vendor-shell.vendor-support .new-ticket-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem 1rem;
+    align-items: end;
+    margin: 0;
+}
+
+.vendor-shell.vendor-support .new-ticket-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-filter-field,
+.vendor-shell.vendor-support .new-ticket-field {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.vendor-shell.vendor-support .new-ticket-field {
+    margin: 0.6rem 0 0;
+    font-weight: 700;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .new-ticket-field-input {
+    margin: 0;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-filter-field label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-filter-field input,
+.vendor-shell.vendor-support .vendor-tickets-filter-field select,
+.vendor-shell.vendor-support .new-ticket-field-input input,
+.vendor-shell.vendor-support .new-ticket-field-input select,
+.vendor-shell.vendor-support .new-ticket-field-input textarea,
+.vendor-shell.vendor-support .ticket-reply-field-input textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid rgba(60, 80, 60, 0.3);
+    border-radius: 0.7rem;
+    background: #fbfdf9;
+    font: inherit;
+    color: #1f3024;
+    box-sizing: border-box;
+}
+
+.vendor-shell.vendor-support .new-ticket-field-input textarea,
+.vendor-shell.vendor-support .ticket-reply-field-input textarea {
+    resize: vertical;
+    min-height: 7rem;
+    line-height: 1.45;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-filter-actions,
+.vendor-shell.vendor-support .new-ticket-form-actions,
+.vendor-shell.vendor-support .ticket-reply-actions,
+.vendor-shell.vendor-support .ticket-actions-menu {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-results-summary {
+    margin-top: 0;
+    color: #1f3024;
+    font-style: italic;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-card {
+    position: relative;
+    overflow: hidden;
+    padding: 1.25rem;
+    border: 1px solid rgba(60, 80, 60, 0.2);
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 252, 0.96);
+    box-shadow: 0 14px 28px rgba(28, 50, 28, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 0.32rem;
+    background: linear-gradient(90deg, rgba(94, 142, 88, 0.9), rgba(197, 106, 26, 0.85));
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-card[data-status="resolved"]::before {
+    background: linear-gradient(90deg, rgba(94, 142, 88, 0.9), rgba(94, 142, 88, 0.6));
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-card[data-status="closed"]::before {
+    background: linear-gradient(90deg, rgba(140, 140, 130, 0.7), rgba(110, 110, 100, 0.6));
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-subject {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-status,
+.vendor-shell.vendor-support .vendor-support-ticket-category {
+    margin: 0;
+    font-weight: 600;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-status[data-tone="success"] { color: #2f5d2a; }
+.vendor-shell.vendor-support .vendor-support-ticket-status[data-tone="error"] { color: #8a2424; }
+.vendor-shell.vendor-support .vendor-support-ticket-status[data-tone="warning"] { color: #8a5b15; }
+.vendor-shell.vendor-support .vendor-support-ticket-status[data-tone="loading"] { color: #5b3a8b; }
+.vendor-shell.vendor-support .vendor-support-ticket-status[data-tone="muted"] { color: #5a5a4f; }
+
+.vendor-shell.vendor-support .vendor-support-ticket-replies,
+.vendor-shell.vendor-support .vendor-support-ticket-order,
+.vendor-shell.vendor-support .vendor-support-ticket-activity {
+    margin: 0;
+    color: #2c3e30;
+    font-size: 0.92rem;
+}
+
+.vendor-shell.vendor-support .vendor-support-ticket-actions {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-pagination {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.vendor-shell.vendor-support .vendor-tickets-pagination-menu {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.vendor-shell.vendor-support .empty-state-message,
+.vendor-shell.vendor-support .loading-message {
+    margin: 0;
+    padding: 1rem;
+    color: #2c3e30;
+    text-align: center;
+    font-style: italic;
+}
+
+.vendor-shell.vendor-support .new-ticket-field-help {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #4a584c;
+}
+
+.vendor-shell.vendor-support .new-ticket-field-error,
+.vendor-shell.vendor-support .ticket-reply-error {
+    margin: 0;
+    min-height: 1.25rem;
+    color: #8a2424;
+    font-size: 0.9rem;
+}
+
+.vendor-shell.vendor-support .new-ticket-field-error[data-state="error"]::before,
+.vendor-shell.vendor-support .ticket-reply-error[data-state="error"]::before {
+    content: "⚠ ";
+}
+
+.vendor-shell.vendor-support [data-busy="true"] {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.vendor-shell.vendor-support .ticket-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.4rem 1rem;
+    margin: 0.5rem 0 0;
+}
+
+.vendor-shell.vendor-support .ticket-summary-grid p {
+    margin: 0;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .ticket-summary-resolution {
+    margin: 0.75rem 0 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0.7rem;
+    background: rgba(94, 142, 88, 0.18);
+    color: #2f5d2a;
+    font-weight: 600;
+}
+
+.vendor-shell.vendor-support .ticket-description {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed rgba(60, 80, 60, 0.25);
+}
+
+.vendor-shell.vendor-support .ticket-description-body,
+.vendor-shell.vendor-support .ticket-timeline-note,
+.vendor-shell.vendor-support .ticket-reply-body {
+    margin: 0.4rem 0 0;
+    white-space: pre-wrap;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .ticket-timeline,
+.vendor-shell.vendor-support .ticket-replies-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.vendor-shell.vendor-support .ticket-timeline-entry {
+    position: relative;
+    padding: 0.65rem 0.9rem 0.65rem 1.4rem;
+    border-left: 3px solid rgba(94, 142, 88, 0.6);
+    background: rgba(255, 255, 252, 0.92);
+    border-radius: 0.5rem;
+}
+
+.vendor-shell.vendor-support .ticket-timeline-entry[data-tone="success"] { border-left-color: rgba(94, 142, 88, 0.9); }
+.vendor-shell.vendor-support .ticket-timeline-entry[data-tone="error"] { border-left-color: rgba(138, 36, 36, 0.85); }
+.vendor-shell.vendor-support .ticket-timeline-entry[data-tone="warning"] { border-left-color: rgba(212, 165, 90, 0.9); }
+.vendor-shell.vendor-support .ticket-timeline-entry[data-tone="loading"] { border-left-color: rgba(91, 58, 139, 0.85); }
+.vendor-shell.vendor-support .ticket-timeline-entry[data-tone="muted"] { border-left-color: rgba(140, 140, 130, 0.6); }
+
+.vendor-shell.vendor-support .ticket-timeline-label,
+.vendor-shell.vendor-support .ticket-reply-author {
+    margin: 0;
+    font-weight: 700;
+    color: #1f3024;
+}
+
+.vendor-shell.vendor-support .ticket-reply-entry {
+    padding: 0.85rem 1rem;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 252, 0.96);
+    border: 1px solid rgba(60, 80, 60, 0.2);
+}
+
+.vendor-shell.vendor-support .ticket-reply-entry[data-author-role="admin"] {
+    background: rgba(217, 232, 216, 0.6);
+    border-color: rgba(94, 142, 88, 0.45);
+}
+
+.vendor-shell.vendor-support .ticket-reply-entry[data-author-role="customer"] {
+    background: rgba(245, 232, 213, 0.7);
+    border-color: rgba(197, 106, 26, 0.35);
+}
+
+.vendor-shell.vendor-support .ticket-replies-empty {
+    margin: 0;
+    padding: 0.75rem;
+    text-align: center;
+    color: #2c3e30;
+    font-style: italic;
+}
+
+.vendor-shell.vendor-support .ticket-reply-form-section[data-state="read-only"] { display: none; }
+
+.vendor-shell.vendor-support .ticket-reply-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
