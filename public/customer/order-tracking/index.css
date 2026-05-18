@@ -17,6 +17,7 @@
 .customer-portal .tracking-notification-card,
 .customer-portal .order-detail-overview,
 .customer-portal .order-detail-items,
+.customer-portal .order-detail-payment,
 .customer-portal .order-detail-timeline,
 .customer-portal .order-detail-help {
     position: relative;
@@ -32,6 +33,7 @@
 .customer-portal .tracking-notification-card::before,
 .customer-portal .order-detail-overview::before,
 .customer-portal .order-detail-items::before,
+.customer-portal .order-detail-payment::before,
 .customer-portal .order-detail-timeline::before,
 .customer-portal .order-detail-help::before {
     content: "";
@@ -145,13 +147,35 @@
 }
 
 .customer-portal .order-detail-overview,
-.customer-portal .order-detail-items {
+.customer-portal .order-detail-items,
+.customer-portal .order-detail-payment,
+.customer-portal .order-detail-timeline {
     grid-column: span 6;
 }
 
-.customer-portal .order-detail-timeline,
 .customer-portal .order-detail-help {
     grid-column: 1 / -1;
+}
+
+.customer-portal .order-detail-overview,
+.customer-portal .order-detail-items,
+.customer-portal .order-detail-payment,
+.customer-portal .order-detail-timeline,
+.customer-portal .order-detail-help {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.customer-portal .order-detail-payment p,
+.customer-portal .order-detail-timeline p,
+.customer-portal #order-detail-payment p,
+.customer-portal #order-detail-timeline p,
+.customer-portal #order-detail-summary p,
+.customer-portal #order-detail-items p {
+    margin: 0.35rem 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .customer-portal .order-summary-list,
@@ -183,8 +207,212 @@
 .customer-portal #notifications-container,
 .customer-portal #order-detail-summary,
 .customer-portal #order-detail-items,
+.customer-portal #order-detail-payment,
 .customer-portal #order-detail-timeline {
     min-height: 4rem;
+}
+
+.customer-portal .orders-toolbar-section {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 5;
+}
+
+.customer-portal .orders-filter-form {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto;
+    gap: 0.85rem 1rem;
+    align-items: end;
+    margin: 0;
+}
+
+.customer-portal .orders-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    min-width: 0;
+}
+
+.customer-portal .orders-filter-field label {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #2f1b12;
+}
+
+.customer-portal .orders-filter-field input,
+.customer-portal .orders-filter-field select {
+    width: 100%;
+    min-height: 2.6rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid rgba(130, 88, 67, 0.28);
+    border-radius: 0.85rem;
+    background: rgba(255, 252, 248, 0.96);
+    color: #2f1b12;
+    font: inherit;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.customer-portal .orders-filter-field input:focus,
+.customer-portal .orders-filter-field select:focus {
+    outline: none;
+    border-color: rgba(197, 106, 26, 0.55);
+    box-shadow: 0 0 0 3px rgba(197, 106, 26, 0.18);
+}
+
+.customer-portal .orders-filter-actions {
+    display: flex;
+    align-items: flex-end;
+    margin: 0;
+}
+
+.customer-portal .orders-filter-actions button {
+    min-height: 2.6rem;
+    white-space: nowrap;
+}
+
+.customer-portal .orders-results-summary {
+    margin: 0 0 1rem;
+    font-weight: 600;
+    color: #73584d;
+}
+
+.customer-portal .orders-results-summary:empty {
+    display: none;
+}
+
+.customer-portal .orders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.15rem;
+    margin: 0;
+    padding: 0;
+}
+
+.customer-portal .orders-grid > .tracking-order-card {
+    margin: 0;
+    height: 100%;
+}
+
+.customer-portal .orders-grid > .tracking-order-card + .tracking-order-card {
+    margin-top: 0;
+}
+
+.customer-portal .orders-grid > .empty-state-message,
+.customer-portal .orders-grid > .loading-message {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 1.5rem;
+    text-align: center;
+    border: 1px dashed rgba(130, 88, 67, 0.28);
+    border-radius: 1rem;
+    background: rgba(255, 252, 248, 0.6);
+}
+
+.customer-portal .notifications-grid > .tracking-notification-card {
+    margin: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.customer-portal .notifications-grid > .tracking-notification-card + .tracking-notification-card {
+    margin-top: 0;
+}
+
+.customer-portal .notifications-grid > .tracking-notification-card .tracking-notification-message {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.customer-portal .notifications-grid > .tracking-notification-card .tracking-notification-actions {
+    margin-top: auto;
+}
+
+.customer-portal .notifications-grid > .tracking-notification-card[data-read="true"] {
+    background: rgba(252, 248, 243, 0.85);
+}
+
+.customer-portal .notifications-bulk-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.9rem;
+    padding: 0;
+    list-style: none;
+}
+
+.customer-portal .notifications-bulk-actions:empty,
+.customer-portal .notifications-bulk-actions li > button[hidden] {
+    display: none;
+}
+
+.customer-portal .orders-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(130, 88, 67, 0.16);
+}
+
+.customer-portal .orders-pagination[hidden] {
+    display: none;
+}
+
+.customer-portal .orders-pagination-status {
+    margin: 0;
+    font-weight: 700;
+    color: #2f1b12;
+}
+
+.customer-portal .orders-pagination-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.customer-portal .orders-pagination-menu button {
+    min-height: 2.6rem;
+    padding: 0.55rem 1.1rem;
+}
+
+.customer-portal .orders-pagination-menu button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+    .customer-portal .orders-filter-form {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .customer-portal .orders-filter-field-search,
+    .customer-portal .orders-filter-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .customer-portal .orders-toolbar-section {
+        position: static;
+    }
+
+    .customer-portal .orders-filter-form {
+        grid-template-columns: 1fr;
+    }
+
+    .customer-portal .orders-pagination {
+        justify-content: center;
+    }
 }
 
 @media (max-width: 980px) {
@@ -194,8 +422,9 @@
 
     .customer-portal .order-detail-overview,
     .customer-portal .order-detail-items,
+    .customer-portal .order-detail-payment,
     .customer-portal .order-detail-timeline,
     .customer-portal .order-detail-help {
-        grid-column: auto;
+        grid-column: 1 / -1;
     }
 }

@@ -9,6 +9,11 @@ describe("shared/payments/payment-status.js", () => {
             PAID: "paid",
             FAILED: "failed"
         });
+        expect(paymentStatus.ACTIVE_PAYMENT_STATUSES).toEqual(["pending"]);
+        expect(paymentStatus.CUSTOMER_ACTION_PAYMENT_STATUSES).toEqual(["unpaid", "failed"]);
+        expect(paymentStatus.RETRYABLE_PAYMENT_STATUSES).toEqual(["unpaid", "failed"]);
+        expect(paymentStatus.ORDER_BLOCKING_PAYMENT_STATUSES).toEqual(["unpaid", "pending", "failed"]);
+        expect(paymentStatus.REFUNDABLE_PAYMENT_STATUSES).toEqual(["paid"]);
         expect(paymentStatus.getDefaultPaymentStatus()).toBe("unpaid");
         expect(paymentStatus.getPaymentStatusList()).toEqual([
             "unpaid",
@@ -17,7 +22,11 @@ describe("shared/payments/payment-status.js", () => {
             "failed"
         ]);
         expect(paymentStatus.getTerminalPaymentStatusList()).toEqual(["paid"]);
+        expect(paymentStatus.getActivePaymentStatusList()).toEqual(["pending"]);
+        expect(paymentStatus.getCustomerActionPaymentStatusList()).toEqual(["unpaid", "failed"]);
         expect(paymentStatus.getRetryablePaymentStatusList()).toEqual(["unpaid", "failed"]);
+        expect(paymentStatus.getOrderBlockingPaymentStatusList()).toEqual(["unpaid", "pending", "failed"]);
+        expect(paymentStatus.getRefundablePaymentStatusList()).toEqual(["paid"]);
     });
 
     test("normalizes payment status aliases", () => {
@@ -38,7 +47,27 @@ describe("shared/payments/payment-status.js", () => {
         expect(paymentStatus.normalizeStatusKey("payment_pending")).toBe("paymentpending");
     });
 
-    test("identifies known, terminal, paid, pending, failed, and retryable statuses", () => {
+    test("returns fresh status lists that callers can mutate safely", () => {
+        const active = paymentStatus.getActivePaymentStatusList();
+        const customerAction = paymentStatus.getCustomerActionPaymentStatusList();
+        const retryable = paymentStatus.getRetryablePaymentStatusList();
+        const blocking = paymentStatus.getOrderBlockingPaymentStatusList();
+        const refundable = paymentStatus.getRefundablePaymentStatusList();
+
+        active.push("mutated");
+        customerAction.push("mutated");
+        retryable.push("mutated");
+        blocking.push("mutated");
+        refundable.push("mutated");
+
+        expect(paymentStatus.getActivePaymentStatusList()).not.toContain("mutated");
+        expect(paymentStatus.getCustomerActionPaymentStatusList()).not.toContain("mutated");
+        expect(paymentStatus.getRetryablePaymentStatusList()).not.toContain("mutated");
+        expect(paymentStatus.getOrderBlockingPaymentStatusList()).not.toContain("mutated");
+        expect(paymentStatus.getRefundablePaymentStatusList()).not.toContain("mutated");
+    });
+
+    test("identifies known, terminal, active, customer-action, blocking, and refundable statuses", () => {
         expect(paymentStatus.isKnownPaymentStatus("verified")).toBe(true);
         expect(paymentStatus.isKnownPaymentStatus("mystery")).toBe(false);
 
@@ -46,12 +75,25 @@ describe("shared/payments/payment-status.js", () => {
         expect(paymentStatus.isTerminalPaymentStatus("pending")).toBe(false);
 
         expect(paymentStatus.isPaymentPaid("success")).toBe(true);
+        expect(paymentStatus.isPaymentUnpaid("awaiting payment")).toBe(true);
         expect(paymentStatus.isPaymentPending("initialized")).toBe(true);
         expect(paymentStatus.isPaymentFailed("declined")).toBe(true);
+        expect(paymentStatus.isPaymentActive("verifying")).toBe(true);
+        expect(paymentStatus.isPaymentActive("paid")).toBe(false);
+        expect(paymentStatus.isPaymentAwaitingCustomerAction("not paid")).toBe(true);
+        expect(paymentStatus.isPaymentAwaitingCustomerAction("failure")).toBe(true);
+        expect(paymentStatus.isPaymentAwaitingCustomerAction("pending")).toBe(false);
 
         expect(paymentStatus.isPaymentRetryable("unpaid")).toBe(true);
         expect(paymentStatus.isPaymentRetryable("failed")).toBe(true);
         expect(paymentStatus.isPaymentRetryable("paid")).toBe(false);
+        expect(paymentStatus.isPaymentBlockingOrder("unpaid")).toBe(true);
+        expect(paymentStatus.isPaymentBlockingOrder("payment pending")).toBe(true);
+        expect(paymentStatus.isPaymentBlockingOrder("declined")).toBe(true);
+        expect(paymentStatus.isPaymentBlockingOrder("verified")).toBe(false);
+        expect(paymentStatus.isPaymentBlockingOrder("mystery")).toBe(false);
+        expect(paymentStatus.isPaymentRefundable("paid")).toBe(true);
+        expect(paymentStatus.isPaymentRefundable("pending")).toBe(false);
     });
 
     test("returns metadata and label helpers for known statuses", () => {

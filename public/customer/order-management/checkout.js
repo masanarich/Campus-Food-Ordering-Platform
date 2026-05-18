@@ -146,6 +146,123 @@
         return null;
     }
 
+    function resolveCheckoutStatus(explicitCheckoutStatus) {
+        if (explicitCheckoutStatus && typeof explicitCheckoutStatus.normalizeCheckoutStatus === "function") {
+            return explicitCheckoutStatus;
+        }
+
+        if (globalScope.checkoutStatus && typeof globalScope.checkoutStatus.normalizeCheckoutStatus === "function") {
+            return globalScope.checkoutStatus;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-status.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutModel(explicitCheckoutModel) {
+        if (explicitCheckoutModel && typeof explicitCheckoutModel.createCheckoutSessionRecord === "function") {
+            return explicitCheckoutModel;
+        }
+
+        if (globalScope.checkoutModel && typeof globalScope.checkoutModel.createCheckoutSessionRecord === "function") {
+            return globalScope.checkoutModel;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutValidation(explicitCheckoutValidation) {
+        if (explicitCheckoutValidation && typeof explicitCheckoutValidation.validateCreateCheckoutInput === "function") {
+            return explicitCheckoutValidation;
+        }
+
+        if (
+            globalScope.checkoutValidation &&
+            typeof globalScope.checkoutValidation.validateCreateCheckoutInput === "function"
+        ) {
+            return globalScope.checkoutValidation;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-validation.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutQueries(explicitCheckoutQueries) {
+        if (explicitCheckoutQueries && typeof explicitCheckoutQueries.fetchResumableCustomerCheckout === "function") {
+            return explicitCheckoutQueries;
+        }
+
+        if (
+            globalScope.checkoutQueries &&
+            typeof globalScope.checkoutQueries.fetchResumableCustomerCheckout === "function"
+        ) {
+            return globalScope.checkoutQueries;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-queries.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveCheckoutService(explicitCheckoutService) {
+        if (explicitCheckoutService && typeof explicitCheckoutService.createCheckout === "function") {
+            return explicitCheckoutService;
+        }
+
+        if (globalScope.checkoutService && typeof globalScope.checkoutService.createCheckout === "function") {
+            return globalScope.checkoutService;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/checkout/checkout-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function buildCheckoutDependencyOptions(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        return {
+            checkoutStatus: resolveCheckoutStatus(safeOptions.checkoutStatus),
+            checkoutModel: resolveCheckoutModel(safeOptions.checkoutModel),
+            checkoutValidation: resolveCheckoutValidation(safeOptions.checkoutValidation),
+            checkoutQueries: resolveCheckoutQueries(safeOptions.checkoutQueries)
+        };
+    }
+
     function supportsDirectOrderCreation(firestoreFns) {
         return !!(
             firestoreFns &&
@@ -170,6 +287,11 @@
         }
 
         return globalScope.location?.search || "";
+    }
+
+    function getRequestedCheckoutId(options = {}) {
+        const urlParams = new URLSearchParams(getLocationSearch(options));
+        return normalizeText(options.checkoutId || options.sessionId || urlParams.get("checkoutId"));
     }
 
     function getCart() {
@@ -401,6 +523,77 @@
         summarySection.appendChild(vendorLine);
         summarySection.appendChild(itemCountLine);
         summarySection.appendChild(totalLine);
+    }
+
+    function getCheckoutStatusMetadata(status, options = {}) {
+        const checkoutStatus = resolveCheckoutStatus(options.checkoutStatus);
+        const normalizedStatus = checkoutStatus && typeof checkoutStatus.normalizeCheckoutStatus === "function"
+            ? checkoutStatus.normalizeCheckoutStatus(status)
+            : normalizeText(status);
+
+        if (checkoutStatus && typeof checkoutStatus.getCheckoutStatusMetadata === "function") {
+            return checkoutStatus.getCheckoutStatusMetadata(normalizedStatus);
+        }
+
+        return {
+            label: normalizedStatus || "Checkout",
+            description: "",
+            actionLabel: "Resume Payment"
+        };
+    }
+
+    function canCancelCheckout(checkoutRecord, options = {}) {
+        const checkoutStatus = resolveCheckoutStatus(options.checkoutStatus);
+        const status = normalizeText(checkoutRecord && checkoutRecord.status);
+
+        if (checkoutStatus && typeof checkoutStatus.isCancellableCheckoutStatus === "function") {
+            return checkoutStatus.isCancellableCheckoutStatus(status);
+        }
+
+        return ["draft", "payment_pending", "payment_failed"].includes(status);
+    }
+
+    function canResumeCheckout(checkoutRecord, options = {}) {
+        const checkoutStatus = resolveCheckoutStatus(options.checkoutStatus);
+        const status = normalizeText(checkoutRecord && checkoutRecord.status);
+
+        if (checkoutStatus && typeof checkoutStatus.isResumableCheckoutStatus === "function") {
+            return checkoutStatus.isResumableCheckoutStatus(status);
+        }
+
+        return ["draft", "payment_pending", "payment_failed"].includes(status);
+    }
+
+    function renderCheckoutSession(checkoutRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const statusElement = safeOptions.sessionStatusElement || null;
+        const resumeButton = safeOptions.resumePaymentButton || null;
+        const cancelButton = safeOptions.cancelCheckoutButton || null;
+        const checkoutId = normalizeText(checkoutRecord && checkoutRecord.checkoutId);
+
+        if (statusElement) {
+            if (!checkoutId) {
+                statusElement.textContent = "No unfinished checkout payment is selected.";
+                statusElement.setAttribute("data-state", "info");
+            } else {
+                const metadata = getCheckoutStatusMetadata(checkoutRecord.status, safeOptions);
+                const reference = normalizeText(checkoutRecord.paymentReference);
+                statusElement.textContent = reference
+                    ? `${metadata.label}: ${metadata.description} Reference ${reference}.`
+                    : `${metadata.label}: ${metadata.description}`;
+                statusElement.setAttribute("data-state", metadata.tone || "info");
+            }
+        }
+
+        if (resumeButton) {
+            resumeButton.disabled = !checkoutId || !canResumeCheckout(checkoutRecord, safeOptions);
+            resumeButton.dataset.checkoutId = checkoutId;
+        }
+
+        if (cancelButton) {
+            cancelButton.disabled = !checkoutId || !canCancelCheckout(checkoutRecord, safeOptions);
+            cancelButton.dataset.checkoutId = checkoutId;
+        }
     }
 
     function updateCheckoutView(context, options = {}) {
@@ -736,6 +929,27 @@
         return "./payment-callback.html";
     }
 
+    function appendUrlQueryParam(url, key, value) {
+        const safeUrl = normalizeText(url);
+        const safeKey = normalizeText(key);
+        const safeValue = normalizeText(value);
+
+        if (!safeUrl || !safeKey || !safeValue) {
+            return safeUrl;
+        }
+
+        const separator = safeUrl.indexOf("?") === -1 ? "?" : "&";
+        return `${safeUrl}${separator}${encodeURIComponent(safeKey)}=${encodeURIComponent(safeValue)}`;
+    }
+
+    function getPaymentCallbackUrlForCheckout(checkoutRecord, options = {}) {
+        return appendUrlQueryParam(
+            getPaymentCallbackUrl(options),
+            "checkoutId",
+            checkoutRecord && checkoutRecord.checkoutId
+        );
+    }
+
     async function updateOrderPaymentPatch(orderRecord, patch, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const safePatch = patch && typeof patch === "object" ? patch : {};
@@ -885,10 +1099,352 @@
         }
     }
 
+    function buildPaymentOrderFromCheckout(checkoutRecord) {
+        const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const checkoutId = normalizeText(checkout.checkoutId || checkout.id);
+        const amount = normalizePrice(checkout.paymentAmount || checkout.total);
+
+        return {
+            orderId: checkoutId,
+            checkoutId,
+            customerUid: normalizeText(checkout.customerUid),
+            customerName: normalizeText(checkout.customerName),
+            customerEmail: normalizeText(checkout.customerEmail),
+            vendorUid: normalizeText(checkout.vendorUid),
+            vendorName: normalizeText(checkout.vendorName),
+            total: normalizePrice(checkout.total || amount),
+            paymentAmount: amount,
+            paymentAmountInMinorUnits: Number.parseInt(checkout.paymentAmountInMinorUnits, 10) || Math.round(amount * 100),
+            paymentCurrency: normalizeText(checkout.paymentCurrency) || "ZAR",
+            paymentProvider: normalizeText(checkout.paymentProvider) || "paystack",
+            paymentReference: normalizeText(checkout.paymentReference),
+            metadata: {
+                checkoutId,
+                customerUid: normalizeText(checkout.customerUid),
+                vendorUid: normalizeText(checkout.vendorUid),
+                source: "checkout-session"
+            }
+        };
+    }
+
+    async function updateCheckoutPaymentPlan(checkoutRecord, initializeResult, options = {}) {
+        const checkoutService = resolveCheckoutService(options.checkoutService);
+
+        if (
+            !checkoutService ||
+            typeof checkoutService.applyInitializedPayment !== "function" ||
+            typeof checkoutService.updateCheckoutWithPlan !== "function"
+        ) {
+            return {
+                success: false,
+                skipped: true,
+                checkout: checkoutRecord
+            };
+        }
+
+        const plan = checkoutService.applyInitializedPayment(
+            checkoutRecord,
+            {
+                reference: initializeResult.reference,
+                accessCode: initializeResult.accessCode,
+                authorizationUrl: initializeResult.authorizationUrl
+            },
+            {
+                ...options,
+                ...buildCheckoutDependencyOptions(options),
+                actorRole: "system"
+            }
+        );
+
+        return checkoutService.updateCheckoutWithPlan(plan, {
+            ...options,
+            ...buildCheckoutDependencyOptions(options)
+        });
+    }
+
+    async function markCheckoutPaymentFailed(checkoutRecord, failureDetails, options = {}) {
+        const checkoutService = resolveCheckoutService(options.checkoutService);
+
+        if (
+            !checkoutService ||
+            typeof checkoutService.applyFailedPayment !== "function" ||
+            typeof checkoutService.updateCheckoutWithPlan !== "function"
+        ) {
+            return {
+                success: false,
+                skipped: true,
+                checkout: checkoutRecord
+            };
+        }
+
+        const plan = checkoutService.applyFailedPayment(
+            checkoutRecord,
+            failureDetails || {},
+            {
+                ...options,
+                ...buildCheckoutDependencyOptions(options),
+                actorRole: "customer"
+            }
+        );
+
+        return checkoutService.updateCheckoutWithPlan(plan, {
+            ...options,
+            ...buildCheckoutDependencyOptions(options)
+        });
+    }
+
+    async function createCheckoutSession(context, currentUser, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkoutService = resolveCheckoutService(safeOptions.checkoutService);
+        const db = safeOptions.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+
+        if (!checkoutService || typeof checkoutService.createCheckout !== "function") {
+            return {
+                success: false,
+                error: {
+                    code: "checkout/service-unavailable",
+                    message: "Checkout session service is not available."
+                }
+            };
+        }
+
+        return checkoutService.createCheckout({
+            ...safeOptions,
+            ...buildCheckoutDependencyOptions(safeOptions),
+            db,
+            firestoreFns,
+            cartItems: context.vendorItems,
+            customer: buildCustomerSnapshot(currentUser),
+            vendorUid: context.vendorUid,
+            vendorName: context.vendorName,
+            notes: normalizeText(safeOptions.orderNotes),
+            metadata: {
+                source: "customer-checkout-page"
+            }
+        });
+    }
+
+    async function initializeCheckoutSessionPayment(checkoutRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkoutService = resolveCheckoutService(safeOptions.checkoutService);
+        const db = safeOptions.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+
+        if (!checkoutService || typeof checkoutService.initializeCheckoutPayment !== "function") {
+            return {
+                success: false,
+                error: {
+                    code: "checkout/service-unavailable",
+                    message: "Checkout session service is not available."
+                }
+            };
+        }
+
+        const prepared = await checkoutService.initializeCheckoutPayment({
+            ...safeOptions,
+            ...buildCheckoutDependencyOptions(safeOptions),
+            db,
+            firestoreFns,
+            checkout: checkoutRecord,
+            callbackUrl: getPaymentCallbackUrlForCheckout(checkoutRecord, safeOptions),
+            actorRole: "customer"
+        });
+
+        if (!prepared.success) {
+            return prepared;
+        }
+
+        const initializePaymentCallable = resolveInitializePaymentCallable(safeOptions);
+
+        if (!initializePaymentCallable) {
+            return {
+                success: false,
+                checkout: prepared.checkout,
+                error: {
+                    code: "checkout/payment-unavailable",
+                    message: "Payment service is not available. Please try again later."
+                }
+            };
+        }
+
+        try {
+            const callableResult = await initializePaymentCallable({
+                order: buildPaymentOrderFromCheckout(prepared.checkout),
+                options: {
+                    callbackUrl: getPaymentCallbackUrlForCheckout(prepared.checkout, safeOptions),
+                    reference: prepared.checkout.paymentReference,
+                    metadata: {
+                        checkoutId: prepared.checkout.checkoutId,
+                        customerUid: prepared.checkout.customerUid,
+                        vendorUid: prepared.checkout.vendorUid,
+                        source: "checkout-session"
+                    }
+                }
+            });
+            const result = normalizeCallableResult(callableResult) || {};
+
+            if (result.success !== true || !normalizeText(result.authorizationUrl)) {
+                await markCheckoutPaymentFailed(prepared.checkout, result.error, {
+                    ...safeOptions,
+                    db,
+                    firestoreFns
+                });
+
+                return {
+                    success: false,
+                    checkout: prepared.checkout,
+                    payment: result.payment || null,
+                    error: result.error || {
+                        code: "checkout/payment-initialize-failed",
+                        message: "Payment could not be started."
+                    }
+                };
+            }
+
+            const savedPayment = await updateCheckoutPaymentPlan(prepared.checkout, result, {
+                ...safeOptions,
+                db,
+                firestoreFns
+            });
+            const checkout = savedPayment.success
+                ? savedPayment.checkout
+                : {
+                    ...prepared.checkout,
+                    paymentReference: normalizeText(result.reference || prepared.checkout.paymentReference),
+                    paymentAccessCode: normalizeText(result.accessCode || prepared.checkout.paymentAccessCode),
+                    paymentAuthorizationUrl: normalizeText(result.authorizationUrl)
+                };
+
+            navigateToPayment(result.authorizationUrl, safeOptions);
+
+            return {
+                success: true,
+                checkout,
+                paymentRequired: true,
+                payment: result.payment || null,
+                authorizationUrl: result.authorizationUrl,
+                accessCode: result.accessCode || "",
+                reference: result.reference || checkout.paymentReference || ""
+            };
+        } catch (error) {
+            await markCheckoutPaymentFailed(prepared.checkout, {
+                message: error?.message || "Payment could not be started."
+            }, {
+                ...safeOptions,
+                db,
+                firestoreFns
+            });
+
+            return {
+                success: false,
+                checkout: prepared.checkout,
+                error: {
+                    code: error?.code || "checkout/payment-initialize-failed",
+                    message: error?.message || "Payment could not be started."
+                }
+            };
+        }
+    }
+
+    async function resumeCheckoutPayment(checkoutRecord, options = {}) {
+        const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const authorizationUrl = normalizeText(checkout.paymentAuthorizationUrl);
+
+        if (authorizationUrl) {
+            navigateToPayment(authorizationUrl, options);
+            return {
+                success: true,
+                checkout,
+                authorizationUrl,
+                resumed: true
+            };
+        }
+
+        return initializeCheckoutSessionPayment(checkout, options);
+    }
+
+    async function cancelCheckoutSession(checkoutRecord, options = {}) {
+        const checkoutService = resolveCheckoutService(options.checkoutService);
+
+        if (!checkoutService || typeof checkoutService.cancelCheckout !== "function") {
+            return {
+                success: false,
+                error: {
+                    code: "checkout/service-unavailable",
+                    message: "Checkout session service is not available."
+                }
+            };
+        }
+
+        return checkoutService.cancelCheckout({
+            ...options,
+            ...buildCheckoutDependencyOptions(options),
+            checkout: checkoutRecord,
+            actorRole: "customer",
+            note: "Customer cancelled checkout before payment was completed."
+        });
+    }
+
+    async function findResumableCheckout(context, currentUser, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkoutQueries = resolveCheckoutQueries(safeOptions.checkoutQueries);
+        const checkoutService = resolveCheckoutService(safeOptions.checkoutService);
+        const db = safeOptions.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+        const checkoutId = getRequestedCheckoutId(safeOptions);
+        const customerUid = normalizeText(currentUser && currentUser.uid);
+
+        if (checkoutId && checkoutService && typeof checkoutService.getCheckoutById === "function") {
+            const checkout = await checkoutService.getCheckoutById({
+                ...safeOptions,
+                ...buildCheckoutDependencyOptions(safeOptions),
+                db,
+                firestoreFns,
+                checkoutId
+            });
+
+            if (
+                checkout &&
+                (!context.vendorUid || checkout.vendorUid === context.vendorUid) &&
+                (!customerUid || checkout.customerUid === customerUid) &&
+                canResumeCheckout(checkout, safeOptions)
+            ) {
+                return checkout;
+            }
+        }
+
+        if (
+            !checkoutQueries ||
+            typeof checkoutQueries.fetchResumableCustomerCheckout !== "function" ||
+            !db ||
+            !customerUid
+        ) {
+            return null;
+        }
+
+        const checkout = await checkoutQueries.fetchResumableCustomerCheckout({
+            ...safeOptions,
+            ...buildCheckoutDependencyOptions(safeOptions),
+            db,
+            firestoreFns,
+            customerUid
+        });
+
+        if (
+            checkout &&
+            (!context.vendorUid || checkout.vendorUid === context.vendorUid) &&
+            canResumeCheckout(checkout, safeOptions)
+        ) {
+            return checkout;
+        }
+
+        return null;
+    }
+
     async function placeOrder(options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const context = safeOptions.context || buildCheckoutContext(safeOptions);
-        const orderService = resolveOrderService(safeOptions.orderService);
         const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
         const db = safeOptions.db || resolveFirestore();
         const auth = safeOptions.auth || resolveAuth();
@@ -926,117 +1482,67 @@
         }
 
         const orderNotes = normalizeText(safeOptions.orderNotes);
-        const canCreateDirectly = supportsDirectOrderCreation(firestoreFns);
 
         try {
-            if (orderService && typeof orderService.createOrders === "function") {
-                let result = null;
+            const resumableCheckout = await findResumableCheckout(context, currentUser, safeOptions);
 
-                try {
-                    result = await orderService.createOrders({
-                        db,
-                        firestoreFns,
-                        cartItems: context.vendorItems,
-                        customer: buildCustomerSnapshot(currentUser),
-                        notes: orderNotes
-                    });
-                } catch (serviceError) {
-                    if (!canCreateDirectly) {
-                        throw serviceError;
-                    }
-
-                    console.warn(`${MODULE_NAME}: Shared order service threw an error. Falling back to direct Firestore create.`, serviceError);
-                }
-
-                if (result && result.success === true) {
-                    const createdOrders = Array.isArray(result.orders) ? result.orders : [];
-                    const paymentResult = await initializeOrderPayment(createdOrders[0], {
-                        ...safeOptions,
-                        db,
-                        firestoreFns,
-                        context
-                    });
-
-                    if (!paymentResult.success) {
-                        return {
-                            success: false,
-                            orders: createdOrders,
-                            payment: paymentResult,
-                            error: paymentResult.error
-                        };
-                    }
-
-                    saveCart(removeVendorItemsFromCart(context.allCartItems, context.vendorUid));
-
-                    return {
-                        success: true,
-                        orders: createdOrders,
-                        createdAt: result.createdAt || null,
-                        payment: paymentResult,
-                        source: "shared-order-service"
-                    };
-                }
-
-                if (result && result.error && result.error.message) {
-                    if (!canCreateDirectly) {
-                        return {
-                            success: false,
-                            error: result.error
-                        };
-                    }
-
-                    console.warn(`${MODULE_NAME}: Shared order service returned an error. Falling back to direct Firestore create.`, result.error);
-                }
-            }
-
-            if (!canCreateDirectly) {
-                return {
-                    success: false,
-                    error: {
-                        code: "checkout/no-firestore-fns",
-                        message: "Firestore functions not available."
-                    }
-                };
-            }
-
-            const fallbackResult = await createOrderDirectly({
-                ...safeOptions,
-                currentUser,
-                context,
-                orderNotes
-            });
-
-            if (fallbackResult && fallbackResult.success) {
-                const createdOrders = Array.isArray(fallbackResult.orders) ? fallbackResult.orders : [];
-                const paymentResult = await initializeOrderPayment(createdOrders[0], {
+            if (resumableCheckout) {
+                const resumedPayment = await resumeCheckoutPayment(resumableCheckout, {
                     ...safeOptions,
                     db,
                     firestoreFns,
                     context
                 });
 
-                if (!paymentResult.success) {
+                if (!resumedPayment.success) {
                     return {
-                        ...fallbackResult,
                         success: false,
-                        payment: paymentResult,
-                        error: paymentResult.error
+                        checkout: resumableCheckout,
+                        payment: resumedPayment,
+                        error: resumedPayment.error
                     };
                 }
 
-                saveCart(removeVendorItemsFromCart(context.allCartItems, context.vendorUid));
                 return {
-                    ...fallbackResult,
-                    payment: paymentResult
+                    success: true,
+                    checkout: resumedPayment.checkout,
+                    payment: resumedPayment,
+                    source: "checkout-session-resume"
+                };
+            }
+
+            const checkoutResult = await createCheckoutSession(context, currentUser, {
+                ...safeOptions,
+                db,
+                firestoreFns,
+                orderNotes
+            });
+
+            if (!checkoutResult.success) {
+                return checkoutResult;
+            }
+
+            const paymentResult = await initializeCheckoutSessionPayment(checkoutResult.checkout, {
+                ...safeOptions,
+                db,
+                firestoreFns,
+                context
+            });
+
+            if (!paymentResult.success) {
+                return {
+                    success: false,
+                    checkout: checkoutResult.checkout,
+                    payment: paymentResult,
+                    error: paymentResult.error
                 };
             }
 
             return {
-                success: false,
-                error: {
-                    code: "checkout/place-order-failed",
-                    message: "Failed to place your order."
-                }
+                success: true,
+                checkout: paymentResult.checkout,
+                payment: paymentResult,
+                source: "checkout-session"
             };
         } catch (error) {
             console.error(`${MODULE_NAME}: placeOrder failed:`, error);
@@ -1045,9 +1551,32 @@
                 success: false,
                 error: {
                     code: error?.code || "checkout/place-order-failed",
-                    message: error?.message || "Failed to place your order."
+                    message: error?.message || "Failed to start checkout payment."
                 }
             };
+        }
+    }
+
+    async function loadAndRenderResumableCheckout(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const context = safeOptions.context || buildCheckoutContext(safeOptions);
+        const auth = safeOptions.auth || resolveAuth();
+        const authFns = resolveAuthFns(safeOptions.authFns);
+        const currentUser = safeOptions.currentUser || await waitForAuthReady(auth, authFns);
+
+        if (!currentUser || !normalizeText(currentUser.uid)) {
+            renderCheckoutSession(null, safeOptions);
+            return null;
+        }
+
+        try {
+            const checkout = await findResumableCheckout(context, currentUser, safeOptions);
+            renderCheckoutSession(checkout, safeOptions);
+            return checkout;
+        } catch (error) {
+            console.warn(`${MODULE_NAME}: Could not load resumable checkout session.`, error);
+            renderCheckoutSession(null, safeOptions);
+            return null;
         }
     }
 
@@ -1055,6 +1584,8 @@
         const safeOptions = options && typeof options === "object" ? options : {};
         const backButtonHost = safeOptions.backButtonHost || null;
         const placeOrderButton = safeOptions.placeOrderButton || null;
+        const resumePaymentButton = safeOptions.resumePaymentButton || null;
+        const cancelCheckoutButton = safeOptions.cancelCheckoutButton || null;
         const notesInput = safeOptions.notesInput || null;
         const statusElement = safeOptions.statusElement || null;
 
@@ -1079,7 +1610,7 @@
                     return;
                 }
 
-                setStatusMessage(statusElement, "Placing your order and starting payment...", "loading");
+                setStatusMessage(statusElement, "Saving checkout and starting payment...", "loading");
 
                 const result = await placeOrder({
                     ...safeOptions,
@@ -1092,7 +1623,7 @@
                         statusElement,
                         result.error && result.error.message
                             ? result.error.message
-                            : "Failed to place your order.",
+                            : "Failed to start checkout payment.",
                         "error"
                     );
 
@@ -1102,13 +1633,93 @@
 
                 const refreshedContext = buildCheckoutContext(safeOptions);
                 updateCheckoutView(refreshedContext, safeOptions);
+                renderCheckoutSession(result.checkout, safeOptions);
                 setStatusMessage(
                     statusElement,
                     result.payment && result.payment.paymentRequired
-                        ? "Order placed. Redirecting you to Paystack to complete payment."
-                        : "Order placed successfully. You can now track it from My Orders.",
+                        ? "Checkout saved. Redirecting you to Paystack to complete payment."
+                        : "Checkout saved. You can resume or cancel it before payment.",
                     "success"
                 );
+            });
+        }
+
+        if (resumePaymentButton && !resumePaymentButton.dataset.bound) {
+            resumePaymentButton.dataset.bound = "true";
+
+            resumePaymentButton.addEventListener("click", async function onResumePaymentClick() {
+                resumePaymentButton.disabled = true;
+                setStatusMessage(statusElement, "Finding your unfinished checkout...", "loading");
+
+                const context = buildCheckoutContext(safeOptions);
+                const checkout = await loadAndRenderResumableCheckout({
+                    ...safeOptions,
+                    context
+                });
+
+                if (!checkout) {
+                    setStatusMessage(statusElement, "No unfinished checkout payment is available to resume.", "error");
+                    resumePaymentButton.disabled = false;
+                    return;
+                }
+
+                const result = await resumeCheckoutPayment(checkout, {
+                    ...safeOptions,
+                    context
+                });
+
+                if (!result.success) {
+                    setStatusMessage(
+                        statusElement,
+                        result.error && result.error.message
+                            ? result.error.message
+                            : "Failed to resume checkout payment.",
+                        "error"
+                    );
+                    resumePaymentButton.disabled = false;
+                    return;
+                }
+
+                renderCheckoutSession(result.checkout, safeOptions);
+                setStatusMessage(statusElement, "Redirecting you to Paystack to complete payment.", "success");
+            });
+        }
+
+        if (cancelCheckoutButton && !cancelCheckoutButton.dataset.bound) {
+            cancelCheckoutButton.dataset.bound = "true";
+
+            cancelCheckoutButton.addEventListener("click", async function onCancelCheckoutClick() {
+                cancelCheckoutButton.disabled = true;
+                setStatusMessage(statusElement, "Cancelling the unfinished checkout...", "loading");
+
+                const context = buildCheckoutContext(safeOptions);
+                const checkout = await loadAndRenderResumableCheckout({
+                    ...safeOptions,
+                    context
+                });
+
+                if (!checkout) {
+                    setStatusMessage(statusElement, "No unfinished checkout payment is available to cancel.", "error");
+                    cancelCheckoutButton.disabled = false;
+                    return;
+                }
+
+                const result = await cancelCheckoutSession(checkout, safeOptions);
+
+                if (!result.success) {
+                    setStatusMessage(
+                        statusElement,
+                        result.error && result.error.message
+                            ? result.error.message
+                            : "Failed to cancel checkout.",
+                        "error"
+                    );
+                    cancelCheckoutButton.disabled = false;
+                    return;
+                }
+
+                renderCheckoutSession(result.checkout, safeOptions);
+                setStatusMessage(statusElement, "Checkout cancelled. Your cart items are still available.", "success");
             });
         }
     }
@@ -1126,6 +1737,9 @@
             const notesSelector = options.notesSelector || "#checkout-notes";
             const placeOrderButtonSelector = options.placeOrderButtonSelector || "#place-order-button";
             const backButtonHostSelector = options.backButtonHostSelector || "#checkout-back-button-host";
+            const sessionStatusSelector = options.sessionStatusSelector || "#checkout-session-status";
+            const resumePaymentButtonSelector = options.resumePaymentButtonSelector || "#resume-payment-button";
+            const cancelCheckoutButtonSelector = options.cancelCheckoutButtonSelector || "#cancel-checkout-button";
 
             const container = globalScope.document.querySelector(containerSelector);
             const summarySection = globalScope.document.querySelector(summarySelector);
@@ -1134,6 +1748,9 @@
             const notesInput = globalScope.document.querySelector(notesSelector);
             const placeOrderButton = globalScope.document.querySelector(placeOrderButtonSelector);
             const backButtonHost = globalScope.document.querySelector(backButtonHostSelector);
+            const sessionStatusElement = globalScope.document.querySelector(sessionStatusSelector);
+            const resumePaymentButton = globalScope.document.querySelector(resumePaymentButtonSelector);
+            const cancelCheckoutButton = globalScope.document.querySelector(cancelCheckoutButtonSelector);
 
             if (!container) {
                 return {
@@ -1160,12 +1777,24 @@
                 vendorNameElement,
                 notesInput,
                 placeOrderButton,
-                backButtonHost
+                backButtonHost,
+                sessionStatusElement,
+                resumePaymentButton,
+                cancelCheckoutButton
+            });
+
+            const resumableCheckout = await loadAndRenderResumableCheckout({
+                ...options,
+                context,
+                sessionStatusElement,
+                resumePaymentButton,
+                cancelCheckoutButton
             });
 
             return {
                 success: true,
-                context
+                context,
+                resumableCheckout
             };
         })();
 
@@ -1192,8 +1821,15 @@
         resolveFunctions,
         resolveFunctionsFns,
         resolveOrderService,
+        resolveCheckoutStatus,
+        resolveCheckoutModel,
+        resolveCheckoutValidation,
+        resolveCheckoutQueries,
+        resolveCheckoutService,
+        buildCheckoutDependencyOptions,
         getFallbackRoutes,
         getLocationSearch,
+        getRequestedCheckoutId,
         getCart,
         saveCart,
         normalizeCartItem,
@@ -1205,6 +1841,10 @@
         createCheckoutItemArticle,
         renderCheckoutItems,
         renderCheckoutSummary,
+        getCheckoutStatusMetadata,
+        canCancelCheckout,
+        canResumeCheckout,
+        renderCheckoutSession,
         updateCheckoutView,
         waitForAuthReady,
         createOrderDirectly,
@@ -1215,10 +1855,21 @@
         resolveInitializePaymentCallable,
         normalizeCallableResult,
         getPaymentCallbackUrl,
+        appendUrlQueryParam,
+        getPaymentCallbackUrlForCheckout,
         updateOrderPaymentPatch,
         navigateToPayment,
         initializeOrderPayment,
+        buildPaymentOrderFromCheckout,
+        updateCheckoutPaymentPlan,
+        markCheckoutPaymentFailed,
+        createCheckoutSession,
+        initializeCheckoutSessionPayment,
+        resumeCheckoutPayment,
+        cancelCheckoutSession,
+        findResumableCheckout,
         placeOrder,
+        loadAndRenderResumableCheckout,
         setupEventListeners,
         init
     };

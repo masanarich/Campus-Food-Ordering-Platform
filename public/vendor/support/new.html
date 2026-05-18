@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>New Support Ticket | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Open a new support ticket as a vendor.">
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+</head>
+
+<body class="vendor-shell vendor-support" data-page="vendor-support-new">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor new ticket navigation">
+            <a href="../index.html">Dashboard</a>
+            <a href="../order-management/index.html">Manage Orders</a>
+            <a href="./index.html">Support &amp; Disputes</a>
+            <a href="./new.html" aria-current="page">New Ticket</a>
+            <a href="../../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main">
+        <section class="page-hero shared-section" aria-labelledby="new-ticket-heading">
+            <h2 id="new-ticket-heading">Open a New Support Ticket</h2>
+
+            <p>
+                Tell us what is happening. You can attach a specific order if your issue is about
+                one of your store's orders.
+            </p>
+
+            <p id="new-ticket-status" aria-live="polite" aria-atomic="true"></p>
+
+            <menu class="action-menu" aria-label="New ticket page actions">
+                <li><a href="./index.html" class="button-secondary">Back to My Tickets</a></li>
+                <li><a href="../index.html" class="button-secondary">Back to Dashboard</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section new-ticket-form-section" aria-labelledby="new-ticket-form-heading">
+            <h3 id="new-ticket-form-heading">Ticket Details</h3>
+
+            <form id="new-ticket-form" class="new-ticket-form" novalidate
+                aria-describedby="new-ticket-form-heading">
+
+                <p class="new-ticket-field">
+                    <label for="new-ticket-subject">Subject</label>
+                </p>
+                <p class="new-ticket-field-input">
+                    <input id="new-ticket-subject" name="subject" type="text"
+                        maxlength="120" required autocomplete="off"
+                        aria-describedby="new-ticket-subject-error"
+                        placeholder="e.g. Payouts question">
+                </p>
+                <p id="new-ticket-subject-error" class="new-ticket-field-error" aria-live="polite"></p>
+
+                <p class="new-ticket-field">
+                    <label for="new-ticket-category">Category</label>
+                </p>
+                <p class="new-ticket-field-input">
+                    <select id="new-ticket-category" name="category" required
+                        aria-describedby="new-ticket-category-error">
+                        <option value="">-- Pick a category --</option>
+                        <option value="order_issue">Order Issue</option>
+                        <option value="payment">Payment Issue</option>
+                        <option value="refund">Refund Request</option>
+                        <option value="account">Account</option>
+                        <option value="abuse">Abuse or Safety</option>
+                        <option value="general">General</option>
+                    </select>
+                </p>
+                <p id="new-ticket-category-error" class="new-ticket-field-error" aria-live="polite"></p>
+
+                <p class="new-ticket-field">
+                    <label for="new-ticket-description">What is going on?</label>
+                </p>
+                <p class="new-ticket-field-input">
+                    <textarea id="new-ticket-description" name="description" required
+                        rows="6" maxlength="4000"
+                        aria-describedby="new-ticket-description-error"
+                        placeholder="Share what happened, when, and how we can help."></textarea>
+                </p>
+                <p id="new-ticket-description-error" class="new-ticket-field-error" aria-live="polite"></p>
+
+                <p class="new-ticket-field">
+                    <label for="new-ticket-order-id">Related order ID (optional)</label>
+                </p>
+                <p class="new-ticket-field-input">
+                    <input id="new-ticket-order-id" name="orderId" type="text"
+                        maxlength="80" autocomplete="off"
+                        aria-describedby="new-ticket-order-id-error new-ticket-order-id-help"
+                        placeholder="e.g. order-12345">
+                </p>
+                <p id="new-ticket-order-id-help" class="new-ticket-field-help">
+                    Required for order, payment, or refund issues. Find it on your
+                    <a href="../order-management/index.html">Manage Orders</a> page.
+                </p>
+                <p id="new-ticket-order-id-error" class="new-ticket-field-error" aria-live="polite"></p>
+
+                <menu class="action-menu new-ticket-form-actions" aria-label="New ticket form actions">
+                    <li><button id="new-ticket-submit" type="submit" class="button-primary">Submit Ticket</button></li>
+                    <li><a href="./index.html" class="button-secondary">Cancel</a></li>
+                </menu>
+            </form>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
+    </footer>
+
+    <script src="../../shared/support/ticket-status.js"></script>
+    <script src="../../shared/support/ticket-categories.js"></script>
+    <script src="../../shared/support/ticket-model.js"></script>
+    <script src="../../shared/support/ticket-queries.js"></script>
+    <script src="../../shared/support/ticket-validation.js"></script>
+    <script src="../../shared/support/ticket-service.js"></script>
+    <script src="../../shared/support/ticket-formatters.js"></script>
+    <script src="./new.js"></script>
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection, doc, getDoc, setDoc, updateDoc, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = { collection, doc, getDoc, setDoc, updateDoc, serverTimestamp };
+
+        if (window.vendorSupportNewPage && typeof window.vendorSupportNewPage.init === "function") {
+            await window.vendorSupportNewPage.init({
+                db, auth,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                ticketService: window.ticketService,
+                ticketCategories: window.ticketCategories,
+                ticketValidation: window.ticketValidation
+            });
+        }
+    </script>
+</body>
+
+</html>

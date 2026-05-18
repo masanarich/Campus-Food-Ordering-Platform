@@ -220,6 +220,133 @@ service cloud.firestore {
     }
 
     // -----------------------------------------------------------------
+    // Support ticket helpers
+    // -----------------------------------------------------------------
+
+    function supportTicketDoc(ticketId) {
+      return get(/databases/$(database)/documents/supportTickets/$(ticketId));
+    }
+
+    function supportTicketExists(ticketId) {
+      return exists(/databases/$(database)/documents/supportTickets/$(ticketId));
+    }
+
+    function isTicketReporter() {
+      return signedIn() && resource.data.reporterUid == request.auth.uid;
+    }
+
+    function isTicketLinkedParty() {
+      return signedIn() && (
+        resource.data.get("customerUid", "") == request.auth.uid ||
+        resource.data.get("vendorUid", "") == request.auth.uid
+      );
+    }
+
+    function isTicketParticipant() {
+      return isTicketReporter() || isTicketLinkedParty() || isAdmin();
+    }
+
+    function isTicketParticipantById(ticketId) {
+      return signedIn() &&
+        supportTicketExists(ticketId) &&
+        (
+          supportTicketDoc(ticketId).data.reporterUid == request.auth.uid ||
+          supportTicketDoc(ticketId).data.get("customerUid", "") == request.auth.uid ||
+          supportTicketDoc(ticketId).data.get("vendorUid", "") == request.auth.uid ||
+          isAdmin()
+        );
+    }
+
+    function isValidTicketCreate() {
+      return signedIn() &&
+        isActiveAccount() &&
+        request.resource.data.reporterUid == request.auth.uid &&
+        request.resource.data.reporterUid is string &&
+        (
+          request.resource.data.reporterRole == "customer" ||
+          request.resource.data.reporterRole == "vendor"
+        ) &&
+        request.resource.data.subject is string &&
+        request.resource.data.subject.size() > 0 &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() > 0 &&
+        request.resource.data.category is string &&
+        request.resource.data.status == "open" &&
+        request.resource.data.get("replyCount", 0) == 0 &&
+        request.resource.data.get("resolvedAt", null) == null &&
+        (
+          !("orderId" in request.resource.data) ||
+          request.resource.data.orderId == "" ||
+          isOrderParticipantById(request.resource.data.orderId)
+        );
+    }
+
+    function ticketImmutableFieldsPreserved() {
+      return request.resource.data.ticketId == resource.data.ticketId &&
+        request.resource.data.reporterUid == resource.data.reporterUid &&
+        request.resource.data.reporterRole == resource.data.reporterRole &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.subject == resource.data.subject &&
+        request.resource.data.description == resource.data.description &&
+        request.resource.data.category == resource.data.category &&
+        request.resource.data.get("orderId", "") == resource.data.get("orderId", "") &&
+        request.resource.data.get("customerUid", "") == resource.data.get("customerUid", "") &&
+        request.resource.data.get("vendorUid", "") == resource.data.get("vendorUid", "");
+    }
+
+    function ticketUpdateAffectsOnlyAllowedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "statusLabel",
+        "priority",
+        "replyCount",
+        "lastReplyAt",
+        "resolvedAt",
+        "resolvedByUid",
+        "resolvedByName",
+        "resolutionNote",
+        "timeline",
+        "updatedAt",
+        "categoryLabel"
+      ]);
+    }
+
+    function participantTicketUpdateAffectsOnlyParticipantKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "statusLabel",
+        "replyCount",
+        "lastReplyAt",
+        "timeline",
+        "updatedAt"
+      ]);
+    }
+
+    function participantStatusChangeIsAllowed() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["status"]) ||
+        (
+          request.resource.data.status == "open" ||
+          request.resource.data.status == "in_progress" ||
+          request.resource.data.status == "awaiting_user" ||
+          request.resource.data.status == "closed"
+        );
+    }
+
+    function isValidTicketUpdate() {
+      return signedIn() &&
+        ticketUpdateAffectsOnlyAllowedKeys() &&
+        ticketImmutableFieldsPreserved() &&
+        (
+          isAdmin() ||
+          (
+            isTicketParticipant() &&
+            participantTicketUpdateAffectsOnlyParticipantKeys() &&
+            participantStatusChangeIsAllowed()
+          )
+        );
+    }
+
+    // -----------------------------------------------------------------
     // Notification helpers
     // -----------------------------------------------------------------
 

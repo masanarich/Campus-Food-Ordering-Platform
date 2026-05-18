@@ -598,3 +598,306 @@ describe("vendor/order-management/notifications.js - data loading and init", () 
         expect(dom.container.textContent).toContain("no vendor notifications");
     });
 });
+
+describe("vendor/order-management/notifications.js - filter, sort, paginate", () => {
+    function makeNotification(overrides) {
+        return {
+            notificationId: "note-x",
+            recipientUid: "vendor-1",
+            recipientRole: "vendor",
+            orderId: "order-x",
+            type: "order_placed",
+            title: "New Order Received",
+            message: "Student placed an order with your store.",
+            read: false,
+            createdAt: "2026-04-20T12:00:00.000Z",
+            ...overrides
+        };
+    }
+
+    test("sortNotifications defaults to newest first by createdAt", () => {
+        const notifications = [
+            makeNotification({ notificationId: "a", createdAt: "2026-01-01T00:00:00Z" }),
+            makeNotification({ notificationId: "b", createdAt: "2026-05-01T00:00:00Z" }),
+            makeNotification({ notificationId: "c", createdAt: "2026-03-01T00:00:00Z" })
+        ];
+
+        const sorted = vendorOrderNotificationsPage.sortNotifications(notifications, "newest");
+
+        expect(sorted.map(n => n.notificationId)).toEqual(["b", "c", "a"]);
+    });
+
+    test("sortNotifications supports oldest", () => {
+        const notifications = [
+            makeNotification({ notificationId: "a", createdAt: "2026-01-01T00:00:00Z" }),
+            makeNotification({ notificationId: "b", createdAt: "2026-05-01T00:00:00Z" }),
+            makeNotification({ notificationId: "c", createdAt: "2026-03-01T00:00:00Z" })
+        ];
+
+        expect(vendorOrderNotificationsPage.sortNotifications(notifications, "oldest").map(n => n.notificationId))
+            .toEqual(["a", "c", "b"]);
+    });
+
+    test("sortNotifications unread-first places unread before read, newest-first within group", () => {
+        const notifications = [
+            makeNotification({ notificationId: "a", read: true, createdAt: "2026-05-01T00:00:00Z" }),
+            makeNotification({ notificationId: "b", read: false, createdAt: "2026-01-01T00:00:00Z" }),
+            makeNotification({ notificationId: "c", read: false, createdAt: "2026-03-01T00:00:00Z" }),
+            makeNotification({ notificationId: "d", read: true, createdAt: "2026-02-01T00:00:00Z" })
+        ];
+
+        const sorted = vendorOrderNotificationsPage.sortNotifications(notifications, "unread-first");
+
+        expect(sorted.map(n => n.notificationId)).toEqual(["c", "b", "a", "d"]);
+    });
+
+    test("searchNotifications narrows by read status", () => {
+        const notifications = [
+            makeNotification({ notificationId: "a", read: false }),
+            makeNotification({ notificationId: "b", read: true }),
+            makeNotification({ notificationId: "c", read: false })
+        ];
+
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { read: "unread" }).map(n => n.notificationId))
+            .toEqual(["a", "c"]);
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { read: "read" }).map(n => n.notificationId))
+            .toEqual(["b"]);
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { read: "all" }).map(n => n.notificationId))
+            .toEqual(["a", "b", "c"]);
+    });
+
+    test("searchNotifications matches title, message, orderId and notification id", () => {
+        const notifications = [
+            makeNotification({ notificationId: "note-1", title: "Prepare", message: "Cook noodles", orderId: "order-aaa" }),
+            makeNotification({ notificationId: "note-2", title: "Collected", message: "Pickup confirmed.", orderId: "order-bbb" }),
+            makeNotification({ notificationId: "note-3", title: "Delayed", message: "Apologies for the wait.", orderId: "order-ccc" })
+        ];
+
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { search: "collected" }).map(n => n.notificationId))
+            .toEqual(["note-2"]);
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { search: "noodles" }).map(n => n.notificationId))
+            .toEqual(["note-1"]);
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { search: "order-ccc" }).map(n => n.notificationId))
+            .toEqual(["note-3"]);
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { search: "note-1" }).map(n => n.notificationId))
+            .toEqual(["note-1"]);
+    });
+
+    test("searchNotifications narrows by type", () => {
+        const notifications = [
+            makeNotification({ notificationId: "a", type: "order_placed" }),
+            makeNotification({ notificationId: "b", type: "order_cancelled" }),
+            makeNotification({ notificationId: "c", type: "order_placed" })
+        ];
+
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { type: "order_cancelled" }).map(n => n.notificationId))
+            .toEqual(["b"]);
+        expect(vendorOrderNotificationsPage.searchNotifications(notifications, { type: "all" }).map(n => n.notificationId))
+            .toEqual(["a", "b", "c"]);
+    });
+
+    test("paginateNotifications returns the correct slice and clamps the page index", () => {
+        const notifications = Array.from({ length: 15 }, (_, index) => makeNotification({
+            notificationId: `note-${index + 1}`
+        }));
+
+        const page1 = vendorOrderNotificationsPage.paginateNotifications(notifications, 1, 6);
+        expect(page1.pageNotifications).toHaveLength(6);
+        expect(page1.totalPages).toBe(3);
+        expect(page1.page).toBe(1);
+
+        const page3 = vendorOrderNotificationsPage.paginateNotifications(notifications, 3, 6);
+        expect(page3.pageNotifications).toHaveLength(3);
+        expect(page3.pageNotifications[0].notificationId).toBe("note-13");
+
+        const clamped = vendorOrderNotificationsPage.paginateNotifications(notifications, 99, 6);
+        expect(clamped.page).toBe(3);
+
+        const empty = vendorOrderNotificationsPage.paginateNotifications([], 1, 6);
+        expect(empty.totalPages).toBe(1);
+        expect(empty.pageNotifications).toHaveLength(0);
+    });
+
+    test("countUnread counts only notifications without a read flag", () => {
+        const notifications = [
+            makeNotification({ read: true }),
+            makeNotification({ read: false }),
+            makeNotification({ read: false }),
+            { /* malformed */ }
+        ];
+
+        expect(vendorOrderNotificationsPage.countUnread(notifications)).toBe(3);
+    });
+
+    test("buildResultSummary distinguishes filtered vs unfiltered and shows unread count", () => {
+        expect(vendorOrderNotificationsPage.buildResultSummary(0, 0, 0)).toBe("");
+        expect(vendorOrderNotificationsPage.buildResultSummary(5, 5, 0))
+            .toBe("Showing all 5 notifications.");
+        expect(vendorOrderNotificationsPage.buildResultSummary(5, 5, 2))
+            .toBe("Showing all 5 notifications (2 unread).");
+        expect(vendorOrderNotificationsPage.buildResultSummary(2, 5, 1))
+            .toBe("Showing 2 of 5 notifications (1 unread).");
+        expect(vendorOrderNotificationsPage.buildResultSummary(1, 1, 0))
+            .toBe("Showing all 1 notification.");
+    });
+});
+
+describe("vendor/order-management/notifications.js - toolbar integration", () => {
+    function setupToolbarDom() {
+        document.body.innerHTML = `
+            <p id="vendor-order-notifications-status"></p>
+            <form id="vendor-notifications-filter-form">
+                <input id="vendor-notifications-search" name="search" type="search" />
+                <select id="vendor-notifications-read-filter" name="read">
+                    <option value="all" selected>All</option>
+                    <option value="unread">Unread</option>
+                    <option value="read">Read</option>
+                </select>
+                <select id="vendor-notifications-type-filter" name="type">
+                    <option value="all" selected>All</option>
+                </select>
+                <select id="vendor-notifications-sort" name="sort">
+                    <option value="newest" selected>Newest</option>
+                    <option value="oldest">Oldest</option>
+                </select>
+            </form>
+            <p id="vendor-notifications-results-summary"></p>
+            <menu>
+                <li>
+                    <button id="vendor-notifications-mark-all-read" type="button" hidden>Mark all as read</button>
+                </li>
+            </menu>
+            <section id="vendor-notifications-container"></section>
+            <nav id="vendor-notifications-pagination" hidden>
+                <p id="vendor-notifications-pagination-status"></p>
+                <menu>
+                    <li><button type="button" data-page-action="prev">Prev</button></li>
+                    <li><button type="button" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
+        `;
+
+        return {
+            container: document.getElementById("vendor-notifications-container"),
+            summary: document.getElementById("vendor-notifications-results-summary"),
+            form: document.getElementById("vendor-notifications-filter-form"),
+            readSelect: document.getElementById("vendor-notifications-read-filter"),
+            bulkButton: document.getElementById("vendor-notifications-mark-all-read"),
+            pagination: document.getElementById("vendor-notifications-pagination"),
+            paginationStatus: document.getElementById("vendor-notifications-pagination-status"),
+            statusElement: document.getElementById("vendor-order-notifications-status")
+        };
+    }
+
+    test("init wires the filter form so unread filter narrows the rendered cards", async () => {
+        const dom = setupToolbarDom();
+
+        const getNotifications = jest.fn(async () => [
+            { notificationId: "note-1", recipientRole: "vendor", title: "First", message: "Unread one", read: false, createdAt: "2026-04-01T00:00:00Z" },
+            { notificationId: "note-2", recipientRole: "vendor", title: "Second", message: "Read one", read: true, createdAt: "2026-04-02T00:00:00Z" },
+            { notificationId: "note-3", recipientRole: "vendor", title: "Third", message: "Unread two", read: false, createdAt: "2026-04-03T00:00:00Z" }
+        ]);
+
+        await vendorOrderNotificationsPage.init({
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getNotifications }
+        });
+
+        expect(dom.container.querySelectorAll(".vendor-notification-card")).toHaveLength(3);
+        expect(dom.summary.textContent).toContain("all 3");
+        expect(dom.summary.textContent).toContain("2 unread");
+        expect(dom.bulkButton.hidden).toBe(false);
+        expect(dom.bulkButton.textContent).toContain("Mark all as read (2)");
+
+        dom.readSelect.value = "unread";
+        dom.form.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(dom.container.querySelectorAll(".vendor-notification-card")).toHaveLength(2);
+        expect(dom.summary.textContent).toContain("2 of 3");
+    });
+
+    test("init paginates vendor notifications with the configured page size and Next moves to page 2", async () => {
+        const dom = setupToolbarDom();
+
+        const items = Array.from({ length: 8 }, (_, index) => ({
+            notificationId: `note-${index + 1}`,
+            recipientRole: "vendor",
+            title: `Title ${index + 1}`,
+            message: `Message ${index + 1}`,
+            read: index % 2 === 0,
+            createdAt: `2026-04-${String(index + 1).padStart(2, "0")}T00:00:00Z`
+        }));
+
+        const getNotifications = jest.fn(async () => items);
+
+        await vendorOrderNotificationsPage.init({
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+            },
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getNotifications },
+            pageSize: 3
+        });
+
+        expect(dom.container.querySelectorAll(".vendor-notification-card")).toHaveLength(3);
+        expect(dom.pagination.hasAttribute("hidden")).toBe(false);
+        expect(dom.paginationStatus.textContent).toBe("Page 1 of 3");
+
+        dom.pagination.querySelector('[data-page-action="next"]').click();
+
+        expect(dom.paginationStatus.textContent).toBe("Page 2 of 3");
+        expect(dom.container.querySelectorAll(".vendor-notification-card")).toHaveLength(3);
+    });
+
+    test("Mark all as read calls updateDoc for every unread vendor notification", async () => {
+        const dom = setupToolbarDom();
+
+        const updateDoc = jest.fn(async () => undefined);
+        const firestoreFns = {
+            doc: jest.fn((_, __, id) => ({ kind: "doc-ref", id })),
+            updateDoc
+        };
+        window.firestoreFns = firestoreFns;
+
+        try {
+            const getNotifications = jest.fn(async () => [
+                { notificationId: "note-1", recipientRole: "vendor", title: "A", read: false, createdAt: "2026-04-01T00:00:00Z" },
+                { notificationId: "note-2", recipientRole: "vendor", title: "B", read: true, createdAt: "2026-04-02T00:00:00Z" },
+                { notificationId: "note-3", recipientRole: "vendor", title: "C", read: false, createdAt: "2026-04-03T00:00:00Z" }
+            ]);
+
+            await vendorOrderNotificationsPage.init({
+                currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+                authService: {
+                    getCurrentUserProfile: jest.fn(async () => createVendorProfile())
+                },
+                db: { kind: "db" },
+                firestoreFns,
+                orderService: { getNotifications }
+            });
+
+            expect(dom.bulkButton.hidden).toBe(false);
+
+            dom.bulkButton.click();
+
+            // Allow the pending markNotificationRead promises to flush.
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(updateDoc).toHaveBeenCalledTimes(2);
+            const unreadCards = dom.container.querySelectorAll('.vendor-notification-card[data-read="false"]');
+            expect(unreadCards).toHaveLength(0);
+            expect(dom.bulkButton.hidden).toBe(true);
+        } finally {
+            delete window.firestoreFns;
+        }
+    });
+});
