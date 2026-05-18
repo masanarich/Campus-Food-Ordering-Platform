@@ -148,24 +148,6 @@
         return null;
     }
 
-    function resolveCheckoutStatus(explicitCheckoutStatus) {
-        if (
-            explicitCheckoutStatus &&
-            typeof explicitCheckoutStatus.normalizeCheckoutStatus === "function"
-        ) {
-            return explicitCheckoutStatus;
-        }
-
-        if (
-            globalScope.checkoutStatus &&
-            typeof globalScope.checkoutStatus.normalizeCheckoutStatus === "function"
-        ) {
-            return globalScope.checkoutStatus;
-        }
-
-        return null;
-    }
-
     function getFallbackRoutes() {
         return {
             home: "../index.html",
@@ -180,27 +162,21 @@
 
     function buildRetryPaymentUrl(orderRecord) {
         const route = getFallbackRoutes().checkout;
-        const checkoutId = normalizeText(
-            orderRecord && (orderRecord.checkoutId || orderRecord.sessionId)
-        );
         const vendorUid = normalizeText(orderRecord && orderRecord.vendorUid);
+
+        if (!vendorUid) {
+            return route;
+        }
+
         const vendorName = normalizeText(orderRecord && orderRecord.vendorName);
         const params = new URLSearchParams();
-
-        if (checkoutId) {
-            params.set("checkoutId", checkoutId);
-        }
-
-        if (vendorUid) {
-            params.set("vendorUid", vendorUid);
-        }
+        params.set("vendorUid", vendorUid);
 
         if (vendorName) {
             params.set("vendorName", vendorName);
         }
 
-        const query = params.toString();
-        return query ? `${route}?${query}` : route;
+        return `${route}?${params.toString()}`;
     }
 
     function buildVendorDetailUrl(orderId) {
@@ -526,77 +502,16 @@
         }
     }
 
-    function normalizeOrderPaymentStatus(orderRecord, options = {}) {
-        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
-        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
-        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
-
-        if (paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function") {
-            return paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid");
-        }
-
-        return rawPaymentStatus.toLowerCase() || "unpaid";
-    }
-
-    function isOrderPaymentPaid(orderRecord, options = {}) {
-        const status = normalizeOrderPaymentStatus(orderRecord, options);
-        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
-
-        if (paymentStatus && typeof paymentStatus.isPaymentPaid === "function") {
-            return paymentStatus.isPaymentPaid(status);
-        }
-
-        return status === "paid";
-    }
-
-    function isOrderPaymentResumable(orderRecord, options = {}) {
-        const status = normalizeOrderPaymentStatus(orderRecord, options);
-        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
-
-        if (paymentStatus && typeof paymentStatus.isPaymentPaid === "function" && paymentStatus.isPaymentPaid(status)) {
-            return false;
-        }
-
-        if (paymentStatus && typeof paymentStatus.isPaymentPending === "function" && paymentStatus.isPaymentPending(status)) {
-            return true;
-        }
-
-        if (paymentStatus && typeof paymentStatus.isPaymentRetryable === "function") {
-            return paymentStatus.isPaymentRetryable(status);
-        }
-
-        return status === "unpaid" || status === "pending" || status === "failed";
-    }
-
-    function getPaymentActionLabel(status, paymentStatus) {
-        const normalizedStatus = normalizeLowerText(status);
-
-        if (normalizedStatus === "pending") {
-            return "Resume Payment";
-        }
-
-        if (normalizedStatus === "failed") {
-            return "Retry Payment";
-        }
-
-        if (paymentStatus && typeof paymentStatus.getPaymentStatusActionLabel === "function") {
-            const label = normalizeText(paymentStatus.getPaymentStatusActionLabel(normalizedStatus));
-
-            if (label && label !== "Start Payment") {
-                return label;
-            }
-        }
-
-        return "Pay Now";
-    }
-
     function buildPaymentView(orderRecord, options = {}) {
         const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const safeOptions = options && typeof options === "object" ? options : {};
         const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
-        const checkoutStatus = resolveCheckoutStatus(safeOptions.checkoutStatus);
         const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
-        const normalizedPaymentStatus = normalizeOrderPaymentStatus(safeOrder, safeOptions);
+        const rawPaymentStatus = normalizeText(safeOrder.paymentStatus);
+        const normalizedPaymentStatus =
+            paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
+                ? paymentStatus.normalizePaymentStatus(rawPaymentStatus, "unpaid")
+                : rawPaymentStatus.toLowerCase() || "unpaid";
         const statusLabel =
             paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
                 ? paymentStatus.getPaymentStatusLabel(normalizedPaymentStatus)
@@ -624,22 +539,11 @@
         const provider = normalizeText(safeOrder.paymentProvider) || "paystack";
         const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
         const reference = normalizeText(safeOrder.paymentReference);
-        const checkoutId = normalizeText(safeOrder.checkoutId || safeOrder.sessionId);
-        const rawCheckoutStatus = normalizeText(safeOrder.checkoutStatus || safeOrder.checkoutSessionStatus);
-        const normalizedCheckoutStatus =
-            checkoutStatus && typeof checkoutStatus.normalizeCheckoutStatus === "function"
-                ? checkoutStatus.normalizeCheckoutStatus(rawCheckoutStatus, "")
-                : rawCheckoutStatus.toLowerCase();
-        const checkoutStatusLabel =
-            normalizedCheckoutStatus && checkoutStatus && typeof checkoutStatus.getCheckoutStatusLabel === "function"
-                ? checkoutStatus.getCheckoutStatusLabel(normalizedCheckoutStatus)
-                : normalizedCheckoutStatus;
         const paidAtText = formatPaymentDate(safeOrder.paymentPaidAt || safeOrder.paymentVerifiedAt, safeOptions);
         const failedAtText = formatPaymentDate(safeOrder.paymentFailedAt, safeOptions);
         const failureReason = normalizeText(safeOrder.paymentFailureReason);
 
-        const canRetry = isOrderPaymentResumable(safeOrder, safeOptions);
-        const actionLabel = canRetry ? getPaymentActionLabel(normalizedPaymentStatus, paymentStatus) : "";
+        const canRetry = normalizedPaymentStatus === "unpaid" || normalizedPaymentStatus === "failed";
 
         return {
             status: normalizedPaymentStatus,
@@ -652,17 +556,10 @@
             provider,
             providerLabel,
             reference,
-            checkoutId,
-            checkoutStatus: normalizedCheckoutStatus,
-            checkoutStatusLabel,
             paidAtText,
             failedAtText,
             failureReason,
             canRetry,
-            actionLabel,
-            guardMessage: canRetry
-                ? "Complete payment before this order can move through vendor fulfilment."
-                : "",
             retryUrl: canRetry ? buildRetryPaymentUrl(safeOrder) : ""
         };
     }
@@ -715,17 +612,11 @@
         appendDetail("Amount", view.amountText, "order-detail-payment-amount");
         appendDetail("Provider", view.providerLabel, "order-detail-payment-provider");
         appendDetail("Reference", view.reference, "order-detail-payment-reference");
-        appendDetail("Checkout ID", view.checkoutId, "order-detail-payment-checkout-id");
-        appendDetail("Checkout status", view.checkoutStatusLabel, "order-detail-payment-checkout-status");
         appendDetail("Paid at", view.paidAtText, "order-detail-payment-paid-at");
         appendDetail("Failed at", view.failedAtText, "order-detail-payment-failed-at");
         appendDetail("Failure reason", view.failureReason, "order-detail-payment-failure-reason");
 
         container.appendChild(list);
-
-        if (view.guardMessage) {
-            container.appendChild(createParagraph(view.guardMessage, "order-detail-payment-guard"));
-        }
 
         if (view.canRetry && view.retryUrl) {
             const menu = doc.createElement("menu");
@@ -736,7 +627,7 @@
             const link = doc.createElement("a");
             link.href = view.retryUrl;
             link.className = "button-primary";
-            link.textContent = view.actionLabel;
+            link.textContent = view.status === "failed" ? "Retry Payment" : "Pay Now";
 
             item.appendChild(link);
             menu.appendChild(item);
@@ -868,10 +759,6 @@
             return null;
         }
 
-        if (!isOrderPaymentPaid(orderRecord, options)) {
-            return null;
-        }
-
         if (orderRecord && orderRecord.customerConfirmedCollected === true) {
             return null;
         }
@@ -906,14 +793,6 @@
         const action = getCustomerCollectionAction(orderRecord, options);
 
         if (!action) {
-            if (orderRecord && !isOrderPaymentPaid(orderRecord, options)) {
-                container.appendChild(createParagraph(
-                    "Complete payment before customer order actions become available.",
-                    "empty-state-message"
-                ));
-                return;
-            }
-
             if (
                 orderRecord &&
                 normalizeLowerText(orderRecord.status) === "ready" &&
@@ -1157,7 +1036,6 @@
         resolveOrderStatus,
         resolvePaymentStatus,
         resolvePaymentFormatters,
-        resolveCheckoutStatus,
         getFallbackRoutes,
         buildVendorDetailUrl,
         buildRetryPaymentUrl,
@@ -1170,10 +1048,6 @@
         renderOrderTimeline,
         getPaymentDateValue,
         formatPaymentDate,
-        normalizeOrderPaymentStatus,
-        isOrderPaymentPaid,
-        isOrderPaymentResumable,
-        getPaymentActionLabel,
         buildPaymentView,
         renderOrderPayment,
         renderEmptyState,

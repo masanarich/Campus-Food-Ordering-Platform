@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Analytics | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Vendor analytics dashboard showing sales performance, peak hours, and popular items.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./analytics.css">
+    <!-- Chart.js for interactive charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body class="vendor-shell analytics-page">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor analytics navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./shop.html">Shop Details</a>
+            <a href="./products.html">Manage Menu</a>
+            <a href="./order-management/index.html">Manage Orders</a>
+            <a href="./analytics.html" aria-current="page">Analytics</a>
+            <a href="./order-management/notifications.html">Notifications</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <section class="analytics-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="analytics-sidebar" aria-label="Analytics sections navigation">
+            <header class="sidebar-header">
+                <a href="./index.html" class="back-button" title="Back to Dashboard">
+                    <i class="back-icon" aria-hidden="true">←</i>
+                    <strong class="back-text">Back</strong>
+                </a>
+            </header>
+
+            <nav class="sidebar-menu" aria-label="Analytics menu">
+                <button class="menu-item active" data-section="overview" type="button">
+                    <i class="menu-icon" aria-hidden="true">📊</i>
+                    <strong class="menu-label">Overview</strong>
+                </button>
+                <button class="menu-item" data-section="revenue" type="button">
+                    <i class="menu-icon" aria-hidden="true">💰</i>
+                    <strong class="menu-label">Revenue</strong>
+                </button>
+                <button class="menu-item" data-section="orders" type="button">
+                    <i class="menu-icon" aria-hidden="true">📦</i>
+                    <strong class="menu-label">Orders</strong>
+                </button>
+                <button class="menu-item" data-section="items" type="button">
+                    <i class="menu-icon" aria-hidden="true">🍽️</i>
+                    <strong class="menu-label">Items</strong>
+                </button>
+                <button class="menu-item" data-section="peak-hours" type="button">
+                    <i class="menu-icon" aria-hidden="true">⏰</i>
+                    <strong class="menu-label">Peak Hours</strong>
+                </button>
+                <button class="menu-item" data-section="categories" type="button">
+                    <i class="menu-icon" aria-hidden="true">🏷️</i>
+                    <strong class="menu-label">Categories</strong>
+                </button>
+            </nav>
+
+            <section class="sidebar-actions">
+                <button id="refresh-data-button" class="action-button refresh" type="button" title="Refresh data">
+                    🔄 Refresh
+                </button>
+                <button id="export-csv-button" class="action-button export" type="button" title="Export to CSV">
+                    📥 Export
+                </button>
+            </section>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="analytics-main">
+
+            <!-- Hero Section -->
+            <section class="analytics-hero" aria-labelledby="analytics-heading">
+                <section class="hero-content">
+                    <h2 id="analytics-heading">Business Analytics Dashboard</h2>
+                    <p>Track your shop's performance with detailed insights into sales trends, peak hours, and popular items.</p>
+                    <p id="analytics-status" aria-live="polite" aria-atomic="true"></p>
+                </section>
+
+                <!-- Date Range Filter -->
+                <section class="analytics-filters" aria-label="Analytics filters">
+                    <section class="filter-group">
+                        <label for="start-date-input">Start Date:</label>
+                        <input type="date" id="start-date-input" />
+                    </section>
+
+                    <section class="filter-group">
+                        <label for="end-date-input">End Date:</label>
+                        <input type="date" id="end-date-input" />
+                    </section>
+
+                    <section class="filter-actions">
+                        <button id="apply-filter-button" class="button-primary" type="button">Apply Filter</button>
+                        <button id="reset-filter-button" class="button-secondary" type="button">Reset</button>
+                    </section>
+                </section>
+            </section>
+
+            <!-- SECTION: Overview -->
+            <section id="overview-section" class="content-section active">
+                <!-- Key Metrics Section -->
+                <section class="section-block metrics-block">
+                    <h3>Key Performance Indicators</h3>
+                    <section class="metrics-grid" aria-label="KPI metrics">
+                        <article class="metric-card">
+                            <h4>Total Revenue</h4>
+                            <p class="metric-value" id="total-revenue">ZAR 0.00</p>
+                            <p class="metric-label">for selected period</p>
+                        </article>
+
+                        <article class="metric-card">
+                            <h4>Total Orders</h4>
+                            <p class="metric-value" id="total-orders">0</p>
+                            <p class="metric-label">completed orders</p>
+                        </article>
+
+                        <article class="metric-card">
+                            <h4>Average Order Value</h4>
+                            <p class="metric-value" id="avg-order-value">ZAR 0.00</p>
+                            <p class="metric-label">per order</p>
+                        </article>
+
+                        <article class="metric-card">
+                            <h4>Completion Rate</h4>
+                            <p class="metric-value" id="completion-rate">0%</p>
+                            <p class="metric-label">of all orders</p>
+                        </article>
+
+                        <article class="metric-card">
+                            <h4>Total Items Sold</h4>
+                            <p class="metric-value" id="total-items-sold">0</p>
+                            <p class="metric-label">units</p>
+                        </article>
+
+                        <article class="metric-card">
+                            <h4>Average Items per Order</h4>
+                            <p class="metric-value" id="avg-items-per-order">0</p>
+                            <p class="metric-label">items</p>
+                        </article>
+                    </section>
+                </section>
+
+                <!-- Insights Section -->
+                <section class="section-block insights-block">
+                    <h3>Recommendations & Insights</h3>
+                    <section id="insights-container" aria-live="polite" aria-atomic="true">
+                        <p class="loading-message">Generating insights...</p>
+                    </section>
+                </section>
+            </section>
+
+            <!-- SECTION: Revenue Analytics -->
+            <section id="revenue-section" class="content-section">
+                <section class="section-block">
+                    <h3>Revenue Analytics</h3>
+                    <section class="charts-container">
+                        <!-- Daily Revenue Trend -->
+                        <article class="chart-card">
+                            <h4>Daily Revenue Trend</h4>
+                            <p class="chart-description">Revenue over time - track your sales performance</p>
+                            <figure class="chart-wrapper">
+                                <canvas id="revenue-trend-chart"></canvas>
+                            </figure>
+                        </article>
+
+                        <!-- Weekly Comparison -->
+                        <article class="chart-card">
+                            <h4>Weekly Comparison</h4>
+                            <p class="chart-description">Compare weekly revenue trends</p>
+                            <figure class="chart-wrapper">
+                                <canvas id="weekly-chart"></canvas>
+                            </figure>
+                        </article>
+                    </section>
+                </section>
+            </section>
+
+            <!-- SECTION: Orders Analytics -->
+            <section id="orders-section" class="content-section">
+                <section class="section-block">
+                    <h3>Order Analytics</h3>
+                    <section class="charts-container">
+                        <!-- Order Status Distribution -->
+                        <article class="chart-card">
+                            <h4>Order Status Distribution</h4>
+                            <p class="chart-description">Completed, pending, and cancelled orders breakdown</p>
+                            <figure class="chart-wrapper">
+                                <canvas id="status-distribution-chart"></canvas>
+                            </figure>
+                        </article>
+                    </section>
+                </section>
+            </section>
+
+            <!-- SECTION: Items Performance -->
+            <section id="items-section" class="content-section">
+                <section class="section-block">
+                    <h3>Items Performance</h3>
+                    <section class="details-grid">
+                        <!-- Top Items Table -->
+                        <article class="details-card">
+                            <h4>🌟 Top 10 Items</h4>
+                            <section class="table-wrapper">
+                                <table id="top-items-table" class="analytics-table" aria-label="Top performing items">
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Item Name</th>
+                                            <th>Category</th>
+                                            <th>Qty Sold</th>
+                                            <th>Revenue</th>
+                                            <th>Avg Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="6" class="loading-message">Loading item data...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </section>
+                        </article>
+
+                        <!-- Poor Performing Items Table -->
+                        <article class="details-card">
+                            <h4>⚠️ Bottom Items (Needs Attention)</h4>
+                            <section class="table-wrapper">
+                                <table id="bottom-items-table" class="analytics-table" aria-label="Bottom performing items">
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Item Name</th>
+                                            <th>Category</th>
+                                            <th>Qty Sold</th>
+                                            <th>Revenue</th>
+                                            <th>Avg Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="6" class="loading-message">Loading item data...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </section>
+                        </article>
+                    </section>
+
+                    <!-- Top Selling Items Chart -->
+                    <section class="charts-container" style="margin-top: 2rem;">
+                        <article class="chart-card">
+                            <h4>Top Selling Items</h4>
+                            <p class="chart-description">Your best-selling menu items by quantity sold</p>
+                            <figure class="chart-wrapper">
+                                <canvas id="top-items-chart"></canvas>
+                            </figure>
+                        </article>
+                    </section>
+                </section>
+            </section>
+
+            <!-- SECTION: Peak Hours -->
+            <section id="peak-hours-section" class="content-section">
+                <section class="section-block">
+                    <h3>Peak Hours Analysis</h3>
+                    <section class="charts-container">
+                        <article class="chart-card">
+                            <h4>Orders by Hour</h4>
+                            <p class="chart-description">Identify when customers order most frequently to optimize staffing</p>
+                            <figure class="chart-wrapper">
+                                <canvas id="peak-hours-chart"></canvas>
+                            </figure>
+                        </article>
+                    </section>
+                </section>
+            </section>
+
+            <!-- SECTION: Categories Performance -->
+            <section id="categories-section" class="content-section">
+                <section class="section-block">
+                    <h3>Category Performance</h3>
+                    <section class="charts-container">
+                        <article class="chart-card">
+                            <h4>Revenue by Category</h4>
+                            <p class="chart-description">Understand which product categories generate most revenue</p>
+                            <figure class="chart-wrapper">
+                                <canvas id="category-chart"></canvas>
+                            </figure>
+                        </article>
+                    </section>
+                </section>
+            </section>
+
+        </main>
+    </section>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="../shared/orders/order-status.js"></script>
+    <script src="../shared/orders/order-model.js"></script>
+    <script src="../shared/orders/order-queries.js"></script>
+    <script src="../shared/orders/order-service.js"></script>
+    <script src="../shared/orders/order-formatters.js"></script>
+    <script src="../shared/payments/payment-status.js"></script>
+    <script src="../shared/payments/payment-model.js"></script>
+    <script src="../shared/payments/payment-formatters.js"></script>
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db, auth } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.db = db;
+        window.auth = auth;
+        window.authService = authService;
+        window.authFns = {
+            onAuthStateChanged
+        };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            getDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            doc
+        };
+    </script>
+    <script defer src="./analytics.js"></script>
+</body>
+
+</html>
