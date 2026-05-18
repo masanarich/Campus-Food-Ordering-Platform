@@ -70,6 +70,7 @@
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
       font-size: 1.1rem;
+      font-style: normal;
     }
 
     nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
@@ -83,7 +84,7 @@
 
     nav.sidebar ul li a:hover { background: var(--cream); color: var(--ink); }
     nav.sidebar ul li a.active { background: var(--lavender); color: var(--lav-d); }
-    nav.sidebar ul li a .nav-icon { font-size: 1.1rem; }
+    nav.sidebar ul li a .nav-icon { font-size: 1.1rem; font-style: normal; }
 
     main {
       padding: 2.5rem 2rem;
@@ -124,8 +125,8 @@
       box-shadow: 0 0 0 3px var(--lavender);
     }
 
-    .date-sep { color: var(--muted); font-size: 0.85rem; }
-    .controls-bar .spacer { flex: 1; }
+    .date-sep { color: var(--muted); font-size: 0.85rem; font-style: normal; }
+    .controls-bar .spacer { flex: 1; border: none; }
 
     .btn {
       font-family: var(--font); font-size: 0.85rem; font-weight: 700;
@@ -319,14 +320,14 @@
 
   <nav class="sidebar" id="sidebar" aria-label="Main navigation">
     <header class="sidebar-logo">
-      <span class="logo-icon" aria-hidden="true">🍔</span>
+      <i class="logo-icon" aria-hidden="true">🍔</i>
       Campus Eats
     </header>
     <ul>
-      <li><a href="index.html"><span class="nav-icon">🏠</span> Dashboard</a></li>
-      <li><a href="users.html"><span class="nav-icon">👥</span> Users</a></li>
-      <li><a href="disputes.html"><span class="nav-icon">⚖️</span> Disputes</a></li>
-      <li><a href="analytics.html" class="active" aria-current="page"><span class="nav-icon">📊</span> Analytics</a></li>
+      <li><a href="index.html"><i class="nav-icon" aria-hidden="true">🏠</i> Dashboard</a></li>
+      <li><a href="users.html"><i class="nav-icon" aria-hidden="true">👥</i> Users</a></li>
+      <li><a href="disputes.html"><i class="nav-icon" aria-hidden="true">⚖️</i> Disputes</a></li>
+      <li><a href="analytics.html" class="active" aria-current="page"><i class="nav-icon" aria-hidden="true">📊</i> Analytics</a></li>
     </ul>
   </nav>
 
@@ -344,10 +345,10 @@
         <option value="all">🏪 All vendors</option>
       </select>
       <input type="date" id="dateFrom" aria-label="Date from" />
-      <span class="date-sep">→</span>
+      <i class="date-sep" aria-hidden="true">→</i>
       <input type="date" id="dateTo" aria-label="Date to" />
       <button class="btn" onclick="loadAll()">↺ Refresh</button>
-      <span class="spacer"></span>
+      <hr class="spacer" />
       <button class="btn" onclick="exportCSV()">↓ Export CSV</button>
       <button class="btn btn-primary" onclick="exportPDF()">↓ Export PDF</button>
     </fieldset>
@@ -358,7 +359,6 @@
       <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-custom" onclick="switchTab('custom', this)">🔧 Custom view</button>
     </nav>
 
-    <!-- TAB 1: SALES -->
     <section class="tab-panel active" id="tab-sales" role="tabpanel">
       <section class="metrics-grid" id="salesMetrics" aria-label="Summary metrics">
         <article class="metric-card skeleton" aria-hidden="true"></article>
@@ -383,7 +383,6 @@
       </section>
     </section>
 
-    <!-- TAB 2: PEAK HOURS -->
     <section class="tab-panel" id="tab-peak" role="tabpanel">
       <section class="two-col">
         <section class="chart-card">
@@ -394,6 +393,7 @@
             <canvas id="hourlyChart" role="img" aria-label="Bar chart of orders per hour"></canvas>
           </figure>
         </section>
+
         <section class="chart-card">
           <header class="chart-header">
             <hgroup><h3>Orders by day of week</h3><p>Total orders per weekday</p></hgroup>
@@ -403,6 +403,7 @@
           </figure>
         </section>
       </section>
+
       <section class="chart-card">
         <header class="chart-header">
           <hgroup><h3>Heatmap — orders by hour &amp; weekday</h3><p>Darker cell = more orders</p></hgroup>
@@ -411,11 +412,11 @@
       </section>
     </section>
 
-    <!-- TAB 3: CUSTOM -->
     <section class="tab-panel" id="tab-custom" role="tabpanel">
       <section class="custom-layout">
         <aside class="custom-sidebar" aria-label="Report builder">
           <h3>Build your report 🔮</h3>
+
           <section class="form-group">
             <label for="customMetric">Metric</label>
             <select id="customMetric">
@@ -424,6 +425,7 @@
               <option value="avg_order">Average order value</option>
             </select>
           </section>
+
           <section class="form-group">
             <label for="customGroup">Group by</label>
             <select id="customGroup">
@@ -432,6 +434,7 @@
               <option value="day">Day of week</option>
             </select>
           </section>
+
           <section class="form-group">
             <label for="customChartType">Chart type</label>
             <select id="customChartType">
@@ -440,21 +443,25 @@
               <option value="doughnut">Doughnut</option>
             </select>
           </section>
+
           <section class="form-group">
             <label>Date range</label>
             <input type="date" id="customFrom" aria-label="Custom report start date" />
-            <input type="date" id="customTo"   aria-label="Custom report end date" style="margin-top:6px;" />
+            <input type="date" id="customTo" aria-label="Custom report end date" style="margin-top:6px;" />
           </section>
+
           <fieldset class="form-group" style="border:none; padding:0;">
             <legend style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">Show columns</legend>
             <section class="checkbox-list">
               <label><input type="checkbox" id="col-total" checked /> Total value</label>
-              <label><input type="checkbox" id="col-avg"   checked /> vs Average</label>
-              <label><input type="checkbox" id="col-pct"   checked /> % of total</label>
+              <label><input type="checkbox" id="col-avg" checked /> vs Average</label>
+              <label><input type="checkbox" id="col-pct" checked /> % of total</label>
             </section>
           </fieldset>
+
           <button class="btn btn-primary btn-block" onclick="buildCustom()">Generate report ✨</button>
         </aside>
+
         <section class="custom-output">
           <section class="chart-card">
             <header class="chart-header">
@@ -464,9 +471,11 @@
               </hgroup>
               <button class="btn" onclick="exportCustomCSV()">↓ CSV</button>
             </header>
+
             <figure class="chart-wrap">
               <canvas id="customChart" role="img" aria-label="Custom report chart"></canvas>
             </figure>
+
             <output id="customTableWrap" style="margin-top:1.5rem;"></output>
           </section>
         </section>
