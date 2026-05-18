@@ -46,7 +46,7 @@ function setupAnalyticsDom() {
   `;
 }
 
-function setupFirebaseMocks(orders = []) {
+function setupFirebaseMocks(orders = [], chartFactory) {
   const docs = orders.map(makeOrderDoc);
 
   window.db = {};
@@ -65,7 +65,9 @@ function setupFirebaseMocks(orders = []) {
       forEach: (callback) => docs.forEach(callback),
     })),
   };
-  window.Chart = jest.fn(() => ({ destroy: jest.fn() }));
+  window.Chart = jest.fn(() =>
+    chartFactory ? chartFactory() : { destroy: jest.fn() }
+  );
 }
 
 beforeEach(() => {
@@ -80,92 +82,371 @@ beforeEach(() => {
   setupAnalyticsDom();
 });
 
-function loadAnalyticsModule(orders = []) {
-  setupFirebaseMocks(orders);
+function loadAnalyticsModule(orders = [], chartFactory) {
+  setupFirebaseMocks(orders, chartFactory);
   require("../../public/vendor/analytics.js");
 }
 
+function getText(id) {
+  return document.getElementById(id).textContent;
+}
+
+function buildOrder(overrides = {}) {
+  return {
+    id: "order-" + Math.random().toString(36).slice(2, 8),
+    vendorUid: "vendor-1",
+    paymentAmount: 120,
+    status: "completed",
+    createdAt: new Date().toISOString(),
+    items: [{ name: "Item A", quantity: 1, price: 120, category: "Food" }],
+    ...overrides,
+  };
+}
+
 describe("public/vendor/analytics.js", () => {
-  test("sidebar menu buttons toggle content sections", () => {
+  test("renders analytics status container", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("analytics-status")).not.toBeNull();
+  });
+
+  test("renders start date input", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("start-date-input")).not.toBeNull();
+  });
+
+  test("renders end date input", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("end-date-input")).not.toBeNull();
+  });
+
+  test("renders overview button", () => {
+    setupAnalyticsDom();
+    expect(document.querySelector("button[data-section='overview']")).not.toBeNull();
+  });
+
+  test("renders revenue button", () => {
+    setupAnalyticsDom();
+    expect(document.querySelector("button[data-section='revenue']")).not.toBeNull();
+  });
+
+  test("renders overview section", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("overview-section")).not.toBeNull();
+  });
+
+  test("renders revenue section", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("revenue-section")).not.toBeNull();
+  });
+
+  test("renders KPI metric spans", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("total-revenue")).not.toBeNull();
+    expect(document.getElementById("total-orders")).not.toBeNull();
+    expect(document.getElementById("avg-order-value")).not.toBeNull();
+    expect(document.getElementById("completion-rate")).not.toBeNull();
+    expect(document.getElementById("total-items-sold")).not.toBeNull();
+    expect(document.getElementById("avg-items-per-order")).not.toBeNull();
+  });
+
+  test("renders revenue trend canvas", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("revenue-trend-chart")).not.toBeNull();
+  });
+
+  test("renders weekly chart canvas", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("weekly-chart")).not.toBeNull();
+  });
+
+  test("renders status distribution chart canvas", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("status-distribution-chart")).not.toBeNull();
+  });
+
+  test("renders top items chart canvas", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("top-items-chart")).not.toBeNull();
+  });
+
+  test("renders peak hours chart canvas", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("peak-hours-chart")).not.toBeNull();
+  });
+
+  test("renders category chart canvas", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("category-chart")).not.toBeNull();
+  });
+
+  test("renders refresh button", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("refresh-data-button")).not.toBeNull();
+  });
+
+  test("renders export button", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("export-csv-button")).not.toBeNull();
+  });
+
+  test("renders insights container", () => {
+    setupAnalyticsDom();
+    expect(document.getElementById("insights-container")).not.toBeNull();
+  });
+
+  test("overview section is active by default", () => {
     loadAnalyticsModule();
+    expect(document.getElementById("overview-section").classList.contains("active")).toBe(true);
+    expect(document.getElementById("revenue-section").classList.contains("active")).toBe(false);
+  });
 
+  test("revenue button click activates revenue section", () => {
+    loadAnalyticsModule();
     const revenueButton = document.querySelector("button[data-section='revenue']");
-    const overviewSection = document.getElementById("overview-section");
-    const revenueSection = document.getElementById("revenue-section");
-
-    expect(overviewSection.classList.contains("active")).toBe(true);
-    expect(revenueSection.classList.contains("active")).toBe(false);
-
     revenueButton.click();
-
     expect(revenueButton.classList.contains("active")).toBe(true);
-    expect(overviewSection.classList.contains("active")).toBe(false);
-    expect(revenueSection.classList.contains("active")).toBe(true);
+    expect(document.getElementById("overview-section").classList.contains("active")).toBe(false);
+    expect(document.getElementById("revenue-section").classList.contains("active")).toBe(true);
   });
 
-  test("initializes analytics data and updates KPI metrics", async () => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    loadAnalyticsModule([
-      {
-        id: "order-1",
-        vendorUid: "vendor-1",
-        paymentAmount: 150,
-        status: "completed",
-        createdAt: yesterday.toISOString(),
-        items: [{ name: "Burger", quantity: 1, price: 150, category: "Food" }],
-      },
-      {
-        id: "order-2",
-        vendorUid: "vendor-1",
-        paymentAmount: 50,
-        status: "completed",
-        createdAt: today.toISOString(),
-        items: [{ name: "Fries", quantity: 1, price: 50, category: "Food" }],
-      },
-    ]);
-
-    await flushPromises();
-    await flushPromises();
-
-    const revenueText = document.getElementById("total-revenue").textContent;
-    const ordersText = document.getElementById("total-orders").textContent;
-    const avgValueText = document.getElementById("avg-order-value").textContent;
-    const completionText = document.getElementById("completion-rate").textContent;
-    const itemsSoldText = document.getElementById("total-items-sold").textContent;
-    const avgItemsText = document.getElementById("avg-items-per-order").textContent;
-
-    expect(revenueText).toContain("200");
-    expect(ordersText).toBe("2");
-    expect(avgValueText).toContain("100");
-    expect(completionText).toBe("100%");
-    expect(itemsSoldText).toBe("2");
-    expect(avgItemsText).toBe("1");
+  test("auth state change is registered on module load", () => {
+    loadAnalyticsModule();
+    expect(window.authFns.onAuthStateChanged).toHaveBeenCalled();
   });
 
-  test("refresh button triggers analytics re-initialization", async () => {
-    loadAnalyticsModule([
-      {
-        id: "order-1",
-        vendorUid: "vendor-1",
-        paymentAmount: 90,
-        status: "completed",
-        createdAt: new Date().toISOString(),
-        items: [{ name: "Wrap", quantity: 1, price: 90, category: "Food" }],
-      },
-    ]);
-
+  test("orders collection query runs on module init", async () => {
+    loadAnalyticsModule([buildOrder()]);
     await flushPromises();
     await flushPromises();
-
-    const refreshButton = document.getElementById("refresh-data-button");
-    refreshButton.click();
-
-    await flushPromises();
-    await flushPromises();
-
     expect(window.firestoreFns.getDocs).toHaveBeenCalled();
+  });
+
+  test("refresh button triggers analytics reload", async () => {
+    loadAnalyticsModule([buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    document.getElementById("refresh-data-button").click();
+    await flushPromises();
+    await flushPromises();
+    expect(window.firestoreFns.getDocs).toHaveBeenCalledTimes(2);
+  });
+
+  test("total revenue is updated when orders exist", async () => {
+    loadAnalyticsModule([
+      buildOrder({ paymentAmount: 80 }),
+      buildOrder({ paymentAmount: 120 }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-revenue")).toContain("200");
+  });
+
+  test("total order count is updated correctly", async () => {
+    loadAnalyticsModule([buildOrder(), buildOrder(), buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-orders")).toBe("3");
+  });
+
+  test("average order value is calculated correctly", async () => {
+    loadAnalyticsModule([
+      buildOrder({ paymentAmount: 100 }),
+      buildOrder({ paymentAmount: 200 }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("avg-order-value")).toContain("150");
+  });
+
+  test("completion rate displays 100% for all completed orders", async () => {
+    loadAnalyticsModule([buildOrder({ status: "completed" }), buildOrder({ status: "completed" })]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("completion-rate")).toBe("100%");
+  });
+
+  test("completion rate displays 50% when only half of orders are completed", async () => {
+    loadAnalyticsModule([buildOrder({ status: "completed" }), buildOrder({ status: "pending" })]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("completion-rate")).toBe("50%");
+  });
+
+  test("total items sold sums item quantities", async () => {
+    loadAnalyticsModule([
+      buildOrder({ items: [{ name: "A", quantity: 2, price: 50, category: "Food" }] }),
+      buildOrder({ items: [{ name: "B", quantity: 3, price: 100, category: "Food" }] }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-items-sold")).toBe("5");
+  });
+
+  test("average items per order is calculated correctly", async () => {
+    loadAnalyticsModule([
+      buildOrder({ items: [{ name: "A", quantity: 2, price: 50, category: "Food" }] }),
+      buildOrder({ items: [{ name: "B", quantity: 3, price: 100, category: "Food" }] }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(parseFloat(getText("avg-items-per-order"))).toBe(2.5);
+  });
+
+  test("vendor filtering ignores orders from other vendors", async () => {
+    loadAnalyticsModule([
+      buildOrder({ vendorUid: "vendor-1", paymentAmount: 50 }),
+      buildOrder({ vendorUid: "vendor-2", paymentAmount: 100 }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-orders")).toBe("1");
+    expect(getText("total-revenue")).toContain("50");
+  });
+
+  test("empty order set resets KPI values", async () => {
+    loadAnalyticsModule([]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-revenue")).toContain("0");
+    expect(getText("total-orders")).toBe("0");
+    expect(getText("avg-order-value")).toContain("0");
+    expect(getText("completion-rate")).toBe("0%");
+    expect(getText("total-items-sold")).toBe("0");
+    expect(getText("avg-items-per-order")).toBe("0");
+  });
+
+  test("chart library is initialized during analytics load", async () => {
+    loadAnalyticsModule([buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    expect(window.Chart).toHaveBeenCalled();
+  });
+
+  test("export button remains available after module load", () => {
+    loadAnalyticsModule();
+    expect(document.getElementById("export-csv-button")).not.toBeNull();
+  });
+
+  test("export button click does not throw", () => {
+    loadAnalyticsModule();
+    expect(() => document.getElementById("export-csv-button").click()).not.toThrow();
+  });
+
+  test("start and end date inputs exist and are writable", () => {
+    setupAnalyticsDom();
+    const startDateInput = document.getElementById("start-date-input");
+    const endDateInput = document.getElementById("end-date-input");
+    startDateInput.value = "2026-05-01";
+    endDateInput.value = "2026-05-31";
+    expect(startDateInput.value).toBe("2026-05-01");
+    expect(endDateInput.value).toBe("2026-05-31");
+  });
+
+  test("revenue button shows revenue section after click", () => {
+    loadAnalyticsModule();
+    const revenueButton = document.querySelector("button[data-section='revenue']");
+    revenueButton.click();
+    expect(document.getElementById("revenue-section").classList.contains("active")).toBe(true);
+  });
+
+  test("overview button returns to overview section when clicked", () => {
+    loadAnalyticsModule();
+    const revenueButton = document.querySelector("button[data-section='revenue']");
+    const overviewButton = document.querySelector("button[data-section='overview']");
+    revenueButton.click();
+    overviewButton.click();
+    expect(document.getElementById("overview-section").classList.contains("active")).toBe(true);
+    expect(overviewButton.classList.contains("active")).toBe(true);
+  });
+
+  test("menu button active class toggles when switching sections", () => {
+    loadAnalyticsModule();
+    const revenueButton = document.querySelector("button[data-section='revenue']");
+    const overviewButton = document.querySelector("button[data-section='overview']");
+    revenueButton.click();
+    expect(revenueButton.classList.contains("active")).toBe(true);
+    expect(overviewButton.classList.contains("active")).toBe(false);
+    overviewButton.click();
+    expect(overviewButton.classList.contains("active")).toBe(true);
+    expect(revenueButton.classList.contains("active")).toBe(false);
+  });
+
+  test("metrics display includes currency prefix for revenue and avg value", async () => {
+    loadAnalyticsModule([buildOrder({ paymentAmount: 75 })]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-revenue")).toContain("ZAR");
+    expect(getText("avg-order-value")).toContain("ZAR");
+  });
+
+  test("completion rate includes percent symbol", async () => {
+    loadAnalyticsModule([buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("completion-rate")).toContain("%");
+  });
+
+  test("total items sold display is integer representation", async () => {
+    loadAnalyticsModule([buildOrder({ items: [{ name: "A", quantity: 4, price: 100, category: "Food" }] })]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-items-sold")).toBe("4");
+  });
+
+  test("avg items per order display is updated for multiple item orders", async () => {
+    loadAnalyticsModule([
+      buildOrder({ items: [{ name: "A", quantity: 2, price: 100, category: "Food" }] }),
+      buildOrder({ items: [{ name: "B", quantity: 4, price: 120, category: "Food" }] }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(parseFloat(getText("avg-items-per-order"))).toBe(3);
+  });
+
+  test("module handles orders with mixed categories without throwing", async () => {
+    loadAnalyticsModule([
+      buildOrder({ items: [{ name: "Meal", quantity: 1, price: 50, category: "Food" }] }),
+      buildOrder({ items: [{ name: "Drink", quantity: 1, price: 20, category: "Beverage" }] }),
+    ]);
+    await flushPromises();
+    await flushPromises();
+    expect(getText("total-orders")).toBe("2");
+  });
+
+  test("insights container remains available after analytics initialization", async () => {
+    loadAnalyticsModule([buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    expect(document.getElementById("insights-container")).not.toBeNull();
+  });
+
+  test("refresh button is clickable after initial load", async () => {
+    loadAnalyticsModule([buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    expect(() => document.getElementById("refresh-data-button").click()).not.toThrow();
+  });
+
+  test("getDocs called again after changing date filters and refreshing", async () => {
+    loadAnalyticsModule([buildOrder()]);
+    await flushPromises();
+    await flushPromises();
+    document.getElementById("start-date-input").value = "2026-05-01";
+    document.getElementById("end-date-input").value = "2026-05-31";
+    document.getElementById("refresh-data-button").click();
+    await flushPromises();
+    await flushPromises();
+    expect(window.firestoreFns.getDocs).toHaveBeenCalledTimes(2);
+  });
+
+  test("chart instances are destroyed if module reinitializes charts", async () => {
+    let destroyed = false;
+    loadAnalyticsModule([buildOrder()], () => ({ destroy: () => { destroyed = true; } }));
+    await flushPromises();
+    await flushPromises();
+    document.getElementById("refresh-data-button").click();
+    await flushPromises();
+    await flushPromises();
+    expect(destroyed).toBe(true);
   });
 });

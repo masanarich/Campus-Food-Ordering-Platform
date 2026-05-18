@@ -20,6 +20,7 @@
     let allOrders = [];
     let filteredOrders = [];
     let analyticsCharts = {};
+    let eventListenersAttached = false;
 
     // ========================================================================
     // Helper Functions
@@ -68,7 +69,8 @@
     function formatCurrency(amount) {
         return new Intl.NumberFormat("en-ZA", {
             style: "currency",
-            currency: "ZAR"
+            currency: "ZAR",
+            currencyDisplay: "code"
         }).format(amount);
     }
 
@@ -241,14 +243,16 @@
         const completedOrders = analytics.completedOrders;
         const avgOrderValue = totalOrders > 0 ? analytics.totalRevenue / totalOrders : 0;
         const completionRate = totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0;
-        const avgItemsPerOrder = totalOrders > 0 ? Math.round(analytics.totalItems / totalOrders) : 0;
+        const avgItemsPerOrder = totalOrders > 0 ? analytics.totalItems / totalOrders : 0;
 
         document.getElementById("total-revenue").textContent = formatCurrency(analytics.totalRevenue);
         document.getElementById("total-orders").textContent = totalOrders.toString();
         document.getElementById("avg-order-value").textContent = formatCurrency(avgOrderValue);
         document.getElementById("completion-rate").textContent = `${completionRate}%`;
         document.getElementById("total-items-sold").textContent = analytics.totalItems.toString();
-        document.getElementById("avg-items-per-order").textContent = avgItemsPerOrder.toString();
+        document.getElementById("avg-items-per-order").textContent = Number.isInteger(avgItemsPerOrder)
+            ? avgItemsPerOrder.toString()
+            : avgItemsPerOrder.toFixed(1);
     }
 
     // ========================================================================
@@ -691,7 +695,8 @@
                 });
             });
 
-            return orders;
+            const normalizedVendorUid = normalizeText(vendorUid);
+            return orders.filter(order => normalizeText(order.vendorUid) === normalizedVendorUid);
         } catch (error) {
             console.error("Error fetching vendor orders:", error);
             throw error;
@@ -738,13 +743,17 @@
                 // Fetch orders
                 allOrders = await fetchVendorOrders(db, firestoreFns, currentVendorUid);
 
-                // Set default date range (last 30 days)
-                const endDate = new Date();
-                const startDate = new Date(endDate);
-                startDate.setDate(startDate.getDate() - 30);
+                // Set default date range (last 30 days) only when no range is currently selected.
+                const currentStart = normalizeText(document.getElementById("start-date-input")?.value);
+                const currentEnd = normalizeText(document.getElementById("end-date-input")?.value);
+                if (!currentStart && !currentEnd) {
+                    const endDate = new Date();
+                    const startDate = new Date(endDate);
+                    startDate.setDate(startDate.getDate() - 30);
 
-                document.getElementById("start-date-input").value = startDate.toISOString().split("T")[0];
-                document.getElementById("end-date-input").value = endDate.toISOString().split("T")[0];
+                    document.getElementById("start-date-input").value = startDate.toISOString().split("T")[0];
+                    document.getElementById("end-date-input").value = endDate.toISOString().split("T")[0];
+                }
 
                 // Initial load
                 await applyDateFilter();
@@ -800,6 +809,10 @@
     }
 
     function attachEventListeners() {
+        if (eventListenersAttached) {
+            return;
+        }
+
         const applyFilterBtn = document.getElementById("apply-filter-button");
         if (applyFilterBtn) {
             applyFilterBtn.addEventListener("click", () => {
@@ -845,6 +858,7 @@
             });
         }
 
+        eventListenersAttached = true;
         // Add section switching functionality
         attachSectionSwitchers();
     }
@@ -918,21 +932,34 @@
         });
     }
 
-    async function initializePage() {
+    function initializePage() {
         attachSectionSwitchers();
 
-        try {
-            await waitForFirebaseDependencies();
-            await initializeAnalyticsDashboard({
+        const startInit = () => {
+            initializeAnalyticsDashboard({
                 db: globalScope.db,
                 auth: globalScope.auth,
                 authFns: globalScope.authFns,
                 firestoreFns: globalScope.firestoreFns
             });
-        } catch (error) {
-            console.error(`${MODULE_NAME} initialization error:`, error);
-            updateStatusMessage(`Error loading analytics: ${error.message}`, true);
+        };
+
+        if (
+            globalScope.db &&
+            globalScope.auth &&
+            globalScope.authFns &&
+            globalScope.firestoreFns
+        ) {
+            startInit();
+            return;
         }
+
+        waitForFirebaseDependencies()
+            .then(startInit)
+            .catch(error => {
+                console.error(`${MODULE_NAME} initialization error:`, error);
+                updateStatusMessage(`Error loading analytics: ${error.message}`, true);
+            });
     }
 
     if (document.readyState === "loading") {
