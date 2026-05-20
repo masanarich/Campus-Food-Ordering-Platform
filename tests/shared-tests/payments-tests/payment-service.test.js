@@ -26,6 +26,11 @@ describe("shared/payments/payment-service.js", () => {
         expect(paymentService.normalizeText(" ref ")).toBe("ref");
         expect(paymentService.normalizeText(null)).toBe("");
         expect(paymentService.normalizeLowerText(" PAYSTACK ")).toBe("paystack");
+        expect(typeof paymentService.createFallbackPaymentRecord).toBe("function");
+        expect(typeof paymentService.normalizePaymentForService).toBe("function");
+        expect(typeof paymentService.getPaymentLifecycle).toBe("function");
+        expect(typeof paymentService.buildResumePaymentPlan).toBe("function");
+        expect(typeof paymentService.buildOrderPaymentGuard).toBe("function");
 
         expect(paymentService.createServiceError(" payments/test ", " Broken ", {
             details: true
@@ -55,6 +60,12 @@ describe("shared/payments/payment-service.js", () => {
         expect(paymentService.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
         expect(paymentService.resolvePaymentModel(paymentModel)).toBe(paymentModel);
         expect(paymentService.resolvePaymentValidation(paymentValidation)).toBe(paymentValidation);
+        expect(paymentService.resolvePaymentStatus()).toBe(paymentStatus);
+        expect(paymentService.resolvePaymentModel()).toBe(paymentModel);
+        expect(paymentService.resolvePaymentValidation()).toBe(paymentValidation);
+        expect(paymentService.resolvePaymentStatus({})).toBeNull();
+        expect(paymentService.resolvePaymentModel({})).toBeNull();
+        expect(paymentService.resolvePaymentValidation({})).toBeNull();
 
         const originalGlobalPaymentStatus = global.paymentStatus;
         const originalGlobalPaymentModel = global.paymentModel;
@@ -91,6 +102,44 @@ describe("shared/payments/payment-service.js", () => {
         }
     });
 
+    test("resolves dependencies through CommonJS fallbacks when globals are absent", () => {
+        jest.isolateModules(() => {
+            const originalPaymentStatus = global.paymentStatus;
+            const originalPaymentModel = global.paymentModel;
+            const originalPaymentValidation = global.paymentValidation;
+
+            try {
+                delete global.paymentStatus;
+                delete global.paymentModel;
+                delete global.paymentValidation;
+
+                const isolatedService = require("../../../public/shared/payments/payment-service.js");
+
+                expect(isolatedService.resolvePaymentStatus().MODULE_NAME).toBe("payment-status");
+                expect(isolatedService.resolvePaymentModel().MODULE_NAME).toBe("payment-model");
+                expect(isolatedService.resolvePaymentValidation().MODULE_NAME).toBe("payment-validation");
+            } finally {
+                if (originalPaymentStatus === undefined) {
+                    delete global.paymentStatus;
+                } else {
+                    global.paymentStatus = originalPaymentStatus;
+                }
+
+                if (originalPaymentModel === undefined) {
+                    delete global.paymentModel;
+                } else {
+                    global.paymentModel = originalPaymentModel;
+                }
+
+                if (originalPaymentValidation === undefined) {
+                    delete global.paymentValidation;
+                } else {
+                    global.paymentValidation = originalPaymentValidation;
+                }
+            }
+        });
+    });
+
     test("resolves timestamp values", () => {
         expect(paymentService.resolveTimestampValue({
             timestampValue: "t-1"
@@ -101,6 +150,198 @@ describe("shared/payments/payment-service.js", () => {
             }
         })).toBe("server-time");
         expect(paymentService.resolveTimestampValue()).toBeNull();
+    });
+
+    test("normalizes payment lifecycle details for checkout recovery and fulfilment guards", () => {
+        const pending = paymentService.getPaymentLifecycle(createReadyPayment({
+            authorizationUrl: "https://checkout.paystack.com/resume",
+            metadata: {
+                checkoutId: "checkout-1"
+            }
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const failed = paymentService.getPaymentLifecycle(createReadyPayment({
+            status: "failed",
+            authorizationUrl: ""
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const paid = paymentService.getPaymentLifecycle(createReadyPayment({
+            status: "paid",
+            paidAt: "t-paid"
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+
+        expect(pending).toEqual(expect.objectContaining({
+            status: "pending",
+            statusLabel: "Payment Pending",
+            checkoutId: "checkout-1",
+            authorizationUrl: "https://checkout.paystack.com/resume",
+            isPending: true,
+            isOrderBlocking: true,
+            canResume: true,
+            resumeAction: "redirect",
+            requiresVerification: true
+        }));
+        expect(failed).toEqual(expect.objectContaining({
+            status: "failed",
+            isFailed: true,
+            isRetryable: true,
+            isAwaitingCustomerAction: true,
+            isOrderBlocking: true,
+            canResume: true,
+            resumeAction: "initialize"
+        }));
+        expect(paid).toEqual(expect.objectContaining({
+            status: "paid",
+            isPaid: true,
+            isOrderBlocking: false,
+            isRefundable: true,
+            canResume: false
+        }));
+    });
+
+    test("normalizes fallback payment records without payment model helpers", () => {
+        const payment = paymentService.createFallbackPaymentRecord({
+            orderId: "order-1",
+            checkoutId: "checkout-1",
+            paymentStatus: "payment pending",
+            paymentProvider: "Paystack",
+            paymentReference: " ref-1 ",
+            paymentAccessCode: " access-1 ",
+            paymentAuthorizationUrl: " https://checkout.paystack.com/resume ",
+            paymentAmount: "75.50",
+            paymentAmountInMinorUnits: "7550",
+            paymentCurrency: "zar",
+            paymentFailureReason: " "
+        }, {
+            paymentStatus
+        });
+
+        expect(payment).toEqual(expect.objectContaining({
+            orderId: "order-1",
+            checkoutId: "checkout-1",
+            status: "pending",
+            provider: "paystack",
+            reference: "ref-1",
+            accessCode: "access-1",
+            authorizationUrl: "https://checkout.paystack.com/resume",
+            amount: 75.5,
+            amountInMinorUnits: 7550,
+            currency: "ZAR",
+            failureReason: ""
+        }));
+    });
+
+    test("builds resume payment plans for pending, failed, paid, and incomplete pending payments", () => {
+        const reviewStatus = {
+            ...paymentStatus,
+            normalizePaymentStatus: jest.fn(() => "manual_review"),
+            getDefaultPaymentStatus: jest.fn(() => "manual_review"),
+            getPaymentStatusLabel: jest.fn(() => "Manual Review"),
+            isPaymentPaid: jest.fn(() => false),
+            isPaymentPending: jest.fn(() => false),
+            isPaymentFailed: jest.fn(() => false),
+            isPaymentUnpaid: jest.fn(() => false),
+            isPaymentRetryable: jest.fn(() => false),
+            isPaymentAwaitingCustomerAction: jest.fn(() => false),
+            isPaymentBlockingOrder: jest.fn(() => true),
+            isPaymentRefundable: jest.fn(() => false)
+        };
+        const redirectPlan = paymentService.buildResumePaymentPlan(createReadyPayment({
+            authorizationUrl: "https://checkout.paystack.com/resume"
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const initializePlan = paymentService.buildResumePaymentPlan(createReadyPayment({
+            status: "failed",
+            authorizationUrl: ""
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const missingUrlPlan = paymentService.buildResumePaymentPlan(createReadyPayment({
+            status: "pending",
+            authorizationUrl: ""
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const alreadyPaidPlan = paymentService.buildResumePaymentPlan(createReadyPayment({
+            status: "paid"
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const notAllowedPlan = paymentService.buildResumePaymentPlan({
+            status: "manual_review",
+            reference: "ref-review"
+        }, {
+            paymentStatus: reviewStatus
+        });
+
+        expect(redirectPlan).toEqual(expect.objectContaining({
+            success: true,
+            action: "redirect",
+            authorizationUrl: "https://checkout.paystack.com/resume",
+            reference: "ref-1"
+        }));
+        expect(initializePlan).toEqual(expect.objectContaining({
+            success: true,
+            action: "initialize",
+            authorizationUrl: ""
+        }));
+        expect(missingUrlPlan).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/resume-url-missing"
+            })
+        }));
+        expect(alreadyPaidPlan).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/already-paid"
+            })
+        }));
+        expect(notAllowedPlan).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/resume-not-allowed"
+            })
+        }));
+    });
+
+    test("builds order payment guards from payment lifecycle", () => {
+        const pendingGuard = paymentService.buildOrderPaymentGuard(createReadyPayment({
+            status: "pending"
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+        const paidGuard = paymentService.buildOrderPaymentGuard(createReadyPayment({
+            status: "paid"
+        }), {
+            paymentStatus,
+            paymentModel
+        });
+
+        expect(pendingGuard).toEqual(expect.objectContaining({
+            blocked: true,
+            status: "pending",
+            statusLabel: "Payment Pending"
+        }));
+        expect(pendingGuard.reason).toContain("Do not fulfil");
+        expect(paidGuard).toEqual(expect.objectContaining({
+            blocked: false,
+            status: "paid",
+            reason: ""
+        }));
     });
 
     test("creates payment records from orders", () => {
@@ -131,6 +372,44 @@ describe("shared/payments/payment-service.js", () => {
         }));
     });
 
+    test("preserves checkout ids in payment records and Paystack metadata", () => {
+        const record = paymentService.createPaymentRecordFromOrder({
+            orderId: "order-1",
+            checkoutId: "checkout-1",
+            customerUid: "customer-1",
+            customerName: "Tshepo",
+            customerEmail: "tshepo@example.com",
+            vendorUid: "vendor-1",
+            total: 80
+        }, {
+            paymentStatus,
+            paymentModel,
+            reference: "ref-1",
+            createdAt: "t-1"
+        });
+        const prepared = paymentService.prepareInitializePayment({
+            orderId: "order-1",
+            checkoutId: "checkout-1",
+            customerUid: "customer-1",
+            customerName: "Tshepo",
+            customerEmail: "tshepo@example.com",
+            vendorUid: "vendor-1",
+            total: 80
+        }, {
+            paymentStatus,
+            paymentModel,
+            paymentValidation,
+            reference: "ref-1",
+            callbackUrl: "https://example.test/payment-callback.html",
+            createdAt: "t-1"
+        });
+
+        expect(record.success).toBe(true);
+        expect(record.payment.metadata.checkoutId).toBe("checkout-1");
+        expect(prepared.success).toBe(true);
+        expect(prepared.payload.metadata.checkoutId).toBe("checkout-1");
+    });
+
     test("returns dependency errors when creating payment records without helpers", () => {
         expect(paymentService.createPaymentRecordFromOrder({}, {
             paymentStatus: {},
@@ -143,6 +422,75 @@ describe("shared/payments/payment-service.js", () => {
                 message: "Payment model and status helpers are required before creating a payment record."
             }
         });
+        expect(paymentService.prepareInitializePayment({}, {
+            paymentStatus: {},
+            paymentModel: {}
+        })).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/dependencies-missing"
+            })
+        }));
+        expect(paymentService.applyInitializedPayment({}, {}, {
+            paymentStatus: {},
+            paymentModel: {}
+        })).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/dependencies-missing"
+            })
+        }));
+        expect(paymentService.applyVerifiedPayment({}, {}, {
+            paymentStatus: {},
+            paymentModel: {},
+            paymentValidation: {}
+        })).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/dependencies-missing"
+            })
+        }));
+        expect(paymentService.applyFailedPayment({}, {}, {
+            paymentStatus: {},
+            paymentModel: {}
+        })).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/dependencies-missing"
+            })
+        }));
+        expect(paymentService.buildOrderPaymentPatch({}, {
+            paymentModel: {}
+        })).toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "payments/dependencies-missing"
+            })
+        }));
+    });
+
+    test("returns a dependency error when initialization validation helpers are missing", () => {
+        const result = paymentService.prepareInitializePayment({
+            orderId: "order-1",
+            customerUid: "customer-1",
+            customerEmail: "tshepo@example.com",
+            vendorUid: "vendor-1",
+            total: 80
+        }, {
+            paymentStatus,
+            paymentModel,
+            paymentValidation: {}
+        });
+
+        expect(result).toEqual(expect.objectContaining({
+            success: false,
+            payment: expect.objectContaining({
+                orderId: "order-1"
+            }),
+            error: expect.objectContaining({
+                code: "payments/dependencies-missing"
+            })
+        }));
     });
 
     test("prepares initialize payment payloads", () => {

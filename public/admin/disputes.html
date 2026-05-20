@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Admin Disputes | Campus Food Ordering Platform</title>
+    <title>Support Inbox | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Admin disputes workspace placeholder for the Campus Food Ordering Platform.">
+    <meta name="description" content="Review and triage every customer and vendor support ticket.">
     <link rel="stylesheet" href="./index.css">
 </head>
-<body>
 
-    <header>
+<body class="admin-shell admin-support" data-page="admin-disputes">
+
+    <header class="app-header">
         <h1>Campus Food Ordering Platform</h1>
 
-        <nav aria-label="Admin disputes navigation">
+        <nav class="app-nav" aria-label="Admin disputes navigation">
             <a href="./index.html">Dashboard</a>
             <a href="./users.html">Manage Users</a>
             <a href="./disputes.html" aria-current="page">Support Inbox</a>
@@ -21,44 +23,138 @@
         </nav>
     </header>
 
-    <main>
-        <section aria-labelledby="admin-disputes-heading">
-            <h2 id="admin-disputes-heading">Disputes and Issues</h2>
+    <main class="admin-main">
+        <section class="page-hero shared-section" aria-labelledby="admin-inbox-heading">
+            <h2 id="admin-inbox-heading">Support Inbox</h2>
 
             <p>
-                This page will later be used for customer support issues, complaints,
-                disputes, and other reported admin cases.
+                Every customer and vendor support ticket lands here. Filter by status, category, or
+                who filed it, then open a ticket to reply, change status, or resolve the issue.
             </p>
 
-            <p id="admin-disputes-status" aria-live="polite"></p>
+            <p id="admin-inbox-status" aria-live="polite" aria-atomic="true"></p>
 
-            <menu aria-label="Disputes placeholder actions">
-                <li><button id="back-to-admin-dashboard-button" type="button">Back to Admin Dashboard</button></li>
-                <li><button id="go-manage-users-button" type="button">Go to Manage Users</button></li>
+            <menu class="action-menu" aria-label="Support inbox actions">
+                <li><a href="./index.html" class="button-secondary">Back to Dashboard</a></li>
+                <li><a href="./users.html" class="button-secondary">Manage Users</a></li>
             </menu>
         </section>
 
-        <section aria-labelledby="admin-disputes-next-heading">
-            <h3 id="admin-disputes-next-heading">What Happens Next</h3>
+        <section class="shared-section admin-inbox-toolbar-section" aria-labelledby="admin-inbox-toolbar-heading">
+            <h3 id="admin-inbox-toolbar-heading">Filter &amp; Sort</h3>
+            <form id="admin-inbox-filter-form" class="admin-inbox-filter-form" role="search"
+                aria-label="Filter and sort the support inbox">
+                <p class="admin-inbox-filter-field admin-inbox-filter-field-search">
+                    <label for="admin-inbox-search">Search</label>
+                    <input id="admin-inbox-search" name="search" type="search"
+                        placeholder="Search by subject, ticket ID, order ID, or reporter"
+                        autocomplete="off">
+                </p>
 
-            <p>
-                The actual dispute workflow is not implemented yet. For now, use this
-                page as a clean placeholder while we finish the rest of the admin portal.
-            </p>
+                <p class="admin-inbox-filter-field">
+                    <label for="admin-inbox-status-filter">Status</label>
+                    <select id="admin-inbox-status-filter" name="status">
+                        <option value="all">All statuses</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="awaiting_user">Awaiting User</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </p>
+
+                <p class="admin-inbox-filter-field">
+                    <label for="admin-inbox-category-filter">Category</label>
+                    <select id="admin-inbox-category-filter" name="category">
+                        <option value="all">All categories</option>
+                        <option value="order_issue">Order Issue</option>
+                        <option value="payment">Payment Issue</option>
+                        <option value="refund">Refund Request</option>
+                        <option value="account">Account</option>
+                        <option value="abuse">Abuse or Safety</option>
+                        <option value="general">General</option>
+                    </select>
+                </p>
+
+                <p class="admin-inbox-filter-field">
+                    <label for="admin-inbox-reporter-filter">Reporter</label>
+                    <select id="admin-inbox-reporter-filter" name="reporterRole">
+                        <option value="all">All reporters</option>
+                        <option value="customer">Customers only</option>
+                        <option value="vendor">Vendors only</option>
+                    </select>
+                </p>
+
+                <p class="admin-inbox-filter-field">
+                    <label for="admin-inbox-sort">Sort by</label>
+                    <select id="admin-inbox-sort" name="sort">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="last-reply">Latest reply</option>
+                        <option value="priority">Priority first</option>
+                    </select>
+                </p>
+
+                <p class="admin-inbox-filter-actions">
+                    <button type="reset" class="button-secondary">Clear filters</button>
+                </p>
+            </form>
+        </section>
+
+        <section class="shared-section admin-inbox-results-section" aria-labelledby="admin-inbox-results-heading">
+            <h3 id="admin-inbox-results-heading">Tickets</h3>
+            <p id="admin-inbox-summary" class="admin-inbox-results-summary" aria-live="polite"></p>
+            <section id="admin-inbox-container" class="admin-inbox-grid" aria-live="polite">
+                <p class="loading-message">Loading the support inbox...</p>
+            </section>
+            <nav id="admin-inbox-pagination" class="admin-inbox-pagination"
+                aria-label="Inbox pagination" hidden>
+                <p id="admin-inbox-pagination-status" class="admin-inbox-pagination-status"
+                    aria-live="polite">Page 1 of 1</p>
+                <menu class="admin-inbox-pagination-menu" aria-label="Pagination controls">
+                    <li><button type="button" class="button-secondary" data-page-action="prev">Previous</button></li>
+                    <li><button type="button" class="button-secondary" data-page-action="next">Next</button></li>
+                </menu>
+            </nav>
         </section>
     </main>
 
-    <footer>
-        <p>Campus Food Ordering Platform © 2026</p>
+    <footer class="app-footer">
+        <p>Campus Food Ordering Platform &copy; 2026</p>
     </footer>
 
     <script src="../authentication/auth-utils.js"></script>
+    <script src="../shared/support/ticket-status.js"></script>
+    <script src="../shared/support/ticket-categories.js"></script>
+    <script src="../shared/support/ticket-model.js"></script>
+    <script src="../shared/support/ticket-queries.js"></script>
+    <script src="../shared/support/ticket-service.js"></script>
+    <script src="../shared/support/ticket-formatters.js"></script>
     <script src="./disputes.js"></script>
-    <script>
-        window.adminDisputesPage.initializeAdminDisputesPage({
-            authUtils: window.authUtils
-        });
-    </script>
+    <script type="module">
+        import { db, auth } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection, doc, getDoc, getDocs, query, where, orderBy, limit
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
+        window.db = db;
+        window.auth = auth;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = { collection, doc, getDoc, getDocs, query, where, orderBy, limit };
+
+        if (window.adminDisputesPage && typeof window.adminDisputesPage.init === "function") {
+            await window.adminDisputesPage.init({
+                db, auth,
+                authFns: window.authFns,
+                firestoreFns: window.firestoreFns,
+                ticketService: window.ticketService,
+                ticketStatus: window.ticketStatus,
+                ticketCategories: window.ticketCategories,
+                ticketFormatters: window.ticketFormatters
+            });
+        }
+    </script>
 </body>
+
 </html>
