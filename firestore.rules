@@ -105,7 +105,15 @@ service cloud.firestore {
         "paymentPaidAt",
         "paymentFailedAt",
         "paymentVerifiedAt",
-        "paymentFailureReason"
+        "paymentFailureReason",
+        "refundStatus",
+        "refundReference",
+        "refundAmount",
+        "refundAmountInMinorUnits",
+        "refundReason",
+        "refundRequestedAt",
+        "refundProcessedAt",
+        "refundFailureReason"
       ]);
     }
 
@@ -178,7 +186,15 @@ service cloud.firestore {
         "paymentPaidAt",
         "paymentFailedAt",
         "paymentVerifiedAt",
-        "paymentFailureReason"
+        "paymentFailureReason",
+        "refundStatus",
+        "refundReference",
+        "refundAmount",
+        "refundAmountInMinorUnits",
+        "refundReason",
+        "refundRequestedAt",
+        "refundProcessedAt",
+        "refundFailureReason"
       ]);
     }
 
@@ -191,6 +207,9 @@ service cloud.firestore {
         request.resource.data.status is string &&
         request.resource.data.items is list &&
         request.resource.data.items.size() > 0 &&
+        request.resource.data.paymentStatus == "paid" &&
+        request.resource.data.paymentReference is string &&
+        request.resource.data.paymentReference != "" &&
         // Brand-new orders cannot start as already collected.
         request.resource.data.get("customerConfirmedCollected", false) == false &&
         request.resource.data.get("vendorConfirmedCollected", false) == false;
@@ -217,6 +236,140 @@ service cloud.firestore {
             vendorDoesNotTouchPaymentFields()
           )
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Checkout session helpers
+    // -----------------------------------------------------------------
+
+    function isCheckoutCustomer() {
+      return signedIn() && resource.data.customerUid == request.auth.uid;
+    }
+
+    function checkoutCreateAffectsOnlyAllowedKeys() {
+      return request.resource.data.keys().hasOnly([
+        "checkoutId",
+        "customerUid",
+        "customerName",
+        "customerEmail",
+        "vendorUid",
+        "vendorName",
+        "items",
+        "itemCount",
+        "subtotal",
+        "total",
+        "status",
+        "paymentProvider",
+        "paymentReference",
+        "paymentAccessCode",
+        "paymentAuthorizationUrl",
+        "paymentAmount",
+        "paymentAmountInMinorUnits",
+        "paymentCurrency",
+        "paymentPaidAt",
+        "paymentFailedAt",
+        "paymentVerifiedAt",
+        "paymentFailureReason",
+        "convertedOrderId",
+        "convertedAt",
+        "cancelledAt",
+        "expiredAt",
+        "refundStatus",
+        "refundReference",
+        "metadata",
+        "timeline",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]);
+    }
+
+    function checkoutUpdateAffectsOnlyCustomerKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "paymentProvider",
+        "paymentReference",
+        "paymentAccessCode",
+        "paymentAuthorizationUrl",
+        "paymentAmount",
+        "paymentAmountInMinorUnits",
+        "paymentCurrency",
+        "paymentFailedAt",
+        "paymentFailureReason",
+        "cancelledAt",
+        "expiredAt",
+        "metadata",
+        "timeline",
+        "notes",
+        "updatedAt"
+      ]);
+    }
+
+    function checkoutImmutableFieldsPreserved() {
+      return request.resource.data.customerUid == resource.data.customerUid &&
+        request.resource.data.vendorUid == resource.data.vendorUid &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.items == resource.data.items &&
+        request.resource.data.subtotal == resource.data.subtotal &&
+        request.resource.data.total == resource.data.total;
+    }
+
+    function checkoutClientWritableStatus(status) {
+      return status == "draft" ||
+        status == "payment_pending" ||
+        status == "payment_failed" ||
+        status == "cancelled" ||
+        status == "expired";
+    }
+
+    function checkoutIsNotServerFinalised() {
+      return resource.data.get("status", "") != "paid" &&
+        resource.data.get("status", "") != "converted";
+    }
+
+    function checkoutServerOnlyFieldsAreEmptyOnCreate() {
+      return request.resource.data.get("paymentPaidAt", null) == null &&
+        request.resource.data.get("paymentVerifiedAt", null) == null &&
+        request.resource.data.get("convertedOrderId", "") == "" &&
+        request.resource.data.get("convertedAt", null) == null &&
+        request.resource.data.get("refundStatus", "") == "" &&
+        request.resource.data.get("refundReference", "") == "";
+    }
+
+    function checkoutServerOnlyFieldsPreserved() {
+      return request.resource.data.get("paymentPaidAt", null) == resource.data.get("paymentPaidAt", null) &&
+        request.resource.data.get("paymentVerifiedAt", null) == resource.data.get("paymentVerifiedAt", null) &&
+        request.resource.data.get("convertedOrderId", "") == resource.data.get("convertedOrderId", "") &&
+        request.resource.data.get("convertedAt", null) == resource.data.get("convertedAt", null) &&
+        request.resource.data.get("refundStatus", "") == resource.data.get("refundStatus", "") &&
+        request.resource.data.get("refundReference", "") == resource.data.get("refundReference", "");
+    }
+
+    function isValidCheckoutCreate() {
+      return signedIn() &&
+        isActiveAccount() &&
+        checkoutCreateAffectsOnlyAllowedKeys() &&
+        request.resource.data.customerUid == request.auth.uid &&
+        request.resource.data.customerUid is string &&
+        request.resource.data.vendorUid is string &&
+        request.resource.data.vendorUid != "" &&
+        request.resource.data.status is string &&
+        checkoutClientWritableStatus(request.resource.data.status) &&
+        request.resource.data.items is list &&
+        request.resource.data.items.size() > 0 &&
+        request.resource.data.createdAt != null &&
+        checkoutServerOnlyFieldsAreEmptyOnCreate();
+    }
+
+    function isValidCheckoutCustomerUpdate() {
+      return isCheckoutCustomer() &&
+        isActiveAccount() &&
+        checkoutIsNotServerFinalised() &&
+        checkoutUpdateAffectsOnlyCustomerKeys() &&
+        checkoutImmutableFieldsPreserved() &&
+        checkoutServerOnlyFieldsPreserved() &&
+        request.resource.data.status is string &&
+        checkoutClientWritableStatus(request.resource.data.status);
     }
 
     // -----------------------------------------------------------------
@@ -467,6 +620,16 @@ service cloud.firestore {
     // /orders
     // -----------------------------------------------------------------
 
+    match /checkoutSessions/{checkoutId} {
+      allow create: if isValidCheckoutCreate() || isAdmin();
+
+      allow get, list: if isCheckoutCustomer() || isAdmin();
+
+      allow update: if isValidCheckoutCustomerUpdate() || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
     match /orders/{orderId} {
       allow create: if isValidOrderCreate();
 
@@ -476,6 +639,84 @@ service cloud.firestore {
       allow update: if isValidOrderUpdate();
 
       allow delete: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /supportTickets + /supportTickets/{id}/replies
+    //
+    // Tickets are unified support records (complaints, refunds, payment
+    // issues, "contact us", abuse reports). Replies live in a subcollection.
+    //
+    // Visibility model:
+    //   - get:  reporter, denormalised customer/vendor party, or admin
+    //   - list: any signed-in user (per-doc `get` gates each result, so a
+    //           non-admin must filter their query — e.g. `where reporterUid
+    //           == auth.uid` — otherwise the result rows fail the get check
+    //           and the whole query is rejected)
+    //
+    // Update model:
+    //   - admin can edit the full allowed-key set (status, priority,
+    //     resolved*, replyCount, lastReplyAt, timeline, updatedAt, ...)
+    //   - participants (reporter + linked party) can only touch a smaller
+    //     whitelist needed for replying and self-closing the ticket, and
+    //     cannot move it to "resolved" (admin-only state)
+    //
+    // Replies:
+    //   - create requires being a ticket participant; isInternalNote=true
+    //     additionally requires the author actually be admin
+    //   - read hides internal notes from non-admin participants
+    //   - only admins can update or delete replies (for moderation)
+    // -----------------------------------------------------------------
+
+    match /supportTickets/{ticketId} {
+      allow create: if isValidTicketCreate();
+
+      allow get: if isTicketParticipant();
+      allow list: if signedIn();
+
+      allow update: if isValidTicketUpdate();
+
+      allow delete: if isAdmin();
+
+      match /replies/{replyId} {
+
+        function isValidReplyCreate() {
+          return signedIn() &&
+            isActiveAccount() &&
+            isTicketParticipantById(ticketId) &&
+            request.resource.data.authorUid == request.auth.uid &&
+            request.resource.data.ticketId == ticketId &&
+            request.resource.data.body is string &&
+            request.resource.data.body.size() > 0 &&
+            (
+              request.resource.data.authorRole == "customer" ||
+              request.resource.data.authorRole == "vendor" ||
+              request.resource.data.authorRole == "admin"
+            ) &&
+            (
+              request.resource.data.get("isInternalNote", false) == false ||
+              (request.resource.data.authorRole == "admin" && isAdmin())
+            ) &&
+            // The service uses serverTimestamp() in production but pages and
+            // tests can pass ISO strings, so accept either shape.
+            (
+              request.resource.data.createdAt is timestamp ||
+              request.resource.data.createdAt is string
+            );
+        }
+
+        function isReplyVisible() {
+          return isTicketParticipantById(ticketId) &&
+            (
+              resource.data.get("isInternalNote", false) == false ||
+              isAdmin()
+            );
+        }
+
+        allow create: if isValidReplyCreate();
+        allow read:   if isReplyVisible();
+        allow update, delete: if isAdmin();
+      }
     }
 
     // -----------------------------------------------------------------

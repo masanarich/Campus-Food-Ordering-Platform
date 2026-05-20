@@ -61,6 +61,66 @@
         return {};
     }
 
+    function resolveFunctions(explicitFunctions) {
+        if (explicitFunctions) {
+            return explicitFunctions;
+        }
+
+        if (globalScope.functions) {
+            return globalScope.functions;
+        }
+
+        return null;
+    }
+
+    function resolveFunctionsFns(explicitFunctionsFns) {
+        if (explicitFunctionsFns && typeof explicitFunctionsFns === "object") {
+            return explicitFunctionsFns;
+        }
+
+        if (globalScope.functionsFns && typeof globalScope.functionsFns === "object") {
+            return globalScope.functionsFns;
+        }
+
+        return {};
+    }
+
+    function normalizeCallableResult(result) {
+        if (result && typeof result === "object" && "data" in result) {
+            return result.data;
+        }
+
+        return result;
+    }
+
+    function resolveRefundPaymentCallable(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        if (typeof safeOptions.refundPaymentCallable === "function") {
+            return safeOptions.refundPaymentCallable;
+        }
+
+        if (
+            safeOptions.paymentFunctions &&
+            typeof safeOptions.paymentFunctions.refundPayment === "function"
+        ) {
+            return safeOptions.paymentFunctions.refundPayment;
+        }
+
+        const functions = resolveFunctions(safeOptions.functions);
+        const functionsFns = resolveFunctionsFns(safeOptions.functionsFns);
+
+        if (
+            functions &&
+            functionsFns &&
+            typeof functionsFns.httpsCallable === "function"
+        ) {
+            return functionsFns.httpsCallable(functions, "refundPayment");
+        }
+
+        return null;
+    }
+
     function resolveOrderService(explicitOrderService) {
         if (explicitOrderService && typeof explicitOrderService.getOrderById === "function") {
             return explicitOrderService;
@@ -609,6 +669,115 @@
         };
     }
 
+    function shouldRefundRejectedOrder(orderRecord, options = {}) {
+        const view = buildPaymentView(orderRecord, options);
+        const refundStatus = normalizeLowerText(view.refundStatus);
+
+        return view.isPaid &&
+            normalizeLowerText(orderRecord && orderRecord.status) !== "cancelled" &&
+            refundStatus !== "requested" &&
+            refundStatus !== "processing" &&
+            refundStatus !== "refunded";
+    }
+
+    function buildRefundPaymentRequest(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const view = buildPaymentView(safeOrder, safeOptions);
+        const currentUser = safeOptions.currentUser && typeof safeOptions.currentUser === "object"
+            ? safeOptions.currentUser
+            : {};
+        const reason = normalizeText(
+            safeOptions.refundReason ||
+            safeOrder.refundReason ||
+            "Vendor rejected the paid order."
+        );
+
+        return {
+            payment: {
+                orderId: normalizeText(safeOrder.orderId || safeOrder.id),
+                checkoutId: normalizeText(safeOrder.checkoutId),
+                customerUid: normalizeText(safeOrder.customerUid),
+                vendorUid: normalizeText(safeOrder.vendorUid),
+                provider: view.provider,
+                status: view.status,
+                reference: view.reference,
+                paymentReference: view.reference,
+                amount: view.amount,
+                paymentAmount: view.amount,
+                amountInMinorUnits: Number.parseInt(safeOrder.paymentAmountInMinorUnits || 0, 10) || Math.round(view.amount * 100),
+                paymentAmountInMinorUnits: Number.parseInt(safeOrder.paymentAmountInMinorUnits || 0, 10) || Math.round(view.amount * 100),
+                currency: view.currency,
+                paymentCurrency: view.currency,
+                refundStatus: view.refundStatus
+            },
+            reference: view.reference,
+            refundAmount: view.amount,
+            reason,
+            customerNote: "Your payment is being refunded because the vendor rejected this order.",
+            metadata: {
+                orderId: normalizeText(safeOrder.orderId || safeOrder.id),
+                checkoutId: normalizeText(safeOrder.checkoutId),
+                customerUid: normalizeText(safeOrder.customerUid),
+                vendorUid: normalizeText(safeOrder.vendorUid),
+                rejectedByUid: normalizeText(currentUser.uid),
+                rejectedByName: normalizeText(currentUser.displayName) || "Vendor"
+            }
+        };
+    }
+
+    async function refundRejectedOrder(orderRecord, options = {}) {
+        const callable = resolveRefundPaymentCallable(options);
+        const request = buildRefundPaymentRequest(orderRecord, options);
+
+        if (!callable) {
+            return {
+                success: false,
+                request,
+                error: {
+                    code: "vendor-order/refund-unavailable",
+                    message: "Refund service is not available. Please ask an admin to refund this paid rejected order."
+                }
+            };
+        }
+
+        try {
+            const callableResult = await callable(request);
+            const result = normalizeCallableResult(callableResult) || {};
+
+            if (result.success !== true) {
+                return {
+                    success: false,
+                    request,
+                    refund: result.refund || null,
+                    patch: result.patch || null,
+                    error: result.error || {
+                        code: "vendor-order/refund-failed",
+                        message: "The order was rejected, but the refund could not be started."
+                    }
+                };
+            }
+
+            return {
+                success: true,
+                request,
+                refund: result.refund || null,
+                patch: result.patch || null,
+                patchResult: result.patchResult || null,
+                reference: result.reference || request.reference
+            };
+        } catch (error) {
+            return {
+                success: false,
+                request,
+                error: {
+                    code: normalizeText(error && error.code) || "vendor-order/refund-failed",
+                    message: normalizeText(error && error.message) || "The order was rejected, but the refund could not be started."
+                }
+            };
+        }
+    }
+
     function getPaymentGate(orderRecord, options = {}) {
         const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
         const view = buildPaymentView(safeOrder, options);
@@ -848,6 +1017,7 @@
 
         const gate = getPaymentGate(currentOrder, options);
         const isRejection = normalizeLowerText(safeAction.nextStatus) === "rejected";
+        const refundRequired = isRejection && shouldRefundRejectedOrder(currentOrder, options);
 
         if (gate.blocked && !isRejection) {
             setStatusMessage(statusElement, gate.reason, "error");
@@ -859,7 +1029,13 @@
             };
         }
 
-        setStatusMessage(statusElement, "Updating order status...", "loading");
+        setStatusMessage(
+            statusElement,
+            refundRequired
+                ? "Rejecting order and starting customer refund..."
+                : "Updating order status...",
+            "loading"
+        );
 
         let result;
 
@@ -899,7 +1075,43 @@
             };
         }
 
-        setStatusMessage(statusElement, "Order updated successfully.", "success");
+        let refundResult = null;
+
+        if (refundRequired) {
+            refundResult = await refundRejectedOrder(
+                result.order || currentOrder,
+                {
+                    ...options,
+                    currentUser
+                }
+            );
+
+            if (!refundResult.success) {
+                const refundMessage =
+                    refundResult.error && refundResult.error.message
+                        ? refundResult.error.message
+                        : "Order rejected, but the refund could not be started.";
+
+                setStatusMessage(statusElement, refundMessage, "error");
+
+                return {
+                    success: false,
+                    order: result.order,
+                    orderUpdated: true,
+                    refundRequired: true,
+                    refundResult,
+                    error: refundMessage
+                };
+            }
+        }
+
+        setStatusMessage(
+            statusElement,
+            refundRequired
+                ? "Order rejected and customer refund started successfully."
+                : "Order updated successfully.",
+            "success"
+        );
 
         if (lastInitOptions) {
             await init({
@@ -911,7 +1123,9 @@
 
         return {
             success: true,
-            order: result.order
+            order: result.order,
+            refundRequired,
+            refundResult
         };
     }
 
@@ -1072,6 +1286,10 @@
         resolveAuth,
         resolveAuthFns,
         resolveFirestoreFns,
+        resolveFunctions,
+        resolveFunctionsFns,
+        normalizeCallableResult,
+        resolveRefundPaymentCallable,
         resolveOrderService,
         resolveOrderStatus,
         resolveOrderFormatters,
@@ -1087,6 +1305,9 @@
         setStatusMessage,
         getAllowedVendorActions,
         buildPaymentView,
+        shouldRefundRejectedOrder,
+        buildRefundPaymentRequest,
+        refundRejectedOrder,
         getPaymentGate,
         renderOrderSummary,
         renderOrderItems,

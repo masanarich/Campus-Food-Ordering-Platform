@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Review and triage every customer and vendor support ticket.">
     <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./admin-support.css">
 </head>
 
 <body class="admin-shell admin-support" data-page="admin-disputes">
@@ -92,6 +93,16 @@
                         <option value="oldest">Oldest first</option>
                         <option value="last-reply">Latest reply</option>
                         <option value="priority">Priority first</option>
+                    </select>
+                </p>
+
+                <p class="admin-inbox-filter-field">
+                    <label for="admin-inbox-page-size">Tickets per page</label>
+                    <select id="admin-inbox-page-size" name="pageSize">
+                        <option value="12" selected>12</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
                     </select>
                 </p>
 

@@ -2,8 +2,9 @@
     "use strict";
 
     const MODULE_NAME = "admin/disputes";
-    const DEFAULT_PAGE_SIZE = 8;
+    const DEFAULT_PAGE_SIZE = 12;
     const DEFAULT_SORT = "newest";
+    const PAGE_SIZE_OPTIONS = [12, 25, 50, 100];
 
     let initInFlight = null;
 
@@ -366,16 +367,95 @@
         return { pageTickets, page: safePage, pageSize: size, totalPages, totalCount: safeTickets.length };
     }
 
+    function computePageNumbers(current, total) {
+        // Returns an array of page numbers + "..." gap markers for the numbered
+        // pagination control. Always shows first and last; shows up to 2 around
+        // the current page. Examples (current=5, total=20): [1, "...", 4, 5, 6, "...", 20].
+        if (total <= 7) {
+            const list = [];
+            for (let i = 1; i <= total; i += 1) list.push(i);
+            return list;
+        }
+        const pages = [1];
+        if (current > 4) pages.push("…");
+        const start = Math.max(2, current - 1);
+        const end = Math.min(total - 1, current + 1);
+        for (let p = start; p <= end; p += 1) pages.push(p);
+        if (current < total - 3) pages.push("…");
+        pages.push(total);
+        return pages;
+    }
+
+    function renderNumberedPages(menuElement, paginationInfo) {
+        if (!menuElement) return;
+        const existing = menuElement.querySelectorAll(
+            '[data-page-action="page"], .admin-inbox-pagination-ellipsis'
+        );
+        existing.forEach(function removeOne(node) {
+            const li = node.closest("li");
+            if (li) li.remove();
+        });
+
+        if (!paginationInfo || paginationInfo.totalPages <= 1) {
+            return;
+        }
+
+        const nextButton = menuElement.querySelector('[data-page-action="next"]');
+        const nextLi = nextButton ? nextButton.closest("li") : null;
+        const pages = computePageNumbers(paginationInfo.page, paginationInfo.totalPages);
+
+        pages.forEach(function appendPage(page) {
+            const li = globalScope.document.createElement("li");
+            const button = globalScope.document.createElement("button");
+            button.type = "button";
+
+            if (page === "…") {
+                button.disabled = true;
+                button.textContent = "…";
+                button.className = "admin-inbox-pagination-ellipsis";
+                button.setAttribute("aria-hidden", "true");
+            } else {
+                button.setAttribute("data-page-action", "page");
+                button.setAttribute("data-page-number", String(page));
+                button.textContent = String(page);
+                if (page === paginationInfo.page) {
+                    button.className = "button-primary admin-inbox-pagination-current";
+                    button.setAttribute("aria-current", "page");
+                } else {
+                    button.className = "button-secondary";
+                }
+                button.setAttribute("aria-label", `Go to page ${page}`);
+            }
+
+            li.appendChild(button);
+            if (nextLi) {
+                menuElement.insertBefore(li, nextLi);
+            } else {
+                menuElement.appendChild(li);
+            }
+        });
+    }
+
     function updatePaginationControls(paginationElement, statusElement, paginationInfo) {
         if (!paginationElement) return;
         const totalCount = paginationInfo && Number(paginationInfo.totalCount) || 0;
         if (totalCount === 0) paginationElement.setAttribute("hidden", "");
         else paginationElement.removeAttribute("hidden");
-        if (statusElement) statusElement.textContent = `Page ${paginationInfo.page} of ${paginationInfo.totalPages}`;
+
+        if (statusElement) {
+            const ticketWord = totalCount === 1 ? "ticket" : "tickets";
+            statusElement.textContent = paginationInfo.totalPages > 1
+                ? `Page ${paginationInfo.page} of ${paginationInfo.totalPages} · ${totalCount} ${ticketWord}`
+                : `${totalCount} ${ticketWord}`;
+        }
+
         const prevButton = paginationElement.querySelector('[data-page-action="prev"]');
         const nextButton = paginationElement.querySelector('[data-page-action="next"]');
         if (prevButton) prevButton.disabled = paginationInfo.page <= 1;
         if (nextButton) nextButton.disabled = paginationInfo.page >= paginationInfo.totalPages;
+
+        const menuElement = paginationElement.querySelector(".admin-inbox-pagination-menu");
+        renderNumberedPages(menuElement, paginationInfo);
     }
 
     function buildResultSummary(filteredCount, totalCount) {
@@ -449,11 +529,32 @@
             pagination.dataset.adminInboxPaginationBound = "true";
             pagination.addEventListener("click", function onClick(event) {
                 const target = event.target.closest("[data-page-action]");
-                if (!target) return;
+                if (!target || target.disabled) return;
                 const action = target.getAttribute("data-page-action");
-                if (action === "prev") pageState.currentPage = Math.max(1, pageState.currentPage - 1);
-                else if (action === "next") pageState.currentPage = pageState.currentPage + 1;
+                if (action === "prev") {
+                    pageState.currentPage = Math.max(1, pageState.currentPage - 1);
+                } else if (action === "next") {
+                    pageState.currentPage = pageState.currentPage + 1;
+                } else if (action === "page") {
+                    const pageNumber = Number(target.getAttribute("data-page-number"));
+                    if (Number.isFinite(pageNumber) && pageNumber >= 1) {
+                        pageState.currentPage = pageNumber;
+                    }
+                }
                 renderCurrentPage(elements, options);
+            });
+        }
+
+        const pageSizeSelect = elements && elements.pageSizeSelect;
+        if (pageSizeSelect && !pageSizeSelect.dataset.adminInboxPageSizeBound) {
+            pageSizeSelect.dataset.adminInboxPageSizeBound = "true";
+            pageSizeSelect.addEventListener("change", function onPageSizeChange() {
+                const next = Number(pageSizeSelect.value);
+                if (Number.isFinite(next) && next > 0) {
+                    pageState.pageSize = Math.floor(next);
+                    pageState.currentPage = 1;
+                    renderCurrentPage(elements, options);
+                }
             });
         }
     }
@@ -473,12 +574,14 @@
             const formElement = globalScope.document.querySelector(options.formSelector || "#admin-inbox-filter-form");
             const paginationElement = globalScope.document.querySelector(options.paginationSelector || "#admin-inbox-pagination");
             const paginationStatusElement = globalScope.document.querySelector(options.paginationStatusSelector || "#admin-inbox-pagination-status");
+            const pageSizeSelect = globalScope.document.querySelector(options.pageSizeSelector || "#admin-inbox-page-size");
 
             if (!container) return { success: false, error: "Inbox container not found." };
 
             const elements = {
                 container, summary: summaryElement, form: formElement,
-                pagination: paginationElement, paginationStatus: paginationStatusElement
+                pagination: paginationElement, paginationStatus: paginationStatusElement,
+                pageSizeSelect
             };
 
             const initialFilters = readFiltersFromForm(formElement);
@@ -486,8 +589,13 @@
                 search: "", status: "all", category: "all", reporterRole: "all", sort: DEFAULT_SORT
             };
             pageState.currentPage = 1;
-            pageState.pageSize = Number(options.pageSize) > 0
-                ? Math.floor(Number(options.pageSize)) : DEFAULT_PAGE_SIZE;
+            const explicitPageSize = Number(options.pageSize);
+            const selectorPageSize = pageSizeSelect ? Number(pageSizeSelect.value) : NaN;
+            pageState.pageSize = Number.isFinite(explicitPageSize) && explicitPageSize > 0
+                ? Math.floor(explicitPageSize)
+                : Number.isFinite(selectorPageSize) && selectorPageSize > 0
+                    ? Math.floor(selectorPageSize)
+                    : DEFAULT_PAGE_SIZE;
 
             setStatusMessage(statusElement, "Loading the support inbox...", "loading");
 
@@ -544,14 +652,15 @@
     }
 
     const adminDisputesPage = {
-        MODULE_NAME, DEFAULT_PAGE_SIZE, DEFAULT_SORT,
+        MODULE_NAME, DEFAULT_PAGE_SIZE, DEFAULT_SORT, PAGE_SIZE_OPTIONS,
         normalizeText, normalizeLowerText,
         resolveFirestore, resolveAuth, resolveAuthFns, resolveFirestoreFns,
         resolveTicketService, resolveTicketStatus, resolveTicketCategories, resolveTicketFormatters,
         waitForAuthReady, getTicketTimestampValue, mapTicketRecord, fetchAdminTickets,
         setStatusMessage, buildTicketDetailUrl, createTicketCard, renderTickets,
         getCreatedAtTimestamp, getLastReplyTimestamp,
-        sortTickets, filterTickets, paginateTickets, updatePaginationControls,
+        sortTickets, filterTickets, paginateTickets,
+        computePageNumbers, renderNumberedPages, updatePaginationControls,
         buildResultSummary, renderCurrentPage, readFiltersFromForm, attachToolbarHandlers,
         init, initializeAdminDisputesPage
     };

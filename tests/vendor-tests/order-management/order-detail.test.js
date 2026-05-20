@@ -260,6 +260,10 @@ function resetOrderDetailGlobals() {
     delete global.authFns;
     delete window.firestoreFns;
     delete global.firestoreFns;
+    delete window.functions;
+    delete global.functions;
+    delete window.functionsFns;
+    delete global.functionsFns;
     delete window.orderService;
     delete global.orderService;
     delete window.orderStatus;
@@ -288,6 +292,8 @@ describe("vendor/order-management/order-detail.js - helpers", () => {
             const auth = { currentUser: { uid: "vendor-1" } };
             const authFns = { onAuthStateChanged: jest.fn() };
             const firestoreFns = { getDoc: jest.fn() };
+            const functions = { kind: "functions" };
+            const functionsFns = { httpsCallable: jest.fn(() => jest.fn()) };
             const orderService = { getOrderById: jest.fn() };
             const orderStatus = createOrderStatusStub();
             const orderFormatters = createOrderFormattersStub();
@@ -296,6 +302,8 @@ describe("vendor/order-management/order-detail.js - helpers", () => {
             window.auth = auth;
             window.authFns = authFns;
             window.firestoreFns = firestoreFns;
+            window.functions = functions;
+            window.functionsFns = functionsFns;
             window.orderService = orderService;
             window.orderStatus = orderStatus;
             window.orderFormatters = orderFormatters;
@@ -308,6 +316,19 @@ describe("vendor/order-management/order-detail.js - helpers", () => {
             expect(vendorOrderDetailPage.resolveAuthFns()).toBe(authFns);
             expect(vendorOrderDetailPage.resolveFirestoreFns(firestoreFns)).toBe(firestoreFns);
             expect(vendorOrderDetailPage.resolveFirestoreFns()).toBe(firestoreFns);
+            expect(vendorOrderDetailPage.resolveFunctions(functions)).toBe(functions);
+            expect(vendorOrderDetailPage.resolveFunctions()).toBe(functions);
+            expect(vendorOrderDetailPage.resolveFunctionsFns(functionsFns)).toBe(functionsFns);
+            expect(vendorOrderDetailPage.resolveFunctionsFns()).toBe(functionsFns);
+            expect(vendorOrderDetailPage.normalizeCallableResult({ data: { success: true } })).toEqual({ success: true });
+            expect(vendorOrderDetailPage.resolveRefundPaymentCallable({
+                refundPaymentCallable: functionsFns.httpsCallable()
+            })).toBeDefined();
+            expect(vendorOrderDetailPage.resolveRefundPaymentCallable({
+                functions,
+                functionsFns
+            })).toBeDefined();
+            expect(functionsFns.httpsCallable).toHaveBeenCalledWith(functions, "refundPayment");
             expect(vendorOrderDetailPage.resolveOrderService(orderService)).toBe(orderService);
             expect(vendorOrderDetailPage.resolveOrderService()).toBe(orderService);
             expect(vendorOrderDetailPage.resolveOrderStatus(orderStatus)).toBe(orderStatus);
@@ -696,6 +717,134 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
             .toContain("must be refunded");
     });
 
+    test("builds refund requests only for paid rejected orders that still need refunds", () => {
+        const paidOrder = createOrder({
+            status: "pending",
+            paymentStatus: "paid",
+            paymentAmountInMinorUnits: 8500
+        });
+        const request = vendorOrderDetailPage.buildRefundPaymentRequest(paidOrder, {
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            currentUser: {
+                uid: "vendor-1",
+                displayName: "Campus Bites"
+            }
+        });
+
+        expect(vendorOrderDetailPage.shouldRefundRejectedOrder(paidOrder, {
+            paymentStatus,
+            paymentFormatters,
+            refundStatus
+        })).toBe(true);
+        expect(vendorOrderDetailPage.shouldRefundRejectedOrder(createOrder({
+            paymentStatus: "unpaid"
+        }), {
+            paymentStatus,
+            refundStatus
+        })).toBe(false);
+        expect(vendorOrderDetailPage.shouldRefundRejectedOrder(createOrder({
+            paymentStatus: "paid",
+            refundStatus: "processing"
+        }), {
+            paymentStatus,
+            refundStatus
+        })).toBe(false);
+        expect(request).toEqual(expect.objectContaining({
+            reference: "paystack-ref",
+            refundAmount: 85,
+            reason: "Vendor rejected the paid order."
+        }));
+        expect(request.payment).toEqual(expect.objectContaining({
+            orderId: "order-1",
+            status: "paid",
+            paymentReference: "paystack-ref",
+            amountInMinorUnits: 8500
+        }));
+        expect(request.metadata).toEqual(expect.objectContaining({
+            orderId: "order-1",
+            vendorUid: "vendor-1",
+            rejectedByUid: "vendor-1",
+            rejectedByName: "Campus Bites"
+        }));
+    });
+
+    test("refundRejectedOrder calls the refund callable and unwraps callable data", async () => {
+        const refundPaymentCallable = jest.fn(async request => ({
+            data: {
+                success: true,
+                refund: {
+                    refundReference: "refund-ref"
+                },
+                patch: {
+                    refundStatus: "refunded"
+                },
+                patchResult: {
+                    success: true
+                },
+                reference: request.reference
+            }
+        }));
+
+        const result = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            refundPaymentCallable,
+            currentUser: {
+                uid: "vendor-1"
+            }
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.refund.refundReference).toBe("refund-ref");
+        expect(result.patch.refundStatus).toBe("refunded");
+        expect(refundPaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
+            reference: "paystack-ref",
+            payment: expect.objectContaining({
+                orderId: "order-1"
+            })
+        }));
+    });
+
+    test("refundRejectedOrder reports unavailable and failed refund callables", async () => {
+        const unavailable = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
+            paymentStatus,
+            paymentFormatters,
+            refundStatus
+        });
+        const failed = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            refundPaymentCallable: jest.fn(async () => ({
+                data: {
+                    success: false,
+                    error: {
+                        code: "payments/refund-failed",
+                        message: "Refund failed."
+                    }
+                }
+            }))
+        });
+        const thrown = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            refundPaymentCallable: jest.fn(async () => {
+                throw new Error("network down");
+            })
+        });
+
+        expect(unavailable.success).toBe(false);
+        expect(unavailable.error.code).toBe("vendor-order/refund-unavailable");
+        expect(failed.success).toBe(false);
+        expect(failed.error.message).toBe("Refund failed.");
+        expect(thrown.success).toBe(false);
+        expect(thrown.error.message).toBe("network down");
+    });
+
     test("renderOrderPayment surfaces failure reason for failed payments", () => {
         vendorOrderDetailPage.renderOrderPayment(
             createOrder({
@@ -913,6 +1062,102 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
             nextStatus: "rejected",
             actorRole: "vendor"
         }));
+    });
+
+    test("handleOrderAction refunds the customer when a paid order is rejected", async () => {
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
+        const refundStatus = createRefundStatusStub();
+        const updateOrderStatus = jest.fn(async () => ({
+            success: true,
+            order: createOrder({ status: "rejected", paymentStatus: "paid" })
+        }));
+        const refundPaymentCallable = jest.fn(async () => ({
+            data: {
+                success: true,
+                refund: {
+                    refundReference: "refund-ref"
+                },
+                patch: {
+                    refundStatus: "refunded",
+                    refundReference: "refund-ref"
+                },
+                patchResult: {
+                    success: true
+                }
+            }
+        }));
+
+        const result = await vendorOrderDetailPage.handleOrderAction({
+            type: "status_change",
+            nextStatus: "rejected"
+        }, {
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getOrderById: jest.fn(), updateOrderStatus },
+            currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            refundPaymentCallable,
+            statusSelector: "#vendor-order-detail-status"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.refundRequired).toBe(true);
+        expect(result.refundResult.success).toBe(true);
+        expect(refundPaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
+            reference: "paystack-ref",
+            reason: "Vendor rejected the paid order.",
+            payment: expect.objectContaining({
+                orderId: "order-1",
+                status: "paid"
+            })
+        }));
+        expect(dom.statusElement.textContent).toContain("refund started");
+    });
+
+    test("handleOrderAction reports refund failure after rejecting a paid order", async () => {
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
+        const refundStatus = createRefundStatusStub();
+        const updateOrderStatus = jest.fn(async () => ({
+            success: true,
+            order: createOrder({ status: "rejected", paymentStatus: "paid" })
+        }));
+        const refundPaymentCallable = jest.fn(async () => ({
+            data: {
+                success: false,
+                error: {
+                    message: "Refund service failed."
+                }
+            }
+        }));
+
+        const result = await vendorOrderDetailPage.handleOrderAction({
+            type: "status_change",
+            nextStatus: "rejected"
+        }, {
+            db: { kind: "db" },
+            firestoreFns: {},
+            orderService: { getOrderById: jest.fn(), updateOrderStatus },
+            currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            refundPaymentCallable,
+            statusSelector: "#vendor-order-detail-status"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.orderUpdated).toBe(true);
+        expect(result.refundRequired).toBe(true);
+        expect(result.error).toBe("Refund service failed.");
+        expect(updateOrderStatus).toHaveBeenCalled();
+        expect(refundPaymentCallable).toHaveBeenCalled();
+        expect(dom.statusElement.textContent).toContain("Refund service failed.");
     });
 
     test("handleOrderAction covers unavailable service, failure states, confirm collection, and refresh after success", async () => {

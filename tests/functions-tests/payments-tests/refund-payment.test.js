@@ -25,9 +25,15 @@ describe("functions/payments/refund-payment.js", () => {
         expect(refundPayment.MODULE_NAME).toBe("refund-payment");
         expect(refundPayment.DEFAULT_PROVIDER).toBe("paystack");
         expect(refundPayment.DEFAULT_CURRENCY).toBe("ZAR");
+        expect(refundPayment.REFUND_STATUSES.REFUNDED).toBe("refunded");
         expect(refundPayment.normalizeText("  hello  ")).toBe("hello");
         expect(refundPayment.normalizeLowerText(" PAID ")).toBe("paid");
         expect(refundPayment.normalizeUpperText(" zar ")).toBe("ZAR");
+        expect(refundPayment.normalizeStatusKey("refund-pending")).toBe("refundpending");
+        expect(refundPayment.normalizeRefundStatus("processed")).toBe("refunded");
+        expect(refundPayment.normalizeRefundStatus("pending")).toBe("processing");
+        expect(refundPayment.isRefundActive("pending")).toBe(true);
+        expect(refundPayment.isRefundAlreadyCompleted("success")).toBe(true);
         expect(refundPayment.normalizeCurrencyAmount("10.235")).toBe(10.24);
         expect(refundPayment.normalizeCurrencyAmount(null, "5.5")).toBe(5.5);
         expect(refundPayment.normalizeCurrencyAmount()).toBe(0);
@@ -55,6 +61,7 @@ describe("functions/payments/refund-payment.js", () => {
         expect(refundPayment.resolvePaymentReference({}, { reference: " ref-1 " })).toBe("ref-1");
         expect(refundPayment.resolvePaymentReference({ paymentReference: " payment-ref " })).toBe("payment-ref");
         expect(refundPayment.resolvePaymentStatus({ paymentStatus: " PAID " })).toBe("paid");
+        expect(refundPayment.resolveExistingRefundStatus({ refundStatus: "processed" })).toBe("refunded");
         expect(refundPayment.resolveRefundReason({}, { reason: " vendor rejected " })).toBe("vendor rejected");
         expect(refundPayment.resolveRefundReason({ refundReason: " stale order " })).toBe("stale order");
         expect(refundPayment.resolveRefundCurrency({}, { currency: " zar " })).toBe("ZAR");
@@ -81,7 +88,7 @@ describe("functions/payments/refund-payment.js", () => {
             refundId: "123",
             refundReference: "refund-ref",
             paymentReference: "paystack-ref",
-            status: "processed",
+            status: "refunded",
             amount: 75,
             amountInMinorUnits: 7500,
             currency: "ZAR",
@@ -107,7 +114,7 @@ describe("functions/payments/refund-payment.js", () => {
         })).toEqual(expect.objectContaining({
             refundId: "refund-1",
             paymentReference: "paystack-ref",
-            status: "pending",
+            status: "processing",
             amount: 0,
             currency: "ZAR"
         }));
@@ -152,6 +159,7 @@ describe("functions/payments/refund-payment.js", () => {
                 amountInMinorUnits: 7500,
                 amount: 75,
                 currency: "ZAR",
+                existingRefundStatus: "",
                 reason: "Vendor rejected"
             }
         });
@@ -181,6 +189,27 @@ describe("functions/payments/refund-payment.js", () => {
             amountInMinorUnits: 9999,
             allowOverRefund: true
         }).isValid).toBe(true);
+        expect(refundPayment.validateRefundInput(createPaidPayment({
+            refundStatus: "processing"
+        }))).toEqual(expect.objectContaining({
+            isValid: false,
+            errors: expect.objectContaining({
+                refundStatus: "A refund is already active for this payment."
+            })
+        }));
+        expect(refundPayment.validateRefundInput(createPaidPayment({
+            refundStatus: "processed"
+        }))).toEqual(expect.objectContaining({
+            isValid: false,
+            errors: expect.objectContaining({
+                refundStatus: "This payment has already been refunded."
+            })
+        }));
+        expect(refundPayment.validateRefundInput(createPaidPayment({
+            refundStatus: "processed"
+        }), {
+            allowExistingRefund: true
+        }).isValid).toBe(true);
     });
 
     test("creates refund patches", () => {
@@ -203,7 +232,7 @@ describe("functions/payments/refund-payment.js", () => {
 
         expect(patch).toEqual({
             paymentStatus: "paid",
-            refundStatus: "processed",
+            refundStatus: "refunded",
             refundProvider: "paystack",
             refundReference: "refund-ref",
             refundId: "refund-1",
@@ -285,12 +314,12 @@ describe("functions/payments/refund-payment.js", () => {
             refundId: "refund-1",
             refundReference: "refund-ref",
             paymentReference: "paystack-ref",
-            status: "processed",
+            status: "refunded",
             reason: "Vendor rejected the paid order."
         }));
         expect(result.patch).toEqual(expect.objectContaining({
             paymentStatus: "paid",
-            refundStatus: "processed",
+            refundStatus: "refunded",
             refundReference: "refund-ref",
             refundAmountInMinorUnits: 7500,
             refundRequestedAt: "requested-time",
@@ -395,6 +424,7 @@ describe("functions/payments/refund-payment.js", () => {
 
         expect(result.success).toBe(true);
         expect(result.patch.refundAmount).toBe(25);
+        expect(result.patch.refundStatus).toBe("processing");
         expect(client.request).toHaveBeenCalledWith("/refund", {
             method: "POST",
             payload: expect.objectContaining({

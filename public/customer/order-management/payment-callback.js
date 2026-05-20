@@ -455,6 +455,34 @@
         return null;
     }
 
+    function resolveConvertCheckoutToOrderCallable(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        if (typeof safeOptions.convertCheckoutToOrderCallable === "function") {
+            return safeOptions.convertCheckoutToOrderCallable;
+        }
+
+        if (
+            safeOptions.paymentFunctions &&
+            typeof safeOptions.paymentFunctions.convertCheckoutToOrder === "function"
+        ) {
+            return safeOptions.paymentFunctions.convertCheckoutToOrder;
+        }
+
+        const functions = resolveFunctions(safeOptions.functions);
+        const functionsFns = resolveFunctionsFns(safeOptions.functionsFns);
+
+        if (
+            functions &&
+            functionsFns &&
+            typeof functionsFns.httpsCallable === "function"
+        ) {
+            return functionsFns.httpsCallable(functions, "convertCheckoutToOrder");
+        }
+
+        return null;
+    }
+
     function buildPaymentSliceFromOrder(orderData, reference) {
         const safeOrder = orderData && typeof orderData === "object" ? orderData : {};
         const safeReference = normalizeText(reference || safeOrder.paymentReference);
@@ -1165,6 +1193,67 @@
         };
     }
 
+    async function convertPaidCheckoutOnServer(checkoutRecord, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const checkoutId = normalizeText(checkout.checkoutId || checkout.id || safeOptions.checkoutId);
+        const callable = resolveConvertCheckoutToOrderCallable(safeOptions);
+
+        if (!callable) {
+            return {
+                success: false,
+                skipped: true,
+                checkout,
+                error: {
+                    code: "payment-callback/checkout-conversion-callable-unavailable",
+                    message: "Checkout conversion service is not available."
+                }
+            };
+        }
+
+        try {
+            const callableResult = await callable({
+                checkoutId,
+                checkout,
+                orderId: normalizeText(safeOptions.orderId)
+            });
+            const result = normalizeCallableResult(callableResult) || {};
+
+            if (result.success !== true) {
+                return {
+                    success: false,
+                    checkout,
+                    order: result.order || null,
+                    orderId: normalizeText(result.orderId),
+                    result,
+                    error: result.error || {
+                        code: "payment-callback/checkout-conversion-failed",
+                        message: "Payment was verified, but the checkout could not be converted into an order."
+                    }
+                };
+            }
+
+            return {
+                success: true,
+                checkout: result.checkout || checkout,
+                order: result.order || null,
+                orderId: normalizeText(result.orderId || (result.order && result.order.orderId)),
+                result
+            };
+        } catch (error) {
+            console.error(`${MODULE_NAME}: convertPaidCheckoutOnServer failed:`, error);
+
+            return {
+                success: false,
+                checkout,
+                error: {
+                    code: error?.code || "payment-callback/checkout-conversion-failed",
+                    message: error?.message || "Payment was verified, but the checkout could not be converted into an order."
+                }
+            };
+        }
+    }
+
     function renderPaymentSummary(summaryElement, info = {}) {
         if (!summaryElement) {
             return;
@@ -1405,6 +1494,42 @@
             }
 
             const paidCheckout = paidResult.checkout || checkoutRecord;
+            const serverConversionResult = await convertPaidCheckoutOnServer(paidCheckout, safeOptions);
+
+            if (serverConversionResult.success) {
+                return {
+                    success: true,
+                    outcome: "success",
+                    reference,
+                    checkout: serverConversionResult.checkout || paidCheckout,
+                    order: serverConversionResult.order || {
+                        orderId: serverConversionResult.orderId,
+                        checkoutId: normalizeText(paidCheckout.checkoutId),
+                        ...paidCheckout
+                    },
+                    orderId: serverConversionResult.orderId,
+                    verifyResult,
+                    checkoutPatchResult: paidResult,
+                    orderResult: serverConversionResult,
+                    conversionResult: serverConversionResult,
+                    completedByServer: true
+                };
+            }
+
+            if (!serverConversionResult.skipped) {
+                return {
+                    success: false,
+                    outcome: "order-create-failed",
+                    reference,
+                    checkout: paidCheckout,
+                    verifyResult,
+                    checkoutPatchResult: paidResult,
+                    orderResult: serverConversionResult,
+                    conversionResult: serverConversionResult,
+                    error: serverConversionResult.error
+                };
+            }
+
             const orderResult = await createOrderFromPaidCheckout(paidCheckout, safeOptions);
 
             if (!orderResult.success) {
@@ -1713,6 +1838,7 @@
         createBackButton,
         normalizeCallableResult,
         resolveVerifyPaymentCallable,
+        resolveConvertCheckoutToOrderCallable,
         buildPaymentSliceFromOrder,
         buildPaymentSliceFromCheckout,
         supportsOrderQuery,
@@ -1727,6 +1853,7 @@
         createOrderIdFromCheckout,
         createOrderFromPaidCheckout,
         convertCheckoutAfterOrder,
+        convertPaidCheckoutOnServer,
         renderPaymentSummary,
         clearActions,
         appendActionLink,

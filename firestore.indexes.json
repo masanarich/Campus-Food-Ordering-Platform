@@ -82,6 +82,44 @@
       ]
     },
     {
+      "collectionGroup": "checkoutSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerUid", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "checkoutSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerUid", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "checkoutSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentReference", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "checkoutSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vendorUid", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
@@ -96,6 +134,111 @@
         { "fieldPath": "recipientUid", "mode": "ASCENDING" },
         { "fieldPath": "isRead", "mode": "ASCENDING" },
         { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reporterUid", "mode": "ASCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reporterUid", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reporterUid", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vendorUid", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerUid", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orderId", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reporterRole", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "replies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isInternalNote", "mode": "ASCENDING" },
+        { "fieldPath": "createdAt", "mode": "ASCENDING" }
       ]
     }
   ],

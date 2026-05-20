@@ -3,6 +3,7 @@
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 const PAYSTACK_INITIALIZE_TRANSACTION_PATH = "/transaction/initialize";
 const PAYSTACK_VERIFY_TRANSACTION_PATH = "/transaction/verify";
+const PAYSTACK_REFUND_PATH = "/refund";
 
 function normalizeText(value) {
     return typeof value === "string" ? value.trim() : "";
@@ -246,13 +247,27 @@ function createPaystackClient(options = {}) {
         ]);
     }
 
+    async function createRefund(payload) {
+        return request(PAYSTACK_REFUND_PATH, {
+            method: "POST",
+            payload
+        });
+    }
+
+    async function refundTransaction(payload) {
+        return createRefund(payload);
+    }
+
     return {
         baseUrl: client.baseUrl,
         secretKey: client.secretKey,
         environment: client.environment,
         request,
         initializeTransaction,
-        verifyTransaction
+        verifyTransaction,
+        createRefund,
+        refundTransaction,
+        refund: createRefund
     };
 }
 
@@ -260,6 +275,7 @@ module.exports = {
     PAYSTACK_BASE_URL,
     PAYSTACK_INITIALIZE_TRANSACTION_PATH,
     PAYSTACK_VERIFY_TRANSACTION_PATH,
+    PAYSTACK_REFUND_PATH,
     normalizeText,
     normalizeLowerText,
     normalizeBaseUrl,

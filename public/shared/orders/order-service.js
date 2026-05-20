@@ -903,19 +903,97 @@
         return orderQueries.fetchVendorMenuItems(safeOptions);
     }
 
-    function createStatusUpdateFailure(code, message, currentOrder, transition) {
+    function createStatusUpdateFailure(code, message, currentOrder, transition, details = {}) {
+        const safeDetails = details && typeof details === "object" ? details : {};
+
         return createServiceResult(false, {
             order: currentOrder || null,
             transition: transition || null,
+            ...safeDetails,
             error: createServiceError(code, message, {
-                transition: transition || null
+                transition: transition || null,
+                ...(safeDetails.errorDetails && typeof safeDetails.errorDetails === "object"
+                    ? safeDetails.errorDetails
+                    : {})
             })
         });
+    }
+
+    function getOrderPaymentState(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const paymentStatus = resolvePaymentStatus(options.paymentStatus);
+        const fallbackStatus = paymentStatus && typeof paymentStatus.getDefaultPaymentStatus === "function"
+            ? paymentStatus.getDefaultPaymentStatus()
+            : "unpaid";
+        const normalizedStatus =
+            paymentStatus && typeof paymentStatus.normalizePaymentStatus === "function"
+                ? paymentStatus.normalizePaymentStatus(safeOrder.paymentStatus, fallbackStatus)
+                : normalizeLowerText(safeOrder.paymentStatus) || fallbackStatus;
+        const statusLabel = paymentStatus && typeof paymentStatus.getPaymentStatusLabel === "function"
+            ? paymentStatus.getPaymentStatusLabel(normalizedStatus)
+            : normalizedStatus;
+        const isPaid = paymentStatus && typeof paymentStatus.isPaymentPaid === "function"
+            ? paymentStatus.isPaymentPaid(normalizedStatus)
+            : normalizedStatus === "paid";
+        const isOrderBlocking =
+            paymentStatus && typeof paymentStatus.isPaymentBlockingOrder === "function"
+                ? paymentStatus.isPaymentBlockingOrder(normalizedStatus)
+                : !isPaid;
+
+        return {
+            status: normalizedStatus,
+            statusLabel,
+            isPaid,
+            isOrderBlocking,
+            reference: normalizeText(safeOrder.paymentReference),
+            authorizationUrl: normalizeText(safeOrder.paymentAuthorizationUrl)
+        };
+    }
+
+    function orderStatusRequiresPaidPayment(status, options = {}) {
+        const orderStatus = resolveOrderStatus(options.orderStatus);
+        const normalizedStatus = orderStatus && typeof orderStatus.normalizeOrderStatus === "function"
+            ? orderStatus.normalizeOrderStatus(status)
+            : normalizeLowerText(status);
+
+        if (orderStatus && typeof orderStatus.orderStatusRequiresPaidPayment === "function") {
+            return orderStatus.orderStatusRequiresPaidPayment(normalizedStatus);
+        }
+
+        return ["pending", "accepted", "preparing", "ready"].indexOf(normalizedStatus) >= 0;
+    }
+
+    function buildOrderPaymentGuard(orderRecord, nextStatus, options = {}) {
+        const orderStatus = resolveOrderStatus(options.orderStatus);
+        const normalizedNextStatus = orderStatus && typeof orderStatus.normalizeOrderStatus === "function"
+            ? orderStatus.normalizeOrderStatus(nextStatus)
+            : normalizeLowerText(nextStatus);
+        const statusRequiresPayment =
+            orderStatusRequiresPaidPayment(normalizedNextStatus, options) ||
+            normalizedNextStatus === "completed";
+        const payment = getOrderPaymentState(orderRecord, options);
+
+        if (!statusRequiresPayment || payment.isPaid || !payment.isOrderBlocking) {
+            return {
+                blocked: false,
+                payment,
+                nextStatus: normalizedNextStatus,
+                reason: ""
+            };
+        }
+
+        return {
+            blocked: true,
+            payment,
+            nextStatus: normalizedNextStatus,
+            reason: `Customer payment is ${payment.statusLabel}. Do not move this order to ${normalizedNextStatus} until payment is completed.`
+        };
     }
 
     function buildCollectionConfirmationUpdate(orderRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const orderModel = resolveOrderModel(safeOptions.orderModel);
         const orderValidation = resolveOrderValidation(safeOptions.orderValidation);
 
@@ -926,7 +1004,7 @@
             );
         }
 
-        const currentOrder = orderModel.normalizeOrderRecord(orderRecord, { orderStatus });
+        const currentOrder = orderModel.normalizeOrderRecord(orderRecord, { orderStatus, paymentStatus });
         const actorRole = orderStatus.normalizeOrderActorRole(safeOptions.actorRole);
 
         if (
@@ -970,6 +1048,27 @@
         let transition = null;
 
         if (currentOrder.status === orderStatus.ORDER_STATUSES.READY) {
+            const paymentGuard = buildOrderPaymentGuard(
+                currentOrder,
+                orderStatus.ORDER_STATUSES.COMPLETED,
+                { ...safeOptions, orderStatus, paymentStatus }
+            );
+
+            if (paymentGuard.blocked) {
+                return createStatusUpdateFailure(
+                    "orders/payment-not-confirmed",
+                    paymentGuard.reason,
+                    currentOrder,
+                    null,
+                    {
+                        paymentGuard,
+                        errorDetails: {
+                            paymentGuard
+                        }
+                    }
+                );
+            }
+
             const transitionValidation = orderValidation.validateOrderStatusChange(
                 currentOrder.status,
                 orderStatus.ORDER_STATUSES.COMPLETED,
@@ -1042,6 +1141,7 @@
             },
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 createdByRole: actorRole,
                 customerConfirmedCollected,
@@ -1066,6 +1166,7 @@
     function buildOrderStatusUpdate(orderRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderStatus = resolveOrderStatus(safeOptions.orderStatus);
+        const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const orderModel = resolveOrderModel(safeOptions.orderModel);
         const orderValidation = resolveOrderValidation(safeOptions.orderValidation);
 
@@ -1076,7 +1177,7 @@
             );
         }
 
-        const currentOrder = orderModel.normalizeOrderRecord(orderRecord, { orderStatus });
+        const currentOrder = orderModel.normalizeOrderRecord(orderRecord, { orderStatus, paymentStatus });
         const nextStatus = orderStatus.normalizeOrderStatus(safeOptions.nextStatus);
 
         if (nextStatus === orderStatus.ORDER_STATUSES.COMPLETED) {
@@ -1108,6 +1209,27 @@
             );
         }
 
+        const paymentGuard = buildOrderPaymentGuard(
+            currentOrder,
+            nextStatus,
+            { ...safeOptions, orderStatus, paymentStatus }
+        );
+
+        if (paymentGuard.blocked) {
+            return createStatusUpdateFailure(
+                "orders/payment-not-confirmed",
+                paymentGuard.reason,
+                currentOrder,
+                transition,
+                {
+                    paymentGuard,
+                    errorDetails: {
+                        paymentGuard
+                    }
+                }
+            );
+        }
+
         const updatedAt = resolveTimestampValue(safeOptions);
         const timelineEntry = orderModel.createOrderTimelineEntry(
             nextStatus,
@@ -1133,6 +1255,7 @@
             },
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 createdByRole: actorRole || "system",
                 status: nextStatus,
@@ -1384,6 +1507,9 @@
         getVendorOrders,
         getNotifications,
         getVendorMenuItems,
+        getOrderPaymentState,
+        orderStatusRequiresPaidPayment,
+        buildOrderPaymentGuard,
         buildOrderStatusUpdate,
         buildCollectionConfirmationUpdate,
         persistOrderUpdate,

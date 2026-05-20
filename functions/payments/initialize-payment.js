@@ -70,9 +70,77 @@ function getPaymentServiceOptions(options = {}) {
     };
 }
 
+function hasExistingPaymentAttempt(order) {
+    const safeOrder = order && typeof order === "object" ? order : {};
+
+    return Boolean(
+        normalizeText(safeOrder.paymentStatus || safeOrder.status) ||
+        normalizeText(safeOrder.paymentReference || safeOrder.reference) ||
+        normalizeText(safeOrder.paymentAccessCode || safeOrder.accessCode) ||
+        normalizeText(
+            safeOrder.paymentAuthorizationUrl ||
+            safeOrder.authorizationUrl ||
+            safeOrder.authorizationURL ||
+            safeOrder.paymentUrl ||
+            safeOrder.paymentURL
+        )
+    );
+}
+
+function buildExistingPaymentResumeResult(order, options = {}) {
+    const safeOrder = order && typeof order === "object" ? order : {};
+    const serviceOptions = getPaymentServiceOptions(options);
+
+    if (!hasExistingPaymentAttempt(safeOrder)) {
+        return null;
+    }
+
+    const lifecycle = paymentService.getPaymentLifecycle(safeOrder, serviceOptions);
+
+    if (lifecycle.isPaid) {
+        return createInitializeResult(false, {
+            payment: lifecycle.payment,
+            lifecycle,
+            payload: null,
+            error: createInitializeError(
+                "payments/already-paid",
+                "This payment has already been completed."
+            )
+        });
+    }
+
+    if (lifecycle.isPending && lifecycle.authorizationUrl) {
+        const patchResult = paymentService.buildOrderPaymentPatch(
+            lifecycle.payment,
+            serviceOptions
+        );
+
+        return createInitializeResult(true, {
+            resumed: true,
+            reusedAuthorization: true,
+            payment: lifecycle.payment,
+            lifecycle,
+            patch: patchResult.success ? patchResult.patch : null,
+            payload: null,
+            authorizationUrl: lifecycle.authorizationUrl,
+            accessCode: lifecycle.payment.accessCode || "",
+            reference: lifecycle.reference,
+            resumeAction: "redirect"
+        });
+    }
+
+    return null;
+}
+
 async function initializePayment(order, options = {}) {
     const safeOptions = options && typeof options === "object" ? options : {};
     const serviceOptions = getPaymentServiceOptions(safeOptions);
+    const resumeResult = buildExistingPaymentResumeResult(order, safeOptions);
+
+    if (resumeResult) {
+        return resumeResult;
+    }
+
     const preparedResult = paymentService.prepareInitializePayment(order, serviceOptions);
 
     if (!preparedResult.success) {
@@ -159,3 +227,5 @@ module.exports.createInitializeError = createInitializeError;
 module.exports.normalizePaystackInitializeData = normalizePaystackInitializeData;
 module.exports.getCallbackUrl = getCallbackUrl;
 module.exports.getPaymentServiceOptions = getPaymentServiceOptions;
+module.exports.hasExistingPaymentAttempt = hasExistingPaymentAttempt;
+module.exports.buildExistingPaymentResumeResult = buildExistingPaymentResumeResult;

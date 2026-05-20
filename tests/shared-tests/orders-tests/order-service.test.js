@@ -138,6 +138,9 @@ describe("shared/orders/order-service.js", () => {
         expect(orderService.resolveOrderQueries(orderQueries)).toBe(orderQueries);
         expect(orderService.normalizeText("  Hello  ")).toBe("Hello");
         expect(orderService.normalizeLowerText("  HeLLo  ")).toBe("hello");
+        expect(typeof orderService.getOrderPaymentState).toBe("function");
+        expect(typeof orderService.orderStatusRequiresPaidPayment).toBe("function");
+        expect(typeof orderService.buildOrderPaymentGuard).toBe("function");
 
         const originalGlobalOrderStatus = global.orderStatus;
         const originalGlobalPaymentStatus = global.paymentStatus;
@@ -784,14 +787,16 @@ describe("shared/orders/order-service.js", () => {
                     }
                 ],
                 status: "accepted",
+                paymentStatus: "paid",
                 createdAt: "t-1",
                 updatedAt: "t-1"
             },
-            { orderStatus }
+            { orderStatus, paymentStatus }
         );
 
         const updatePlan = orderService.buildOrderStatusUpdate(acceptedOrder, {
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             nextStatus: "preparing",
@@ -821,9 +826,10 @@ describe("shared/orders/order-service.js", () => {
 
     test("routes completed status updates through collection confirmation logic", () => {
         const delegatedCompletionPlan = orderService.buildOrderStatusUpdate(
-            createReadyOrder(),
+            createReadyOrder({ paymentStatus: "paid" }),
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderValidation,
                 nextStatus: "completed",
@@ -879,11 +885,101 @@ describe("shared/orders/order-service.js", () => {
         expect(updatePlan.error.message).toMatch(/cannot move an order/i);
     });
 
+    test("blocks unpaid fulfilment status moves but allows unpaid rejection", () => {
+        const pendingUnpaidOrder = orderModel.createOrderRecord(
+            {
+                orderId: "order-unpaid-1",
+                customerUid: "customer-1",
+                customerName: "Tshepo",
+                customerEmail: "tshepo@example.com",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                items: [
+                    {
+                        id: "burger",
+                        vendorUid: "vendor-1",
+                        vendorName: "Campus Bites",
+                        name: "Burger",
+                        price: 50,
+                        quantity: 1
+                    }
+                ],
+                status: "pending",
+                paymentStatus: "pending",
+                createdAt: "t-1",
+                updatedAt: "t-1"
+            },
+            { orderStatus, paymentStatus }
+        );
+        const acceptedUnpaidOrder = orderModel.createOrderRecord(
+            {
+                ...pendingUnpaidOrder,
+                status: "accepted",
+                paymentStatus: "unpaid"
+            },
+            { orderStatus, paymentStatus }
+        );
+
+        const paymentState = orderService.getOrderPaymentState(pendingUnpaidOrder, {
+            paymentStatus
+        });
+        const guard = orderService.buildOrderPaymentGuard(pendingUnpaidOrder, "accepted", {
+            orderStatus,
+            paymentStatus
+        });
+        const blockedAccept = orderService.buildOrderStatusUpdate(pendingUnpaidOrder, {
+            orderStatus,
+            paymentStatus,
+            orderModel,
+            orderValidation,
+            nextStatus: "accepted",
+            actorRole: "vendor"
+        });
+        const blockedPrepare = orderService.buildOrderStatusUpdate(acceptedUnpaidOrder, {
+            orderStatus,
+            paymentStatus,
+            orderModel,
+            orderValidation,
+            nextStatus: "preparing",
+            actorRole: "vendor"
+        });
+        const allowedReject = orderService.buildOrderStatusUpdate(pendingUnpaidOrder, {
+            orderStatus,
+            paymentStatus,
+            orderModel,
+            orderValidation,
+            nextStatus: "rejected",
+            actorRole: "vendor",
+            timestampValue: "t-2"
+        });
+
+        expect(paymentState).toEqual(expect.objectContaining({
+            status: "pending",
+            statusLabel: "Payment Pending",
+            isPaid: false,
+            isOrderBlocking: true
+        }));
+        expect(orderService.orderStatusRequiresPaidPayment("ready", { orderStatus })).toBe(true);
+        expect(orderService.orderStatusRequiresPaidPayment("rejected", { orderStatus })).toBe(false);
+        expect(guard).toEqual(expect.objectContaining({
+            blocked: true,
+            nextStatus: "accepted"
+        }));
+        expect(blockedAccept.success).toBe(false);
+        expect(blockedAccept.error.code).toBe("orders/payment-not-confirmed");
+        expect(blockedAccept.paymentGuard.payment.status).toBe("pending");
+        expect(blockedPrepare.success).toBe(false);
+        expect(blockedPrepare.error.code).toBe("orders/payment-not-confirmed");
+        expect(allowedReject.success).toBe(true);
+        expect(allowedReject.order.status).toBe("rejected");
+    });
+
     test("handles partial and final collection confirmations", () => {
         const firstConfirmation = orderService.buildCollectionConfirmationUpdate(
-            createReadyOrder(),
+            createReadyOrder({ paymentStatus: "paid" }),
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderValidation,
                 actorRole: "customer",
@@ -910,10 +1006,12 @@ describe("shared/orders/order-service.js", () => {
 
         const finalConfirmation = orderService.buildCollectionConfirmationUpdate(
             createReadyOrder({
+                paymentStatus: "paid",
                 customerConfirmedCollected: true
             }),
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderValidation,
                 actorRole: "vendor",
@@ -942,6 +1040,7 @@ describe("shared/orders/order-service.js", () => {
     test("supports collection confirmations on already completed orders and idempotent repeats", () => {
         const completedOrder = createReadyOrder({
             status: "completed",
+            paymentStatus: "paid",
             customerConfirmedCollected: true,
             vendorConfirmedCollected: false
         });
@@ -950,6 +1049,7 @@ describe("shared/orders/order-service.js", () => {
             completedOrder,
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderValidation,
                 actorRole: "vendor",
@@ -965,10 +1065,12 @@ describe("shared/orders/order-service.js", () => {
 
         const repeatedConfirmation = orderService.buildCollectionConfirmationUpdate(
             createReadyOrder({
+                paymentStatus: "paid",
                 customerConfirmedCollected: true
             }),
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderValidation,
                 actorRole: "customer"
@@ -1048,12 +1150,14 @@ describe("shared/orders/order-service.js", () => {
                         }
                     ],
                     status: "accepted",
+                    paymentStatus: "paid",
                     createdAt: "t-1",
                     updatedAt: "t-1"
                 },
-                { orderStatus }
+                { orderStatus, paymentStatus }
             ),
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             nextStatus: "preparing",
@@ -1068,9 +1172,11 @@ describe("shared/orders/order-service.js", () => {
 
         const noWriteConfirmationResult = await orderService.confirmOrderCollection({
             order: createReadyOrder({
+                paymentStatus: "paid",
                 customerConfirmedCollected: true
             }),
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             actorRole: "customer"
@@ -1090,8 +1196,9 @@ describe("shared/orders/order-service.js", () => {
                 getDoc: jest.fn(async () => createDocSnapshot("order-ready-1", {}, false))
             },
             orderQueries,
-            order: createReadyOrder(),
+            order: createReadyOrder({ paymentStatus: "paid" }),
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             actorRole: "customer",
@@ -1210,9 +1317,10 @@ describe("shared/orders/order-service.js", () => {
         expect(invalidStatusResult.error.code).toBe("orders/not-ready-for-collection");
 
         const forcedValidationFailureResult = orderService.buildCollectionConfirmationUpdate(
-            createReadyOrder(),
+            createReadyOrder({ paymentStatus: "paid" }),
             {
                 orderStatus,
+                paymentStatus,
                 orderModel,
                 orderValidation: {
                     validateCreateOrderInput: jest.fn(),
@@ -1302,6 +1410,7 @@ describe("shared/orders/order-service.js", () => {
                     }
                 ],
                 status: "pending",
+                paymentStatus: "paid",
                 createdAt: "t-1",
                 updatedAt: "t-1"
             })
@@ -1312,6 +1421,7 @@ describe("shared/orders/order-service.js", () => {
             firestoreFns,
             orderQueries,
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             orderId: "order-1",
@@ -1344,6 +1454,7 @@ describe("shared/orders/order-service.js", () => {
                     }
                 ],
                 status: "ready",
+                paymentStatus: "paid",
                 createdAt: "t-1",
                 updatedAt: "t-1"
             })
@@ -1354,6 +1465,7 @@ describe("shared/orders/order-service.js", () => {
             firestoreFns: readyFirestoreFns,
             orderQueries,
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             orderId: "order-2",
@@ -1394,6 +1506,7 @@ describe("shared/orders/order-service.js", () => {
         // as "completed" instead of overwriting the vendor's flag.
         const staleCustomerOrder = createReadyOrder({
             orderId: "order-race",
+            paymentStatus: "paid",
             customerConfirmedCollected: false,
             vendorConfirmedCollected: false
         });
@@ -1408,6 +1521,7 @@ describe("shared/orders/order-service.js", () => {
                 vendorName: "Campus Bites",
                 items: staleCustomerOrder.items,
                 status: "ready",
+                paymentStatus: "paid",
                 customerConfirmedCollected: false,
                 vendorConfirmedCollected: true,
                 createdAt: "t-1",
@@ -1420,6 +1534,7 @@ describe("shared/orders/order-service.js", () => {
             firestoreFns: freshFirestoreFns,
             orderQueries,
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             order: staleCustomerOrder,
@@ -1439,6 +1554,7 @@ describe("shared/orders/order-service.js", () => {
     test("falls back to the cached order when the refresh read fails", async () => {
         const cachedOrder = createReadyOrder({
             orderId: "order-cached",
+            paymentStatus: "paid",
             customerConfirmedCollected: false,
             vendorConfirmedCollected: false
         });
@@ -1458,6 +1574,7 @@ describe("shared/orders/order-service.js", () => {
             firestoreFns: failingFirestoreFns,
             orderQueries,
             orderStatus,
+            paymentStatus,
             orderModel,
             orderValidation,
             order: cachedOrder,

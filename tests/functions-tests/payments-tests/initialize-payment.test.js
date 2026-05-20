@@ -33,6 +33,10 @@ describe("functions/payments/initialize-payment.js", () => {
         expect(initializePayment.getCallbackUrl({ callbackUrl: "https://example.com/direct.html" }))
             .toBe("https://example.com/direct.html");
         expect(initializePayment.getCallbackUrl()).toBe("https://example.com/from-env.html");
+        expect(initializePayment.hasExistingPaymentAttempt({})).toBe(false);
+        expect(initializePayment.hasExistingPaymentAttempt({
+            paymentStatus: "pending"
+        })).toBe(true);
         expect(
             initializePayment.normalizePaystackInitializeData({
                 data: {
@@ -55,6 +59,79 @@ describe("functions/payments/initialize-payment.js", () => {
         });
 
         process.env.PAYSTACK_CALLBACK_URL = originalCallbackUrl;
+    });
+
+    test("reuses an existing pending Paystack authorization without creating another transaction", async () => {
+        const client = {
+            initializeTransaction: jest.fn()
+        };
+        const result = await initializePayment(createOrder({
+            checkoutId: "checkout-1",
+            paymentStatus: "pending",
+            paymentProvider: "paystack",
+            paymentReference: "existing-ref",
+            paymentAccessCode: "existing-access",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/resume",
+            paymentAmount: 75,
+            paymentAmountInMinorUnits: 7500,
+            paymentCurrency: "ZAR"
+        }), {
+            client,
+            callbackUrl: "https://campus.example.com/payment-callback.html"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.resumed).toBe(true);
+        expect(result.reusedAuthorization).toBe(true);
+        expect(result.resumeAction).toBe("redirect");
+        expect(result.payload).toBeNull();
+        expect(result.authorizationUrl).toBe("https://checkout.paystack.com/resume");
+        expect(result.accessCode).toBe("existing-access");
+        expect(result.reference).toBe("existing-ref");
+        expect(result.lifecycle).toEqual(expect.objectContaining({
+            status: "pending",
+            canResume: true,
+            resumeAction: "redirect"
+        }));
+        expect(result.payment).toEqual(expect.objectContaining({
+            checkoutId: "checkout-1",
+            status: "pending",
+            reference: "existing-ref",
+            authorizationUrl: "https://checkout.paystack.com/resume"
+        }));
+        expect(result.patch).toEqual(expect.objectContaining({
+            paymentStatus: "pending",
+            paymentReference: "existing-ref",
+            paymentAccessCode: "existing-access",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/resume"
+        }));
+        expect(client.initializeTransaction).not.toHaveBeenCalled();
+    });
+
+    test("refuses to initialize an already paid payment", async () => {
+        const client = {
+            initializeTransaction: jest.fn()
+        };
+        const result = await initializePayment(createOrder({
+            paymentStatus: "paid",
+            paymentProvider: "paystack",
+            paymentReference: "paid-ref",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/paid"
+        }), {
+            client,
+            callbackUrl: "https://campus.example.com/payment-callback.html"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.payload).toBeNull();
+        expect(result.payment).toEqual(expect.objectContaining({
+            status: "paid",
+            reference: "paid-ref"
+        }));
+        expect(result.error).toEqual(expect.objectContaining({
+            code: "payments/already-paid"
+        }));
+        expect(client.initializeTransaction).not.toHaveBeenCalled();
     });
 
     test("initializes a Paystack payment and returns an order payment patch", async () => {
@@ -122,6 +199,55 @@ describe("functions/payments/initialize-payment.js", () => {
                 provider: "paystack"
             }
         });
+    });
+
+    test("starts a fresh transaction for incomplete pending attempts that have no resume URL", async () => {
+        const client = {
+            initializeTransaction: jest.fn(async () => ({
+                data: {
+                    authorizationUrl: "https://checkout.paystack.com/new",
+                    accessCode: "new-access",
+                    reference: "new-ref"
+                }
+            }))
+        };
+
+        const result = await initializePayment(createOrder({
+            paymentStatus: "pending",
+            paymentReference: "stale-ref",
+            paymentAuthorizationUrl: ""
+        }), {
+            client,
+            callbackURL: "https://campus.example.com/payment-callback.html",
+            timestampValue: "server-time"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.resumed).toBeUndefined();
+        expect(result.authorizationUrl).toBe("https://checkout.paystack.com/new");
+        expect(result.reference).toBe("new-ref");
+        expect(result.accessCode).toBe("new-access");
+        expect(client.initializeTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    test("builds a resume result helper and ignores retryable payments that need a new attempt", () => {
+        const resumeResult = initializePayment.buildExistingPaymentResumeResult(createOrder({
+            paymentStatus: "pending",
+            paymentReference: "resume-ref",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/resume"
+        }));
+        const retryResult = initializePayment.buildExistingPaymentResumeResult(createOrder({
+            paymentStatus: "failed",
+            paymentReference: "failed-ref"
+        }));
+
+        expect(resumeResult).toEqual(expect.objectContaining({
+            success: true,
+            resumed: true,
+            authorizationUrl: "https://checkout.paystack.com/resume",
+            reference: "resume-ref"
+        }));
+        expect(retryResult).toBeNull();
     });
 
     test("returns validation failures before contacting Paystack", async () => {

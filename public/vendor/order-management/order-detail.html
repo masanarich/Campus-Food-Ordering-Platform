@@ -28,8 +28,8 @@
             <h2 id="vendor-order-detail-heading">Vendor Order Detail</h2>
 
             <p>
-                Review the customer, items, payment, and refund state before moving this order
-                through accepting, preparing, ready for pickup, or collection.
+                Review the customer, items, payment, and refund state before moving this order.
+                Paid rejected orders will start a customer refund.
             </p>
 
             <p id="vendor-order-detail-status" aria-live="polite" aria-atomic="true"></p>
@@ -96,8 +96,9 @@
     <script src="./order-detail.js"></script>
     <script type="module">
         import { authService } from "../../authentication/auth.js";
-        import { db, auth } from "../../authentication/config.js";
+        import { db, auth, functions } from "../../authentication/config.js";
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import { httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-functions.js";
         import {
             collection,
             getDocs,
@@ -113,9 +114,13 @@
 
         window.db = db;
         window.auth = auth;
+        window.functions = functions;
         window.authService = authService;
         window.authFns = {
             onAuthStateChanged
+        };
+        window.functionsFns = {
+            httpsCallable
         };
         window.firestoreFns = {
             collection,
@@ -142,7 +147,9 @@
                 orderFormatters: window.orderFormatters,
                 paymentStatus: window.paymentStatus,
                 paymentFormatters: window.paymentFormatters,
-                refundStatus: window.refundStatus
+                refundStatus: window.refundStatus,
+                functions,
+                functionsFns: window.functionsFns
             });
         }
     </script>

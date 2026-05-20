@@ -1,0 +1,573 @@
+/* admin-support.css
+ *
+ * Styles for the admin Support Inbox (disputes.html) and admin Ticket
+ * Detail (ticket-detail.html). Scoped under .admin-support so it never
+ * leaks into other admin pages. Reuses the design tokens from
+ * admin/index.css (--accent, --surface, --text, etc.).
+ */
+
+.admin-shell.admin-support .admin-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-bottom: 3rem;
+}
+
+.admin-shell.admin-support .shared-section {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* ============================================================
+ * Filter & sort toolbar
+ * ============================================================ */
+
+.admin-shell.admin-support .admin-inbox-filter-form {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.85rem 1.15rem;
+    align-items: end;
+}
+
+.admin-shell.admin-support .admin-inbox-filter-field {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.admin-shell.admin-support .admin-inbox-filter-field-search {
+    grid-column: 1 / -1;
+}
+
+.admin-shell.admin-support .admin-inbox-filter-field label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-soft);
+    text-transform: uppercase;
+}
+
+.admin-shell.admin-support .admin-inbox-filter-field input,
+.admin-shell.admin-support .admin-inbox-filter-field select {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-strong);
+    color: var(--text);
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-shell.admin-support .admin-inbox-filter-field input:focus,
+.admin-shell.admin-support .admin-inbox-filter-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(198, 107, 29, 0.18);
+}
+
+.admin-shell.admin-support .admin-inbox-filter-actions {
+    margin: 0;
+    display: flex;
+    align-items: end;
+    justify-content: flex-end;
+}
+
+/* ============================================================
+ * Results summary + ticket grid
+ * ============================================================ */
+
+.admin-shell.admin-support .admin-inbox-results-summary {
+    margin: 0 0 1rem;
+    color: var(--text-soft);
+    font-style: italic;
+}
+
+.admin-shell.admin-support .admin-inbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.1rem;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card {
+    position: relative;
+    overflow: hidden;
+    padding: 1.35rem 1.4rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 0.35rem;
+    background: linear-gradient(90deg, var(--accent), var(--secondary));
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card[data-status="resolved"]::before {
+    background: linear-gradient(90deg, var(--secondary), #4f7c4c);
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card[data-status="closed"]::before {
+    background: linear-gradient(90deg, #a89280, #8a7866);
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card[data-status="awaiting_user"]::before {
+    background: linear-gradient(90deg, #d4a55a, var(--accent));
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card[data-priority="high"] {
+    border-color: rgba(198, 107, 29, 0.45);
+    box-shadow: 0 14px 30px rgba(198, 107, 29, 0.18);
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-subject {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.3;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-reporter {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--text-soft);
+    font-weight: 600;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card[data-reporter-role="vendor"] .admin-inbox-ticket-reporter::before {
+    content: "VENDOR · ";
+    color: var(--accent);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-card[data-reporter-role="customer"] .admin-inbox-ticket-reporter::before {
+    content: "CUSTOMER · ";
+    color: var(--secondary);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-status,
+.admin-shell.admin-support .admin-inbox-ticket-category {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-status[data-tone="success"] { color: var(--success-text); }
+.admin-shell.admin-support .admin-inbox-ticket-status[data-tone="error"] { color: var(--danger-text); }
+.admin-shell.admin-support .admin-inbox-ticket-status[data-tone="loading"] { color: var(--info-text); }
+.admin-shell.admin-support .admin-inbox-ticket-status[data-tone="muted"] { color: var(--text-muted); }
+.admin-shell.admin-support .admin-inbox-ticket-status[data-tone="warning"] { color: #8a5b15; }
+
+.admin-shell.admin-support .admin-inbox-ticket-replies,
+.admin-shell.admin-support .admin-inbox-ticket-order,
+.admin-shell.admin-support .admin-inbox-ticket-activity {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--text-soft);
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-priority {
+    margin: 0;
+    padding: 0.25rem 0.6rem;
+    align-self: flex-start;
+    border-radius: var(--radius-pill);
+    background: rgba(198, 107, 29, 0.18);
+    color: var(--accent-dark);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-actions {
+    margin: 0.6rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.admin-shell.admin-support .admin-inbox-ticket-actions li { margin: 0; }
+.admin-shell.admin-support .admin-inbox-ticket-actions a { text-decoration: none; }
+
+/* ============================================================
+ * Pagination
+ * ============================================================ */
+
+.admin-shell.admin-support .admin-inbox-pagination {
+    margin: 1.5rem 0 0;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    border-radius: var(--radius-lg);
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+}
+
+.admin-shell.admin-support .admin-inbox-pagination-status {
+    margin: 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .admin-inbox-pagination-menu {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.admin-shell.admin-support .admin-inbox-pagination-menu li { margin: 0; }
+
+.admin-shell.admin-support .admin-inbox-pagination button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+ * Empty + loading states
+ * ============================================================ */
+
+.admin-shell.admin-support .empty-state-message,
+.admin-shell.admin-support .loading-message {
+    margin: 0;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--text-soft);
+    font-style: italic;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface-muted);
+}
+
+/* ============================================================
+ * Ticket Detail (triage view)
+ * ============================================================ */
+
+.admin-shell.admin-support .admin-ticket-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.5rem 1.5rem;
+    margin: 0.75rem 0 0;
+}
+
+.admin-shell.admin-support .admin-ticket-summary-grid p {
+    margin: 0;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .admin-ticket-summary-grid strong {
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="success"] { color: var(--success-text); font-weight: 700; }
+.admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="error"] { color: var(--danger-text); font-weight: 700; }
+.admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="loading"] { color: var(--info-text); font-weight: 700; }
+.admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="muted"] { color: var(--text-muted); font-weight: 700; }
+.admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="warning"] { color: #8a5b15; font-weight: 700; }
+
+.admin-shell.admin-support .admin-ticket-resolution {
+    margin: 1rem 0 0;
+    padding: 0.85rem 1.1rem;
+    border-radius: var(--radius-md);
+    background: var(--success-soft);
+    color: var(--success-text);
+    font-weight: 600;
+}
+
+.admin-shell.admin-support .admin-ticket-description {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-strong);
+}
+
+.admin-shell.admin-support .admin-ticket-description-body {
+    margin: 0.5rem 0 0;
+    white-space: pre-wrap;
+    color: var(--text);
+}
+
+/* Timeline (shared with the ticket-detail HTML structure) */
+
+.admin-shell.admin-support .ticket-timeline {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.admin-shell.admin-support .ticket-timeline-entry {
+    position: relative;
+    padding: 0.75rem 1rem 0.75rem 1.5rem;
+    border-left: 4px solid var(--accent);
+    background: var(--surface-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-shell.admin-support .ticket-timeline-entry[data-tone="success"] { border-left-color: var(--secondary); }
+.admin-shell.admin-support .ticket-timeline-entry[data-tone="error"] { border-left-color: var(--danger-text); }
+.admin-shell.admin-support .ticket-timeline-entry[data-tone="loading"] { border-left-color: var(--info-text); }
+.admin-shell.admin-support .ticket-timeline-entry[data-tone="muted"] { border-left-color: var(--text-muted); }
+.admin-shell.admin-support .ticket-timeline-entry[data-tone="warning"] { border-left-color: #c08930; }
+
+.admin-shell.admin-support .ticket-timeline-label {
+    margin: 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .ticket-timeline-actor {
+    margin: 0.25rem 0 0;
+    font-size: 0.88rem;
+    color: var(--text-soft);
+}
+
+.admin-shell.admin-support .ticket-timeline-note {
+    margin: 0.4rem 0 0;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-soft);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-style: italic;
+    white-space: pre-wrap;
+}
+
+.admin-shell.admin-support .ticket-timeline-empty {
+    margin: 0;
+    padding: 1rem;
+    list-style: none;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Conversation (replies) */
+
+.admin-shell.admin-support .ticket-replies-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.admin-shell.admin-support .ticket-reply-entry {
+    padding: 1rem 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-strong);
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-shell.admin-support .ticket-reply-entry[data-author-role="admin"] {
+    background: var(--secondary-soft);
+    border-color: rgba(106, 132, 104, 0.4);
+}
+
+.admin-shell.admin-support .ticket-reply-entry[data-author-role="customer"] {
+    background: var(--surface);
+    border-left: 4px solid var(--secondary);
+}
+
+.admin-shell.admin-support .ticket-reply-entry[data-author-role="vendor"] {
+    background: var(--surface);
+    border-left: 4px solid var(--accent);
+}
+
+.admin-shell.admin-support .ticket-reply-entry[data-internal="true"] {
+    background: var(--info-soft);
+    border-color: rgba(91, 70, 153, 0.4);
+}
+
+.admin-shell.admin-support .ticket-reply-badge {
+    margin: 0 0 0.4rem;
+    padding: 0.2rem 0.55rem;
+    align-self: flex-start;
+    display: inline-block;
+    border-radius: var(--radius-pill);
+    background: rgba(91, 70, 153, 0.18);
+    color: var(--info-text);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.admin-shell.admin-support .ticket-reply-author {
+    margin: 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .ticket-reply-body {
+    margin: 0.5rem 0 0;
+    white-space: pre-wrap;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .ticket-replies-empty {
+    margin: 0;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+}
+
+/* Reply form */
+
+.admin-shell.admin-support .admin-ticket-reply-form,
+.admin-shell.admin-support .admin-ticket-status-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 0;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-field,
+.admin-shell.admin-support .admin-ticket-status-field {
+    margin: 0.4rem 0 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .admin-ticket-reply-field-input,
+.admin-shell.admin-support .admin-ticket-status-field-input {
+    margin: 0;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-field-input textarea,
+.admin-shell.admin-support .admin-ticket-status-field-input textarea,
+.admin-shell.admin-support .admin-ticket-status-field-input select {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-strong);
+    color: var(--text);
+    box-sizing: border-box;
+    line-height: 1.5;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-field-input textarea,
+.admin-shell.admin-support .admin-ticket-status-field-input textarea {
+    resize: vertical;
+    min-height: 7rem;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-field-input textarea:focus,
+.admin-shell.admin-support .admin-ticket-status-field-input textarea:focus,
+.admin-shell.admin-support .admin-ticket-status-field-input select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(198, 107, 29, 0.18);
+}
+
+.admin-shell.admin-support .admin-ticket-reply-internal {
+    margin: 0.25rem 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-internal label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-error,
+.admin-shell.admin-support .admin-ticket-status-error {
+    margin: 0;
+    min-height: 1.25rem;
+    color: var(--danger-text);
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.admin-shell.admin-support .admin-ticket-reply-error[data-state="error"]::before,
+.admin-shell.admin-support .admin-ticket-status-error[data-state="error"]::before {
+    content: "⚠ ";
+}
+
+.admin-shell.admin-support .admin-ticket-reply-actions,
+.admin-shell.admin-support .admin-ticket-status-actions {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+}
+
+.admin-shell.admin-support [data-busy="true"] {
+    opacity: 0.55;
+    cursor: progress;
+}
+
+/* ============================================================
+ * Status output tones on the summary grid
+ * ============================================================ */
+
+.admin-shell.admin-support output[data-status="open"] { color: var(--info-text); }
+.admin-shell.admin-support output[data-status="in_progress"] { color: var(--accent-dark); }
+.admin-shell.admin-support output[data-status="awaiting_user"] { color: #8a5b15; }
+.admin-shell.admin-support output[data-status="resolved"] { color: var(--success-text); }
+.admin-shell.admin-support output[data-status="closed"] { color: var(--text-muted); }
+
+/* ============================================================
+ * Small screens
+ * ============================================================ */
+
+@media (max-width: 720px) {
+    .admin-shell.admin-support .admin-inbox-filter-form {
+        grid-template-columns: 1fr;
+    }
+    .admin-shell.admin-support .admin-inbox-grid {
+        grid-template-columns: 1fr;
+    }
+    .admin-shell.admin-support .admin-inbox-pagination {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .admin-shell.admin-support .admin-inbox-pagination-menu {
+        justify-content: center;
+    }
+}
