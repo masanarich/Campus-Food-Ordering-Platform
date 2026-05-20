@@ -111,6 +111,7 @@
     <script src="../../shared/payments/payment-status.js"></script>
     <script src="../../shared/payments/payment-model.js"></script>
     <script src="../../shared/payments/payment-formatters.js"></script>
+    <script src="../../shared/payments/refund-status.js"></script>
     <script src="./order-detail.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
@@ -145,7 +146,8 @@
                 orderFormatters: window.orderFormatters,
                 checkoutStatus: window.checkoutStatus,
                 paymentStatus: window.paymentStatus,
-                paymentFormatters: window.paymentFormatters
+                paymentFormatters: window.paymentFormatters,
+                refundStatus: window.refundStatus
             });
         }
     </script>

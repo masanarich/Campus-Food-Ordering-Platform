@@ -684,12 +684,29 @@
                 })
                 .filter(Boolean)
             : [];
-        const trackingStatuses = orderStatus
+        const baseTrackingStatuses = orderStatus
             ? orderStatus.getTrackingOrderStatusList()
             : ["pending", "accepted", "preparing", "ready", "completed"];
+        let trackingStatuses = baseTrackingStatuses;
         const currentIndex = orderStatus && typeof orderStatus.getStatusProgressIndex === "function"
             ? orderStatus.getStatusProgressIndex(currentStatus)
             : trackingStatuses.indexOf(currentStatus);
+
+        if (
+            orderStatus &&
+            typeof orderStatus.isTerminalOrderStatus === "function" &&
+            orderStatus.isTerminalOrderStatus(currentStatus) &&
+            baseTrackingStatuses.indexOf(currentStatus) === -1
+        ) {
+            trackingStatuses = baseTrackingStatuses.filter(function keepOnlyReachedStatuses(status) {
+                return timelineStatuses.indexOf(status) >= 0;
+            });
+
+            if (trackingStatuses.length === 0) {
+                trackingStatuses = [orderStatus.getDefaultOrderStatus()];
+            }
+        }
+
         const steps = trackingStatuses.map(function mapStatus(status, index) {
             const reachedFromTimeline = timelineStatuses.indexOf(status) >= 0;
             const reachedFromProgress = currentIndex >= 0 && currentIndex > index;

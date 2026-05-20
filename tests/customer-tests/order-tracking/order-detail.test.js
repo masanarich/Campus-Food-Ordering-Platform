@@ -145,6 +145,39 @@ function createCheckoutStatusStub() {
     };
 }
 
+function createRefundStatusStub() {
+    return {
+        getDefaultRefundStatus: jest.fn(() => "not_requested"),
+        normalizeRefundStatus: jest.fn((status, fallbackStatus = "not_requested") => {
+            const safeStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+            return safeStatus || fallbackStatus;
+        }),
+        getRefundStatusLabel: jest.fn(status => {
+            const labels = {
+                not_requested: "Refund Not Requested",
+                requested: "Refund Requested",
+                processing: "Refund Processing",
+                refunded: "Refunded",
+                failed: "Refund Failed"
+            };
+            return labels[status] || "Unknown Refund Status";
+        }),
+        getRefundStatusTone: jest.fn(status => {
+            const tones = {
+                not_requested: "neutral",
+                requested: "loading",
+                processing: "loading",
+                refunded: "success",
+                failed: "error"
+            };
+            return tones[status] || "neutral";
+        }),
+        isRefunded: jest.fn(status => status === "refunded"),
+        isActiveRefundStatus: jest.fn(status => status === "requested" || status === "processing"),
+        isRefundFailed: jest.fn(status => status === "failed")
+    };
+}
+
 function createPaymentFormattersStub() {
     return {
         formatPaymentAmount: jest.fn((amount, currency = "ZAR") => {
@@ -228,6 +261,7 @@ describe("customer/order-tracking/order-detail.js - helpers", () => {
         delete window.paymentStatus;
         delete window.paymentFormatters;
         delete window.checkoutStatus;
+        delete window.refundStatus;
         jest.useRealTimers();
     });
 
@@ -242,6 +276,7 @@ describe("customer/order-tracking/order-detail.js - helpers", () => {
         const paymentStatus = createPaymentStatusStub();
         const paymentFormatters = createPaymentFormattersStub();
         const checkoutStatus = createCheckoutStatusStub();
+        const refundStatus = createRefundStatusStub();
 
         window.db = db;
         window.auth = auth;
@@ -253,6 +288,7 @@ describe("customer/order-tracking/order-detail.js - helpers", () => {
         window.paymentStatus = paymentStatus;
         window.paymentFormatters = paymentFormatters;
         window.checkoutStatus = checkoutStatus;
+        window.refundStatus = refundStatus;
 
         expect(customerOrderDetailPage.resolveFirestore()).toBe(db);
         expect(customerOrderDetailPage.resolveAuth()).toBe(auth);
@@ -265,6 +301,7 @@ describe("customer/order-tracking/order-detail.js - helpers", () => {
         expect(customerOrderDetailPage.resolvePaymentStatus()).toBe(paymentStatus);
         expect(customerOrderDetailPage.resolvePaymentFormatters()).toBe(paymentFormatters);
         expect(customerOrderDetailPage.resolveCheckoutStatus()).toBe(checkoutStatus);
+        expect(customerOrderDetailPage.resolveRefundStatus()).toBe(refundStatus);
 
         expect(customerOrderDetailPage.resolveFirestore({ explicit: true })).toEqual({ explicit: true });
         expect(customerOrderDetailPage.resolveAuth({ explicit: true })).toEqual({ explicit: true });
@@ -405,18 +442,21 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
     let orderFormatters;
     let paymentStatus;
     let paymentFormatters;
+    let refundStatus;
 
     beforeEach(() => {
         dom = createDOM();
         orderFormatters = createOrderFormattersStub();
         paymentStatus = createPaymentStatusStub();
         paymentFormatters = createPaymentFormattersStub();
+        refundStatus = createRefundStatusStub();
     });
 
     test("buildPaymentView returns a paid summary with retry disabled", () => {
         const view = customerOrderDetailPage.buildPaymentView(createOrder(), {
             paymentStatus,
             paymentFormatters,
+            refundStatus,
             orderFormatters,
             checkoutStatus: createCheckoutStatusStub()
         });
@@ -429,8 +469,32 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         expect(view.reference).toBe("paystack-ref");
         expect(view.checkoutId).toBe("checkout-1");
         expect(view.checkoutStatusLabel).toBe("Order Created");
+        expect(view.refundIsVisible).toBe(false);
         expect(view.canRetry).toBe(false);
         expect(view.retryUrl).toBe("");
+    });
+
+    test("buildPaymentView returns refund details for rejected refunded orders", () => {
+        const view = customerOrderDetailPage.buildPaymentView(
+            createOrder({
+                status: "rejected",
+                refundStatus: "refunded",
+                refundAmount: 120,
+                refundReference: "refund-ref",
+                refundReason: "Vendor rejected the paid order.",
+                refundedAt: "2026-04-20T12:15:00.000Z"
+            }),
+            { paymentStatus, paymentFormatters, refundStatus, orderFormatters }
+        );
+
+        expect(view.status).toBe("paid");
+        expect(view.refundIsVisible).toBe(true);
+        expect(view.refundStatus).toBe("refunded");
+        expect(view.refundStatusLabel).toBe("Refunded");
+        expect(view.refundAmountText).toBe("R120.00");
+        expect(view.refundReference).toBe("refund-ref");
+        expect(view.refundNotice).toContain("payment was returned");
+        expect(view.refundNotice).toContain("email confirmation");
     });
 
     test("buildPaymentView returns a retry URL with vendor query for failed payments", () => {
@@ -523,11 +587,42 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         customerOrderDetailPage.renderOrderPayment(createOrder(), dom.paymentContainer, {
             paymentStatus,
             paymentFormatters,
+            refundStatus,
             orderFormatters
         });
 
         expect(dom.paymentContainer.querySelector(".order-detail-payment-actions")).toBeNull();
         expect(dom.paymentContainer.querySelector(".order-detail-payment-status").textContent).toBe("Status: Paid");
+        expect(dom.paymentContainer.querySelector(".order-detail-payment-failed-at")).toBeNull();
+    });
+
+    test("renderOrderPayment shows refund confirmation for rejected refunded orders", () => {
+        customerOrderDetailPage.renderOrderPayment(
+            createOrder({
+                status: "rejected",
+                refundStatus: "refunded",
+                refundAmount: 120,
+                refundReference: "refund-ref",
+                refundReason: "Vendor rejected the paid order.",
+                refundedAt: "2026-04-20T12:15:00.000Z"
+            }),
+            dom.paymentContainer,
+            {
+                paymentStatus,
+                paymentFormatters,
+                refundStatus,
+                orderFormatters
+            }
+        );
+
+        const refundStatusLine = dom.paymentContainer.querySelector(".order-detail-refund-status");
+        expect(refundStatusLine).not.toBeNull();
+        expect(refundStatusLine.textContent).toBe("Refund status: Refunded");
+        expect(refundStatusLine.getAttribute("data-refund-status")).toBe("refunded");
+        expect(refundStatusLine.getAttribute("data-tone")).toBe("success");
+        expect(dom.paymentContainer.querySelector(".order-detail-refund-amount").textContent).toBe("Refund amount: R120.00");
+        expect(dom.paymentContainer.querySelector(".order-detail-refund-reference").textContent).toBe("Refund reference: refund-ref");
+        expect(dom.paymentContainer.querySelector(".order-detail-refund-notice").textContent).toContain("email confirmation");
     });
 
     test("renderOrderPayment shows a Pay Now link for unpaid orders", () => {

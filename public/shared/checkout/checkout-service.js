@@ -634,13 +634,17 @@
         };
     }
 
-    function validatePaymentVerification(checkoutRecord, verificationValues = {}) {
+    function validatePaymentVerification(checkoutRecord, verificationValues = {}, options = {}) {
         const safeCheckout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
         const safeVerification = verificationValues && typeof verificationValues === "object"
             ? verificationValues
             : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
         const expectedReference = normalizeText(safeCheckout.paymentReference);
         const actualReference = normalizeText(safeVerification.reference || safeVerification.paymentReference);
+        const allowReferenceRefresh =
+            safeOptions.allowReferenceRefresh === true ||
+            safeOptions.allowPaymentReferenceRefresh === true;
         const expectedAmount = Number.parseInt(safeCheckout.paymentAmountInMinorUnits, 10);
         const actualAmount = Number.parseInt(
             safeVerification.amountInMinorUnits !== undefined
@@ -653,13 +657,17 @@
         const verificationStatus = normalizeLowerText(safeVerification.status);
         const errors = {};
 
-        if (verificationStatus !== "success") {
+        if (
+            verificationStatus !== "success" &&
+            verificationStatus !== "successful" &&
+            verificationStatus !== "paid"
+        ) {
             errors.status = "Payment verification must be successful before checkout can be marked paid.";
         }
 
         if (!actualReference) {
             errors.reference = "Verified payment reference is required.";
-        } else if (expectedReference && actualReference !== expectedReference) {
+        } else if (expectedReference && actualReference !== expectedReference && !allowReferenceRefresh) {
             errors.reference = "Verified payment reference does not match the checkout payment reference.";
         }
 
@@ -671,15 +679,26 @@
             errors.currency = "Verified payment currency does not match the checkout payment currency.";
         }
 
+        const value = {
+            status: verificationStatus,
+            reference: actualReference,
+            amountInMinorUnits: actualAmount,
+            currency: actualCurrency
+        };
+
+        if (
+            expectedReference &&
+            actualReference &&
+            actualReference !== expectedReference &&
+            allowReferenceRefresh
+        ) {
+            value.referenceWasRefreshed = true;
+        }
+
         return {
             isValid: Object.keys(errors).length === 0,
             errors,
-            value: {
-                status: verificationStatus,
-                reference: actualReference,
-                amountInMinorUnits: actualAmount,
-                currency: actualCurrency
-            }
+            value
         };
     }
 
@@ -1025,7 +1044,7 @@
             checkoutRecord,
             { checkoutStatus: dependencies.checkoutStatus }
         );
-        const verification = validatePaymentVerification(currentCheckout, verificationValues);
+        const verification = validatePaymentVerification(currentCheckout, verificationValues, safeOptions);
 
         if (!verification.isValid) {
             const failedResult = applyFailedPayment(

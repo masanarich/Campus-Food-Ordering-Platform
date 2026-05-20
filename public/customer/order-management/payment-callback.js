@@ -980,7 +980,7 @@
         const plan = checkoutService.applyVerifiedPayment(
             checkoutRecord,
             {
-                status: payment.status || verification.status || "success",
+                status: verification.status || payment.status || "success",
                 reference,
                 amountInMinorUnits,
                 currency
@@ -988,7 +988,8 @@
             {
                 ...options,
                 ...buildCheckoutDependencyOptions(options),
-                actorRole: "system"
+                actorRole: "system",
+                allowReferenceRefresh: true
             }
         );
 

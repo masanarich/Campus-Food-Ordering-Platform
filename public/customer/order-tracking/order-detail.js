@@ -166,6 +166,24 @@
         return null;
     }
 
+    function resolveRefundStatus(explicitRefundStatus) {
+        if (
+            explicitRefundStatus &&
+            typeof explicitRefundStatus.getRefundStatusLabel === "function"
+        ) {
+            return explicitRefundStatus;
+        }
+
+        if (
+            globalScope.refundStatus &&
+            typeof globalScope.refundStatus.getRefundStatusLabel === "function"
+        ) {
+            return globalScope.refundStatus;
+        }
+
+        return null;
+    }
+
     function getFallbackRoutes() {
         return {
             home: "../index.html",
@@ -595,6 +613,7 @@
         const safeOptions = options && typeof options === "object" ? options : {};
         const paymentStatus = resolvePaymentStatus(safeOptions.paymentStatus);
         const checkoutStatus = resolveCheckoutStatus(safeOptions.checkoutStatus);
+        const refundStatus = resolveRefundStatus(safeOptions.refundStatus);
         const paymentFormatters = resolvePaymentFormatters(safeOptions.paymentFormatters);
         const normalizedPaymentStatus = normalizeOrderPaymentStatus(safeOrder, safeOptions);
         const statusLabel =
@@ -634,9 +653,75 @@
             normalizedCheckoutStatus && checkoutStatus && typeof checkoutStatus.getCheckoutStatusLabel === "function"
                 ? checkoutStatus.getCheckoutStatusLabel(normalizedCheckoutStatus)
                 : normalizedCheckoutStatus;
-        const paidAtText = formatPaymentDate(safeOrder.paymentPaidAt || safeOrder.paymentVerifiedAt, safeOptions);
-        const failedAtText = formatPaymentDate(safeOrder.paymentFailedAt, safeOptions);
+        const paidAtText = safeOrder.paymentPaidAt || safeOrder.paymentVerifiedAt
+            ? formatPaymentDate(safeOrder.paymentPaidAt || safeOrder.paymentVerifiedAt, safeOptions)
+            : "";
+        const failedAtText = safeOrder.paymentFailedAt
+            ? formatPaymentDate(safeOrder.paymentFailedAt, safeOptions)
+            : "";
         const failureReason = normalizeText(safeOrder.paymentFailureReason);
+        const rawRefundStatus = normalizeText(safeOrder.refundStatus || safeOrder.paymentRefundStatus);
+        const defaultRefundStatus = refundStatus && typeof refundStatus.getDefaultRefundStatus === "function"
+            ? refundStatus.getDefaultRefundStatus()
+            : "not_requested";
+        const normalizedRefundStatus =
+            refundStatus && typeof refundStatus.normalizeRefundStatus === "function"
+                ? refundStatus.normalizeRefundStatus(rawRefundStatus, defaultRefundStatus)
+                : (rawRefundStatus.toLowerCase() || defaultRefundStatus);
+        const refundStatusLabel =
+            refundStatus && typeof refundStatus.getRefundStatusLabel === "function"
+                ? refundStatus.getRefundStatusLabel(normalizedRefundStatus)
+                : normalizedRefundStatus;
+        const refundTone =
+            refundStatus && typeof refundStatus.getRefundStatusTone === "function"
+                ? refundStatus.getRefundStatusTone(normalizedRefundStatus)
+                : "neutral";
+        const refundAmount = Number.isFinite(Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount))
+            ? Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount)
+            : amount;
+        const refundAmountText =
+            paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
+                ? paymentFormatters.formatPaymentAmount(refundAmount, currency)
+                : (currency === "ZAR"
+                    ? `R${refundAmount.toFixed(2)}`
+                    : `${currency} ${refundAmount.toFixed(2)}`);
+        const refundReference = normalizeText(safeOrder.refundReference || safeOrder.paymentRefundReference);
+        const refundReason = normalizeText(safeOrder.refundReason || safeOrder.paymentRefundReason);
+        const refundedAtText = safeOrder.refundedAt || safeOrder.paymentRefundedAt || safeOrder.refundProcessedAt
+            ? formatPaymentDate(
+                safeOrder.refundedAt || safeOrder.paymentRefundedAt || safeOrder.refundProcessedAt,
+                safeOptions
+            )
+            : "";
+        const isRejected = normalizeLowerText(safeOrder.status) === "rejected";
+        const isPaid =
+            paymentStatus && typeof paymentStatus.isPaymentPaid === "function"
+                ? paymentStatus.isPaymentPaid(normalizedPaymentStatus)
+                : normalizedPaymentStatus === "paid";
+        const refundIsVisible = normalizedRefundStatus !== defaultRefundStatus || (isRejected && isPaid);
+        const refundIsComplete =
+            refundStatus && typeof refundStatus.isRefunded === "function"
+                ? refundStatus.isRefunded(normalizedRefundStatus)
+                : normalizedRefundStatus === "refunded";
+        const refundIsActive =
+            refundStatus && typeof refundStatus.isActiveRefundStatus === "function"
+                ? refundStatus.isActiveRefundStatus(normalizedRefundStatus)
+                : normalizedRefundStatus === "requested" || normalizedRefundStatus === "processing";
+        const refundIsFailed =
+            refundStatus && typeof refundStatus.isRefundFailed === "function"
+                ? refundStatus.isRefundFailed(normalizedRefundStatus)
+                : normalizedRefundStatus === "failed";
+        let refundNotice = "";
+
+        if (refundIsComplete) {
+            refundNotice = "Your payment was returned because the vendor rejected this order. A refund notification and email confirmation were sent for this test payment.";
+        } else if (refundIsActive) {
+            refundNotice = "Your refund has been started because the vendor rejected this order. A refund notification and email confirmation will be sent once it is marked refunded.";
+        } else if (refundIsFailed) {
+            refundNotice = "The refund could not be completed. Please contact support so this paid rejected order can be settled.";
+        } else if (refundIsVisible) {
+            refundNotice = "This paid rejected order still needs a refund before it is settled.";
+        }
 
         const canRetry = isOrderPaymentResumable(safeOrder, safeOptions);
         const actionLabel = canRetry ? getPaymentActionLabel(normalizedPaymentStatus, paymentStatus) : "";
@@ -658,6 +743,16 @@
             paidAtText,
             failedAtText,
             failureReason,
+            refundStatus: normalizedRefundStatus,
+            refundStatusLabel,
+            refundTone,
+            refundAmount,
+            refundAmountText,
+            refundReference,
+            refundReason,
+            refundedAtText,
+            refundIsVisible,
+            refundNotice,
             canRetry,
             actionLabel,
             guardMessage: canRetry
@@ -721,7 +816,27 @@
         appendDetail("Failed at", view.failedAtText, "order-detail-payment-failed-at");
         appendDetail("Failure reason", view.failureReason, "order-detail-payment-failure-reason");
 
+        if (view.refundIsVisible) {
+            appendDetail("Refund status", view.refundStatusLabel, "order-detail-refund-status");
+            appendDetail("Refund amount", view.refundAmountText, "order-detail-refund-amount");
+            appendDetail("Refund reference", view.refundReference, "order-detail-refund-reference");
+            appendDetail("Refund reason", view.refundReason, "order-detail-refund-reason");
+            appendDetail("Refunded at", view.refundedAtText, "order-detail-refunded-at");
+        }
+
         container.appendChild(list);
+
+        const refundStatusLine = container.querySelector(".order-detail-refund-status");
+        if (refundStatusLine) {
+            refundStatusLine.setAttribute("data-tone", view.refundTone);
+            refundStatusLine.setAttribute("data-refund-status", view.refundStatus);
+        }
+
+        if (view.refundNotice) {
+            const refundNotice = createParagraph(view.refundNotice, "order-detail-refund-notice");
+            refundNotice.setAttribute("data-tone", view.refundTone);
+            container.appendChild(refundNotice);
+        }
 
         if (view.guardMessage) {
             container.appendChild(createParagraph(view.guardMessage, "order-detail-payment-guard"));
@@ -1158,6 +1273,7 @@
         resolvePaymentStatus,
         resolvePaymentFormatters,
         resolveCheckoutStatus,
+        resolveRefundStatus,
         getFallbackRoutes,
         buildVendorDetailUrl,
         buildRetryPaymentUrl,

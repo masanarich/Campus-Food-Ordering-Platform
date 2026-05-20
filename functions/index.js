@@ -531,68 +531,81 @@ async function persistCheckoutOrderConversion(checkoutRecord, order, checkoutPat
 }
 
 async function convertCheckoutToOrder(checkoutRecord, options = {}) {
-    const safeOptions = options && typeof options === "object" ? options : {};
-    const checkout = await resolveCheckoutForConversion(checkoutRecord, safeOptions);
-    const checkoutId = resolveCheckoutId(checkout, safeOptions);
+    try {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const checkout = await resolveCheckoutForConversion(checkoutRecord, safeOptions);
+        const checkoutId = resolveCheckoutId(checkout, safeOptions);
 
-    if (!checkoutId) {
-        return {
-            success: false,
-            checkout,
-            error: {
-                code: "checkout/id-required",
-                message: "Checkout ID is required to convert checkout into an order."
-            }
-        };
-    }
-
-    if (isCheckoutConverted(checkout)) {
-        const orderId = resolveOrderId(checkout, {
-            orderId: checkout.convertedOrderId
-        });
-
-        return {
-            success: true,
-            skipped: true,
-            alreadyConverted: true,
-            checkoutId,
-            orderId,
-            checkout
-        };
-    }
-
-    if (!isCheckoutPaid(checkout)) {
-        return {
-            success: false,
-            checkoutId,
-            checkout,
-            error: {
-                code: "checkout/not-paid",
-                message: "Only paid checkout sessions can be converted into orders."
-            }
-        };
-    }
-
-    const order = buildOrderFromCheckoutSession(checkout, safeOptions);
-    const checkoutPatch = buildCheckoutConversionPatch(order.orderId, safeOptions);
-    const persistResult = await persistCheckoutOrderConversion(
-        checkout,
-        order,
-        checkoutPatch,
-        safeOptions
-    );
-
-    if (!persistResult.success) {
-        return persistResult;
-    }
-
-    return {
-        ...persistResult,
-        checkout: {
-            ...checkout,
-            ...checkoutPatch
+        if (!checkoutId) {
+            return {
+                success: false,
+                checkout,
+                error: {
+                    code: "checkout/id-required",
+                    message: "Checkout ID is required to convert checkout into an order."
+                }
+            };
         }
-    };
+
+        if (isCheckoutConverted(checkout)) {
+            const orderId = resolveOrderId(checkout, {
+                orderId: checkout.convertedOrderId
+            });
+
+            return {
+                success: true,
+                skipped: true,
+                alreadyConverted: true,
+                checkoutId,
+                orderId,
+                checkout
+            };
+        }
+
+        if (!isCheckoutPaid(checkout)) {
+            return {
+                success: false,
+                checkoutId,
+                checkout,
+                error: {
+                    code: "checkout/not-paid",
+                    message: "Only paid checkout sessions can be converted into orders."
+                }
+            };
+        }
+
+        const order = buildOrderFromCheckoutSession(checkout, safeOptions);
+        const checkoutPatch = buildCheckoutConversionPatch(order.orderId, safeOptions);
+        const persistResult = await persistCheckoutOrderConversion(
+            checkout,
+            order,
+            checkoutPatch,
+            safeOptions
+        );
+
+        if (!persistResult.success) {
+            return persistResult;
+        }
+
+        return {
+            ...persistResult,
+            checkout: {
+                ...checkout,
+                ...checkoutPatch
+            }
+        };
+    } catch (error) {
+        console.error("convertCheckoutToOrder failed:", error);
+
+        return {
+            success: false,
+            error: {
+                code: error && error.code ? `checkout/${String(error.code).toLowerCase()}` : "checkout/conversion-failed",
+                message: error && error.message ? error.message : "Checkout could not be converted into an order.",
+                details: sanitizeForCallable(error || {})
+            }
+        };
+    }
 }
 
 async function attachPersistedPaymentPatch(callableResult, fallbackOrder, dependencies = {}) {

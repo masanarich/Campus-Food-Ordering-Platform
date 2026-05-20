@@ -42,6 +42,17 @@
         }
     }
 
+    function isFirestoreIndexUnavailableError(error) {
+        const code = normalizeText(error && error.code).toLowerCase();
+        const message = normalizeText(error && error.message).toLowerCase();
+
+        return code === "failed-precondition" ||
+            message.includes("query requires an index") ||
+            message.includes("requires an index") ||
+            message.includes("index is currently building") ||
+            message.includes("cannot be used yet");
+    }
+
     function getStorageArea() {
         if (globalScope.__campusFoodTestLocalStorage) {
             return globalScope.__campusFoodTestLocalStorage;
@@ -1273,7 +1284,12 @@
                 order: buildPaymentOrderFromCheckout(prepared.checkout),
                 options: {
                     callbackUrl: getPaymentCallbackUrlForCheckout(prepared.checkout, safeOptions),
-                    reference: prepared.checkout.paymentReference,
+                    reference: safeOptions.forceNewTransaction === true ||
+                        safeOptions.refreshPayment === true
+                        ? undefined
+                        : prepared.checkout.paymentReference,
+                    forceNewTransaction: safeOptions.forceNewTransaction === true,
+                    refreshPayment: safeOptions.refreshPayment === true,
                     metadata: {
                         checkoutId: prepared.checkout.checkoutId,
                         customerUid: prepared.checkout.customerUid,
@@ -1350,9 +1366,10 @@
     async function resumeCheckoutPayment(checkoutRecord, options = {}) {
         const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
         const authorizationUrl = normalizeText(checkout.paymentAuthorizationUrl);
+        const safeOptions = options && typeof options === "object" ? options : {};
 
-        if (authorizationUrl) {
-            navigateToPayment(authorizationUrl, options);
+        if (authorizationUrl && safeOptions.reuseAuthorizationUrl === true) {
+            navigateToPayment(authorizationUrl, safeOptions);
             return {
                 success: true,
                 checkout,
@@ -1361,7 +1378,11 @@
             };
         }
 
-        return initializeCheckoutSessionPayment(checkout, options);
+        return initializeCheckoutSessionPayment(checkout, {
+            ...safeOptions,
+            forceNewTransaction: true,
+            refreshPayment: true
+        });
     }
 
     async function cancelCheckoutSession(checkoutRecord, options = {}) {
@@ -1423,13 +1444,24 @@
             return null;
         }
 
-        const checkout = await checkoutQueries.fetchResumableCustomerCheckout({
-            ...safeOptions,
-            ...buildCheckoutDependencyOptions(safeOptions),
-            db,
-            firestoreFns,
-            customerUid
-        });
+        let checkout = null;
+
+        try {
+            checkout = await checkoutQueries.fetchResumableCustomerCheckout({
+                ...safeOptions,
+                ...buildCheckoutDependencyOptions(safeOptions),
+                db,
+                firestoreFns,
+                customerUid
+            });
+        } catch (error) {
+            if (isFirestoreIndexUnavailableError(error)) {
+                console.warn(`${MODULE_NAME}: resumable checkout lookup skipped while Firestore index is unavailable.`, error);
+                return null;
+            }
+
+            throw error;
+        }
 
         if (
             checkout &&
@@ -1813,6 +1845,7 @@
         normalizePositiveQuantity,
         formatCurrency,
         decodeText,
+        isFirestoreIndexUnavailableError,
         getStorageArea,
         resolveFirestore,
         resolveAuth,

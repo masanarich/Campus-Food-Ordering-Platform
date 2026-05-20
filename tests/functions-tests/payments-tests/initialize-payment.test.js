@@ -108,6 +108,47 @@ describe("functions/payments/initialize-payment.js", () => {
         expect(client.initializeTransaction).not.toHaveBeenCalled();
     });
 
+    test("starts a fresh Paystack transaction when a saved authorization is refreshed", async () => {
+        const client = {
+            initializeTransaction: jest.fn(async payload => ({
+                data: {
+                    authorizationUrl: "https://checkout.paystack.com/fresh",
+                    accessCode: "fresh-access",
+                    reference: "fresh-ref",
+                    receivedPayload: payload
+                }
+            }))
+        };
+
+        const result = await initializePayment(createOrder({
+            checkoutId: "checkout-1",
+            paymentStatus: "pending",
+            paymentProvider: "paystack",
+            paymentReference: "existing-ref",
+            paymentAccessCode: "existing-access",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/stale",
+            paymentAmount: 75,
+            paymentAmountInMinorUnits: 7500,
+            paymentCurrency: "ZAR"
+        }), {
+            client,
+            callbackUrl: "https://campus.example.com/payment-callback.html",
+            forceNewTransaction: true,
+            refreshPayment: true
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.resumed).toBeUndefined();
+        expect(result.reusedAuthorization).toBeUndefined();
+        expect(result.authorizationUrl).toBe("https://checkout.paystack.com/fresh");
+        expect(result.accessCode).toBe("fresh-access");
+        expect(result.reference).toBe("fresh-ref");
+        expect(client.initializeTransaction).toHaveBeenCalledWith(expect.objectContaining({
+            reference: undefined,
+            callback_url: "https://campus.example.com/payment-callback.html"
+        }));
+    });
+
     test("refuses to initialize an already paid payment", async () => {
         const client = {
             initializeTransaction: jest.fn()

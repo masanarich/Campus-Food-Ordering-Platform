@@ -87,6 +87,31 @@ function hasExistingPaymentAttempt(order) {
     );
 }
 
+function shouldStartFreshPayment(options = {}) {
+    const safeOptions = options && typeof options === "object" ? options : {};
+
+    return safeOptions.forceNewTransaction === true ||
+        safeOptions.refreshPayment === true ||
+        safeOptions.startFresh === true;
+}
+
+function clearExistingPaymentAttempt(order) {
+    const safeOrder = order && typeof order === "object" ? order : {};
+
+    return {
+        ...safeOrder,
+        paymentReference: "",
+        reference: "",
+        paymentAccessCode: "",
+        accessCode: "",
+        paymentAuthorizationUrl: "",
+        authorizationUrl: "",
+        authorizationURL: "",
+        paymentUrl: "",
+        paymentURL: ""
+    };
+}
+
 function buildExistingPaymentResumeResult(order, options = {}) {
     const safeOrder = order && typeof order === "object" ? order : {};
     const serviceOptions = getPaymentServiceOptions(options);
@@ -135,13 +160,17 @@ function buildExistingPaymentResumeResult(order, options = {}) {
 async function initializePayment(order, options = {}) {
     const safeOptions = options && typeof options === "object" ? options : {};
     const serviceOptions = getPaymentServiceOptions(safeOptions);
-    const resumeResult = buildExistingPaymentResumeResult(order, safeOptions);
+    const startFreshPayment = shouldStartFreshPayment(safeOptions);
+    const resumeResult = startFreshPayment
+        ? null
+        : buildExistingPaymentResumeResult(order, safeOptions);
 
     if (resumeResult) {
         return resumeResult;
     }
 
-    const preparedResult = paymentService.prepareInitializePayment(order, serviceOptions);
+    const paymentOrder = startFreshPayment ? clearExistingPaymentAttempt(order) : order;
+    const preparedResult = paymentService.prepareInitializePayment(paymentOrder, serviceOptions);
 
     if (!preparedResult.success) {
         return createInitializeResult(false, {
@@ -228,4 +257,6 @@ module.exports.normalizePaystackInitializeData = normalizePaystackInitializeData
 module.exports.getCallbackUrl = getCallbackUrl;
 module.exports.getPaymentServiceOptions = getPaymentServiceOptions;
 module.exports.hasExistingPaymentAttempt = hasExistingPaymentAttempt;
+module.exports.shouldStartFreshPayment = shouldStartFreshPayment;
+module.exports.clearExistingPaymentAttempt = clearExistingPaymentAttempt;
 module.exports.buildExistingPaymentResumeResult = buildExistingPaymentResumeResult;

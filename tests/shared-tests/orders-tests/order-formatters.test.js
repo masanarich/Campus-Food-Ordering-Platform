@@ -524,8 +524,8 @@ describe("shared/orders/order-formatters.js", () => {
             }
         );
 
+        expect(rejectedSteps).toHaveLength(2);
         expect(rejectedSteps[0].state).toBe("complete");
-        expect(rejectedSteps[1].state).toBe("upcoming");
         expect(rejectedSteps[rejectedSteps.length - 1]).toEqual({
             status: "rejected",
             label: "Rejected",
@@ -537,6 +537,9 @@ describe("shared/orders/order-formatters.js", () => {
             isUpcoming: false,
             isTerminal: true
         });
+        expect(rejectedSteps.some(step => step.status === "preparing")).toBe(false);
+        expect(rejectedSteps.some(step => step.status === "ready")).toBe(false);
+        expect(rejectedSteps.some(step => step.status === "completed")).toBe(false);
 
         expect(
             orderFormatters.buildTrackingSteps("completed", {

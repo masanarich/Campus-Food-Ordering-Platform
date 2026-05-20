@@ -590,18 +590,48 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(JSON.parse(window.localStorage.getItem(customerCheckout.CART_STORAGE_KEY))).toHaveLength(2);
     });
 
-    test("placeOrder resumes an unfinished checkout instead of creating a duplicate session", async () => {
+    test("placeOrder refreshes an unfinished checkout payment instead of creating a duplicate session", async () => {
         seedCart([
             createCartItem({ vendorUid: "vendor-1", vendorName: "Campus Bites", quantity: 1, price: 10 })
         ]);
 
         const navigateToPayment = jest.fn();
         const createCheckout = jest.fn();
+        const initializeCheckoutPayment = jest.fn(async options => ({
+            success: true,
+            checkout: {
+                ...options.checkout,
+                paymentReference: "existing-ref"
+            }
+        }));
+        const applyInitializedPayment = jest.fn((checkout, payment) => ({
+            success: true,
+            checkout: {
+                ...checkout,
+                paymentReference: payment.reference,
+                paymentAccessCode: payment.accessCode,
+                paymentAuthorizationUrl: payment.authorizationUrl
+            }
+        }));
+        const updateCheckoutWithPlan = jest.fn(async plan => plan);
+        const initializePaymentCallable = jest.fn(async () => ({
+            data: {
+                success: true,
+                authorizationUrl: "https://checkout.paystack.com/fresh",
+                accessCode: "fresh-access",
+                reference: "fresh-ref",
+                payment: {
+                    checkoutId: "checkout-existing",
+                    status: "pending"
+                }
+            }
+        }));
         const fetchResumableCustomerCheckout = jest.fn(async () => ({
             checkoutId: "checkout-existing",
             customerUid: "customer-1",
             vendorUid: "vendor-1",
             status: "payment_pending",
+            paymentReference: "existing-ref",
             paymentAuthorizationUrl: "https://checkout.paystack.com/existing"
         }));
         const result = await customerCheckout.placeOrder({
@@ -614,8 +644,12 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
                 fetchResumableCustomerCheckout
             },
             checkoutService: {
-                createCheckout
+                createCheckout,
+                initializeCheckoutPayment,
+                applyInitializedPayment,
+                updateCheckoutWithPlan
             },
+            initializePaymentCallable,
             navigateToPayment,
             currentUser: {
                 uid: "customer-1",
@@ -630,7 +664,14 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(fetchResumableCustomerCheckout).toHaveBeenCalledWith(expect.objectContaining({
             customerUid: "customer-1"
         }));
-        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/existing");
+        expect(initializePaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
+            options: expect.objectContaining({
+                forceNewTransaction: true,
+                refreshPayment: true,
+                reference: undefined
+            })
+        }));
+        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/fresh");
     });
 
     test("createOrderDirectly creates an order and vendor or customer notifications", async () => {
@@ -810,13 +851,75 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         }));
     });
 
-    test("resumeCheckoutPayment navigates immediately when the checkout has an authorization URL", async () => {
+    test("resumeCheckoutPayment refreshes stale saved authorization URLs by default", async () => {
+        const navigateToPayment = jest.fn();
+        const initializeCheckoutPayment = jest.fn(async options => ({
+            success: true,
+            checkout: {
+                ...options.checkout,
+                paymentReference: "old-ref"
+            }
+        }));
+        const applyInitializedPayment = jest.fn((checkout, payment) => ({
+            success: true,
+            checkout: {
+                ...checkout,
+                paymentReference: payment.reference,
+                paymentAccessCode: payment.accessCode,
+                paymentAuthorizationUrl: payment.authorizationUrl
+            }
+        }));
+        const updateCheckoutWithPlan = jest.fn(async plan => plan);
+        const initializePaymentCallable = jest.fn(async () => ({
+            data: {
+                success: true,
+                authorizationUrl: "https://checkout.paystack.com/fresh",
+                accessCode: "fresh-access",
+                reference: "fresh-ref",
+                payment: {
+                    checkoutId: "checkout-1",
+                    status: "pending"
+                }
+            }
+        }));
+        const result = await customerCheckout.resumeCheckoutPayment({
+            checkoutId: "checkout-1",
+            status: "payment_pending",
+            paymentReference: "old-ref",
+            paymentAuthorizationUrl: "https://checkout.paystack.com/test"
+        }, {
+            db: { kind: "db" },
+            firestoreFns: createCheckoutFirestoreFns(),
+            checkoutService: {
+                createCheckout: jest.fn(),
+                initializeCheckoutPayment,
+                applyInitializedPayment,
+                updateCheckoutWithPlan
+            },
+            initializePaymentCallable,
+            navigateToPayment
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.reference).toBe("fresh-ref");
+        expect(initializePaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
+            options: expect.objectContaining({
+                forceNewTransaction: true,
+                refreshPayment: true,
+                reference: undefined
+            })
+        }));
+        expect(navigateToPayment).toHaveBeenCalledWith("https://checkout.paystack.com/fresh");
+    });
+
+    test("resumeCheckoutPayment can reuse an authorization URL when explicitly requested", async () => {
         const navigateToPayment = jest.fn();
         const result = await customerCheckout.resumeCheckoutPayment({
             checkoutId: "checkout-1",
             status: "payment_pending",
             paymentAuthorizationUrl: "https://checkout.paystack.com/test"
         }, {
+            reuseAuthorizationUrl: true,
             navigateToPayment
         });
 
@@ -877,6 +980,37 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(getCheckoutById).toHaveBeenCalledWith(expect.objectContaining({
             checkoutId: "checkout-1"
         }));
+    });
+
+    test("findResumableCheckout skips the lookup while a Firestore index is building", async () => {
+        const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+        const fetchResumableCustomerCheckout = jest.fn(async () => {
+            const error = new Error("The query requires an index. That index is currently building and cannot be used yet.");
+            error.code = "failed-precondition";
+            throw error;
+        });
+
+        try {
+            const result = await customerCheckout.findResumableCheckout({
+                vendorUid: "vendor-1"
+            }, {
+                uid: "customer-1"
+            }, {
+                db: { kind: "db" },
+                firestoreFns: createCheckoutFirestoreFns(),
+                checkoutQueries: {
+                    fetchResumableCustomerCheckout
+                }
+            });
+
+            expect(result).toBeNull();
+            expect(fetchResumableCustomerCheckout).toHaveBeenCalledWith(expect.objectContaining({
+                customerUid: "customer-1"
+            }));
+            expect(warnSpy).toHaveBeenCalled();
+        } finally {
+            warnSpy.mockRestore();
+        }
     });
 
     test("createOrderDirectly rejects missing Firestore helpers", async () => {

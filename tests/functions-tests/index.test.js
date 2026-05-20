@@ -726,6 +726,31 @@ describe("functions/index.js", () => {
         }));
     });
 
+    test("conversion reports Firestore permission failures without crashing the callable", async () => {
+        const permissionError = new Error("7 PERMISSION_DENIED: Missing or insufficient permissions.");
+        permissionError.code = 7;
+        const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+        try {
+            await expect(
+                functionsIndex.convertCheckoutSessionToOrder({}, {
+                    checkoutId: "checkout-1",
+                    checkoutSessionReader: jest.fn(async () => {
+                        throw permissionError;
+                    })
+                })
+            ).resolves.toEqual(expect.objectContaining({
+                success: false,
+                error: expect.objectContaining({
+                    code: "checkout/7",
+                    message: "7 PERMISSION_DENIED: Missing or insufficient permissions."
+                })
+            }));
+        } finally {
+            errorSpy.mockRestore();
+        }
+    });
+
     test("conversion handler throws callable errors when checkout conversion fails", async () => {
         const handler = functionsIndex.createConvertCheckoutToOrderHandler({
             convertCheckoutToOrder: jest.fn(async () => ({

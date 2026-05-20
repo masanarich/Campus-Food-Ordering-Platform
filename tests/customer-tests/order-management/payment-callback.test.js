@@ -977,7 +977,8 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
                 currency: "ZAR"
             }),
             expect.objectContaining({
-                actorRole: "system"
+                actorRole: "system",
+                allowReferenceRefresh: true
             })
         );
         expect(orderService.createOrders).toHaveBeenCalledWith(expect.objectContaining({
@@ -989,6 +990,130 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
             checkout: paidCheckout,
             orderId: "order-checkout-1"
         }));
+    });
+
+    test("processPaymentCallback accepts a fresh Paystack reference for a retried checkout", async () => {
+        const checkout = createCheckoutRecord({
+            paymentReference: "old-ref"
+        });
+        const firestoreFns = createFirestoreFns({
+            serverTimestamp: jest.fn(() => "server-time")
+        });
+        const checkoutService = {
+            getCheckoutById: jest.fn(async () => checkout),
+            applyVerifiedPayment: jest.fn((checkoutRecord, verification, options) => ({
+                success: true,
+                checkout: {
+                    ...checkoutRecord,
+                    status: "paid",
+                    paymentReference: verification.reference
+                },
+                patch: {
+                    status: "paid",
+                    paymentReference: verification.reference
+                },
+                verification: {
+                    ...verification,
+                    referenceWasRefreshed: options.allowReferenceRefresh === true
+                }
+            })),
+            updateCheckoutWithPlan: jest.fn(async plan => plan),
+            convertCheckoutToOrder: jest.fn(async () => ({
+                success: true,
+                orderId: "order-checkout-1",
+                checkout: {
+                    ...checkout,
+                    status: "converted",
+                    paymentReference: "fresh-ref"
+                },
+                order: createOrderRecord({
+                    orderId: "order-checkout-1",
+                    checkoutId: "checkout-1",
+                    paymentReference: "fresh-ref"
+                })
+            }))
+        };
+        const callable = jest.fn(async () => ({
+            data: {
+                success: true,
+                payment: { amount: 42.5, currency: "ZAR", reference: "fresh-ref" },
+                verification: { reference: "fresh-ref", amountInMinorUnits: 4250, currency: "ZAR" },
+                reference: "fresh-ref"
+            }
+        }));
+        const convertCheckoutToOrderCallable = jest.fn(async () => ({
+            data: {
+                success: true,
+                checkout: {
+                    ...checkout,
+                    status: "converted",
+                    paymentReference: "fresh-ref"
+                },
+                order: createOrderRecord({
+                    orderId: "order-checkout-1",
+                    checkoutId: "checkout-1",
+                    paymentReference: "fresh-ref"
+                }),
+                orderId: "order-checkout-1"
+            }
+        }));
+
+        const result = await paymentCallback.processPaymentCallback({
+            search: "?reference=fresh-ref&checkoutId=checkout-1",
+            db: { kind: "db" },
+            firestoreFns,
+            checkoutService,
+            verifyPaymentCallable: callable,
+            convertCheckoutToOrderCallable
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.outcome).toBe("success");
+        expect(checkoutService.applyVerifiedPayment).toHaveBeenCalledWith(
+            checkout,
+            expect.objectContaining({
+                status: "success",
+                reference: "fresh-ref"
+            }),
+            expect.objectContaining({
+                allowReferenceRefresh: true
+            })
+        );
+        expect(result.order.paymentReference).toBe("fresh-ref");
+    });
+
+    test("applyCheckoutPaymentSuccess prefers gateway success over normalized paid payment status", async () => {
+        const checkoutService = {
+            applyVerifiedPayment: jest.fn(() => ({
+                success: true,
+                checkout: createCheckoutRecord({ status: "paid" }),
+                patch: { status: "paid" }
+            })),
+            updateCheckoutWithPlan: jest.fn(async plan => plan)
+        };
+
+        const result = await paymentCallback.applyCheckoutPaymentSuccess(
+            createCheckoutRecord(),
+            {
+                payment: { status: "paid", amount: 42.5, currency: "ZAR", reference: "paystack-ref" },
+                verification: { status: "success", reference: "paystack-ref", amountInMinorUnits: 4250, currency: "ZAR" },
+                reference: "paystack-ref"
+            },
+            {
+                checkoutService
+            }
+        );
+
+        expect(result.success).toBe(true);
+        expect(checkoutService.applyVerifiedPayment).toHaveBeenCalledWith(
+            expect.any(Object),
+            expect.objectContaining({
+                status: "success"
+            }),
+            expect.objectContaining({
+                allowReferenceRefresh: true
+            })
+        );
     });
 
     test("processPaymentCallback converts paid checkout through the server callable when available", async () => {
