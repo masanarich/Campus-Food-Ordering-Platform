@@ -17,6 +17,35 @@ function normalizeLowerText(value) {
     return normalizeText(value).toLowerCase();
 }
 
+function normalizeCurrencyAmount(value, fallbackValue) {
+    const parsed = Number.parseFloat(value);
+    const fallbackParsed = Number.parseFloat(fallbackValue);
+
+    if (Number.isFinite(parsed)) {
+        return Math.max(0, Math.round((parsed + Number.EPSILON) * 100) / 100);
+    }
+
+    if (Number.isFinite(fallbackParsed)) {
+        return Math.max(0, Math.round((fallbackParsed + Number.EPSILON) * 100) / 100);
+    }
+
+    return 0;
+}
+
+function formatCurrency(amount, currency) {
+    const safeCurrency = normalizeText(currency) || "ZAR";
+
+    try {
+        return new Intl.NumberFormat("en-ZA", {
+            style: "currency",
+            currency: safeCurrency,
+            currencyDisplay: "narrowSymbol"
+        }).format(normalizeCurrencyAmount(amount));
+    } catch (error) {
+        return `R${normalizeCurrencyAmount(amount).toFixed(2)}`;
+    }
+}
+
 function normalizeVendorStatus(status) {
     const value = normalizeLowerText(status);
 
@@ -76,6 +105,53 @@ function getFallbackRoutes() {
         analytics: "./analytics.html",
         login: "../authentication/login.html"
     };
+}
+
+function resolveGlobal(name) {
+    if (typeof window !== "undefined" && window[name]) {
+        return window[name];
+    }
+
+    if (typeof globalThis !== "undefined" && globalThis[name]) {
+        return globalThis[name];
+    }
+
+    return null;
+}
+
+function resolvePlatformPricing(explicitPlatformPricing) {
+    if (
+        explicitPlatformPricing &&
+        typeof explicitPlatformPricing.calculateVendorBalance === "function"
+    ) {
+        return explicitPlatformPricing;
+    }
+
+    const globalPlatformPricing = resolveGlobal("platformPricing");
+
+    if (
+        globalPlatformPricing &&
+        typeof globalPlatformPricing.calculateVendorBalance === "function"
+    ) {
+        return globalPlatformPricing;
+    }
+
+    if (typeof require === "function") {
+        try {
+            const requiredPlatformPricing = require("../shared/finance/platform-pricing.js");
+
+            if (
+                requiredPlatformPricing &&
+                typeof requiredPlatformPricing.calculateVendorBalance === "function"
+            ) {
+                return requiredPlatformPricing;
+            }
+        } catch (error) {
+            return null;
+        }
+    }
+
+    return null;
 }
 
 function getPortalRoute(routeName, authUtils) {
@@ -340,6 +416,116 @@ function getWelcomeMessage(profile, authUtils) {
     return `Welcome back, ${name}.`;
 }
 
+function getDefaultFinanceSummary(vendorUid) {
+    return {
+        vendorUid: normalizeText(vendorUid),
+        completedOrders: 0,
+        totalEarned: 0,
+        reservedWithdrawals: 0,
+        availableBalance: 0
+    };
+}
+
+function calculateVendorHomeFinanceSummary(orders, payouts, options = {}) {
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const platformPricing = resolvePlatformPricing(safeOptions.platformPricing);
+    const vendorUid = normalizeText(safeOptions.vendorUid);
+
+    if (platformPricing && typeof platformPricing.calculateVendorBalance === "function") {
+        return {
+            ...getDefaultFinanceSummary(vendorUid),
+            ...platformPricing.calculateVendorBalance(orders, payouts, {
+                ...safeOptions,
+                vendorUid
+            })
+        };
+    }
+
+    const completedOrders = (Array.isArray(orders) ? orders : []).filter(function keepOrder(order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const orderVendorUid = normalizeText(safeOrder.vendorUid);
+        const status = normalizeLowerText(safeOrder.status || safeOrder.orderStatus);
+        const paymentStatus = normalizeLowerText(safeOrder.paymentStatus || safeOrder.paymentState);
+
+        return status === "completed" &&
+            (!paymentStatus || paymentStatus === "paid") &&
+            (!vendorUid || orderVendorUid === vendorUid);
+    });
+    const totalEarned = completedOrders.reduce(function sumEarned(total, order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const amount = safeOrder.vendorEarnings !== undefined
+            ? safeOrder.vendorEarnings
+            : safeOrder.vendorSubtotal;
+
+        return normalizeCurrencyAmount(total + normalizeCurrencyAmount(amount));
+    }, 0);
+    const reservedWithdrawals = (Array.isArray(payouts) ? payouts : [])
+        .filter(function keepPayout(payout) {
+            const safePayout = payout && typeof payout === "object" ? payout : {};
+            const payoutVendorUid = normalizeText(safePayout.vendorUid);
+            const status = normalizeLowerText(safePayout.status) || "pending";
+
+            return (!vendorUid || payoutVendorUid === vendorUid) &&
+                ["pending", "approved", "paid"].indexOf(status) >= 0;
+        })
+        .reduce(function sumReserved(total, payout) {
+            return normalizeCurrencyAmount(total + normalizeCurrencyAmount(payout && payout.amount));
+        }, 0);
+
+    return {
+        vendorUid,
+        completedOrders: completedOrders.length,
+        totalEarned,
+        reservedWithdrawals,
+        availableBalance: normalizeCurrencyAmount(totalEarned - reservedWithdrawals)
+    };
+}
+
+async function loadVendorFinanceSummary(profile, dependencies = {}) {
+    const safeDependencies = dependencies && typeof dependencies === "object" ? dependencies : {};
+    const safeProfile = normalizeProfile(profile, safeDependencies.authUtils);
+    const vendorUid = normalizeText(safeDependencies.vendorUid || safeProfile.uid);
+
+    try {
+        if (typeof safeDependencies.financeLoader === "function") {
+            const financeData = await safeDependencies.financeLoader({
+                vendorUid,
+                profile: safeProfile
+            });
+            const safeFinanceData = financeData && typeof financeData === "object" ? financeData : {};
+
+            return {
+                summary: calculateVendorHomeFinanceSummary(
+                    safeFinanceData.orders,
+                    safeFinanceData.payouts,
+                    {
+                        ...safeDependencies,
+                        vendorUid
+                    }
+                ),
+                error: null
+            };
+        }
+
+        return {
+            summary: calculateVendorHomeFinanceSummary(
+                safeDependencies.orders,
+                safeDependencies.payouts,
+                {
+                    ...safeDependencies,
+                    vendorUid
+                }
+            ),
+            error: null
+        };
+    } catch (error) {
+        return {
+            summary: getDefaultFinanceSummary(vendorUid),
+            error
+        };
+    }
+}
+
 function getHomeState(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
     const showCustomerPortal = canAccessCustomerPortal(safeProfile, authUtils);
@@ -372,7 +558,9 @@ function getHomeState(profile, authUtils) {
         supportRoute: getPortalRoute("support", authUtils),
         walletRoute: getPortalRoute("wallet", authUtils),
         analyticsRoute: getPortalRoute("analytics", authUtils),
-        signOutRoute: getPortalRoute("signOut", authUtils)
+        signOutRoute: getPortalRoute("signOut", authUtils),
+        financeSummary: getDefaultFinanceSummary(safeProfile.uid),
+        financeStatusMessage: "Open your wallet to review completed-order earnings and request a fake payout."
     };
 }
 
@@ -456,6 +644,9 @@ function renderVendorHomePage(elements, state) {
     setText(elements.welcomeMessageElement, state.welcomeMessage);
     setText(elements.vendorPortalNoteElement, state.vendorPortalNote);
     setText(elements.vendorWorkspaceNoteElement, state.vendorWorkspaceNote);
+    renderFinanceSummary(elements, state.financeSummary, {
+        message: state.financeStatusMessage
+    });
 
     if (elements.photoCaptionElement) {
         setText(
@@ -477,6 +668,30 @@ function renderVendorHomePage(elements, state) {
     setHidden(elements.vendorPortalButton, !state.showVendorPortal);
     setHidden(elements.adminPortalButton, !state.showAdminPortal);
     setHidden(elements.choosePortalButton, !state.showChoosePortal);
+}
+
+function renderFinanceSummary(elements, financeSummary, options = {}) {
+    if (!elements) {
+        return;
+    }
+
+    const summary = {
+        ...getDefaultFinanceSummary(),
+        ...(financeSummary && typeof financeSummary === "object" ? financeSummary : {})
+    };
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const hasBalance = summary.totalEarned > 0 || summary.reservedWithdrawals > 0 || summary.completedOrders > 0;
+    const message = normalizeText(safeOptions.message) || (
+        hasBalance
+            ? "These figures use completed paid orders and reserved withdrawal requests."
+            : "No completed paid orders have added to your wallet yet."
+    );
+
+    setText(elements.walletNoteElement, message);
+    setText(elements.walletAvailableElement, formatCurrency(summary.availableBalance));
+    setText(elements.walletEarnedElement, formatCurrency(summary.totalEarned));
+    setText(elements.walletReservedElement, formatCurrency(summary.reservedWithdrawals));
+    setText(elements.walletOrdersElement, String(summary.completedOrders || 0));
 }
 
 function attachNavigationHandler(options = {}) {
@@ -604,6 +819,18 @@ async function loadVendorHomeState(dependencies = {}) {
         };
     }
 
+    const finance = await loadVendorFinanceSummary(state.profile, {
+        ...dependencies,
+        authUtils
+    });
+
+    state.financeSummary = finance.summary;
+    state.financeStatusMessage = finance.error
+        ? "Wallet figures could not be loaded here. Open Wallet for the full view."
+        : state.financeSummary.completedOrders > 0
+            ? "Completed paid orders are reflected in this wallet snapshot."
+            : "Open your wallet to review completed-order earnings and request a fake payout.";
+
     return {
         success: true,
         user,
@@ -642,6 +869,11 @@ async function initializeVendorHomePage(options = {}) {
         welcomeMessageElement: document.querySelector("#welcome-message"),
         vendorPortalNoteElement: document.querySelector("#vendor-portal-note"),
         vendorWorkspaceNoteElement: document.querySelector("#vendor-workspace-note"),
+        walletNoteElement: document.querySelector("#vendor-wallet-note"),
+        walletAvailableElement: document.querySelector("#vendor-wallet-available"),
+        walletEarnedElement: document.querySelector("#vendor-wallet-earned"),
+        walletReservedElement: document.querySelector("#vendor-wallet-reserved"),
+        walletOrdersElement: document.querySelector("#vendor-wallet-orders"),
         profileButton: document.querySelector("#go-profile-button"),
         shopButton: document.querySelector("#go-shop-button"),
         productsButton: document.querySelector("#go-products-button"),
@@ -837,7 +1069,14 @@ const vendorHomePage = {
     getPortalSummary,
     getVendorPortalNote,
     getVendorWorkspaceNote,
-    getWelcomeMessage,
+        getWelcomeMessage,
+    normalizeCurrencyAmount,
+    formatCurrency,
+    resolveGlobal,
+    resolvePlatformPricing,
+    getDefaultFinanceSummary,
+    calculateVendorHomeFinanceSummary,
+    loadVendorFinanceSummary,
     getHomeState,
     getDefaultAvatar,
     getSafeRedirectRoute,
@@ -845,6 +1084,7 @@ const vendorHomePage = {
     setHidden,
     setStatusMessage,
     setImage,
+    renderFinanceSummary,
     renderVendorHomePage,
     attachNavigationHandler,
     attachSignOutHandler,

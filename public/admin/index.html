@@ -46,6 +46,29 @@
                     <strong class="summary-label">Portal switching</strong>
                     <p id="portal-summary">Your available portal buttons will appear here.</p>
                 </article>
+
+                <article class="summary-card finance-summary-card">
+                    <strong class="summary-label">Platform finance</strong>
+                    <p id="admin-finance-note">Platform finance figures will appear here.</p>
+                    <dl class="finance-mini-grid" aria-label="Admin finance summary">
+                        <div>
+                            <dt>Platform</dt>
+                            <dd><output id="admin-platform-balance">R0.00</output></dd>
+                        </div>
+                        <div>
+                            <dt>Revenue</dt>
+                            <dd><output id="admin-customer-revenue">R0.00</output></dd>
+                        </div>
+                        <div>
+                            <dt>Vendors</dt>
+                            <dd><output id="admin-vendor-earnings">R0.00</output></dd>
+                        </div>
+                        <div>
+                            <dt>Completed</dt>
+                            <dd><output id="admin-completed-orders">0</output></dd>
+                        </div>
+                    </dl>
+                </article>
             </section>
 
             <menu class="action-menu action-menu-primary" aria-label="Main admin actions">
@@ -102,6 +125,14 @@
                     <p>
                         Keep support issues and disputes organised so customer-facing problems
                         can flow into the admin workspace properly.
+                    </p>
+                </article>
+
+                <article class="workspace-card finance-workspace-card">
+                    <h4>Finance and Payouts</h4>
+                    <p>
+                        Track the platform's 10% earnings, customer revenue, vendor earnings,
+                        and fake payout requests from the finance dashboard.
                     </p>
                 </article>
             </section>

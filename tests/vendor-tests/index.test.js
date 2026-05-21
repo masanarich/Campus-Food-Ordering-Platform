@@ -4,9 +4,12 @@
 
 const {
     normalizeText,
+    normalizeCurrencyAmount,
+    formatCurrency,
     normalizeVendorStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
+    resolvePlatformPricing,
     getPortalRoute,
     hasAuthenticatedIdentity,
     normalizeProfile,
@@ -19,6 +22,9 @@ const {
     getVendorPortalNote,
     getVendorWorkspaceNote,
     getWelcomeMessage,
+    getDefaultFinanceSummary,
+    calculateVendorHomeFinanceSummary,
+    loadVendorFinanceSummary,
     getHomeState,
     getDefaultAvatar,
     getSafeRedirectRoute,
@@ -26,12 +32,14 @@ const {
     setHidden,
     setStatusMessage,
     setImage,
+    renderFinanceSummary,
     renderVendorHomePage,
     attachNavigationHandler,
     attachSignOutHandler,
     loadVendorHomeState,
     initializeVendorHomePage
 } = require("../../public/vendor/index.js");
+const platformPricing = require("../../public/shared/finance/platform-pricing.js");
 
 function createVendorHomeDom() {
     document.body.innerHTML = `
@@ -50,6 +58,12 @@ function createVendorHomeDom() {
             <p id="welcome-message"></p>
             <p id="vendor-portal-note"></p>
             <p id="vendor-workspace-note"></p>
+
+            <p id="vendor-wallet-note"></p>
+            <output id="vendor-wallet-available"></output>
+            <output id="vendor-wallet-earned"></output>
+            <output id="vendor-wallet-reserved"></output>
+            <output id="vendor-wallet-orders"></output>
 
             <button id="go-profile-button" type="button">Profile</button>
             <button id="go-shop-button" type="button">Shop</button>
@@ -81,6 +95,11 @@ function createVendorHomeDom() {
         welcomeMessageElement: document.querySelector("#welcome-message"),
         vendorPortalNoteElement: document.querySelector("#vendor-portal-note"),
         vendorWorkspaceNoteElement: document.querySelector("#vendor-workspace-note"),
+        walletNoteElement: document.querySelector("#vendor-wallet-note"),
+        walletAvailableElement: document.querySelector("#vendor-wallet-available"),
+        walletEarnedElement: document.querySelector("#vendor-wallet-earned"),
+        walletReservedElement: document.querySelector("#vendor-wallet-reserved"),
+        walletOrdersElement: document.querySelector("#vendor-wallet-orders"),
         profileButton: document.querySelector("#go-profile-button"),
         shopButton: document.querySelector("#go-shop-button"),
         productsButton: document.querySelector("#go-products-button"),
@@ -113,10 +132,13 @@ describe("vendor/index.js helpers", () => {
     test("normalizers and auth util resolution work", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
         expect(normalizeText(undefined)).toBe("");
+        expect(normalizeCurrencyAmount("12.345")).toBe(12.35);
+        expect(formatCurrency(120)).toContain("120");
         expect(normalizeVendorStatus("suspended")).toBe("blocked");
         expect(normalizeVendorStatus("mystery")).toBe("none");
         expect(normalizeAccountStatus("disabled")).toBe("disabled");
         expect(normalizeAccountStatus("inactive")).toBe("active");
+        expect(resolvePlatformPricing(platformPricing)).toBe(platformPricing);
 
         const explicitUtils = { value: 1 };
         window.authUtils = { value: 2 };
@@ -235,6 +257,79 @@ describe("vendor/index.js helpers", () => {
         expect(getWelcomeMessage({ displayName: "Faranani" })).toBe("Welcome back, Faranani.");
     });
 
+    test("finance summary helpers calculate vendor wallet snapshots", async () => {
+        expect(getDefaultFinanceSummary("vendor-1")).toEqual({
+            vendorUid: "vendor-1",
+            completedOrders: 0,
+            totalEarned: 0,
+            reservedWithdrawals: 0,
+            availableBalance: 0
+        });
+
+        const summary = calculateVendorHomeFinanceSummary([
+            {
+                orderId: "order-1",
+                vendorUid: "vendor-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorEarnings: 100,
+                platformEarnings: 10
+            },
+            {
+                orderId: "order-2",
+                vendorUid: "vendor-1",
+                status: "ready",
+                paymentStatus: "paid",
+                vendorEarnings: 50
+            }
+        ], [
+            {
+                payoutId: "payout-1",
+                vendorUid: "vendor-1",
+                amount: 35,
+                status: "pending"
+            }
+        ], {
+            vendorUid: "vendor-1",
+            platformPricing
+        });
+
+        expect(summary).toEqual({
+            vendorUid: "vendor-1",
+            completedOrders: 1,
+            totalEarned: 100,
+            reservedWithdrawals: 35,
+            availableBalance: 65
+        });
+
+        await expect(loadVendorFinanceSummary({
+            uid: "vendor-1",
+            vendorStatus: "approved"
+        }, {
+            platformPricing,
+            financeLoader: jest.fn(async () => ({
+                orders: [
+                    {
+                        vendorUid: "vendor-1",
+                        status: "completed",
+                        paymentStatus: "paid",
+                        vendorEarnings: 80
+                    }
+                ],
+                payouts: []
+            }))
+        })).resolves.toEqual({
+            summary: {
+                vendorUid: "vendor-1",
+                completedOrders: 1,
+                totalEarned: 80,
+                reservedWithdrawals: 0,
+                availableBalance: 80
+            },
+            error: null
+        });
+    });
+
     test("home state and redirect helpers work", () => {
         const state = getHomeState({
             uid: "user-1",
@@ -316,6 +411,13 @@ describe("vendor/index.js DOM helpers", () => {
             welcomeMessage: "Welcome back, Faranani.",
             vendorPortalNote: "Your vendor account is approved and ready to manage a shop.",
             vendorWorkspaceNote: "From here you can maintain your shop profile, keep your menu updated, and prepare for order management.",
+            financeSummary: {
+                availableBalance: 65,
+                totalEarned: 100,
+                reservedWithdrawals: 35,
+                completedOrders: 1
+            },
+            financeStatusMessage: "Completed paid orders are reflected in this wallet snapshot.",
             showCustomerPortal: true,
             showVendorPortal: true,
             showAdminPortal: false,
@@ -333,12 +435,21 @@ describe("vendor/index.js DOM helpers", () => {
             .toBe("Your vendor account is approved and ready to manage a shop.");
         expect(elements.vendorWorkspaceNoteElement.textContent)
             .toContain("maintain your shop profile");
+        expect(elements.walletNoteElement.textContent)
+            .toBe("Completed paid orders are reflected in this wallet snapshot.");
+        expect(elements.walletAvailableElement.textContent).toContain("65");
+        expect(elements.walletEarnedElement.textContent).toContain("100");
+        expect(elements.walletReservedElement.textContent).toContain("35");
+        expect(elements.walletOrdersElement.textContent).toBe("1");
         expect(elements.photoCaptionElement.textContent)
             .toBe("No profile picture was found, so a default avatar is being shown.");
         expect(elements.customerPortalButton.hidden).toBe(false);
         expect(elements.vendorPortalButton.hidden).toBe(false);
         expect(elements.adminPortalButton.hidden).toBe(true);
         expect(elements.choosePortalButton.hidden).toBe(false);
+
+        renderFinanceSummary(elements, null);
+        expect(elements.walletOrdersElement.textContent).toBe("0");
     });
 
     test("navigation helpers work", async () => {
@@ -461,12 +572,38 @@ describe("vendor/index.js loading and initialization", () => {
                 accountStatus: "active"
             })
         };
+        const financeLoader = jest.fn(async () => ({
+            orders: [
+                {
+                    vendorUid: "user-2",
+                    status: "completed",
+                    paymentStatus: "paid",
+                    vendorEarnings: 120
+                }
+            ],
+            payouts: [
+                {
+                    vendorUid: "user-2",
+                    amount: 20,
+                    status: "pending"
+                }
+            ]
+        }));
 
-        const result = await loadVendorHomeState({ authService });
+        const result = await loadVendorHomeState({
+            authService,
+            financeLoader,
+            platformPricing
+        });
 
         expect(result.success).toBe(true);
         expect(result.profile.uid).toBe("user-2");
         expect(result.state.displayName).toBe("Vendor User");
+        expect(result.state.financeSummary.availableBalance).toBe(100);
+        expect(result.state.financeStatusMessage).toBe("Completed paid orders are reflected in this wallet snapshot.");
+        expect(financeLoader).toHaveBeenCalledWith(expect.objectContaining({
+            vendorUid: "user-2"
+        }));
     });
 
     test("initializeVendorHomePage renders state and wires navigation", async () => {

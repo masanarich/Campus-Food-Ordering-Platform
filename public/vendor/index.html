@@ -48,6 +48,29 @@
                     <strong class="summary-label">Portal switching</strong>
                     <p id="portal-summary">Your available portal buttons will appear here.</p>
                 </article>
+
+                <article class="summary-card finance-summary-card">
+                    <strong class="summary-label">Wallet balance</strong>
+                    <p id="vendor-wallet-note">Wallet figures will appear here.</p>
+                    <dl class="finance-mini-grid" aria-label="Vendor wallet summary">
+                        <div>
+                            <dt>Available</dt>
+                            <dd><output id="vendor-wallet-available">R0.00</output></dd>
+                        </div>
+                        <div>
+                            <dt>Earned</dt>
+                            <dd><output id="vendor-wallet-earned">R0.00</output></dd>
+                        </div>
+                        <div>
+                            <dt>Reserved</dt>
+                            <dd><output id="vendor-wallet-reserved">R0.00</output></dd>
+                        </div>
+                        <div>
+                            <dt>Completed</dt>
+                            <dd><output id="vendor-wallet-orders">0</output></dd>
+                        </div>
+                    </dl>
+                </article>
             </section>
 
             <menu class="action-menu action-menu-primary" aria-label="Main vendor actions">
@@ -121,6 +144,14 @@
                     <p>
                         Keep track of order events and customer-facing updates as you manage the
                         collection process.
+                    </p>
+                </article>
+
+                <article class="workspace-card finance-workspace-card">
+                    <h4>Wallet &amp; Payouts</h4>
+                    <p>
+                        Review completed-order earnings, reserved withdrawal requests, and your
+                        available test-mode balance before requesting a fake payout.
                     </p>
                 </article>
             </section>
