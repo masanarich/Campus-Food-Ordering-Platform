@@ -99,6 +99,23 @@
         return normalizeText(value).toUpperCase();
     }
 
+    function normalizeTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeText(value)
+                ? normalizeText(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeLowerText(tag);
+            })
+            .filter(Boolean)
+            .filter(function keepUnique(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
     function normalizeCurrencyAmount(value, fallbackValue) {
         const parsed = Number.parseFloat(value);
         const fallbackParsed = Number.parseFloat(fallbackValue);
@@ -301,6 +318,8 @@
                 vendorName: normalizeText(safeItem.vendorName),
                 name: normalizeText(safeItem.name || safeItem.itemName),
                 category: normalizeText(safeItem.category),
+                dietary: normalizeTagList(safeItem.dietary || safeItem.dietaryTags),
+                allergens: normalizeTagList(safeItem.allergens || safeItem.allergenTags),
                 price: normalizeCurrencyAmount(getRawItemPrice(safeItem)),
                 quantity: Number.parseInt(safeItem.quantity, 10) > 0 ? Number.parseInt(safeItem.quantity, 10) : 1,
                 lineTotal: normalizeCurrencyAmount(
@@ -924,6 +943,7 @@
         normalizeText,
         normalizeLowerText,
         normalizeUpperText,
+        normalizeTagList,
         normalizeCurrencyAmount,
         normalizeAmountInMinorUnits,
         createValidationResult,
