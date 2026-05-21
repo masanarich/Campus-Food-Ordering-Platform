@@ -46,6 +46,23 @@ function resetGlobals() {
     delete global.checkoutQueries;
     delete global.checkoutService;
     delete global.orderService;
+    delete window.__campusFoodTestLocalStorage;
+    delete global.__campusFoodTestLocalStorage;
+}
+
+function createStorage(initial = {}) {
+    const values = { ...initial };
+
+    return {
+        getItem: jest.fn(key => Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null),
+        setItem: jest.fn((key, value) => {
+            values[key] = String(value);
+        }),
+        removeItem: jest.fn(key => {
+            delete values[key];
+        }),
+        values
+    };
 }
 
 function createOrderRecord(overrides = {}) {
@@ -139,6 +156,7 @@ describe("customer/order-management/payment-callback.js - helpers", () => {
         expect(paymentCallback.normalizeUpperText(" zar ")).toBe("ZAR");
         expect(paymentCallback.normalizeNumber("4.5")).toBe(4.5);
         expect(paymentCallback.normalizeNumber("not-a-number")).toBe(null);
+        expect(paymentCallback.CART_STORAGE_KEY).toBe("campus-food-cart");
     });
 
     test("getFallbackRoutes exposes expected routes", () => {
@@ -256,6 +274,51 @@ describe("customer/order-management/payment-callback.js - helpers", () => {
         expect(paymentCallback.normalizeCallableResult({ data: { success: true } })).toEqual({ success: true });
         expect(paymentCallback.normalizeCallableResult({ success: true })).toEqual({ success: true });
         expect(paymentCallback.normalizeCallableResult(null)).toBe(null);
+    });
+
+    test("removePurchasedCartItems clears only the bought checkout items", () => {
+        const storage = createStorage({
+            [paymentCallback.CART_STORAGE_KEY]: JSON.stringify([
+                {
+                    menuItemId: "item-1",
+                    vendorUid: "vendor-1",
+                    name: "Burger"
+                },
+                {
+                    menuItemId: "item-2",
+                    vendorUid: "vendor-1",
+                    name: "Juice"
+                },
+                {
+                    menuItemId: "item-3",
+                    vendorUid: "vendor-2",
+                    name: "Wrap"
+                }
+            ])
+        });
+
+        const result = paymentCallback.removePurchasedCartItems(createCheckoutRecord({
+            items: [
+                {
+                    menuItemId: "item-1",
+                    vendorUid: "vendor-1"
+                },
+                {
+                    menuItemId: "item-2",
+                    vendorUid: "vendor-1"
+                }
+            ]
+        }), { storageArea: storage });
+
+        expect(result.success).toBe(true);
+        expect(result.removedCount).toBe(2);
+        expect(JSON.parse(storage.values[paymentCallback.CART_STORAGE_KEY])).toEqual([
+            {
+                menuItemId: "item-3",
+                vendorUid: "vendor-2",
+                name: "Wrap"
+            }
+        ]);
     });
 
     test("resolveVerifyPaymentCallable prefers explicit callable, then paymentFunctions, then httpsCallable", () => {
@@ -924,6 +987,18 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
             status: "converted",
             convertedOrderId: "order-checkout-1"
         };
+        const storage = createStorage({
+            [paymentCallback.CART_STORAGE_KEY]: JSON.stringify(checkout.items.concat([
+                {
+                    menuItemId: "item-2",
+                    vendorUid: "vendor-2",
+                    vendorName: "Other Vendor",
+                    name: "Wrap",
+                    price: 20,
+                    quantity: 1
+                }
+            ]))
+        });
         const checkoutService = {
             getCheckoutById: jest.fn(async () => checkout),
             applyVerifiedPayment: jest.fn(() => ({
@@ -959,7 +1034,8 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
             firestoreFns,
             checkoutService,
             orderService,
-            verifyPaymentCallable: callable
+            verifyPaymentCallable: callable,
+            storageArea: storage
         });
 
         expect(result.success).toBe(true);
@@ -990,6 +1066,17 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
             checkout: paidCheckout,
             orderId: "order-checkout-1"
         }));
+        expect(result.cartClearResult.removedCount).toBe(1);
+        expect(JSON.parse(storage.values[paymentCallback.CART_STORAGE_KEY])).toEqual([
+            {
+                menuItemId: "item-2",
+                vendorUid: "vendor-2",
+                vendorName: "Other Vendor",
+                name: "Wrap",
+                price: 20,
+                quantity: 1
+            }
+        ]);
     });
 
     test("processPaymentCallback accepts a fresh Paystack reference for a retried checkout", async () => {
@@ -1057,7 +1144,6 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
                 orderId: "order-checkout-1"
             }
         }));
-
         const result = await paymentCallback.processPaymentCallback({
             search: "?reference=fresh-ref&checkoutId=checkout-1",
             db: { kind: "db" },
@@ -1161,6 +1247,9 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
                 orderId: "order-checkout-1"
             }
         }));
+        const storage = createStorage({
+            [paymentCallback.CART_STORAGE_KEY]: JSON.stringify(paidCheckout.items)
+        });
 
         const result = await paymentCallback.processPaymentCallback({
             search: "?reference=paystack-ref&checkoutId=checkout-1",
@@ -1169,7 +1258,8 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
             checkoutService,
             orderService,
             verifyPaymentCallable,
-            convertCheckoutToOrderCallable
+            convertCheckoutToOrderCallable,
+            storageArea: storage
         });
 
         expect(result.success).toBe(true);
@@ -1183,6 +1273,8 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
         });
         expect(orderService.createOrders).not.toHaveBeenCalled();
         expect(checkoutService.convertCheckoutToOrder).not.toHaveBeenCalled();
+        expect(result.cartClearResult.removedCount).toBe(1);
+        expect(JSON.parse(storage.values[paymentCallback.CART_STORAGE_KEY])).toEqual([]);
     });
 
     test("processPaymentCallback stops when the server checkout conversion callable fails", async () => {

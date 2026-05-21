@@ -41,6 +41,8 @@ describe("functions/payments/refund-payment.js", () => {
         expect(refundPayment.normalizeAmountInMinorUnits(null, "250")).toBe(250);
         expect(refundPayment.normalizeAmountInMinorUnits()).toBe(0);
         expect(refundPayment.amountToMinorUnits("12.34")).toBe(1234);
+        expect(refundPayment.isGeneratedPaymentReference("checkout-abc-generated")).toBe(true);
+        expect(refundPayment.isGeneratedPaymentReference("paystack-ref")).toBe(false);
         expect(refundPayment.createRefundResult(true, { value: 1 })).toEqual({
             success: true,
             provider: "paystack",
@@ -245,6 +247,45 @@ describe("functions/payments/refund-payment.js", () => {
             refundedAt: "refunded-time",
             updatedAt: "updated-time"
         });
+
+        const timelinePatch = refundPayment.createRefundPatch(createPaidPayment({
+            paymentStatus: "paid",
+            timeline: [
+                {
+                    status: "pending",
+                    note: "Paid checkout converted into an order.",
+                    at: "created-time"
+                },
+                {
+                    status: "rejected",
+                    note: "Vendor rejected order.",
+                    at: "rejected-time"
+                }
+            ]
+        }), {
+            refundId: "refund-1",
+            refundReference: "refund-ref",
+            paymentReference: "paystack-ref",
+            status: "processed",
+            amount: 75,
+            amountInMinorUnits: 7500,
+            currency: "ZAR",
+            refundedAt: "refunded-time"
+        }, {
+            reason: "Vendor rejected",
+            actorUid: "vendor-1"
+        });
+
+        expect(timelinePatch.timeline).toHaveLength(3);
+        expect(timelinePatch.timeline[2]).toEqual({
+            status: "rejected",
+            label: "Customer Refunded",
+            actorRole: "system",
+            actorUid: "vendor-1",
+            actorName: "System",
+            note: "Customer was refunded and the rejected order is now closed.",
+            at: "refunded-time"
+        });
     });
 
     test("calls supported Paystack client refund methods", async () => {
@@ -363,6 +404,43 @@ describe("functions/payments/refund-payment.js", () => {
         expect(result.payload).toEqual(expect.objectContaining({
             transaction: "paystack-ref"
         }));
+    });
+
+    test("simulates refunds for generated school test payment references", async () => {
+        const client = {
+            createRefund: jest.fn()
+        };
+        const result = await refundPayment(createPaidPayment({
+            reference: "checkout-abc-generated",
+            timeline: [
+                {
+                    status: "pending",
+                    at: "created-time"
+                },
+                {
+                    status: "rejected",
+                    at: "rejected-time"
+                }
+            ]
+        }), {
+            client,
+            reason: "Vendor rejected the paid order.",
+            timestampValue: "refunded-time"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.simulated).toBe(true);
+        expect(result.refund.refundReference).toBe("refund-checkout-abc-generated");
+        expect(result.patch).toEqual(expect.objectContaining({
+            refundStatus: "refunded",
+            refundReference: "refund-checkout-abc-generated",
+            refundedAt: "refunded-time"
+        }));
+        expect(result.patch.timeline[2]).toEqual(expect.objectContaining({
+            label: "Customer Refunded",
+            note: "Customer was refunded and the rejected order is now closed."
+        }));
+        expect(client.createRefund).not.toHaveBeenCalled();
     });
 
     test("rejects incomplete Paystack refund responses", async () => {

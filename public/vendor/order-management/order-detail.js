@@ -13,6 +13,25 @@
         return normalizeText(value).toLowerCase();
     }
 
+    function hasRefundTimelineEntry(orderRecord) {
+        const timeline = Array.isArray(orderRecord && orderRecord.timeline)
+            ? orderRecord.timeline
+            : [];
+
+        return timeline.some(function hasRefundEntry(entry) {
+            const safeEntry = entry && typeof entry === "object" ? entry : {};
+            const label = normalizeLowerText(safeEntry.label);
+            const note = normalizeLowerText(safeEntry.note);
+            const status = normalizeLowerText(safeEntry.status);
+
+            return label.indexOf("refunded") >= 0 ||
+                label.indexOf("customer refunded") >= 0 ||
+                note.indexOf("refunded") >= 0 ||
+                note.indexOf("money was returned") >= 0 ||
+                (status === "rejected" && note.indexOf("closed") >= 0 && note.indexOf("refund") >= 0);
+        });
+    }
+
     function resolveFirestore(explicitDb) {
         if (explicitDb) {
             return explicitDb;
@@ -611,10 +630,16 @@
         const defaultRefundStatus = refundStatus && typeof refundStatus.getDefaultRefundStatus === "function"
             ? refundStatus.getDefaultRefundStatus()
             : "not_requested";
-        const normalizedRefundStatus =
+        let normalizedRefundStatus =
             refundStatus && typeof refundStatus.normalizeRefundStatus === "function"
                 ? refundStatus.normalizeRefundStatus(rawRefundStatus, defaultRefundStatus)
                 : rawRefundStatus.toLowerCase() || defaultRefundStatus;
+        const refundRecordedInTimeline = hasRefundTimelineEntry(safeOrder);
+
+        if (refundRecordedInTimeline && normalizedRefundStatus === defaultRefundStatus) {
+            normalizedRefundStatus = "refunded";
+        }
+
         const refundStatusLabel =
             refundStatus && typeof refundStatus.getRefundStatusLabel === "function"
                 ? refundStatus.getRefundStatusLabel(normalizedRefundStatus)
@@ -625,7 +650,7 @@
                 : "neutral";
         const refundAmount = Number.isFinite(Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount))
             ? Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount)
-            : 0;
+            : (normalizedRefundStatus !== defaultRefundStatus ? amount : 0);
         const refundAmountText = refundAmount > 0
             ? (paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
                 ? paymentFormatters.formatPaymentAmount(refundAmount, currency)
@@ -640,12 +665,23 @@
             isPaid &&
             normalizeLowerText(safeOrder.status) === "rejected" &&
             normalizedRefundStatus === "not_requested";
+        const refundIsComplete =
+            refundStatus && typeof refundStatus.isRefunded === "function"
+                ? refundStatus.isRefunded(normalizedRefundStatus)
+                : normalizedRefundStatus === "refunded";
+        const displayStatus = refundIsComplete ? "refunded" : normalizedPaymentStatus;
+        const displayStatusLabel = refundIsComplete ? "Refunded" : statusLabel;
+        const displayDescription = refundIsComplete
+            ? "Payment was refunded after this order was rejected. The rejected order is closed."
+            : description;
+        const displayTone = refundIsComplete ? "success" : tone;
 
         return {
-            status: normalizedPaymentStatus,
-            statusLabel,
-            description,
-            tone,
+            status: displayStatus,
+            paymentStatus: normalizedPaymentStatus,
+            statusLabel: displayStatusLabel,
+            description: displayDescription,
+            tone: displayTone,
             amount,
             amountText,
             currency,
@@ -665,6 +701,7 @@
             refundAmountText,
             refundReference: normalizeText(safeOrder.refundReference || safeOrder.paymentRefundReference),
             refundReason: normalizeText(safeOrder.refundReason || safeOrder.paymentRefundReason),
+            refundRecordedInTimeline,
             requiresRefund
         };
     }
@@ -709,7 +746,8 @@
                 paymentAmountInMinorUnits: Number.parseInt(safeOrder.paymentAmountInMinorUnits || 0, 10) || Math.round(view.amount * 100),
                 currency: view.currency,
                 paymentCurrency: view.currency,
-                refundStatus: view.refundStatus
+                refundStatus: view.refundStatus,
+                timeline: Array.isArray(safeOrder.timeline) ? safeOrder.timeline.slice() : []
             },
             reference: view.reference,
             refundAmount: view.amount,
@@ -869,14 +907,6 @@
             refundStatusLine.setAttribute("data-refund-status", view.refundStatus);
         }
 
-        if (view.requiresRefund) {
-            const refundNotice = createParagraph(
-                "This paid rejected order must be refunded before it is considered settled.",
-                "vendor-order-refund-notice"
-            );
-            refundNotice.setAttribute("data-tone", "warning");
-            container.appendChild(refundNotice);
-        }
     }
 
     function renderOrderTimeline(orderRecord, container, options = {}) {
@@ -1108,7 +1138,7 @@
         setStatusMessage(
             statusElement,
             refundRequired
-                ? "Order rejected and customer refund started successfully."
+                ? "Order rejected, customer refunded, and order closed successfully."
                 : "Order updated successfully.",
             "success"
         );

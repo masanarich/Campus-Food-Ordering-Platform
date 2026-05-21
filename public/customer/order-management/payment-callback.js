@@ -2,6 +2,7 @@
     "use strict";
 
     const MODULE_NAME = "customer/order-management/payment-callback";
+    const CART_STORAGE_KEY = "campus-food-cart";
     let initInFlight = null;
 
     function normalizeText(value) {
@@ -15,6 +16,117 @@
     function normalizeNumber(value) {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function getStorageArea(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        if (safeOptions.storageArea) {
+            return safeOptions.storageArea;
+        }
+
+        if (globalScope.__campusFoodTestLocalStorage) {
+            return globalScope.__campusFoodTestLocalStorage;
+        }
+
+        if (typeof globalThis !== "undefined" && globalThis.__campusFoodTestLocalStorage) {
+            return globalThis.__campusFoodTestLocalStorage;
+        }
+
+        if (globalScope.localStorage) {
+            return globalScope.localStorage;
+        }
+
+        if (typeof globalThis !== "undefined" && globalThis.localStorage) {
+            return globalThis.localStorage;
+        }
+
+        return null;
+    }
+
+    function readStoredCart(options = {}) {
+        try {
+            const storageArea = getStorageArea(options);
+            const rawCart = storageArea && typeof storageArea.getItem === "function"
+                ? storageArea.getItem(CART_STORAGE_KEY)
+                : "";
+
+            if (!rawCart) {
+                return [];
+            }
+
+            const parsed = JSON.parse(rawCart);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            console.error(`${MODULE_NAME}: Could not read cart after payment:`, error);
+            return [];
+        }
+    }
+
+    function writeStoredCart(cartItems, options = {}) {
+        try {
+            const storageArea = getStorageArea(options);
+
+            if (!storageArea || typeof storageArea.setItem !== "function") {
+                return false;
+            }
+
+            storageArea.setItem(CART_STORAGE_KEY, JSON.stringify(Array.isArray(cartItems) ? cartItems : []));
+            return true;
+        } catch (error) {
+            console.error(`${MODULE_NAME}: Could not update cart after payment:`, error);
+            return false;
+        }
+    }
+
+    function normalizeCartKeyParts(value) {
+        return normalizeText(value).toLowerCase();
+    }
+
+    function buildCartItemKey(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
+        const vendorUid = normalizeCartKeyParts(safeItem.vendorUid);
+        const menuItemId = normalizeCartKeyParts(safeItem.menuItemId || safeItem.itemId || safeItem.id);
+
+        return `${vendorUid || "vendor"}::${menuItemId}`;
+    }
+
+    function removePurchasedCartItems(checkoutOrOrder, options = {}) {
+        const source = checkoutOrOrder && typeof checkoutOrOrder === "object" ? checkoutOrOrder : {};
+        const purchasedItems = Array.isArray(source.items) ? source.items : [];
+        const purchasedKeys = new Set(purchasedItems.map(buildCartItemKey).filter(function keepKey(key) {
+            return key !== "vendor::";
+        }));
+        const vendorUid = normalizeCartKeyParts(source.vendorUid);
+        const currentCart = readStoredCart(options);
+
+        if (currentCart.length === 0 || (purchasedKeys.size === 0 && !vendorUid)) {
+            return {
+                success: false,
+                skipped: true,
+                cart: currentCart,
+                removedCount: 0
+            };
+        }
+
+        const remainingCart = currentCart.filter(function keepUnpurchasedItem(item) {
+            const itemKey = buildCartItemKey(item);
+
+            if (purchasedKeys.size > 0) {
+                return !purchasedKeys.has(itemKey);
+            }
+
+            return normalizeCartKeyParts(item && item.vendorUid) !== vendorUid;
+        });
+        const removedCount = currentCart.length - remainingCart.length;
+        const saved = writeStoredCart(remainingCart, options);
+
+        return {
+            success: saved,
+            skipped: false,
+            cart: remainingCart,
+            removedCount
+        };
     }
 
     function getFallbackRoutes() {
@@ -1498,6 +1610,11 @@
             const serverConversionResult = await convertPaidCheckoutOnServer(paidCheckout, safeOptions);
 
             if (serverConversionResult.success) {
+                const cartClearResult = removePurchasedCartItems(
+                    serverConversionResult.checkout || paidCheckout,
+                    safeOptions
+                );
+
                 return {
                     success: true,
                     outcome: "success",
@@ -1513,6 +1630,7 @@
                     checkoutPatchResult: paidResult,
                     orderResult: serverConversionResult,
                     conversionResult: serverConversionResult,
+                    cartClearResult,
                     completedByServer: true
                 };
             }
@@ -1551,6 +1669,10 @@
                 orderResult.orderId,
                 safeOptions
             );
+            const cartClearResult = removePurchasedCartItems(
+                conversionResult.checkout || paidCheckout,
+                safeOptions
+            );
 
             return {
                 success: true,
@@ -1562,7 +1684,8 @@
                 verifyResult,
                 checkoutPatchResult: paidResult,
                 orderResult,
-                conversionResult
+                conversionResult,
+                cartClearResult
             };
         }
 
@@ -1811,9 +1934,16 @@
 
     const paymentCallback = {
         MODULE_NAME,
+        CART_STORAGE_KEY,
         normalizeText,
         normalizeUpperText,
         normalizeNumber,
+        getStorageArea,
+        readStoredCart,
+        writeStoredCart,
+        normalizeCartKeyParts,
+        buildCartItemKey,
+        removePurchasedCartItems,
         getFallbackRoutes,
         getLocationSearch,
         getPaymentReference,

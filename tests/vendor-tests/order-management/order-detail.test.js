@@ -143,7 +143,7 @@ function createRefundStatusStub() {
         getRefundStatusLabel: jest.fn(status => {
             const labels = {
                 not_requested: "Refund Not Requested",
-                requested: "Refund Requested",
+                requested: "Refund Started",
                 processing: "Refund Processing",
                 refunded: "Refunded",
                 failed: "Refund Failed",
@@ -693,28 +693,58 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         );
 
         expect(dom.paymentContainer.querySelector(".vendor-order-payment-checkout-id").textContent).toBe("Checkout ID: checkout-1");
-        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refund Requested");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refund Started");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").getAttribute("data-tone")).toBe("loading");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-amount").textContent).toBe("Refund amount: R25.00");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-reference").textContent).toContain("refund-ref");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-reason").textContent).toContain("Vendor rejected order.");
     });
 
-    test("renderOrderPayment warns when a paid rejected order has not been refunded", () => {
+    test("renderOrderPayment shows refunded status when the refund is recorded in the timeline", () => {
+        const refundedOrder = createOrder({
+            status: "rejected",
+            paymentStatus: "paid",
+            refundStatus: "",
+            timeline: [
+                {
+                    status: "pending",
+                    actorRole: "customer",
+                    actorName: "Student One",
+                    note: "Order placed.",
+                    at: "2026-04-20T12:00:00.000Z"
+                },
+                {
+                    status: "rejected",
+                    label: "Customer Refunded",
+                    actorRole: "system",
+                    actorName: "System",
+                    note: "Customer was refunded and the rejected order is now closed.",
+                    at: "2026-04-20T12:15:00.000Z"
+                }
+            ]
+        });
         const view = vendorOrderDetailPage.buildPaymentView(
-            createOrder({ status: "rejected", paymentStatus: "paid" }),
+            refundedOrder,
             { paymentStatus, paymentFormatters, refundStatus }
         );
 
         vendorOrderDetailPage.renderOrderPayment(
-            createOrder({ status: "rejected", paymentStatus: "paid" }),
+            refundedOrder,
             dom.paymentContainer,
             { paymentStatus, paymentFormatters, refundStatus }
         );
 
-        expect(view.requiresRefund).toBe(true);
-        expect(dom.paymentContainer.querySelector(".vendor-order-refund-notice").textContent)
-            .toContain("must be refunded");
+        expect(view.status).toBe("refunded");
+        expect(view.paymentStatus).toBe("paid");
+        expect(view.statusLabel).toBe("Refunded");
+        expect(view.refundStatus).toBe("refunded");
+        expect(view.refundAmountText).toBe("R85.00");
+        expect(view.requiresRefund).toBe(false);
+        expect(view.refundRecordedInTimeline).toBe(true);
+        expect(dom.paymentContainer.querySelector(".vendor-order-payment-status").textContent).toBe("Status: Refunded");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refunded");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-notice")).toBeNull();
+        expect(dom.paymentContainer.textContent).not.toContain("automatic customer refund");
     });
 
     test("builds refund requests only for paid rejected orders that still need refunds", () => {
@@ -1112,10 +1142,11 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
             reason: "Vendor rejected the paid order.",
             payment: expect.objectContaining({
                 orderId: "order-1",
-                status: "paid"
+                status: "paid",
+                timeline: expect.any(Array)
             })
         }));
-        expect(dom.statusElement.textContent).toContain("refund started");
+        expect(dom.statusElement.textContent).toContain("customer refunded");
     });
 
     test("handleOrderAction reports refund failure after rejecting a paid order", async () => {

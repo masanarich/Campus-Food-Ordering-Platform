@@ -39,16 +39,16 @@
         [REFUND_STATUSES.NOT_REQUESTED]: Object.freeze({
             label: "Refund Not Requested",
             shortLabel: "No Refund",
-            description: "No refund has been requested for this payment.",
+            description: "No automatic refund has been started for this payment.",
             tone: "neutral",
-            actionLabel: "Request Refund"
+            actionLabel: "Start Refund"
         }),
         [REFUND_STATUSES.REQUESTED]: Object.freeze({
-            label: "Refund Requested",
-            shortLabel: "Requested",
-            description: "A refund has been requested and is waiting to be sent to the provider.",
+            label: "Refund Started",
+            shortLabel: "Started",
+            description: "The automatic refund has started and is waiting to be sent to the provider.",
             tone: "loading",
-            actionLabel: "Process Refund"
+            actionLabel: "Continue Refund"
         }),
         [REFUND_STATUSES.PROCESSING]: Object.freeze({
             label: "Refund Processing",
@@ -74,7 +74,7 @@
         [REFUND_STATUSES.CANCELLED]: Object.freeze({
             label: "Refund Cancelled",
             shortLabel: "Cancelled",
-            description: "The refund request was cancelled before completion.",
+            description: "The automatic refund was stopped before completion.",
             tone: "warning",
             actionLabel: "View Payment"
         })

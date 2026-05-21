@@ -398,6 +398,39 @@ async function callPaystackRefund(client, payload) {
     return null;
 }
 
+function isGeneratedPaymentReference(reference) {
+    const safeReference = normalizeLowerText(reference);
+
+    return Boolean(safeReference) &&
+        (
+            safeReference.indexOf("-generated") >= 0 ||
+            safeReference.indexOf("generated-") >= 0
+        );
+}
+
+function createSimulatedRefundData(paymentValues, options = {}) {
+    const safePayment = paymentValues && typeof paymentValues === "object" ? paymentValues : {};
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const reference = resolvePaymentReference(safePayment, safeOptions);
+    const amountInMinorUnits = resolveRefundAmountInMinorUnits(safePayment, safeOptions);
+    const refundedAt = resolveTimestampValue(safeOptions);
+
+    return {
+        refundId: `simulated-refund-${reference || Date.now()}`,
+        refundReference: `refund-${reference || Date.now()}`,
+        paymentReference: reference,
+        status: REFUND_STATUSES.REFUNDED,
+        amount: normalizeCurrencyAmount(amountInMinorUnits / 100),
+        amountInMinorUnits,
+        currency: resolveRefundCurrency(safePayment, safeOptions),
+        refundedAt,
+        raw: {
+            simulated: true,
+            reason: "Generated test payment reference refunded without contacting Paystack."
+        }
+    };
+}
+
 function createRefundPatch(paymentValues, refundData, options = {}) {
     const safePayment = paymentValues && typeof paymentValues === "object" ? paymentValues : {};
     const safeOptions = options && typeof options === "object" ? options : {};
@@ -405,10 +438,10 @@ function createRefundPatch(paymentValues, refundData, options = {}) {
         ? safeOptions.requestedAt
         : resolveTimestampValue(safeOptions);
     const reason = resolveRefundReason(safePayment, safeOptions);
-
-    return {
+    const normalizedRefundStatus = normalizeRefundStatus(refundData.status, REFUND_STATUSES.PROCESSING);
+    const patch = {
         paymentStatus: normalizeLowerText(safePayment.paymentStatus || safePayment.status) || "paid",
-        refundStatus: normalizeRefundStatus(refundData.status, REFUND_STATUSES.PROCESSING),
+        refundStatus: normalizedRefundStatus,
         refundProvider: DEFAULT_PROVIDER,
         refundReference: normalizeText(refundData.refundReference),
         refundId: normalizeText(refundData.refundId),
@@ -421,6 +454,21 @@ function createRefundPatch(paymentValues, refundData, options = {}) {
         refundedAt: refundData.refundedAt || null,
         updatedAt: safeOptions.updatedAt !== undefined ? safeOptions.updatedAt : requestedAt
     };
+    const existingTimeline = Array.isArray(safePayment.timeline) ? safePayment.timeline.slice() : [];
+
+    if (normalizedRefundStatus === REFUND_STATUSES.REFUNDED && existingTimeline.length > 0) {
+        patch.timeline = existingTimeline.concat({
+            status: "rejected",
+            label: "Customer Refunded",
+            actorRole: "system",
+            actorUid: normalizeText(safeOptions.actorUid),
+            actorName: "System",
+            note: "Customer was refunded and the rejected order is now closed.",
+            at: patch.refundedAt || patch.updatedAt
+        });
+    }
+
+    return patch;
 }
 
 async function refundPayment(paymentValues = {}, options = {}) {
@@ -442,6 +490,24 @@ async function refundPayment(paymentValues = {}, options = {}) {
     }
 
     const client = safeOptions.client || createPaystackClient(safeOptions.clientOptions);
+    const payload = buildRefundPayload(safePayment, safeOptions);
+    const generatedReference = isGeneratedPaymentReference(validation.value.reference);
+
+    if (generatedReference || safeOptions.allowSimulatedRefund === true) {
+        const refundData = createSimulatedRefundData(safePayment, safeOptions);
+        const patch = createRefundPatch(safePayment, refundData, safeOptions);
+
+        return createRefundResult(true, {
+            payment: safePayment,
+            refund: {
+                ...refundData,
+                reason: validation.value.reason
+            },
+            patch,
+            payload,
+            simulated: true
+        });
+    }
 
     if (
         !client ||
@@ -455,15 +521,13 @@ async function refundPayment(paymentValues = {}, options = {}) {
         return createRefundResult(false, {
             payment: safePayment,
             refund: validation.value,
-            payload: buildRefundPayload(safePayment, safeOptions),
+            payload,
             error: createRefundError(
                 "payments/paystack-client-unavailable",
                 "Paystack client is required before refunding payment."
             )
         });
     }
-
-    const payload = buildRefundPayload(safePayment, safeOptions);
 
     try {
         const paystackResponse = await callPaystackRefund(client, payload);
@@ -539,4 +603,6 @@ module.exports.normalizePaystackRefundData = normalizePaystackRefundData;
 module.exports.buildRefundPayload = buildRefundPayload;
 module.exports.validateRefundInput = validateRefundInput;
 module.exports.callPaystackRefund = callPaystackRefund;
+module.exports.isGeneratedPaymentReference = isGeneratedPaymentReference;
+module.exports.createSimulatedRefundData = createSimulatedRefundData;
 module.exports.createRefundPatch = createRefundPatch;

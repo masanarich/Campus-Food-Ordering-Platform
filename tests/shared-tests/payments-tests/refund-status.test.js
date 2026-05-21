@@ -79,11 +79,11 @@ describe("shared/payments/refund-status.js", () => {
     test("returns metadata and label helpers for known statuses", () => {
         expect(refundStatus.getRefundStatusMetadata("requested")).toEqual({
             key: "requested",
-            label: "Refund Requested",
-            shortLabel: "Requested",
-            description: "A refund has been requested and is waiting to be sent to the provider.",
+            label: "Refund Started",
+            shortLabel: "Started",
+            description: "The automatic refund has started and is waiting to be sent to the provider.",
             tone: "loading",
-            actionLabel: "Process Refund"
+            actionLabel: "Continue Refund"
         });
         expect(refundStatus.getRefundStatusLabel("processing")).toBe("Refund Processing");
         expect(refundStatus.getRefundStatusShortLabel("not_requested")).toBe("No Refund");
@@ -145,7 +145,7 @@ describe("shared/payments/refund-status.js", () => {
             isValid: true,
             currentStatus: "requested",
             nextStatus: "processing",
-            message: "Refunds can move from Refund Requested to Refund Processing."
+            message: "Refunds can move from Refund Started to Refund Processing."
         });
     });
 

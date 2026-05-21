@@ -155,7 +155,7 @@ function createRefundStatusStub() {
         getRefundStatusLabel: jest.fn(status => {
             const labels = {
                 not_requested: "Refund Not Requested",
-                requested: "Refund Requested",
+                requested: "Refund Started",
                 processing: "Refund Processing",
                 refunded: "Refunded",
                 failed: "Refund Failed"
@@ -487,14 +487,52 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
             { paymentStatus, paymentFormatters, refundStatus, orderFormatters }
         );
 
-        expect(view.status).toBe("paid");
+        expect(view.status).toBe("refunded");
+        expect(view.paymentStatus).toBe("paid");
+        expect(view.statusLabel).toBe("Refunded");
+        expect(view.description).toContain("successfully refunded");
         expect(view.refundIsVisible).toBe(true);
         expect(view.refundStatus).toBe("refunded");
         expect(view.refundStatusLabel).toBe("Refunded");
         expect(view.refundAmountText).toBe("R120.00");
         expect(view.refundReference).toBe("refund-ref");
-        expect(view.refundNotice).toContain("payment was returned");
+        expect(view.refundNotice).toContain("payment was refunded");
         expect(view.refundNotice).toContain("email confirmation");
+    });
+
+    test("buildPaymentView treats the refund timeline entry as a completed refund", () => {
+        const view = customerOrderDetailPage.buildPaymentView(
+            createOrder({
+                status: "rejected",
+                refundStatus: "",
+                timeline: [
+                    {
+                        status: "pending",
+                        actorRole: "customer",
+                        actorName: "Student",
+                        note: "Order placed.",
+                        at: "2026-04-20T12:00:00.000Z"
+                    },
+                    {
+                        status: "rejected",
+                        label: "Customer Refunded",
+                        actorRole: "system",
+                        actorName: "System",
+                        note: "Customer was refunded and the rejected order is now closed.",
+                        at: "2026-04-20T12:15:00.000Z"
+                    }
+                ]
+            }),
+            { paymentStatus, paymentFormatters, refundStatus, orderFormatters }
+        );
+
+        expect(view.status).toBe("refunded");
+        expect(view.paymentStatus).toBe("paid");
+        expect(view.statusLabel).toBe("Refunded");
+        expect(view.refundStatus).toBe("refunded");
+        expect(view.refundStatusLabel).toBe("Refunded");
+        expect(view.refundRecordedInTimeline).toBe(true);
+        expect(view.refundNotice).not.toContain("still needs");
     });
 
     test("buildPaymentView returns a retry URL with vendor query for failed payments", () => {
@@ -616,6 +654,9 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         );
 
         const refundStatusLine = dom.paymentContainer.querySelector(".order-detail-refund-status");
+        const paymentStatusLine = dom.paymentContainer.querySelector(".order-detail-payment-status");
+        expect(paymentStatusLine.textContent).toBe("Status: Refunded");
+        expect(paymentStatusLine.getAttribute("data-payment-status")).toBe("refunded");
         expect(refundStatusLine).not.toBeNull();
         expect(refundStatusLine.textContent).toBe("Refund status: Refunded");
         expect(refundStatusLine.getAttribute("data-refund-status")).toBe("refunded");
@@ -623,6 +664,7 @@ describe("customer/order-tracking/order-detail.js - payment rendering", () => {
         expect(dom.paymentContainer.querySelector(".order-detail-refund-amount").textContent).toBe("Refund amount: R120.00");
         expect(dom.paymentContainer.querySelector(".order-detail-refund-reference").textContent).toBe("Refund reference: refund-ref");
         expect(dom.paymentContainer.querySelector(".order-detail-refund-notice").textContent).toContain("email confirmation");
+        expect(dom.paymentContainer.textContent).not.toContain("still needs");
     });
 
     test("renderOrderPayment shows a Pay Now link for unpaid orders", () => {

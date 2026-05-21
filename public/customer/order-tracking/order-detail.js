@@ -13,6 +13,25 @@
         return normalizeText(value).toLowerCase();
     }
 
+    function hasRefundTimelineEntry(orderRecord) {
+        const timeline = Array.isArray(orderRecord && orderRecord.timeline)
+            ? orderRecord.timeline
+            : [];
+
+        return timeline.some(function hasRefundEntry(entry) {
+            const safeEntry = entry && typeof entry === "object" ? entry : {};
+            const label = normalizeLowerText(safeEntry.label);
+            const note = normalizeLowerText(safeEntry.note);
+            const status = normalizeLowerText(safeEntry.status);
+
+            return label.indexOf("refunded") >= 0 ||
+                label.indexOf("customer refunded") >= 0 ||
+                note.indexOf("refunded") >= 0 ||
+                note.indexOf("money was returned") >= 0 ||
+                (status === "rejected" && note.indexOf("closed") >= 0 && note.indexOf("refund") >= 0);
+        });
+    }
+
     function resolveFirestore(explicitDb) {
         if (explicitDb) {
             return explicitDb;
@@ -664,10 +683,16 @@
         const defaultRefundStatus = refundStatus && typeof refundStatus.getDefaultRefundStatus === "function"
             ? refundStatus.getDefaultRefundStatus()
             : "not_requested";
-        const normalizedRefundStatus =
+        let normalizedRefundStatus =
             refundStatus && typeof refundStatus.normalizeRefundStatus === "function"
                 ? refundStatus.normalizeRefundStatus(rawRefundStatus, defaultRefundStatus)
                 : (rawRefundStatus.toLowerCase() || defaultRefundStatus);
+        const refundRecordedInTimeline = hasRefundTimelineEntry(safeOrder);
+
+        if (refundRecordedInTimeline && normalizedRefundStatus === defaultRefundStatus) {
+            normalizedRefundStatus = "refunded";
+        }
+
         const refundStatusLabel =
             refundStatus && typeof refundStatus.getRefundStatusLabel === "function"
                 ? refundStatus.getRefundStatusLabel(normalizedRefundStatus)
@@ -698,11 +723,11 @@
             paymentStatus && typeof paymentStatus.isPaymentPaid === "function"
                 ? paymentStatus.isPaymentPaid(normalizedPaymentStatus)
                 : normalizedPaymentStatus === "paid";
-        const refundIsVisible = normalizedRefundStatus !== defaultRefundStatus || (isRejected && isPaid);
         const refundIsComplete =
             refundStatus && typeof refundStatus.isRefunded === "function"
                 ? refundStatus.isRefunded(normalizedRefundStatus)
                 : normalizedRefundStatus === "refunded";
+        const refundIsVisible = normalizedRefundStatus !== defaultRefundStatus || (isRejected && isPaid && refundIsComplete);
         const refundIsActive =
             refundStatus && typeof refundStatus.isActiveRefundStatus === "function"
                 ? refundStatus.isActiveRefundStatus(normalizedRefundStatus)
@@ -714,23 +739,28 @@
         let refundNotice = "";
 
         if (refundIsComplete) {
-            refundNotice = "Your payment was returned because the vendor rejected this order. A refund notification and email confirmation were sent for this test payment.";
+            refundNotice = "Your payment was refunded because the vendor rejected this order. The order is now closed and the refund notification and email confirmation were sent for this test payment.";
         } else if (refundIsActive) {
-            refundNotice = "Your refund has been started because the vendor rejected this order. A refund notification and email confirmation will be sent once it is marked refunded.";
+            refundNotice = "Your refund started automatically because the vendor rejected this order. A refund notification and email confirmation will be sent when the provider confirms it.";
         } else if (refundIsFailed) {
             refundNotice = "The refund could not be completed. Please contact support so this paid rejected order can be settled.";
-        } else if (refundIsVisible) {
-            refundNotice = "This paid rejected order still needs a refund before it is settled.";
         }
 
         const canRetry = isOrderPaymentResumable(safeOrder, safeOptions);
         const actionLabel = canRetry ? getPaymentActionLabel(normalizedPaymentStatus, paymentStatus) : "";
+        const displayStatus = refundIsComplete ? "refunded" : normalizedPaymentStatus;
+        const displayStatusLabel = refundIsComplete ? "Refunded" : statusLabel;
+        const displayDescription = refundIsComplete
+            ? "Payment was successfully refunded after the vendor rejected this order. The rejected order is closed."
+            : description;
+        const displayTone = refundIsComplete ? "success" : tone;
 
         return {
-            status: normalizedPaymentStatus,
-            statusLabel,
-            description,
-            tone,
+            status: displayStatus,
+            paymentStatus: normalizedPaymentStatus,
+            statusLabel: displayStatusLabel,
+            description: displayDescription,
+            tone: displayTone,
             amount,
             amountText,
             currency,
@@ -752,6 +782,7 @@
             refundReason,
             refundedAtText,
             refundIsVisible,
+            refundRecordedInTimeline,
             refundNotice,
             canRetry,
             actionLabel,
