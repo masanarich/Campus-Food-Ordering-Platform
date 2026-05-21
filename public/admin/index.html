@@ -159,20 +159,45 @@
         <p>Campus Food Ordering Platform © 2026</p>
     </footer>
 
-    <script src="../authentication/auth-utils.js"></script>
-    <script src="../authentication/auth-core.js"></script>
-    <script src="./index.js"></script>
+   <script src="../shared/finance/platform-pricing.js"></script>
+<script src="../authentication/auth-utils.js"></script>
+<script src="../authentication/auth-core.js"></script>
+<script src="./index.js"></script>
 
-    <script type="module">
-        import { authService } from "../authentication/auth.js";
+<script type="module">
+    import { auth, db } from "../authentication/config.js";
+    import { authService } from "../authentication/auth.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+    import {
+        collection,
+        getDocs,
+        query,
+        orderBy,
+        limit
+    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-        window.authService = authService;
+    window.auth = auth;
+    window.db = db;
+    window.authService = authService;
+    window.authFns = { onAuthStateChanged };
+    window.firestoreFns = {
+        collection,
+        getDocs,
+        query,
+        orderBy,
+        limit
+    };
 
-        window.adminHomePage.initializeAdminHomePage({
-            authService,
-            authUtils: window.authUtils
-        });
-    </script>
+    window.adminHomePage.initializeAdminHomePage({
+        auth,
+        db,
+        authService,
+        authFns: window.authFns,
+        firestoreFns: window.firestoreFns,
+        authUtils: window.authUtils,
+        platformPricing: window.platformPricing
+    });
+</script>
 
 </body>
 
