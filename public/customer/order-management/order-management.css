@@ -436,6 +436,56 @@ body.customer-portal [hidden] {
     align-items: start;
 }
 
+.customer-portal .recommendation-section {
+    background:
+        linear-gradient(135deg, rgba(227, 243, 230, 0.94), rgba(255, 251, 246, 0.86)),
+        var(--order-surface);
+}
+
+.customer-portal .recommendation-grid {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.customer-portal .recommendation-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+    gap: 1rem;
+}
+
+.customer-portal .recommended-menu-item-card {
+    border-color: rgba(33, 106, 73, 0.28);
+    background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(237, 248, 240, 0.86));
+}
+
+.customer-portal .recommendation-explanation {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.85rem;
+    border: 1px solid rgba(33, 106, 73, 0.16);
+    border-radius: var(--order-radius-lg);
+    background: rgba(227, 243, 230, 0.72);
+}
+
+.customer-portal .recommendation-explanation h4,
+.customer-portal .recommendation-explanation p,
+.customer-portal .recommendation-reasons {
+    margin: 0;
+}
+
+.customer-portal .recommendation-confidence {
+    font-weight: 800;
+    color: var(--order-success-text);
+}
+
+.customer-portal .recommendation-reasons {
+    display: grid;
+    gap: 0.35rem;
+    padding-left: 1.1rem;
+    color: var(--order-text-soft);
+}
+
 .customer-portal .menu-category {
     display: grid;
     gap: 0.9rem;
@@ -718,7 +768,8 @@ body.customer-portal [hidden] {
     }
 
     .customer-portal .vendors-grid,
-    .customer-portal .menu-grid {
+    .customer-portal .menu-grid,
+    .customer-portal .recommendation-items-grid {
         grid-template-columns: 1fr;
     }
 

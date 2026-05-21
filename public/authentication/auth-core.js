@@ -104,7 +104,7 @@ function createAuthService(dependencies = {}) {
 
     function getPreferenceSourceValue(rawProfile, safeProfile, fieldName, aliases, fallbackValue) {
         const safeAliases = Array.isArray(aliases) ? aliases : [];
-        const sources = [rawProfile, safeProfile];
+        const sources = [rawProfile];
 
         for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex += 1) {
             const source = sources[sourceIndex] && typeof sources[sourceIndex] === "object"

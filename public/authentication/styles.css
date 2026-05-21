@@ -555,6 +555,47 @@ button.danger:hover {
   margin-bottom: 0;
 }
 
+.preference-fieldset {
+  border: 1px solid var(--border-soft);
+  border-radius: 0.8rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  background: #fffaf5;
+}
+
+.preference-fieldset legend {
+  padding: 0 0.35rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.preference-option-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.65rem;
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+}
+
+.preference-option-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.65rem;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.preference-option-list input,
+#profile-recommendation-opt-in-input {
+  width: auto;
+  accent-color: var(--accent-primary);
+}
+
 #profile-status[data-state="loading"],
 #role-choice-status[data-state="loading"] {
   background: var(--info-bg);
@@ -622,6 +663,10 @@ figcaption {
 #profile-role,
 #profile-vendor-status,
 #profile-vendor-reason,
+#profile-dietary-preferences,
+#profile-dietary-restrictions,
+#profile-allergen-restrictions,
+#profile-recommendation-opt-in,
 #profile-name,
 #profile-email {
   word-break: break-word;
@@ -645,7 +690,11 @@ figcaption {
 #profile-role,
 #profile-access,
 #profile-vendor-status,
-#profile-vendor-reason {
+#profile-vendor-reason,
+#profile-dietary-preferences,
+#profile-dietary-restrictions,
+#profile-allergen-restrictions,
+#profile-recommendation-opt-in {
   display: inline;
 }
 

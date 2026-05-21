@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>Shop Details | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Shop details workspace for vendor users on the Campus Food Ordering Platform.">
+    <meta name="description" content="Manage your campus food shop details, location, contact info, and shopfront image.">
     <link rel="stylesheet" href="./index.css">
     <link rel="stylesheet" href="./shop.css">
 </head>
@@ -19,23 +19,176 @@
             <a href="./index.html">Dashboard</a>
             <a href="./shop.html" aria-current="page">Shop Details</a>
             <a href="./products.html">Manage Menu</a>
+            <a href="./order-management/index.html">Manage Orders</a>
+            <a href="./wallet.html">Wallet</a>
             <a href="../authentication/profile.html">Profile</a>
         </nav>
     </header>
 
-    <main class="vendor-main">
-        <section class="shared-section shop-placeholder-section" aria-labelledby="shop-heading">
-            <h2 id="shop-heading">Shop Details</h2>
-            <p>
-                This workspace is ready for the shop-details feature. For now, use the button below
-                to return to your vendor dashboard.
-            </p>
+    <main class="vendor-main shop-main">
+        <section class="shared-section shop-hero" aria-labelledby="shop-heading">
+            <header class="shop-hero-top">
+                <article>
+                    <h2 id="shop-heading">Shop Details</h2>
+                    <p>
+                        Keep your customer-facing shop information up to date. Anything you save here
+                        appears to students when they browse vendors and decide where to order from.
+                    </p>
+                </article>
 
-            <p id="shop-status" aria-live="polite">Shop details placeholder loaded.</p>
+                <menu class="action-menu shop-hero-actions" aria-label="Shop page actions">
+                    <li><button id="back-to-dashboard-button" class="button-secondary" type="button">Back to Vendor Dashboard</button></li>
+                </menu>
+            </header>
 
-            <menu class="action-menu" aria-label="Shop placeholder actions">
-                <li><button id="back-to-dashboard-button" class="button-primary" type="button">Back to Vendor Dashboard</button></li>
-            </menu>
+            <p id="shop-status" aria-live="polite">Loading your shop details...</p>
+            <p id="shop-note" aria-live="polite">Update any field below, preview your shopfront image, then save your changes.</p>
+
+            <section class="shop-stats-grid" aria-label="Shop status summary">
+                <article class="stats-card">
+                    <strong class="stats-label">Vendor status</strong>
+                    <output id="shop-vendor-status">-</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Account status</strong>
+                    <output id="shop-account-status">-</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Visible to customers</strong>
+                    <output id="shop-visibility">-</output>
+                </article>
+
+                <article class="stats-card">
+                    <strong class="stats-label">Shopfront photo</strong>
+                    <output id="shop-photo-state">No photo uploaded</output>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section shop-editor-section" aria-labelledby="shop-editor-heading">
+            <header class="shop-editor-head">
+                <article>
+                    <h3 id="shop-editor-heading">Shop Information</h3>
+                    <p>
+                        These fields appear on your public vendor card. Use the shopfront photo and
+                        description to help students recognise your stall when they browse vendors.
+                    </p>
+                </article>
+            </header>
+
+            <form id="vendor-shop-form" class="shop-form" novalidate>
+                <section class="shop-editor-grid" aria-label="Shop editor fields">
+
+                    <label class="field-block" for="shop-business-name">
+                        <strong>Business name</strong>
+                        <input id="shop-business-name" name="businessName" type="text" maxlength="120" placeholder="e.g. Mama Africa Kitchen" required aria-describedby="shop-businessName-error">
+                    </label>
+                    <p id="shop-businessName-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block" for="shop-food-type">
+                        <strong>Food type</strong>
+                        <input id="shop-food-type" name="foodType" type="text" maxlength="80" placeholder="e.g. African, Halal, Bakery, Drinks" aria-describedby="shop-foodType-error">
+                    </label>
+                    <p id="shop-foodType-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block field-block-wide" for="shop-description">
+                        <strong>Shop description</strong>
+                        <textarea id="shop-description" name="description" rows="4" maxlength="500" placeholder="Describe the food you sell, your style, and what makes your shop a great choice for students." required aria-describedby="shop-description-error"></textarea>
+                    </label>
+                    <p id="shop-description-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block" for="shop-university">
+                        <strong>University</strong>
+                        <input id="shop-university" name="university" type="text" maxlength="120" placeholder="e.g. University of Pretoria" aria-describedby="shop-university-error">
+                    </label>
+                    <p id="shop-university-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block" for="shop-campus-location">
+                        <strong>Campus stall location</strong>
+                        <input id="shop-campus-location" name="campusLocation" type="text" maxlength="200" placeholder="e.g. Hatfield Plaza, Stall 7" required aria-describedby="shop-campusLocation-error">
+                    </label>
+                    <p id="shop-campusLocation-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block" for="shop-opening-hours">
+                        <strong>Opening hours</strong>
+                        <input id="shop-opening-hours" name="openingHours" type="text" maxlength="120" placeholder="e.g. Mon-Fri 08:00 - 17:00" aria-describedby="shop-openingHours-error">
+                    </label>
+                    <p id="shop-openingHours-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block" for="shop-contact-number">
+                        <strong>Contact number</strong>
+                        <input id="shop-contact-number" name="contactNumber" type="tel" maxlength="20" placeholder="e.g. +27 71 234 5678" required aria-describedby="shop-contactNumber-error">
+                    </label>
+                    <p id="shop-contactNumber-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block" for="shop-business-email">
+                        <strong>Business email</strong>
+                        <input id="shop-business-email" name="businessEmail" type="email" maxlength="120" placeholder="e.g. orders@mamaafrica.co.za" aria-describedby="shop-businessEmail-error">
+                    </label>
+                    <p id="shop-businessEmail-error" class="form-error" aria-live="polite"></p>
+
+                    <label class="field-block field-block-wide checkbox-row" for="shop-accepting-orders">
+                        <input id="shop-accepting-orders" name="acceptingOrders" type="checkbox">
+                        <strong>Currently accepting new orders</strong>
+                    </label>
+
+                </section>
+
+                <section class="shop-photo-editor" aria-label="Shopfront photo tools">
+                    <article class="shop-photo-upload">
+                        <label class="field-block" for="shop-photo-file">
+                            <strong>Shopfront photo</strong>
+                            <input id="shop-photo-file" name="photoFile" type="file" accept="image/*">
+                        </label>
+
+                        <p class="helper-copy">
+                            This image is shown on your public vendor card. Photos under 5 MB work best.
+                            They are stored in Firebase Storage; the shop record only keeps the path
+                            and download URL.
+                        </p>
+
+                        <menu class="action-menu shop-photo-actions" aria-label="Photo actions">
+                            <li><button id="preview-shop-photo-button" class="button-secondary" type="button">Preview Photo</button></li>
+                            <li><button id="remove-shop-photo-button" class="button-secondary" type="button">Remove Photo</button></li>
+                        </menu>
+                    </article>
+
+                    <article class="shop-photo-preview-card">
+                        <p class="photo-preview-label">Shopfront preview</p>
+                        <img id="shop-photo-preview" alt="Shopfront photo preview" hidden>
+                        <p id="shop-photo-empty-state">No shopfront image selected yet.</p>
+                    </article>
+                </section>
+
+                <aside class="shop-summary-pane" aria-labelledby="shop-summary-heading">
+                    <h4 id="shop-summary-heading">Customer-Facing Preview</h4>
+                    <p class="summary-description">
+                        This is the information customers will see when browsing campus vendors.
+                    </p>
+
+                    <section class="shop-summary-grid" aria-label="Live shop preview">
+                        <p><strong>Shop name:</strong> <output id="shop-summary-name">-</output></p>
+                        <p><strong>Food type:</strong> <output id="shop-summary-food-type">-</output></p>
+                        <p><strong>University:</strong> <output id="shop-summary-university">-</output></p>
+                        <p><strong>Location:</strong> <output id="shop-summary-location">-</output></p>
+                        <p><strong>Opening hours:</strong> <output id="shop-summary-hours">-</output></p>
+                        <p><strong>Contact number:</strong> <output id="shop-summary-phone">-</output></p>
+                        <p><strong>Email:</strong> <output id="shop-summary-email">-</output></p>
+                        <p><strong>Accepting orders:</strong> <output id="shop-summary-accepting">Yes</output></p>
+                    </section>
+
+                    <p class="summary-description">
+                        <strong>Description:</strong> <output id="shop-summary-description">-</output>
+                    </p>
+                </aside>
+
+                <menu class="action-menu shop-form-actions" aria-label="Shop form actions">
+                    <li><button id="save-shop-button" class="button-primary" type="submit">Save Shop Details</button></li>
+                    <li><button id="reset-shop-button" class="button-secondary" type="reset">Discard Changes</button></li>
+                </menu>
+            </form>
         </section>
     </main>
 
@@ -43,7 +196,47 @@
         <p>Campus Food Ordering Platform © 2026</p>
     </footer>
 
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
     <script src="./shop.js"></script>
+
+    <script type="module">
+        import { authService } from "../authentication/auth.js";
+        import { db, storage } from "../authentication/config.js";
+        import {
+            doc,
+            getDoc,
+            updateDoc,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+        import {
+            ref,
+            uploadBytes,
+            getDownloadURL,
+            deleteObject
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-storage.js";
+
+        window.authService = authService;
+
+        window.vendorShopPage.initializeVendorShopPage({
+            authService,
+            authUtils: window.authUtils,
+            db,
+            storage,
+            firestoreFns: {
+                doc,
+                getDoc,
+                updateDoc,
+                serverTimestamp
+            },
+            storageFns: {
+                ref,
+                uploadBytes,
+                getDownloadURL,
+                deleteObject
+            }
+        });
+    </script>
 </body>
 
 </html>

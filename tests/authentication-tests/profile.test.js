@@ -9,6 +9,9 @@ const {
     normalizeVendorStatus,
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
+    normalizePreferenceTagList,
+    normalizeRecommendationOptIn,
+    getRecommendationPreferenceFields,
     resolveAuthUtils,
     normalizeUserProfile,
     setTextContent,
@@ -32,13 +35,17 @@ const {
     getVendorStatusNote,
     getAdminStatusNote,
     canRemovePhoto,
+    getCheckedInputValues,
     getProfileFormValues,
     validatePhoneNumber,
     validateProfileForm,
     setFieldError,
     clearProfileFormErrors,
     showProfileFormErrors,
+    syncCheckedInputValues,
     populateProfileForm,
+    formatPreferenceTag,
+    getPreferenceListLabel,
     renderProfile,
     getFallbackRoutes,
     mapBackTargetToRoute,
@@ -84,10 +91,21 @@ function createProfileDom() {
             <p id="profile-role"></p>
             <p id="profile-access"></p>
             <p id="profile-account-status"></p>
+            <p id="profile-dietary-preferences"></p>
+            <p id="profile-dietary-restrictions"></p>
+            <p id="profile-allergen-restrictions"></p>
+            <p id="profile-recommendation-opt-in"></p>
             <p id="profile-vendor-status"></p>
             <p id="profile-admin-status"></p>
             <p id="profile-vendor-note"></p>
             <p id="profile-admin-note"></p>
+
+            <input id="profile-dietary-preference-halal" name="dietaryPreferences" type="checkbox" value="halal" />
+            <input id="profile-dietary-preference-vegan" name="dietaryPreferences" type="checkbox" value="vegan" />
+            <input id="profile-dietary-restriction-gluten-free" name="dietaryRestrictions" type="checkbox" value="gluten free" />
+            <input id="profile-allergen-restriction-nuts" name="allergenRestrictions" type="checkbox" value="nuts" />
+            <input id="profile-allergen-restriction-dairy" name="allergenRestrictions" type="checkbox" value="dairy" />
+            <input id="profile-recommendation-opt-in-input" type="checkbox" checked />
 
             <img id="profile-photo" alt="Profile picture" hidden />
             <p id="profile-photo-caption"></p>
@@ -118,6 +136,10 @@ function createProfileDom() {
         roleElement: document.querySelector("#profile-role"),
         accessElement: document.querySelector("#profile-access"),
         accountStatusElement: document.querySelector("#profile-account-status"),
+        dietaryPreferencesElement: document.querySelector("#profile-dietary-preferences"),
+        dietaryRestrictionsElement: document.querySelector("#profile-dietary-restrictions"),
+        allergenRestrictionsElement: document.querySelector("#profile-allergen-restrictions"),
+        recommendationOptInElement: document.querySelector("#profile-recommendation-opt-in"),
         vendorStatusElement: document.querySelector("#profile-vendor-status"),
         adminStatusElement: document.querySelector("#profile-admin-status"),
         vendorNoteElement: document.querySelector("#profile-vendor-note"),
@@ -127,6 +149,10 @@ function createProfileDom() {
         photoInput: document.querySelector("#profile-photo-input"),
         photoMessageElement: document.querySelector("#profile-photo-message"),
         accountMessageElement: document.querySelector("#profile-account-message"),
+        dietaryPreferenceInputs: Array.from(document.querySelectorAll("input[name='dietaryPreferences']")),
+        dietaryRestrictionInputs: Array.from(document.querySelectorAll("input[name='dietaryRestrictions']")),
+        allergenRestrictionInputs: Array.from(document.querySelectorAll("input[name='allergenRestrictions']")),
+        recommendationOptInInput: document.querySelector("#profile-recommendation-opt-in-input"),
         deleteCheckbox: document.querySelector("#delete-account-confirm-checkbox"),
         backButton: document.querySelector("#profile-back-button"),
         saveProfileButton: document.querySelector("#save-profile-button"),
@@ -260,7 +286,11 @@ describe("profile.js helpers", () => {
             vendorReason: "Missing docs",
             adminApplicationStatus: "rejected",
             adminApplicationReason: "Missing reason",
-            accountStatus: "disabled"
+            accountStatus: "disabled",
+            dietaryPreferences: [],
+            dietaryRestrictions: [],
+            allergenRestrictions: [],
+            recommendationOptIn: true
         });
 
         const normalizeOnlyUtils = {
@@ -349,15 +379,52 @@ describe("profile.js helpers", () => {
         expect(canRemovePhoto({}, {})).toBe(false);
     });
 
+    test("recommendation preference helpers normalize and format profile fields", () => {
+        expect(normalizePreferenceTagList("Halal, vegan, halal")).toEqual([
+            "halal",
+            "vegan"
+        ]);
+        expect(normalizeRecommendationOptIn("0")).toBe(false);
+        expect(formatPreferenceTag("gluten free")).toBe("Gluten-free");
+        expect(getPreferenceListLabel(["halal", "gluten free"])).toBe("Halal, Gluten-free");
+        expect(getPreferenceListLabel([])).toBe("None selected");
+        expect(
+            getRecommendationPreferenceFields({
+                preferredDietaryTags: "Vegetarian, Halal",
+                requiredDietaryTags: ["Gluten Free"],
+                allergensToAvoid: "Nuts, Dairy",
+                recommendationOptIn: false
+            })
+        ).toEqual({
+            dietaryPreferences: ["vegetarian", "halal"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["nuts", "dairy"],
+            recommendationOptIn: false
+        });
+    });
+
     test("profile form helpers collect, validate, populate, and show field errors", () => {
         const dom = createProfileDom();
 
         dom.displayNameInput.value = " Faranani ";
         dom.phoneInput.value = " 0712345678 ";
+        dom.dietaryPreferenceInputs[0].checked = true;
+        dom.dietaryPreferenceInputs[1].checked = true;
+        dom.dietaryRestrictionInputs[0].checked = true;
+        dom.allergenRestrictionInputs[0].checked = true;
+        dom.recommendationOptInInput.checked = false;
 
+        expect(getCheckedInputValues(dom.dietaryPreferenceInputs)).toEqual([
+            "halal",
+            "vegan"
+        ]);
         expect(getProfileFormValues(dom)).toEqual({
             displayName: "Faranani",
-            phoneNumber: "0712345678"
+            phoneNumber: "0712345678",
+            dietaryPreferences: ["halal", "vegan"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["nuts"],
+            recommendationOptIn: false
         });
 
         expect(validatePhoneNumber("", null)).toBe("");
@@ -392,10 +459,24 @@ describe("profile.js helpers", () => {
 
         populateProfileForm(dom, {
             displayName: "Updated Name",
-            phoneNumber: "0723456789"
+            phoneNumber: "0723456789",
+            dietaryPreferences: ["vegan"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["dairy"],
+            recommendationOptIn: true
         });
         expect(dom.displayNameInput.value).toBe("Updated Name");
         expect(dom.phoneInput.value).toBe("0723456789");
+        expect(dom.dietaryPreferenceInputs[0].checked).toBe(false);
+        expect(dom.dietaryPreferenceInputs[1].checked).toBe(true);
+        expect(dom.dietaryRestrictionInputs[0].checked).toBe(true);
+        expect(dom.allergenRestrictionInputs[0].checked).toBe(false);
+        expect(dom.allergenRestrictionInputs[1].checked).toBe(true);
+        expect(dom.recommendationOptInInput.checked).toBe(true);
+
+        syncCheckedInputValues(dom.dietaryPreferenceInputs, ["halal"]);
+        expect(dom.dietaryPreferenceInputs[0].checked).toBe(true);
+        expect(dom.dietaryPreferenceInputs[1].checked).toBe(false);
     });
 
     test("renderProfile fills the new profile view", () => {
@@ -409,6 +490,10 @@ describe("profile.js helpers", () => {
                 roleElement: dom.roleElement,
                 accessElement: dom.accessElement,
                 accountStatusElement: dom.accountStatusElement,
+                dietaryPreferencesElement: dom.dietaryPreferencesElement,
+                dietaryRestrictionsElement: dom.dietaryRestrictionsElement,
+                allergenRestrictionsElement: dom.allergenRestrictionsElement,
+                recommendationOptInElement: dom.recommendationOptInElement,
                 vendorStatusElement: dom.vendorStatusElement,
                 adminStatusElement: dom.adminStatusElement,
                 vendorNoteElement: dom.vendorNoteElement,
@@ -424,6 +509,10 @@ describe("profile.js helpers", () => {
                 vendorStatus: "approved",
                 adminApplicationStatus: "pending",
                 accountStatus: "active",
+                dietaryPreferences: ["halal", "gluten free"],
+                dietaryRestrictions: ["halal"],
+                allergenRestrictions: ["nuts", "dairy"],
+                recommendationOptIn: false,
                 photoURL: "https://example.com/photo.png",
                 uid: "user-1"
             },
@@ -436,6 +525,10 @@ describe("profile.js helpers", () => {
         expect(dom.roleElement.textContent).toBe("Vendor");
         expect(dom.accessElement.textContent).toBe("Customer and Vendor");
         expect(dom.accountStatusElement.textContent).toBe("Active");
+        expect(dom.dietaryPreferencesElement.textContent).toBe("Halal, Gluten-free");
+        expect(dom.dietaryRestrictionsElement.textContent).toBe("Halal");
+        expect(dom.allergenRestrictionsElement.textContent).toBe("Nuts, Dairy");
+        expect(dom.recommendationOptInElement.textContent).toBe("Disabled");
         expect(dom.vendorStatusElement.textContent).toBe("Approved");
         expect(dom.adminStatusElement.textContent).toBe("Pending");
         expect(dom.photoElement.hidden).toBe(false);
@@ -553,13 +646,21 @@ describe("profile.js service and action helpers", () => {
             authService,
             profileUpdates: {
                 displayName: "Updated Name",
-                phoneNumber: "0712345678"
+                phoneNumber: "0712345678",
+                dietaryPreferences: ["Halal"],
+                dietaryRestrictions: ["Gluten Free"],
+                allergenRestrictions: ["Nuts"],
+                recommendationOptIn: false
             }
         });
         expect(success.success).toBe(true);
         expect(authService.updateCurrentUserProfile).toHaveBeenCalledWith({
             displayName: "Updated Name",
-            phoneNumber: "0712345678"
+            phoneNumber: "0712345678",
+            dietaryPreferences: ["halal"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["nuts"],
+            recommendationOptIn: false
         });
 
         const fallback = await saveCurrentUserProfile({
@@ -569,7 +670,9 @@ describe("profile.js service and action helpers", () => {
             },
             profileUpdates: {
                 displayName: "Fallback Name",
-                phoneNumber: ""
+                phoneNumber: "",
+                dietaryPreferences: ["Vegan"],
+                recommendationOptIn: true
             }
         });
         expect(fallback.success).toBe(true);
@@ -1056,7 +1159,11 @@ describe("profile.js event handlers and page initialization", () => {
                 phoneNumber: "0712345678",
                 vendorStatus: "approved",
                 adminApplicationStatus: "pending",
-                accountStatus: "active"
+                accountStatus: "active",
+                dietaryPreferences: ["halal"],
+                dietaryRestrictions: ["gluten free"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: true
             }),
             signOutUser: jest.fn().mockResolvedValue(undefined),
             removeCurrentUserPhoto: jest.fn().mockResolvedValue({
@@ -1077,6 +1184,10 @@ describe("profile.js event handlers and page initialization", () => {
         expect(dom.nameElement.textContent).toBe("User Sixteen");
         expect(dom.displayNameInput.value).toBe("User Sixteen");
         expect(dom.phoneInput.value).toBe("0712345678");
+        expect(dom.dietaryPreferencesElement.textContent).toBe("Halal");
+        expect(dom.dietaryRestrictionInputs[0].checked).toBe(true);
+        expect(dom.allergenRestrictionInputs[0].checked).toBe(true);
+        expect(dom.recommendationOptInInput.checked).toBe(true);
         expect(page.saveProfileController).toBeTruthy();
         expect(page.signOutController).toBeTruthy();
         expect(page.backController).toBeTruthy();

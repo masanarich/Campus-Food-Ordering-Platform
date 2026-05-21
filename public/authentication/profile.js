@@ -74,6 +74,117 @@ function normalizeAccountStatus(status) {
     return "active";
 }
 
+function normalizePreferenceTagList(value, authUtils) {
+    if (authUtils && typeof authUtils.normalizePreferenceTagList === "function") {
+        return authUtils.normalizePreferenceTagList(value);
+    }
+
+    const rawValues = Array.isArray(value)
+        ? value
+        : normalizeText(value)
+            ? normalizeText(value).split(",")
+            : [];
+
+    return rawValues
+        .map(function normalizeTag(tag) {
+            return normalizeText(tag).toLowerCase();
+        })
+        .filter(Boolean)
+        .filter(function keepUnique(tag, index, list) {
+            return list.indexOf(tag) === index;
+        });
+}
+
+function normalizeRecommendationOptIn(value, fallbackValue = true, authUtils) {
+    if (authUtils && typeof authUtils.normalizeRecommendationOptIn === "function") {
+        return authUtils.normalizeRecommendationOptIn(value, fallbackValue);
+    }
+
+    if (value === true || value === false) {
+        return value;
+    }
+
+    if (value === "true" || value === "1" || value === 1) {
+        return true;
+    }
+
+    if (value === "false" || value === "0" || value === 0) {
+        return false;
+    }
+
+    return fallbackValue;
+}
+
+function getOwnField(source, fieldName) {
+    const safeSource = source && typeof source === "object" ? source : {};
+
+    if (Object.prototype.hasOwnProperty.call(safeSource, fieldName)) {
+        return safeSource[fieldName];
+    }
+
+    return undefined;
+}
+
+function getFirstDefinedField(source, fieldName, aliases = []) {
+    const directValue = getOwnField(source, fieldName);
+
+    if (directValue !== undefined) {
+        return directValue;
+    }
+
+    const safeAliases = Array.isArray(aliases) ? aliases : [];
+
+    for (let index = 0; index < safeAliases.length; index += 1) {
+        const aliasValue = getOwnField(source, safeAliases[index]);
+
+        if (aliasValue !== undefined) {
+            return aliasValue;
+        }
+    }
+
+    return undefined;
+}
+
+function getRecommendationPreferenceFields(profile, authUtils) {
+    if (authUtils && typeof authUtils.getRecommendationPreferenceFields === "function") {
+        return authUtils.getRecommendationPreferenceFields(profile);
+    }
+
+    const safeProfile = profile && typeof profile === "object" ? profile : {};
+
+    return {
+        dietaryPreferences: normalizePreferenceTagList(
+            getFirstDefinedField(
+                safeProfile,
+                "dietaryPreferences",
+                ["preferredDietaryTags", "dietary"]
+            ),
+            authUtils
+        ),
+        dietaryRestrictions: normalizePreferenceTagList(
+            getFirstDefinedField(
+                safeProfile,
+                "dietaryRestrictions",
+                ["requiredDietaryTags", "restrictedDietary"]
+            ),
+            authUtils
+        ),
+        allergenRestrictions: normalizePreferenceTagList(
+            getFirstDefinedField(
+                safeProfile,
+                "allergenRestrictions",
+                ["allergensToAvoid", "restrictedAllergens"]
+            ),
+            authUtils
+        ),
+        recommendationOptIn: normalizeRecommendationOptIn(
+            getFirstDefinedField(safeProfile, "recommendationOptIn"),
+            true,
+            authUtils
+        )
+    };
+}
+
 function resolveAuthUtils(explicitUtils) {
     if (explicitUtils) {
         return explicitUtils;
@@ -97,6 +208,7 @@ function normalizeUserProfile(profile, authUtils) {
 
     const safeProfile = profile && typeof profile === "object" ? profile : {};
     const isAdmin = safeProfile.isAdmin === true || safeProfile.admin === true;
+    const recommendationPreferences = getRecommendationPreferenceFields(safeProfile, authUtils);
 
     return {
         uid: normalizeText(safeProfile.uid),
@@ -120,7 +232,11 @@ function normalizeUserProfile(profile, authUtils) {
             safeProfile.adminRejectionReason ||
             safeProfile.adminBlockReason
         ),
-        accountStatus: normalizeAccountStatus(safeProfile.accountStatus)
+        accountStatus: normalizeAccountStatus(safeProfile.accountStatus),
+        dietaryPreferences: recommendationPreferences.dietaryPreferences,
+        dietaryRestrictions: recommendationPreferences.dietaryRestrictions,
+        allergenRestrictions: recommendationPreferences.allergenRestrictions,
+        recommendationOptIn: recommendationPreferences.recommendationOptIn
     };
 }
 
@@ -417,6 +533,22 @@ function canRemovePhoto(profile, user) {
     return normalizeText(getPhotoURL(profile, user)).length > 0;
 }
 
+function getCheckedInputValues(inputs) {
+    const safeInputs = Array.isArray(inputs)
+        ? inputs
+        : inputs && typeof inputs.length === "number"
+            ? Array.from(inputs)
+            : [];
+
+    return safeInputs
+        .filter(function isChecked(input) {
+            return input && input.checked === true;
+        })
+        .map(function getInputValue(input) {
+            return input.value;
+        });
+}
+
 function getProfileFormValues(formElements = {}) {
     return {
         displayName: normalizeText(
@@ -424,7 +556,19 @@ function getProfileFormValues(formElements = {}) {
         ),
         phoneNumber: normalizeText(
             formElements.phoneInput && formElements.phoneInput.value
-        )
+        ),
+        dietaryPreferences: normalizePreferenceTagList(
+            getCheckedInputValues(formElements.dietaryPreferenceInputs)
+        ),
+        dietaryRestrictions: normalizePreferenceTagList(
+            getCheckedInputValues(formElements.dietaryRestrictionInputs)
+        ),
+        allergenRestrictions: normalizePreferenceTagList(
+            getCheckedInputValues(formElements.allergenRestrictionInputs)
+        ),
+        recommendationOptIn: formElements.recommendationOptInInput
+            ? formElements.recommendationOptInInput.checked === true
+            : true
     };
 }
 
@@ -497,6 +641,21 @@ function clearProfileFormErrors(formElements = {}) {
     );
 }
 
+function syncCheckedInputValues(inputs, values) {
+    const selectedValues = normalizePreferenceTagList(values);
+    const safeInputs = Array.isArray(inputs)
+        ? inputs
+        : inputs && typeof inputs.length === "number"
+            ? Array.from(inputs)
+            : [];
+
+    safeInputs.forEach(function syncCheckedInput(input) {
+        if (input) {
+            input.checked = selectedValues.indexOf(normalizeText(input.value).toLowerCase()) !== -1;
+        }
+    });
+}
+
 function showProfileFormErrors(formElements = {}, errors = {}) {
     clearProfileFormErrors(formElements);
     setFieldError(
@@ -512,6 +671,8 @@ function showProfileFormErrors(formElements = {}, errors = {}) {
 }
 
 function populateProfileForm(formElements = {}, profile = {}, user = null) {
+    const preferences = getRecommendationPreferenceFields(profile);
+
     if (formElements.displayNameInput) {
         formElements.displayNameInput.value = getDisplayName(profile, user);
     }
@@ -519,6 +680,52 @@ function populateProfileForm(formElements = {}, profile = {}, user = null) {
     if (formElements.phoneInput) {
         formElements.phoneInput.value = getPhoneNumber(profile, user);
     }
+
+    syncCheckedInputValues(
+        formElements.dietaryPreferenceInputs,
+        preferences.dietaryPreferences
+    );
+    syncCheckedInputValues(
+        formElements.dietaryRestrictionInputs,
+        preferences.dietaryRestrictions
+    );
+    syncCheckedInputValues(
+        formElements.allergenRestrictionInputs,
+        preferences.allergenRestrictions
+    );
+
+    if (formElements.recommendationOptInInput) {
+        formElements.recommendationOptInInput.checked = preferences.recommendationOptIn;
+    }
+}
+
+function formatPreferenceTag(tag) {
+    const text = normalizeText(tag);
+
+    if (!text) {
+        return "";
+    }
+
+    if (text.toLowerCase() === "gluten free") {
+        return "Gluten-free";
+    }
+
+    return text
+        .split(/\s+/)
+        .map(function capitalizeWord(word) {
+            return capitalize(word);
+        })
+        .join(" ");
+}
+
+function getPreferenceListLabel(values, fallback = "None selected") {
+    const normalizedValues = normalizePreferenceTagList(values);
+
+    if (normalizedValues.length === 0) {
+        return fallback;
+    }
+
+    return normalizedValues.map(formatPreferenceTag).join(", ");
 }
 
 function renderProfile(profileElements, profile, user, authUtils) {
@@ -536,6 +743,22 @@ function renderProfile(profileElements, profile, user, authUtils) {
     setTextContent(elements.adminStatusElement, getAdminStatusLabel(safeProfile, authUtils));
     setTextContent(elements.vendorNoteElement, getVendorStatusNote(safeProfile, authUtils), "None");
     setTextContent(elements.adminNoteElement, getAdminStatusNote(safeProfile, authUtils), "None");
+    setTextContent(
+        elements.dietaryPreferencesElement,
+        getPreferenceListLabel(safeProfile.dietaryPreferences)
+    );
+    setTextContent(
+        elements.dietaryRestrictionsElement,
+        getPreferenceListLabel(safeProfile.dietaryRestrictions)
+    );
+    setTextContent(
+        elements.allergenRestrictionsElement,
+        getPreferenceListLabel(safeProfile.allergenRestrictions)
+    );
+    setTextContent(
+        elements.recommendationOptInElement,
+        safeProfile.recommendationOptIn ? "Enabled" : "Disabled"
+    );
 
     setImageSource(
         elements.photoElement,
@@ -577,7 +800,11 @@ async function saveCurrentUserProfile(dependencies = {}) {
 
     const safeUpdates = {
         displayName: normalizeText(profileUpdates.displayName),
-        phoneNumber: normalizeText(profileUpdates.phoneNumber)
+        phoneNumber: normalizeText(profileUpdates.phoneNumber),
+        dietaryPreferences: normalizePreferenceTagList(profileUpdates.dietaryPreferences),
+        dietaryRestrictions: normalizePreferenceTagList(profileUpdates.dietaryRestrictions),
+        allergenRestrictions: normalizePreferenceTagList(profileUpdates.allergenRestrictions),
+        recommendationOptIn: normalizeRecommendationOptIn(profileUpdates.recommendationOptIn)
     };
 
     const validation = validateProfileForm(safeUpdates, authUtils);
@@ -1661,6 +1888,10 @@ function initializeProfilePage(options = {}) {
         roleSelector = "#profile-role",
         accessSelector = "#profile-access",
         accountStatusSelector = "#profile-account-status",
+        dietaryPreferencesSelector = "#profile-dietary-preferences",
+        dietaryRestrictionsSelector = "#profile-dietary-restrictions",
+        allergenRestrictionsSelector = "#profile-allergen-restrictions",
+        recommendationOptInSelector = "#profile-recommendation-opt-in",
         vendorStatusSelector = "#profile-vendor-status",
         adminStatusSelector = "#profile-admin-status",
         vendorNoteSelector = "#profile-vendor-note",
@@ -1672,6 +1903,10 @@ function initializeProfilePage(options = {}) {
         displayNameErrorSelector = "#profile-display-name-error",
         phoneInputSelector = "#profile-phone-input",
         phoneErrorSelector = "#profile-phone-error",
+        dietaryPreferenceInputSelector = "input[name='dietaryPreferences']",
+        dietaryRestrictionInputSelector = "input[name='dietaryRestrictions']",
+        allergenRestrictionInputSelector = "input[name='allergenRestrictions']",
+        recommendationOptInInputSelector = "#profile-recommendation-opt-in-input",
         saveProfileButtonSelector = "#save-profile-button",
         photoInputSelector = "#profile-photo-input",
         photoMessageSelector = "#profile-photo-message",
@@ -1703,6 +1938,10 @@ function initializeProfilePage(options = {}) {
         roleElement: document.querySelector(roleSelector),
         accessElement: document.querySelector(accessSelector),
         accountStatusElement: document.querySelector(accountStatusSelector),
+        dietaryPreferencesElement: document.querySelector(dietaryPreferencesSelector),
+        dietaryRestrictionsElement: document.querySelector(dietaryRestrictionsSelector),
+        allergenRestrictionsElement: document.querySelector(allergenRestrictionsSelector),
+        recommendationOptInElement: document.querySelector(recommendationOptInSelector),
         vendorStatusElement: document.querySelector(vendorStatusSelector),
         adminStatusElement: document.querySelector(adminStatusSelector),
         vendorNoteElement: document.querySelector(vendorNoteSelector),
@@ -1717,7 +1956,11 @@ function initializeProfilePage(options = {}) {
         displayNameInput: document.querySelector(displayNameInputSelector),
         displayNameErrorElement: document.querySelector(displayNameErrorSelector),
         phoneInput: document.querySelector(phoneInputSelector),
-        phoneErrorElement: document.querySelector(phoneErrorSelector)
+        phoneErrorElement: document.querySelector(phoneErrorSelector),
+        dietaryPreferenceInputs: Array.from(document.querySelectorAll(dietaryPreferenceInputSelector)),
+        dietaryRestrictionInputs: Array.from(document.querySelectorAll(dietaryRestrictionInputSelector)),
+        allergenRestrictionInputs: Array.from(document.querySelectorAll(allergenRestrictionInputSelector)),
+        recommendationOptInInput: document.querySelector(recommendationOptInInputSelector)
     };
 
     const photoInput = document.querySelector(photoInputSelector);
@@ -1856,6 +2099,9 @@ const profilePage = {
     normalizeVendorStatus,
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
+    normalizePreferenceTagList,
+    normalizeRecommendationOptIn,
+    getRecommendationPreferenceFields,
     resolveAuthUtils,
     normalizeUserProfile,
     setTextContent,
@@ -1879,13 +2125,17 @@ const profilePage = {
     getVendorStatusNote,
     getAdminStatusNote,
     canRemovePhoto,
+    getCheckedInputValues,
     getProfileFormValues,
     validatePhoneNumber,
     validateProfileForm,
     setFieldError,
     clearProfileFormErrors,
     showProfileFormErrors,
+    syncCheckedInputValues,
     populateProfileForm,
+    formatPreferenceTag,
+    getPreferenceListLabel,
     renderProfile,
     getFallbackRoutes,
     mapBackTargetToRoute,
