@@ -315,7 +315,7 @@ menu a:focus {
     color: #fffaf4;
 }
 
-#ordering-shortcuts-heading + p + menu a {
+#customer-shortcuts-heading + p + menu a {
     min-width: 11rem;
 }
 

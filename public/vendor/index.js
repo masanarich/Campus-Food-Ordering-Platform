@@ -71,6 +71,8 @@ function getFallbackRoutes() {
         ordermanagement: "./order-management/index.html",
         orderdetail: "./order-management/order-detail.html",
         ordernotifications: "./order-management/notifications.html",
+        support: "./support/index.html",
+        analytics: "./analytics.html",
         login: "../authentication/login.html"
     };
 }
@@ -366,6 +368,8 @@ function getHomeState(profile, authUtils) {
         orderManagementRoute: getPortalRoute("orderManagement", authUtils),
         orderDetailRoute: getPortalRoute("orderDetail", authUtils),
         orderNotificationsRoute: getPortalRoute("orderNotifications", authUtils),
+        supportRoute: getPortalRoute("support", authUtils),
+        analyticsRoute: getPortalRoute("analytics", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
@@ -642,6 +646,8 @@ async function initializeVendorHomePage(options = {}) {
         orderManagementButton: document.querySelector("#go-order-management-button"),
         orderDetailButton: document.querySelector("#go-order-detail-button"),
         orderNotificationsButton: document.querySelector("#go-order-notifications-button"),
+        supportLink: document.querySelector("#vendor-support-link"),
+        analyticsLink: document.querySelector("#analytics-link"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
@@ -712,6 +718,18 @@ async function initializeVendorHomePage(options = {}) {
             navigate
         });
 
+        const supportController = attachNavigationHandler({
+            button: elements.supportLink,
+            route: result.state.supportRoute,
+            navigate
+        });
+
+        const analyticsController = attachNavigationHandler({
+            button: elements.analyticsLink,
+            route: result.state.analyticsRoute,
+            navigate
+        });
+
         const choosePortalController = result.state.showChoosePortal
             ? attachNavigationHandler({
                 button: elements.choosePortalButton,
@@ -761,6 +779,8 @@ async function initializeVendorHomePage(options = {}) {
             orderManagementController,
             orderDetailController,
             orderNotificationsController,
+            supportController,
+            analyticsController,
             choosePortalController,
             customerPortalController,
             vendorPortalController,

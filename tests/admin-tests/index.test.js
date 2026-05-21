@@ -57,6 +57,8 @@ function createAdminHomeDom() {
             <button id="go-profile-button" type="button">Profile</button>
             <button id="manage-users-button" type="button">Manage Users</button>
             <button id="review-disputes-button" type="button">Review Disputes</button>
+            <button id="admin-ticket-detail-link" type="button">Open Ticket Detail</button>
+            <button id="analytics-button" type="button">View Analytics</button>
             <button id="choose-portal-button" type="button">Choose Portal</button>
             <button id="sign-out-button" type="button">Sign Out</button>
             <button id="go-customer-portal-button" type="button">Customer Portal</button>
@@ -80,6 +82,8 @@ function createAdminHomeDom() {
         profileButton: document.querySelector("#go-profile-button"),
         manageUsersButton: document.querySelector("#manage-users-button"),
         reviewDisputesButton: document.querySelector("#review-disputes-button"),
+        ticketDetailLink: document.querySelector("#admin-ticket-detail-link"),
+        analyticsButton: document.querySelector("#analytics-button"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
@@ -127,6 +131,8 @@ describe("admin/index.js helpers", () => {
         expect(getPortalRoute("profile")).toBe("../authentication/profile.html");
         expect(getPortalRoute("users")).toBe("./users.html");
         expect(getPortalRoute("disputes")).toBe("./disputes.html");
+        expect(getPortalRoute("ticketDetail")).toBe("./ticket-detail.html");
+        expect(getPortalRoute("analytics")).toBe("./analytics.html");
         expect(getPortalRoute("signOut")).toBe("../authentication/login.html");
     });
 
@@ -276,6 +282,8 @@ describe("admin/index.js helpers", () => {
         expect(state.showChoosePortal).toBe(true);
         expect(state.manageUsersRoute).toBe("./users.html");
         expect(state.disputesRoute).toBe("./disputes.html");
+        expect(state.ticketDetailRoute).toBe("./ticket-detail.html");
+        expect(state.analyticsRoute).toBe("./analytics.html");
         expect(state.signOutRoute).toBe("../authentication/login.html");
     });
 
@@ -580,6 +588,8 @@ describe("admin/index.js loading and initialization", () => {
         expect(result.profileController).toBeTruthy();
         expect(result.manageUsersController).toBeTruthy();
         expect(result.reviewDisputesController).toBeTruthy();
+        expect(result.ticketDetailController).toBeTruthy();
+        expect(result.analyticsController).toBeTruthy();
         expect(result.choosePortalController).toBeTruthy();
         expect(result.customerPortalController).toBeTruthy();
         expect(result.vendorPortalController).toBeTruthy();
@@ -588,6 +598,8 @@ describe("admin/index.js loading and initialization", () => {
         elements.profileButton.click();
         elements.manageUsersButton.click();
         elements.reviewDisputesButton.click();
+        elements.ticketDetailLink.click();
+        elements.analyticsButton.click();
         elements.customerPortalButton.click();
         elements.vendorPortalButton.click();
 
@@ -599,6 +611,8 @@ describe("admin/index.js loading and initialization", () => {
         expect(navigate).toHaveBeenCalledWith("../authentication/profile.html");
         expect(navigate).toHaveBeenCalledWith("./users.html");
         expect(navigate).toHaveBeenCalledWith("./disputes.html");
+        expect(navigate).toHaveBeenCalledWith("./ticket-detail.html");
+        expect(navigate).toHaveBeenCalledWith("./analytics.html");
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
         expect(navigate).toHaveBeenCalledWith("../vendor/index.html");
         expect(navigate).toHaveBeenCalledWith("../authentication/login.html");

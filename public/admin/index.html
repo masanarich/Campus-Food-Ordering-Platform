@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Admin Dashboard | Campus Food Ordering Platform</title>
@@ -7,6 +8,7 @@
     <meta name="description" content="Admin dashboard for the Campus Food Ordering Platform.">
     <link rel="stylesheet" href="./index.css">
 </head>
+
 <body class="admin-shell">
 
     <header class="app-header">
@@ -18,6 +20,7 @@
             <a href="./disputes.html">Support Inbox</a>
             <a href="./ticket-detail.html">Ticket Detail</a>
             <a href="../authentication/profile.html">Profile</a>
+            <a href="./analytics.html">View Analytics</a>
         </nav>
     </header>
 
@@ -47,9 +50,12 @@
             <menu class="action-menu action-menu-primary" aria-label="Main admin actions">
                 <li><button id="go-profile-button" class="button-primary" type="button">Open Profile</button></li>
                 <li><button id="manage-users-button" class="button-primary" type="button">Manage Users</button></li>
-                <li><button id="review-disputes-button" class="button-secondary" type="button">Review Disputes</button></li>
-                <li><a id="admin-ticket-detail-link" class="button-secondary" href="./ticket-detail.html">Open Ticket Detail</a></li>
+                <li><button id="review-disputes-button" class="button-secondary" type="button">Review Disputes</button>
+                </li>
+                <li><button id="admin-ticket-detail-link" class="button-secondary" type="button">Open Ticket
+                        Detail</button></li>
                 <li><button id="choose-portal-button" class="button-secondary" type="button">Choose Portal</button></li>
+                <li><button id="analytics-button" class="button-secondary" type="button">View Analytics</button></li>
                 <li><button id="sign-out-button" class="button-danger" type="button">Sign Out</button></li>
             </menu>
         </section>
@@ -108,8 +114,10 @@
             </p>
 
             <menu class="action-menu" aria-label="Portal shortcuts">
-                <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer Portal</button></li>
-                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button></li>
+                <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer
+                        Portal</button></li>
+                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button>
+                </li>
             </menu>
         </section>
     </main>
@@ -134,4 +142,5 @@
     </script>
 
 </body>
+
 </html>

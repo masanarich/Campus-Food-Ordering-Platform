@@ -92,6 +92,8 @@ function getFallbackRoutes() {
         profile: "../authentication/profile.html",
         users: "./users.html",
         disputes: "./disputes.html",
+        ticketdetail: "./ticket-detail.html",
+        analytics: "./analytics.html",
         login: "../authentication/login.html"
     };
 }
@@ -385,6 +387,8 @@ function getHomeState(profile, authUtils) {
         showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
         manageUsersRoute: getPortalRoute("users", authUtils),
         disputesRoute: getPortalRoute("disputes", authUtils),
+        ticketDetailRoute: getPortalRoute("ticketDetail", authUtils),
+        analyticsRoute: getPortalRoute("analytics", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
@@ -660,8 +664,10 @@ async function initializeAdminHomePage(options = {}) {
         profileButton: document.querySelector("#go-profile-button"),
         manageUsersButton: document.querySelector("#manage-users-button"),
         reviewDisputesButton: document.querySelector("#review-disputes-button"),
+        ticketDetailLink: document.querySelector("#admin-ticket-detail-link"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
+        analyticsButton: document.querySelector("#analytics-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button")
     };
@@ -711,6 +717,18 @@ async function initializeAdminHomePage(options = {}) {
             navigate
         });
 
+        const ticketDetailController = attachNavigationHandler({
+            button: elements.ticketDetailLink,
+            route: result.state.ticketDetailRoute,
+            navigate
+        });
+
+        const analyticsController = attachNavigationHandler({
+            button: elements.analyticsButton,
+            route: result.state.analyticsRoute,
+            navigate
+        });
+
         const choosePortalController = result.state.showChoosePortal
             ? attachNavigationHandler({
                 button: elements.choosePortalButton,
@@ -749,6 +767,8 @@ async function initializeAdminHomePage(options = {}) {
             profileController,
             manageUsersController,
             reviewDisputesController,
+            ticketDetailController,
+            analyticsController,
             choosePortalController,
             customerPortalController,
             vendorPortalController,

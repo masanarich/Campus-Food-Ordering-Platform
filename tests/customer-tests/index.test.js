@@ -68,6 +68,8 @@ function createCustomerHomeDom() {
             <button id="view-orders-button" type="button">Orders</button>
             <button id="track-orders-button" type="button">Track Orders</button>
             <button id="view-notifications-button" type="button">Notifications</button>
+            <a id="customer-support-link" href="./support/index.html">Support & Disputes</a>
+            <a id="analytics-link" href="./customer-analytics/customer-analytics.html">View Analytics</a>
             <button id="sign-out-button" type="button">Sign out</button>
 
             <button id="go-customer-portal-button" type="button">Customer</button>
@@ -99,6 +101,8 @@ function createCustomerHomeDom() {
         myOrdersButton: document.querySelector("#view-orders-button"),
         trackOrdersButton: document.querySelector("#track-orders-button"),
         notificationsButton: document.querySelector("#view-notifications-button"),
+        supportLink: document.querySelector("#customer-support-link"),
+        analyticsLink: document.querySelector("#analytics-link"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
@@ -154,6 +158,8 @@ describe("customer/index.js helpers", () => {
             checkout: "./order-management/checkout.html",
             orders: "./order-tracking/index.html",
             notifications: "./order-tracking/notifications.html",
+            support: "./support/index.html",
+            analytics: "./customer-analytics/customer-analytics.html",
             login: "../authentication/login.html"
         });
 
@@ -169,6 +175,8 @@ describe("customer/index.js helpers", () => {
         expect(getPortalRoute("checkout")).toBe("./order-management/checkout.html");
         expect(getPortalRoute("orders")).toBe("./order-tracking/index.html");
         expect(getPortalRoute("notifications")).toBe("./order-tracking/notifications.html");
+        expect(getPortalRoute("support")).toBe("./support/index.html");
+        expect(getPortalRoute("analytics")).toBe("./customer-analytics/customer-analytics.html");
         expect(getPortalRoute("signOut")).toBe("../authentication/login.html");
     });
 
@@ -398,6 +406,8 @@ describe("customer/index.js helpers", () => {
         expect(state.myOrdersRoute).toBe("./order-tracking/index.html");
         expect(state.trackOrdersRoute).toBe("./order-tracking/index.html");
         expect(state.notificationsRoute).toBe("./order-tracking/notifications.html");
+        expect(state.supportRoute).toBe("./support/index.html");
+        expect(state.analyticsRoute).toBe("./customer-analytics/customer-analytics.html");
         expect(getDefaultAvatar("Faranani")).toContain("data:image/svg+xml");
     });
 });
@@ -728,6 +738,8 @@ describe("customer/index.js loading and initialization", () => {
         expect(result.myOrdersController).toBeTruthy();
         expect(result.trackOrdersController).toBeTruthy();
         expect(result.notificationsController).toBeTruthy();
+        expect(result.supportController).toBeTruthy();
+        expect(result.analyticsController).toBeTruthy();
         expect(result.signOutController).toBeTruthy();
 
         elements.profileButton.click();
@@ -739,6 +751,8 @@ describe("customer/index.js loading and initialization", () => {
         elements.myOrdersButton.click();
         elements.trackOrdersButton.click();
         elements.notificationsButton.click();
+        elements.supportLink.click();
+        elements.analyticsLink.click();
         await result.signOutController.handleClick({
             preventDefault: jest.fn()
         });
@@ -753,6 +767,8 @@ describe("customer/index.js loading and initialization", () => {
         expect(navigate).toHaveBeenCalledWith("./admin-application.html");
         expect(navigate).toHaveBeenCalledWith("./order-tracking/index.html");
         expect(navigate).toHaveBeenCalledWith("./order-tracking/notifications.html");
+        expect(navigate).toHaveBeenCalledWith("./support/index.html");
+        expect(navigate).toHaveBeenCalledWith("./customer-analytics/customer-analytics.html");
         expect(navigate).toHaveBeenCalledWith("../authentication/login.html");
         expect(elements.adminApplicationButton.hidden).toBe(false);
     });

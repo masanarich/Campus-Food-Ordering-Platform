@@ -21,6 +21,7 @@
             <a href="./order-management/index.html">Manage Orders</a>
             <a href="./order-management/notifications.html">Notifications</a>
             <a href="./support/index.html">Support &amp; Disputes</a>
+            <a href="./analytics.html">View Analytics</a>
             <a href="../authentication/profile.html">Profile</a>
         </nav>
     </header>
@@ -52,10 +53,12 @@
                 <li><button id="go-profile-button" class="button-primary" type="button">Open Profile</button></li>
                 <li><button id="go-shop-button" class="button-primary" type="button">Shop Details</button></li>
                 <li><button id="go-products-button" class="button-primary" type="button">Manage Menu</button></li>
-                <li><button id="go-order-management-button" class="button-primary" type="button">Manage Orders</button></li>
-                <li><button id="go-order-detail-button" class="button-secondary" type="button">Update Order Status</button></li>
-                <li><button id="go-order-notifications-button" class="button-secondary" type="button">Order Notifications</button></li>
-                <li><a id="vendor-support-link" class="button-secondary" href="./support/index.html">Support &amp; Disputes</a></li>
+                <li><button id="go-order-management-button" class="button-primary" type="button">Manage Orders</button>
+                </li>
+                <li><button id="go-order-detail-button" class="button-secondary" type="button">Update Order
+                        Status</button></li>
+                <li><button id="go-order-notifications-button" class="button-secondary" type="button">Order
+                        Notifications</button></li>
                 <li><button id="choose-portal-button" class="button-secondary" type="button">Choose Portal</button></li>
                 <li><button id="sign-out-button" class="button-danger" type="button">Sign Out</button></li>
             </menu>
@@ -130,24 +133,30 @@
             </p>
 
             <menu class="action-menu" aria-label="Portal shortcuts">
-                <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer Portal</button></li>
-                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button></li>
-                <li><button id="go-admin-portal-button" class="button-secondary" type="button">Admin Portal</button></li>
+                <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer
+                        Portal</button></li>
+                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button>
+                </li>
+                <li><button id="go-admin-portal-button" class="button-secondary" type="button">Admin Portal</button>
+                </li>
             </menu>
         </section>
 
-        <section class="shared-section order-panel" aria-labelledby="order-shortcuts-heading">
-            <h3 id="order-shortcuts-heading">Order Shortcuts</h3>
+        <section class="shared-section order-panel" aria-labelledby="vendor-shortcuts-heading">
+            <h3 id="vendor-shortcuts-heading">Vendor Shortcuts</h3>
 
             <p>
                 Jump directly into the vendor order workspace when you need to approve new requests,
-                update preparation progress, or monitor order notifications.
+                update preparation progress, review support, or inspect analytics.
             </p>
 
-            <menu class="action-menu" aria-label="Vendor order shortcuts">
+            <menu class="action-menu" aria-label="Vendor shortcuts">
                 <li><a class="dashboard-link" href="./order-management/index.html">Incoming Orders</a></li>
                 <li><a class="dashboard-link" href="./order-management/order-detail.html">Order Detail</a></li>
                 <li><a class="dashboard-link" href="./order-management/notifications.html">Order Notifications</a></li>
+                <li><a id="vendor-support-link" class="dashboard-link" href="./support/index.html">Support &amp;
+                        Disputes</a></li>
+                <li><a id="analytics-link" class="dashboard-link" href="./analytics.html">View Analytics</a></li>
             </menu>
         </section>
 

@@ -82,6 +82,8 @@ function getFallbackRoutes() {
         checkout: "./order-management/checkout.html",
         orders: "./order-tracking/index.html",
         notifications: "./order-tracking/notifications.html",
+        support: "./support/index.html",
+        analytics: "./customer-analytics/customer-analytics.html",
         login: "../authentication/login.html"
     };
 }
@@ -573,6 +575,8 @@ function getHomeState(profile, authUtils) {
         myOrdersRoute: getPortalRoute("orders", authUtils),
         trackOrdersRoute: getPortalRoute("orders", authUtils),
         notificationsRoute: getPortalRoute("notifications", authUtils),
+        supportRoute: getPortalRoute("support", authUtils),
+        analyticsRoute: getPortalRoute("analytics", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
 }
@@ -843,6 +847,8 @@ async function initializeCustomerHomePage(options = {}) {
         myOrdersButton: document.querySelector("#view-orders-button"),
         trackOrdersButton: document.querySelector("#track-orders-button"),
         notificationsButton: document.querySelector("#view-notifications-button"),
+        supportLink: document.querySelector("#customer-support-link"),
+        analyticsLink: document.querySelector("#analytics-link"),
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
@@ -966,6 +972,18 @@ async function initializeCustomerHomePage(options = {}) {
             navigate
         });
 
+        const supportController = attachNavigationHandler({
+            button: elements.supportLink,
+            route: result.state.supportRoute,
+            navigate
+        });
+
+        const analyticsController = attachNavigationHandler({
+            button: elements.analyticsLink,
+            route: result.state.analyticsRoute,
+            navigate
+        });
+
         const signOutController = attachSignOutHandler({
             button: elements.signOutButton,
             authService,
@@ -990,6 +1008,8 @@ async function initializeCustomerHomePage(options = {}) {
             myOrdersController,
             trackOrdersController,
             notificationsController,
+            supportController,
+            analyticsController,
             signOutController
         };
     } catch (error) {
