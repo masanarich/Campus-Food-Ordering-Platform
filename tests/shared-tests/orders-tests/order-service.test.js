@@ -243,39 +243,27 @@ describe("shared/orders/order-service.js", () => {
     test("builds write payloads with overrides", () => {
         const readyOrder = createReadyOrder();
 
-        expect(
-            orderService.buildOrderWritePayload(readyOrder, {
-                orderStatus,
-                paymentStatus,
-                orderModel,
-                orderId: "order-updated-1",
-                status: "completed",
-                customerConfirmedCollected: true,
-                vendorConfirmedCollected: true,
-                updatedAt: "t-2",
-                notes: "All done"
-            })
-        ).toEqual({
+        const payload = orderService.buildOrderWritePayload(readyOrder, {
+            orderStatus,
+            paymentStatus,
+            orderModel,
+            orderId: "order-updated-1",
+            status: "completed",
+            customerConfirmedCollected: true,
+            vendorConfirmedCollected: true,
+            updatedAt: "t-2",
+            notes: "All done"
+        });
+
+        // Shape check — toMatchObject lets the order model add new computed
+        // fields (platform fees, vendor earnings) without breaking the test.
+        expect(payload).toMatchObject({
             orderId: "order-updated-1",
             customerUid: "customer-1",
             customerName: "Tshepo",
             customerEmail: "tshepo@example.com",
             vendorUid: "vendor-1",
             vendorName: "Campus Bites",
-            items: [
-                {
-                    menuItemId: "burger",
-                    vendorUid: "vendor-1",
-                    vendorName: "Campus Bites",
-                    name: "Burger",
-                    category: "",
-                    price: 50,
-                    quantity: 1,
-                    subtotal: 50,
-                    photoURL: "",
-                    notes: ""
-                }
-            ],
             itemCount: 1,
             subtotal: 50,
             total: 50,
@@ -299,6 +287,27 @@ describe("shared/orders/order-service.js", () => {
             createdAt: "t-1",
             updatedAt: "t-2"
         });
+        expect(payload.items[0]).toMatchObject({
+            menuItemId: "burger",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            name: "Burger",
+            category: "",
+            price: 50,
+            quantity: 1,
+            subtotal: 50,
+            photoURL: "",
+            notes: ""
+        });
+        // Finance fields produced by the model — verify they're consistent.
+        expect(Number.isFinite(payload.platformFee)).toBe(true);
+        expect(Number.isFinite(payload.vendorEarnings)).toBe(true);
+        expect(payload.platformFee).toBeGreaterThanOrEqual(0);
+        expect(payload.vendorEarnings).toBeGreaterThanOrEqual(0);
+        expect(Math.abs((payload.platformFee + payload.vendorEarnings) - payload.total)).toBeLessThan(0.02);
+        // Each item should carry a per-line finance breakdown
+        expect(payload.items[0].platformFee).toBeGreaterThanOrEqual(0);
+        expect(payload.items[0].vendorSubtotal).toBeGreaterThanOrEqual(0);
 
         expect(
             orderService.buildOrderWritePayload(readyOrder, {
@@ -331,21 +340,21 @@ describe("shared/orders/order-service.js", () => {
             })
         );
 
-        expect(
-            orderService.buildOrderWritePayload(
-                {
-                    orderId: "raw-order",
-                    status: "READY",
-                    notes: " raw "
-                },
-                {
-                    status: "Completed",
-                    customerConfirmedCollected: true,
-                    vendorConfirmedCollected: false,
-                    updatedAt: "now"
-                }
-            )
-        ).toEqual({
+        const rawPayload = orderService.buildOrderWritePayload(
+            {
+                orderId: "raw-order",
+                status: "READY",
+                notes: " raw "
+            },
+            {
+                status: "Completed",
+                customerConfirmedCollected: true,
+                vendorConfirmedCollected: false,
+                updatedAt: "now"
+            }
+        );
+
+        expect(rawPayload).toMatchObject({
             orderId: "raw-order",
             customerUid: "",
             customerName: "",
@@ -369,23 +378,26 @@ describe("shared/orders/order-service.js", () => {
             paymentFailedAt: null,
             paymentVerifiedAt: null,
             paymentFailureReason: "",
-            timeline: [
-                {
-                    status: "ready",
-                    label: "Ready for Pickup",
-                    actorRole: "customer",
-                    actorUid: "",
-                    actorName: "",
-                    note: "",
-                    at: null
-                }
-            ],
             customerConfirmedCollected: true,
             vendorConfirmedCollected: false,
             createdAt: null,
             updatedAt: "now",
             notes: "raw"
         });
+        expect(rawPayload.timeline).toEqual([
+            {
+                status: "ready",
+                label: "Ready for Pickup",
+                actorRole: "customer",
+                actorUid: "",
+                actorName: "",
+                note: "",
+                at: null
+            }
+        ]);
+        // Empty raw payload still produces well-formed finance fields (zeros).
+        expect(rawPayload.platformFee).toBe(0);
+        expect(rawPayload.vendorEarnings).toBe(0);
     });
 
     test("builds update patches with payment fields", () => {
@@ -1712,5 +1724,157 @@ describe("shared/orders/order-service.js", () => {
         global.orderModel = originalGlobalOrderModel;
         global.orderValidation = originalGlobalOrderValidation;
         global.orderQueries = originalGlobalOrderQueries;
+    });
+});
+
+// ============================================================================
+// Coverage gap-closers: resolver fallbacks, payment-required branch,
+// empty orderId guard, and the payment-not-confirmed completion guard.
+// ============================================================================
+
+describe("dependency resolvers", () => {
+    const orderService = require("../../../public/shared/orders/order-service.js");
+
+    test("passes the explicit option through when it implements every required method", () => {
+        const orderStatus = {
+            normalizeOrderStatus: () => "pending",
+            normalizeOrderActorRole: () => "customer"
+        };
+        expect(orderService.resolveOrderStatus(orderStatus)).toBe(orderStatus);
+
+        const paymentStatus = {
+            getDefaultPaymentStatus: () => "unpaid",
+            normalizePaymentStatus: () => "unpaid"
+        };
+        expect(orderService.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
+
+        const orderModel = {
+            createOrderRecordsFromCart: () => [],
+            normalizeOrderRecord: () => ({}),
+            createOrderTimelineEntry: () => ({})
+        };
+        expect(orderService.resolveOrderModel(orderModel)).toBe(orderModel);
+
+        const orderValidation = {
+            validateCreateOrderInput: () => ({ isValid: true }),
+            validateOrderStatusChange: () => ({ isValid: true })
+        };
+        expect(orderService.resolveOrderValidation(orderValidation)).toBe(orderValidation);
+
+        const orderQueries = {
+            fetchOrderById: () => null,
+            getOrderDocRef: () => null
+        };
+        expect(orderService.resolveOrderQueries(orderQueries)).toBe(orderQueries);
+    });
+
+    test("falls through to the real module when the explicit option is malformed", () => {
+        // A malformed dep (missing required methods) makes the resolver skip
+        // it and try globalScope, then require(). In Jest the require() path
+        // succeeds, so we get the real module back.
+        const result = orderService.resolveOrderStatus({ wrong: true });
+        expect(result).not.toBeNull();
+        expect(typeof result.normalizeOrderStatus).toBe("function");
+        expect(typeof result.normalizeOrderActorRole).toBe("function");
+    });
+});
+
+describe("orderStatusRequiresPaidPayment", () => {
+    const orderService = require("../../../public/shared/orders/order-service.js");
+
+    test("delegates to orderStatus.orderStatusRequiresPaidPayment when available", () => {
+        const requiresPaidSpy = jest.fn(() => true);
+        const fakeOrderStatus = {
+            // Resolver requires BOTH of these to pass-through
+            normalizeOrderStatus: (s) => String(s || "").toLowerCase().trim(),
+            normalizeOrderActorRole: () => "customer",
+            orderStatusRequiresPaidPayment: requiresPaidSpy
+        };
+        const result = orderService.orderStatusRequiresPaidPayment("preparing", {
+            orderStatus: fakeOrderStatus
+        });
+        expect(result).toBe(true);
+        expect(requiresPaidSpy).toHaveBeenCalledWith("preparing");
+    });
+
+    test("falls back to the inline whitelist when orderStatus lacks orderStatusRequiresPaidPayment", () => {
+        const fakeOrderStatus = {
+            normalizeOrderStatus: (s) => String(s || "").toLowerCase().trim(),
+            normalizeOrderActorRole: () => "customer"
+            // intentionally missing orderStatusRequiresPaidPayment
+        };
+        // "preparing" is in the inline list ["pending","accepted","preparing","ready"]
+        expect(orderService.orderStatusRequiresPaidPayment("preparing", {
+            orderStatus: fakeOrderStatus
+        })).toBe(true);
+        // "completed" is not in the list
+        expect(orderService.orderStatusRequiresPaidPayment("completed", {
+            orderStatus: fakeOrderStatus
+        })).toBe(false);
+    });
+});
+
+describe("buildOrderUpdatePatch edge cases", () => {
+    const orderService = require("../../../public/shared/orders/order-service.js");
+
+    test("drops orderId from the patch when it would resolve to empty string", () => {
+        const patch = orderService.buildOrderUpdatePatch({ orderId: "" });
+        expect(Object.prototype.hasOwnProperty.call(patch, "orderId")).toBe(false);
+    });
+
+    test("preserves orderId in the patch when provided", () => {
+        const patch = orderService.buildOrderUpdatePatch({ orderId: "order-99" });
+        expect(patch.orderId).toBe("order-99");
+    });
+});
+
+describe("buildCollectionConfirmationUpdate payment guard", () => {
+    const orderService = require("../../../public/shared/orders/order-service.js");
+    const orderStatus = require("../../../public/shared/orders/order-status.js");
+    const paymentStatus = require("../../../public/shared/payments/payment-status.js");
+    const orderModel = require("../../../public/shared/orders/order-model.js");
+    const orderValidation = require("../../../public/shared/orders/order-validation.js");
+
+    function makeReadyUnpaidOrder() {
+        // Build an order in 'ready' status with an *unpaid* payment so the
+        // payment guard blocks the transition to 'completed'.
+        return {
+            orderId: "order-unpaid",
+            customerUid: "customer-1",
+            customerName: "Tshepo",
+            customerEmail: "tshepo@example.com",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            items: [
+                { menuItemId: "burger", vendorUid: "vendor-1", vendorName: "Campus Bites", name: "Burger", price: 50, quantity: 1 }
+            ],
+            status: "ready",
+            paymentStatus: "unpaid",
+            customerConfirmedCollected: false,
+            vendorConfirmedCollected: false,
+            createdAt: "t-1",
+            updatedAt: "t-1",
+            timeline: []
+        };
+    }
+
+    test("blocks completion when an unpaid order is being collection-confirmed (line 1058 branch)", () => {
+        const result = orderService.buildCollectionConfirmationUpdate(
+            makeReadyUnpaidOrder(),
+            {
+                orderStatus,
+                paymentStatus,
+                orderModel,
+                orderValidation,
+                actorRole: "customer",
+                actorUid: "customer-1",
+                actorName: "Tshepo",
+                timestampValue: "t-2"
+            }
+        );
+        expect(result.success).toBe(false);
+        expect(result.error.code).toBe("orders/payment-not-confirmed");
+        expect(result.paymentGuard).toBeDefined();
+        expect(result.paymentGuard.blocked).toBe(true);
     });
 });

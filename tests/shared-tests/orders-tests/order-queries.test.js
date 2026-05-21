@@ -239,44 +239,32 @@ describe("shared/orders/order-queries.js", () => {
         expect(orderQueries.mapNotificationDocument(null)).toBeNull();
         expect(orderQueries.mapMenuItemDocument(null)).toBeNull();
 
-        expect(
-            orderQueries.mapOrderDocument(
-                createDocSnapshot("order-1", {
-                    customerUid: "customer-1",
-                    customerName: "Tshepo",
-                    customerEmail: "tshepo@example.com",
-                    vendorUid: "vendor-1",
-                    vendorName: "Campus Bites",
-                    items: [
-                        { id: "burger", vendorUid: "vendor-1", vendorName: "Campus Bites", name: "Burger", price: 50, quantity: 1 }
-                    ],
-                    status: "approved",
-                    createdAt: "t-1",
-                    updatedAt: "t-1"
-                }),
-                { orderModel, orderStatus }
-            )
-        ).toEqual({
+        const mappedOrder = orderQueries.mapOrderDocument(
+            createDocSnapshot("order-1", {
+                customerUid: "customer-1",
+                customerName: "Tshepo",
+                customerEmail: "tshepo@example.com",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                items: [
+                    { id: "burger", vendorUid: "vendor-1", vendorName: "Campus Bites", name: "Burger", price: 50, quantity: 1 }
+                ],
+                status: "approved",
+                createdAt: "t-1",
+                updatedAt: "t-1"
+            }),
+            { orderModel, orderStatus }
+        );
+
+        // Shape check — toMatchObject lets the order model add new computed
+        // fields (platform fees, vendor earnings) without breaking the test.
+        expect(mappedOrder).toMatchObject({
             orderId: "order-1",
             customerUid: "customer-1",
             customerName: "Tshepo",
             customerEmail: "tshepo@example.com",
             vendorUid: "vendor-1",
             vendorName: "Campus Bites",
-            items: [
-                {
-                    menuItemId: "burger",
-                    vendorUid: "vendor-1",
-                    vendorName: "Campus Bites",
-                    name: "Burger",
-                    category: "",
-                    price: 50,
-                    quantity: 1,
-                    subtotal: 50,
-                    photoURL: "",
-                    notes: ""
-                }
-            ],
             itemCount: 1,
             subtotal: 50,
             total: 50,
@@ -293,33 +281,62 @@ describe("shared/orders/order-queries.js", () => {
             paymentFailedAt: null,
             paymentVerifiedAt: null,
             paymentFailureReason: "",
-            timeline: [
-                {
-                    status: "accepted",
-                    label: "Accepted",
-                    actorRole: "customer",
-                    actorUid: "customer-1",
-                    actorName: "Tshepo",
-                    note: "",
-                    at: "t-1"
-                }
-            ],
             notes: "",
             customerConfirmedCollected: false,
             vendorConfirmedCollected: false,
             createdAt: "t-1",
             updatedAt: "t-1"
         });
+        // Items array shape (toMatchObject keys-only)
+        expect(mappedOrder.items[0]).toMatchObject({
+            menuItemId: "burger",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            name: "Burger",
+            category: "",
+            price: 50,
+            quantity: 1,
+            subtotal: 50,
+            photoURL: "",
+            notes: ""
+        });
+        // Timeline still uses an exact array shape — that's a focused
+        // assertion and the model isn't expected to add fields here.
+        expect(mappedOrder.timeline).toEqual([
+            {
+                status: "accepted",
+                label: "Accepted",
+                actorRole: "customer",
+                actorUid: "customer-1",
+                actorName: "Tshepo",
+                note: "",
+                at: "t-1"
+            }
+        ]);
+        // Finance fields produced by the model — verify they're present and
+        // mathematically consistent with the order total.
+        const platformFeeRate = mappedOrder.platformFeeRate;
+        expect(typeof platformFeeRate).toBe("number");
+        expect(platformFeeRate).toBeGreaterThanOrEqual(0);
+        expect(platformFeeRate).toBeLessThanOrEqual(1);
+        expect(mappedOrder.platformFee).toBeGreaterThanOrEqual(0);
+        expect(mappedOrder.vendorEarnings).toBeGreaterThanOrEqual(0);
+        // platformFee + vendorEarnings should equal the order total (within a cent)
+        const reconstructed = mappedOrder.platformFee + mappedOrder.vendorEarnings;
+        expect(Math.abs(reconstructed - mappedOrder.total)).toBeLessThan(0.02);
+        // Each item should also carry a matching finance breakdown
+        expect(mappedOrder.items[0].platformFee).toBeGreaterThanOrEqual(0);
+        expect(mappedOrder.items[0].vendorSubtotal).toBeGreaterThanOrEqual(0);
 
-        expect(
-            orderQueries.mapOrderDocument({
-                id: "raw-order-1",
-                data: () => ({
-                    status: "pending",
-                    customerUid: "customer-1"
-                })
-            }, {})
-        ).toEqual({
+        const rawMapped = orderQueries.mapOrderDocument({
+            id: "raw-order-1",
+            data: () => ({
+                status: "pending",
+                customerUid: "customer-1"
+            })
+        }, {});
+
+        expect(rawMapped).toMatchObject({
             orderId: "raw-order-1",
             customerUid: "customer-1",
             customerName: "",
@@ -343,23 +360,29 @@ describe("shared/orders/order-queries.js", () => {
             paymentFailedAt: null,
             paymentVerifiedAt: null,
             paymentFailureReason: "",
-            timeline: [
-                {
-                    status: "pending",
-                    label: "Order Received",
-                    actorRole: "customer",
-                    actorUid: "customer-1",
-                    actorName: "",
-                    note: "",
-                    at: null
-                }
-            ],
             notes: "",
             customerConfirmedCollected: false,
             vendorConfirmedCollected: false,
             createdAt: null,
             updatedAt: null
         });
+        expect(rawMapped.timeline).toEqual([
+            {
+                status: "pending",
+                label: "Order Received",
+                actorRole: "customer",
+                actorUid: "customer-1",
+                actorName: "",
+                note: "",
+                at: null
+            }
+        ]);
+        // Empty order: every finance field should still be a finite number
+        // (zeros are fine; NaN/undefined would surface a serialization bug).
+        expect(Number.isFinite(rawMapped.platformFee)).toBe(true);
+        expect(Number.isFinite(rawMapped.vendorEarnings)).toBe(true);
+        expect(rawMapped.platformFee).toBe(0);
+        expect(rawMapped.vendorEarnings).toBe(0);
 
         expect(
             orderQueries.mapNotificationDocument(
@@ -579,5 +602,38 @@ describe("shared/orders/order-queries.js", () => {
         expect(notifications).toHaveLength(1);
         expect(menuItems).toHaveLength(1);
         expect(firestoreFns.getDocs).toHaveBeenCalledTimes(4);
+    });
+});
+
+// ============================================================================
+// Coverage gap-closers: dependency-resolver fallback paths and helper edges.
+// ============================================================================
+
+describe("dependency resolvers + missing-dep fallbacks", () => {
+    test("resolveOrderModel returns the explicit option when valid", () => {
+        const stub = { normalizeOrderRecord: () => ({}) };
+        expect(orderQueries.resolveOrderModel(stub)).toBe(stub);
+    });
+
+    test("resolveOrderModel falls through to the required module when the explicit option is malformed", () => {
+        const result = orderQueries.resolveOrderModel({ wrong: true });
+        expect(result).not.toBeNull();
+        expect(typeof result.normalizeOrderRecord).toBe("function");
+    });
+
+    test("resolveOrderStatus passes the explicit option through when it has normalizeOrderStatus", () => {
+        const stub = { normalizeOrderStatus: () => "pending" };
+        expect(orderQueries.resolveOrderStatus(stub)).toBe(stub);
+    });
+
+    test("normalizeStatusFilters de-dupes, trims, and lowercases its input", () => {
+        // With the real orderStatus dependency loaded, the function still
+        // routes through orderStatus.normalizeOrderStatus, which produces the
+        // same canonical lowercase output.
+        const out = orderQueries.normalizeStatusFilters(["Pending", " PENDING ", "ready", ""]);
+        expect(out).toEqual(["pending", "ready"]);
+        expect(orderQueries.normalizeStatusFilters("Ready")).toEqual(["ready"]);
+        expect(orderQueries.normalizeStatusFilters(null)).toEqual([]);
+        expect(orderQueries.normalizeStatusFilters(undefined)).toEqual([]);
     });
 });
