@@ -19,7 +19,6 @@
             <a href="./users.html">Manage Users</a>
             <a href="./finance.html">Finance</a>
             <a href="./disputes.html">Support Inbox</a>
-            <a href="./ticket-detail.html">Ticket Detail</a>
             <a href="../authentication/profile.html">Profile</a>
             <a href="./analytics.html">View Analytics</a>
         </nav>
@@ -76,8 +75,6 @@
                 <li><button id="manage-users-button" class="button-primary" type="button">Manage Users</button></li>
                 <li><button id="review-disputes-button" class="button-secondary" type="button">Review Disputes</button>
                 </li>
-                <li><button id="admin-ticket-detail-link" class="button-secondary" type="button">Open Ticket
-                        Detail</button></li>
                 <li><button id="finance-button" class="button-secondary" type="button">Finance</button></li>
                 <li><button id="choose-portal-button" class="button-secondary" type="button">Choose Portal</button></li>
                 <li><button id="analytics-button" class="button-secondary" type="button">View Analytics</button></li>
@@ -159,45 +156,45 @@
         <p>Campus Food Ordering Platform © 2026</p>
     </footer>
 
-   <script src="../shared/finance/platform-pricing.js"></script>
-<script src="../authentication/auth-utils.js"></script>
-<script src="../authentication/auth-core.js"></script>
-<script src="./index.js"></script>
+    <script src="../shared/finance/platform-pricing.js"></script>
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./index.js"></script>
 
-<script type="module">
-    import { auth, db } from "../authentication/config.js";
-    import { authService } from "../authentication/auth.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-    import {
-        collection,
-        getDocs,
-        query,
-        orderBy,
-        limit
-    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+    <script type="module">
+        import { auth, db } from "../authentication/config.js";
+        import { authService } from "../authentication/auth.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            getDocs,
+            query,
+            orderBy,
+            limit
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-    window.auth = auth;
-    window.db = db;
-    window.authService = authService;
-    window.authFns = { onAuthStateChanged };
-    window.firestoreFns = {
-        collection,
-        getDocs,
-        query,
-        orderBy,
-        limit
-    };
+        window.auth = auth;
+        window.db = db;
+        window.authService = authService;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection,
+            getDocs,
+            query,
+            orderBy,
+            limit
+        };
 
-    window.adminHomePage.initializeAdminHomePage({
-        auth,
-        db,
-        authService,
-        authFns: window.authFns,
-        firestoreFns: window.firestoreFns,
-        authUtils: window.authUtils,
-        platformPricing: window.platformPricing
-    });
-</script>
+        window.adminHomePage.initializeAdminHomePage({
+            auth,
+            db,
+            authService,
+            authFns: window.authFns,
+            firestoreFns: window.firestoreFns,
+            authUtils: window.authUtils,
+            platformPricing: window.platformPricing
+        });
+    </script>
 
 </body>
 

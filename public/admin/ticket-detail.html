@@ -16,11 +16,9 @@
         <h1>Campus Food Ordering Platform</h1>
 
         <nav class="app-nav" aria-label="Admin ticket detail navigation">
-            <a href="./index.html">Dashboard</a>
-            <a href="./users.html">Manage Users</a>
-            <a href="./disputes.html">Support Inbox</a>
-            <a href="./ticket-detail.html" aria-current="page">Ticket Detail</a>
-            <a href="../authentication/profile.html">Profile</a>
+            <a href="./index.html">Back to Dashboard</a>
+            <a href="./disputes.html" class="button-secondary">Back to Support Inbox</a>
+
         </nav>
     </header>
 
@@ -35,10 +33,7 @@
 
             <p id="admin-ticket-status" aria-live="polite" aria-atomic="true"></p>
 
-            <menu class="action-menu" aria-label="Admin ticket detail actions">
-                <li><a href="./disputes.html" class="button-secondary">Back to Support Inbox</a></li>
-                <li><a href="./index.html" class="button-secondary">Back to Dashboard</a></li>
-            </menu>
+
         </section>
 
         <section id="admin-ticket-summary-section" class="shared-section admin-ticket-summary-section"
@@ -58,8 +53,7 @@
                 <p><strong>Replies:</strong> <output id="admin-ticket-replies-count">—</output></p>
             </section>
 
-            <p id="admin-ticket-resolution" class="admin-ticket-resolution"
-                aria-live="polite" hidden></p>
+            <p id="admin-ticket-resolution" class="admin-ticket-resolution" aria-live="polite" hidden></p>
 
             <section class="admin-ticket-description" aria-labelledby="admin-ticket-description-heading">
                 <h4 id="admin-ticket-description-heading">Reporter's message</h4>
@@ -91,8 +85,8 @@
                     <label for="admin-ticket-reply-body">Your message</label>
                 </p>
                 <p class="admin-ticket-reply-field-input">
-                    <textarea id="admin-ticket-reply-body" name="body" rows="5" maxlength="4000"
-                        required aria-describedby="admin-ticket-reply-error"
+                    <textarea id="admin-ticket-reply-body" name="body" rows="5" maxlength="4000" required
+                        aria-describedby="admin-ticket-reply-error"
                         placeholder="Respond to the reporter or add an internal note for other admins."></textarea>
                 </p>
 
@@ -106,7 +100,8 @@
                 <p id="admin-ticket-reply-error" class="admin-ticket-reply-error" aria-live="polite"></p>
 
                 <menu class="action-menu admin-ticket-reply-actions" aria-label="Reply actions">
-                    <li><button id="admin-ticket-reply-submit" type="submit" class="button-primary">Send Reply</button></li>
+                    <li><button id="admin-ticket-reply-submit" type="submit" class="button-primary">Send Reply</button>
+                    </li>
                 </menu>
             </form>
         </section>
@@ -140,7 +135,8 @@
                 <p id="admin-ticket-status-error" class="admin-ticket-status-error" aria-live="polite"></p>
 
                 <menu class="action-menu admin-ticket-status-actions" aria-label="Status actions">
-                    <li><button id="admin-ticket-status-submit" type="submit" class="button-primary">Apply Status Change</button></li>
+                    <li><button id="admin-ticket-status-submit" type="submit" class="button-primary">Apply Status
+                            Change</button></li>
                 </menu>
             </form>
         </section>
