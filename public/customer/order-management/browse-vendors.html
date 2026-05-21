@@ -31,8 +31,8 @@
             <h2 id="browse-vendors-heading">Browse Vendors</h2>
 
             <p>
-                Discover approved campus vendors, open a vendor menu, add items to your cart,
-                and continue to checkout when you are ready.
+                Discover approved campus vendors, see what they sell, where to find them on campus,
+                and open a menu to start ordering.
             </p>
 
             <p id="browse-vendors-status" aria-live="polite" aria-atomic="true"></p>
@@ -46,12 +46,77 @@
             </menu>
         </section>
 
+        <section class="vendors-filter-section shared-section" aria-labelledby="vendor-filters-heading">
+            <header class="vendors-filter-head">
+                <h3 id="vendor-filters-heading">Find a vendor</h3>
+                <p>
+                    Search by name, food type, or location. Filter by food category and choose how
+                    to sort the list.
+                </p>
+            </header>
+
+            <form id="vendors-filter-form" class="vendors-filter-form" novalidate>
+                <label class="vendor-filter-field vendor-filter-field-wide" for="vendor-search">
+                    <strong>Search vendors</strong>
+                    <input id="vendor-search" name="vendorSearch" type="search"
+                        placeholder="Search by shop name, food type, location, university...">
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-food-type-filter">
+                    <strong>Food type</strong>
+                    <select id="vendor-food-type-filter" name="foodTypeFilter">
+                        <option value="all">All food types</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-sort">
+                    <strong>Sort by</strong>
+                    <select id="vendor-sort" name="vendorSort">
+                        <option value="name">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="rating">Highest rated</option>
+                        <option value="orders">Most popular</option>
+                        <option value="newest">Newest first</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-page-size">
+                    <strong>Per page</strong>
+                    <select id="vendor-page-size" name="vendorPageSize">
+                        <option value="5">5 per page</option>
+                        <option value="10" selected>10 per page</option>
+                        <option value="20">20 per page</option>
+                        <option value="50">50 per page</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field vendor-filter-toggle" for="vendor-accepting-only">
+                    <input id="vendor-accepting-only" name="acceptingOnly" type="checkbox">
+                    <strong>Show only vendors accepting orders</strong>
+                </label>
+
+                <menu class="action-menu vendor-filter-actions" aria-label="Filter actions">
+                    <li><button id="clear-vendor-filters" class="button-secondary" type="button">Reset filters</button>
+                    </li>
+                </menu>
+            </form>
+
+            <p id="vendors-results-meta" class="vendors-results-meta" aria-live="polite">Showing 0 vendors</p>
+        </section>
+
         <section class="vendors-section shared-section" aria-labelledby="available-vendors-heading">
-            <h3 id="available-vendors-heading">Available Vendors</h3>
+            <header class="vendors-section-head">
+                <h3 id="available-vendors-heading">Available Vendors</h3>
+                <p>
+                    Tap <strong>View Menu</strong> on any vendor to see what they have today.
+                </p>
+            </header>
 
             <section id="vendors-container" class="vendors-grid" aria-live="polite">
                 <p class="loading-message">Loading vendors...</p>
             </section>
+
+            <nav id="vendors-pagination" class="vendors-pagination" aria-label="Vendor list pagination" hidden></nav>
         </section>
 
         <section class="help-section shared-section" aria-labelledby="help-heading">

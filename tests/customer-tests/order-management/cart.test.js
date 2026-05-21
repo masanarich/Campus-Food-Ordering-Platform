@@ -3,6 +3,8 @@
  */
 
 const customerCart = require("../../../public/customer/order-management/cart.js");
+const fs = require("fs");
+const path = require("path");
 
 function createCartItem(overrides = {}) {
     const requestedPrice = Number.isFinite(Number(overrides.price)) ? Number(overrides.price) : 55;
@@ -31,6 +33,8 @@ function createCartItem(overrides = {}) {
         customerPrice: requestedCustomerPrice,
         price: requestedCustomerPrice,
         quantity: 2,
+        dietary: ["halal"],
+        allergens: ["gluten"],
         photoURL: "",
         notes: "",
         ...overrides
@@ -79,6 +83,16 @@ describe("customer/order-management/cart.js - data helpers", () => {
 
     test("getCart returns an empty array when storage is empty", () => {
         expect(customerCart.getCart()).toEqual([]);
+    });
+
+    test("tag helpers normalize unique labels and format display text", () => {
+        expect(customerCart.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(customerCart.formatTag("gluten free")).toBe("Gluten-free");
+        expect(customerCart.formatTagList(["halal", "gluten free"])).toBe("Halal, Gluten-free");
+        expect(customerCart.formatTagList([])).toBe("None listed");
     });
 
     test("getStorageArea prefers the test storage override", () => {
@@ -131,7 +145,22 @@ describe("customer/order-management/cart.js - data helpers", () => {
         expect(item.platformFee).toBe(0);
         expect(item.customerPrice).toBe(0);
         expect(item.quantity).toBe(1);
+        expect(item.dietary).toEqual([]);
+        expect(item.allergens).toEqual([]);
         expect(item.itemKey).toBe("vendor-5::item-4");
+    });
+
+    test("normalizeCartItem preserves dietary and allergen aliases for checkout history", () => {
+        const item = customerCart.normalizeCartItem({
+            menuItemId: "tagged-item",
+            vendorUid: "vendor-1",
+            dietaryTags: [" Halal ", "gluten free", "halal"],
+            allergenTags: "Nuts, dairy, nuts",
+            price: 50
+        });
+
+        expect(item.dietary).toEqual(["halal", "gluten free"]);
+        expect(item.allergens).toEqual(["nuts", "dairy"]);
     });
 
     test("normalizeCartItem adds the 10% fee for older cart items with only vendor price", () => {
@@ -227,6 +256,8 @@ describe("customer/order-management/cart.js - data helpers", () => {
 
         expect(updatedCart[0].quantity).toBe(1);
         expect(updatedCart[1].quantity).toBe(7);
+        expect(updatedCart[1].dietary).toEqual(["halal"]);
+        expect(updatedCart[1].allergens).toEqual(["gluten"]);
     });
 
     test("removeItemFromCart removes the matching line", () => {
@@ -256,12 +287,31 @@ describe("customer/order-management/cart.js - rendering", () => {
 
     test("renderCart shows vendor groups and item cards", () => {
         customerCart.renderCart([
-            createCartItem({ menuItemId: "item-1", vendorUid: "vendor-1", vendorName: "Campus Bites" }),
+            createCartItem({
+                menuItemId: "item-1",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                dietary: ["halal", "gluten free"],
+                allergens: ["nuts"]
+            }),
             createCartItem({ menuItemId: "item-2", vendorUid: "vendor-2", vendorName: "Fresh Drinks" })
         ], dom.container);
 
         expect(dom.container.querySelectorAll(".cart-vendor-group")).toHaveLength(2);
         expect(dom.container.querySelectorAll(".cart-item-card")).toHaveLength(2);
+        expect(dom.container.querySelector(".cart-item-dietary").textContent).toContain("Halal, Gluten-free");
+        expect(dom.container.querySelector(".cart-item-allergens").textContent).toContain("Nuts");
+        expect(dom.container.querySelectorAll("span")).toHaveLength(0);
+    });
+
+    test("createCartItemArticle omits tag lines when no tag data exists", () => {
+        const article = customerCart.createCartItemArticle(createCartItem({
+            dietary: [],
+            allergens: []
+        }));
+
+        expect(article.querySelector(".cart-item-dietary")).toBeNull();
+        expect(article.querySelector(".cart-item-allergens")).toBeNull();
     });
 
     test("renderCartSummary renders summary text", () => {
@@ -586,5 +636,20 @@ describe("customer/order-management/cart.js - interactions and init", () => {
 
         expect(dom.checkoutLink.dataset.boundCheckoutGuard).toBe("true");
         expect(dom.statusElement.textContent).toContain("Pick a vendor first");
+    });
+});
+
+describe("customer/order-management/cart.js - semantic source audit", () => {
+    test("touched cart public files avoid div and span semantics", () => {
+        const files = [
+            "public/customer/order-management/cart.html",
+            "public/customer/order-management/cart.js"
+        ];
+
+        files.forEach((relativePath) => {
+            const source = fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
+            expect(source).not.toMatch(/<\/?(div|span)\b/i);
+            expect(source).not.toMatch(/createElement\(["'](div|span)["']\)/i);
+        });
     });
 });

@@ -3,6 +3,8 @@
  */
 
 const customerCheckout = require("../../../public/customer/order-management/checkout.js");
+const fs = require("fs");
+const path = require("path");
 
 function createCartItem(overrides = {}) {
     const requestedPrice = Number.isFinite(Number(overrides.price)) ? Number(overrides.price) : 55;
@@ -31,6 +33,8 @@ function createCartItem(overrides = {}) {
         customerPrice: requestedCustomerPrice,
         price: requestedCustomerPrice,
         quantity: 2,
+        dietary: ["halal"],
+        allergens: ["gluten"],
         photoURL: "",
         notes: "",
         ...overrides
@@ -176,6 +180,27 @@ describe("customer/order-management/checkout.js - helpers", () => {
         expect(newerItem.platformFee).toBe(10);
         expect(newerItem.customerPrice).toBe(110);
         expect(newerItem.price).toBe(110);
+        expect(newerItem.dietary).toEqual(["halal"]);
+        expect(newerItem.allergens).toEqual(["gluten"]);
+    });
+
+    test("tag helpers normalize aliases and format checkout display text", () => {
+        const taggedItem = customerCheckout.normalizeCartItem({
+            menuItemId: "tagged-item",
+            vendorUid: "vendor-1",
+            dietaryTags: "Halal, gluten free, halal",
+            allergenTags: [" Nuts ", "dairy", "nuts"],
+            price: 50
+        });
+
+        expect(customerCheckout.normalizeTagList("Halal, gluten free, halal")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(customerCheckout.formatTag("gluten free")).toBe("Gluten-free");
+        expect(customerCheckout.formatTagList(["halal", "gluten free"])).toBe("Halal, Gluten-free");
+        expect(taggedItem.dietary).toEqual(["halal", "gluten free"]);
+        expect(taggedItem.allergens).toEqual(["nuts", "dairy"]);
     });
 
     test("buildCustomerSnapshot maps the authenticated user", () => {
@@ -319,7 +344,23 @@ describe("customer/order-management/checkout.js - helpers", () => {
         expect(article.textContent).toContain("Quantity: 3");
         expect(article.textContent).toContain("Customer Price: R15.00");
         expect(article.textContent).toContain("platform fee");
+        expect(article.textContent).toContain("Dietary info:");
+        expect(article.textContent).toContain("Halal");
+        expect(article.textContent).toContain("Allergen info:");
+        expect(article.textContent).toContain("Gluten");
         expect(article.textContent).toContain("Line Total: R45.00");
+        expect(article.querySelector(".checkout-item-dietary .checkout-item-value").tagName).toBe("OUTPUT");
+        expect(article.querySelectorAll("span")).toHaveLength(0);
+    });
+
+    test("createCheckoutItemArticle omits tag lines when no tag data exists", () => {
+        const article = customerCheckout.createCheckoutItemArticle(createCartItem({
+            dietary: [],
+            allergens: []
+        }));
+
+        expect(article.querySelector(".checkout-item-dietary")).toBeNull();
+        expect(article.querySelector(".checkout-item-allergens")).toBeNull();
     });
 
     test("builds payment order details and resolves payment callables", () => {
@@ -395,11 +436,20 @@ describe("customer/order-management/checkout.js - rendering", () => {
 
     test("renderCheckoutItems shows checkout item cards", () => {
         customerCheckout.renderCheckoutItems([
-            createCartItem({ menuItemId: "item-1", vendorUid: "vendor-1" }),
+            createCartItem({
+                menuItemId: "item-1",
+                vendorUid: "vendor-1",
+                dietary: ["halal", "gluten free"],
+                allergens: ["nuts"]
+            }),
             createCartItem({ menuItemId: "item-2", vendorUid: "vendor-1" })
         ], dom.container);
 
         expect(dom.container.querySelectorAll(".checkout-item-card")).toHaveLength(2);
+        expect(dom.container.querySelector(".checkout-item-dietary").textContent)
+            .toContain("Halal, Gluten-free");
+        expect(dom.container.querySelector(".checkout-item-allergens").textContent)
+            .toContain("Nuts");
     });
 
     test("renderCheckoutSummary shows vendor, items, and total", () => {
@@ -772,6 +822,8 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(result.orders[0].vendorEarnings).toBeCloseTo(18.18);
         expect(result.orders[0].platformFee).toBeCloseTo(1.82);
         expect(result.orders[0].platformEarnings).toBeCloseTo(1.82);
+        expect(result.orders[0].items[0].dietary).toEqual(["halal"]);
+        expect(result.orders[0].items[0].allergens).toEqual(["gluten"]);
     });
 
     test("initializeOrderPayment calls the cloud function, patches the order, and navigates to Paystack", async () => {
@@ -1283,5 +1335,20 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(firstResult).toEqual(secondResult);
         expect(firstResult.success).toBe(true);
         expect(dom.backButtonHost.querySelectorAll(".checkout-back-button")).toHaveLength(1);
+    });
+});
+
+describe("customer/order-management/checkout.js - semantic source audit", () => {
+    test("touched checkout public files avoid div and span semantics", () => {
+        const files = [
+            "public/customer/order-management/checkout.html",
+            "public/customer/order-management/checkout.js"
+        ];
+
+        files.forEach((relativePath) => {
+            const source = fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
+            expect(source).not.toMatch(/<\/?(div|span)\b/i);
+            expect(source).not.toMatch(/createElement\(["'](div|span)["']\)/i);
+        });
     });
 });
