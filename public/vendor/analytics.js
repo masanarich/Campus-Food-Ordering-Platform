@@ -1478,6 +1478,71 @@
     // Exports
     // ------------------------------------------------------------------------
 
+    // Test-only handle for exercising DOM-coupled code paths in jsdom.
+    // Not part of the public API surface — prefixed with __ to signal intent.
+    const __internals = {
+        setAllOrders(orders) { allOrders = Array.isArray(orders) ? orders.slice() : []; },
+        setFilteredOrders(orders) { filteredOrders = Array.isArray(orders) ? orders.slice() : []; },
+        setEventListenersAttached(v) { eventListenersAttached = Boolean(v); },
+        setInitInFlight(v) { initInFlight = v; },
+        getAllOrders() { return allOrders.slice(); },
+        getFilteredOrders() { return filteredOrders.slice(); },
+        getItemsState() { return itemsState; },
+        getBottomItemsState() { return bottomItemsState; },
+        getCustomersState() { return customersState; },
+        getAnalyticsCharts() { return analyticsCharts; },
+        resetState() {
+            allOrders = [];
+            filteredOrders = [];
+            previousPeriodOrders = [];
+            analyticsCharts = {};
+            eventListenersAttached = false;
+            initInFlight = null;
+            Object.assign(itemsState, { search: "", sort: "quantity", dir: "desc", page: 1, size: 10 });
+            Object.assign(bottomItemsState, { search: "", sort: "quantity", dir: "asc", page: 1, size: 10 });
+            Object.assign(customersState, { search: "", sort: "totalSpent", dir: "desc", page: 1, size: 10 });
+        },
+        updateStatusMessage,
+        escapeHtml,
+        setText,
+        updateMetrics,
+        createChart,
+        createPeakHoursChart,
+        createTopItemsChart,
+        createRevenueTrendChart,
+        createStatusDistributionChart,
+        createCategoryChart,
+        createWeeklyChart,
+        renderItemRow,
+        renderTopItemsTable,
+        renderBottomItemsTable,
+        renderCustomerInsightsTable,
+        updatePaginationOutputs,
+        renderHeatmap,
+        renderComparisonPanel,
+        renderComparisonCard,
+        renderInsights,
+        exportToCSV,
+        buildExportTables,
+        exportToExcel,
+        exportToPDF,
+        drawPdfTable,
+        fetchVendorOrders,
+        initializeAnalyticsDashboard,
+        applyDateFilter,
+        renderEverything,
+        applyTimeWindowChip,
+        attachEventListeners,
+        attachTableControls,
+        attachSectionSwitchers,
+        waitForFirebaseDependencies,
+        initializePage,
+        resolveFirestore,
+        resolveAuth,
+        resolveAuthFns,
+        resolveFirestoreFns
+    };
+
     const publicApi = {
         // pure helpers
         normalizeText,
@@ -1502,7 +1567,8 @@
         sortItems,
         sortCustomers,
         paginate,
-        generateInsights
+        generateInsights,
+        __internals
     };
 
     if (typeof globalScope !== "undefined") {

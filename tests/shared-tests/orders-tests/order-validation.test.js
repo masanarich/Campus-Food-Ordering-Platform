@@ -14,6 +14,8 @@ describe("shared/orders/order-validation.js", () => {
         expect(orderValidation.normalizeUpperText("  zar  ")).toBe("ZAR");
         expect(orderValidation.isValidEmail("user@example.com")).toBe(true);
         expect(orderValidation.isValidEmail("bad-email")).toBe(false);
+        expect(orderValidation.getRawItemPrice({ customerPrice: "55" })).toBe("55");
+        expect(orderValidation.getRawItemPrice({ vendorPrice: "50" })).toBe("50");
     });
 
     test("resolves shared dependencies from global scope and require fallback", () => {
@@ -185,12 +187,44 @@ describe("shared/orders/order-validation.js", () => {
                 vendorName: "Campus Bites",
                 name: "Burger",
                 category: "",
+                vendorPrice: 45.45,
+                basePrice: 45.45,
+                platformFeeRate: 0.1,
+                platformFee: 4.55,
+                customerPrice: 50,
                 price: 50,
                 quantity: 2,
+                vendorSubtotal: 90.9,
+                lineVendorSubtotal: 90.9,
+                platformFeeTotal: 9.1,
+                linePlatformFee: 9.1,
                 subtotal: 100,
+                lineTotal: 100,
+                lineCustomerTotal: 100,
                 photoURL: "",
                 notes: ""
             }
+        });
+
+        expect(
+            orderValidation.validateOrderItem({
+                id: "vendor-meal",
+                vendorUid: "vendor-1",
+                name: "Vendor Meal",
+                vendorPrice: 100,
+                quantity: 1
+            }, { orderModel, requireVendorDetails: true })
+        ).toEqual({
+            isValid: true,
+            errors: {},
+            value: expect.objectContaining({
+                vendorPrice: 100,
+                platformFee: 10,
+                customerPrice: 110,
+                price: 110,
+                subtotal: 110,
+                lineTotal: 110
+            })
         });
 
         expect(
@@ -212,9 +246,20 @@ describe("shared/orders/order-validation.js", () => {
                 vendorName: "",
                 name: "",
                 category: "",
+                vendorPrice: 0,
+                basePrice: 0,
+                platformFeeRate: 0.1,
+                platformFee: 0,
+                customerPrice: 0,
                 price: 0,
                 quantity: 1,
+                vendorSubtotal: 0,
+                lineVendorSubtotal: 0,
+                platformFeeTotal: 0,
+                linePlatformFee: 0,
                 subtotal: 0,
+                lineTotal: 0,
+                lineCustomerTotal: 0,
                 photoURL: "",
                 notes: ""
             }
@@ -338,7 +383,14 @@ describe("shared/orders/order-validation.js", () => {
             value: {
                 subtotal: 100,
                 total: 110,
-                expectedSubtotal: 100
+                expectedSubtotal: 100,
+                vendorSubtotal: 90.9,
+                vendorEarnings: 90.9,
+                platformFee: 9.1,
+                platformEarnings: 9.1,
+                customerTotal: 110,
+                expectedVendorSubtotal: 90.9,
+                expectedPlatformFee: 9.1
             }
         });
 
@@ -355,12 +407,20 @@ describe("shared/orders/order-validation.js", () => {
             isValid: false,
             errors: {
                 subtotal: "Order subtotal must match the sum of its items (100).",
-                total: "Order total cannot be less than subtotal."
+                total: "Order total cannot be less than subtotal.",
+                customerTotal: "Customer total must match the order total."
             },
             value: {
                 subtotal: 99,
                 total: 90,
-                expectedSubtotal: 100
+                expectedSubtotal: 100,
+                vendorSubtotal: 90.9,
+                vendorEarnings: 90.9,
+                platformFee: 9.1,
+                platformEarnings: 9.1,
+                customerTotal: 110,
+                expectedVendorSubtotal: 90.9,
+                expectedPlatformFee: 9.1
             }
         });
     });

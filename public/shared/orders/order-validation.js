@@ -169,6 +169,36 @@
         return normalizedValue.includes("@") && normalizedValue.includes(".");
     }
 
+    function hasOwnField(source, fieldName) {
+        return source && Object.prototype.hasOwnProperty.call(source, fieldName);
+    }
+
+    function getRawItemPrice(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
+
+        if (hasOwnField(safeItem, "price")) {
+            return safeItem.price;
+        }
+
+        if (hasOwnField(safeItem, "customerPrice")) {
+            return safeItem.customerPrice;
+        }
+
+        if (hasOwnField(safeItem, "unitPrice")) {
+            return safeItem.unitPrice;
+        }
+
+        if (hasOwnField(safeItem, "vendorPrice")) {
+            return safeItem.vendorPrice;
+        }
+
+        if (hasOwnField(safeItem, "basePrice")) {
+            return safeItem.basePrice;
+        }
+
+        return undefined;
+    }
+
     function validateCustomerSnapshot(customerSnapshot, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const orderModel = resolveOrderModel(safeOptions.orderModel);
@@ -242,6 +272,7 @@
             };
         const errors = {};
         const rawQuantity = safeItem.quantity !== undefined ? safeItem.quantity : safeItem.qty;
+        const rawPrice = getRawItemPrice(safeItem);
 
         if (!value.menuItemId && !value.name) {
             setError(errors, "menuItemId", "Each order item needs a menu item ID or item name.");
@@ -251,11 +282,16 @@
             setError(errors, "name", "Each order item needs a name.");
         }
 
-        if (safeItem.price === undefined && safeItem.unitPrice === undefined) {
+        if (rawPrice === undefined || rawPrice === null || normalizeText(String(rawPrice)) === "") {
             setError(errors, "price", "Each order item needs a price.");
+        } else if (!Number.isFinite(Number.parseFloat(rawPrice)) || Number.parseFloat(rawPrice) < 0) {
+            setError(errors, "price", "Each order item price must be a valid non-negative amount.");
         }
 
-        if (rawQuantity !== undefined && Number.parseInt(rawQuantity, 10) <= 0) {
+        if (
+            rawQuantity !== undefined &&
+            (!Number.isFinite(Number.parseInt(rawQuantity, 10)) || Number.parseInt(rawQuantity, 10) <= 0)
+        ) {
             setError(errors, "quantity", "Each order item quantity must be at least 1.");
         }
 
@@ -349,6 +385,23 @@
         const expectedSubtotal = orderModel
             ? orderModel.calculateOrderSubtotal(normalizedRecord.items)
             : 0;
+        const expectedVendorSubtotal = orderModel &&
+            typeof orderModel.calculateOrderVendorSubtotal === "function"
+            ? orderModel.calculateOrderVendorSubtotal(normalizedRecord.items)
+            : Number(normalizedRecord.vendorSubtotal || normalizedRecord.vendorEarnings || 0);
+        const expectedPlatformFee = orderModel &&
+            typeof orderModel.calculateOrderPlatformFee === "function"
+            ? orderModel.calculateOrderPlatformFee(normalizedRecord.items)
+            : Number(normalizedRecord.platformFee || normalizedRecord.platformEarnings || 0);
+        const vendorSubtotal = Number(normalizedRecord.vendorSubtotal || 0);
+        const vendorEarnings = Number(normalizedRecord.vendorEarnings || vendorSubtotal);
+        const platformFee = Number(normalizedRecord.platformFee || 0);
+        const platformEarnings = Number(normalizedRecord.platformEarnings || platformFee);
+        const customerTotal = Number(
+            normalizedRecord.customerTotal !== undefined
+                ? normalizedRecord.customerTotal
+                : normalizedRecord.total
+        );
 
         if (normalizedRecord.subtotal !== expectedSubtotal) {
             setError(
@@ -362,11 +415,53 @@
             setError(errors, "total", "Order total cannot be less than subtotal.");
         }
 
+        if (vendorSubtotal !== expectedVendorSubtotal) {
+            setError(
+                errors,
+                "vendorSubtotal",
+                `Vendor subtotal must match the vendor share of its items (${expectedVendorSubtotal}).`
+            );
+        }
+
+        if (vendorEarnings !== vendorSubtotal) {
+            setError(errors, "vendorEarnings", "Vendor earnings must match the vendor subtotal.");
+        }
+
+        if (platformFee !== expectedPlatformFee) {
+            setError(
+                errors,
+                "platformFee",
+                `Platform fee must match the platform share of its items (${expectedPlatformFee}).`
+            );
+        }
+
+        if (platformEarnings !== platformFee) {
+            setError(errors, "platformEarnings", "Platform earnings must match the platform fee.");
+        }
+
+        if (customerTotal !== Number(normalizedRecord.total)) {
+            setError(errors, "customerTotal", "Customer total must match the order total.");
+        }
+
+        if (
+            Number(normalizedRecord.total) === expectedSubtotal &&
+            Number((vendorSubtotal + platformFee).toFixed(2)) !== customerTotal
+        ) {
+            setError(errors, "financeTotal", "Vendor subtotal plus platform fee must match the customer total.");
+        }
+
         return createValidationResult(errors, {
             value: {
                 subtotal: normalizedRecord.subtotal,
                 total: normalizedRecord.total,
-                expectedSubtotal
+                expectedSubtotal,
+                vendorSubtotal,
+                vendorEarnings,
+                platformFee,
+                platformEarnings,
+                customerTotal,
+                expectedVendorSubtotal,
+                expectedPlatformFee
             }
         });
     }
@@ -607,6 +702,8 @@
         setError,
         mergeErrors,
         isValidEmail,
+        hasOwnField,
+        getRawItemPrice,
         validateCustomerSnapshot,
         validateVendorSnapshot,
         validateOrderItem,
