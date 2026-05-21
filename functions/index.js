@@ -7,6 +7,8 @@ const refundPaymentService = require("./payments/refund-payment.js");
 const DEFAULT_REGION = "africa-south1";
 const CHECKOUTS_COLLECTION = "checkoutSessions";
 const ORDERS_COLLECTION = "orders";
+const DEFAULT_PLATFORM_FEE_RATE = 0.1;
+const FINANCE_MODEL = "vendor-price-plus-platform-fee";
 
 function optionalRequire(moduleName) {
     try {
@@ -141,10 +143,35 @@ function normalizeNumber(value, fallbackValue = 0) {
     return Number.isFinite(parsed) ? parsed : fallbackValue;
 }
 
+function normalizeCurrencyAmount(value, fallbackValue = 0) {
+    return Math.max(0, Math.round((normalizeNumber(value, fallbackValue) + Number.EPSILON) * 100) / 100);
+}
+
+function normalizePlatformFeeRate(value, fallbackValue = DEFAULT_PLATFORM_FEE_RATE) {
+    const parsed = Number.parseFloat(value);
+    const fallbackParsed = Number.parseFloat(fallbackValue);
+
+    if (Number.isFinite(parsed) && parsed >= 0) {
+        return parsed > 1 ? Number((parsed / 100).toFixed(4)) : Number(parsed.toFixed(4));
+    }
+
+    if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+        return fallbackParsed > 1
+            ? Number((fallbackParsed / 100).toFixed(4))
+            : Number(fallbackParsed.toFixed(4));
+    }
+
+    return DEFAULT_PLATFORM_FEE_RATE;
+}
+
 function normalizePositiveInteger(value, fallbackValue = 0) {
     const parsed = Number.parseInt(value, 10);
 
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackValue;
+}
+
+function hasOwnField(source, fieldName) {
+    return source && Object.prototype.hasOwnProperty.call(source, fieldName);
 }
 
 function resolveOrderId(value, fallbackValue) {
@@ -233,28 +260,109 @@ function buildCheckoutConversionPatch(orderId, options = {}) {
     };
 }
 
+function getCheckoutCustomerPrice(item) {
+    const safeItem = item && typeof item === "object" ? item : {};
+
+    if (hasOwnField(safeItem, "price")) {
+        return safeItem.price;
+    }
+
+    if (hasOwnField(safeItem, "customerPrice")) {
+        return safeItem.customerPrice;
+    }
+
+    if (hasOwnField(safeItem, "unitPrice")) {
+        return safeItem.unitPrice;
+    }
+
+    return undefined;
+}
+
+function calculateCheckoutItemPricing(itemValues = {}, options = {}) {
+    const safeItem = itemValues && typeof itemValues === "object" ? itemValues : {};
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const platformFeeRate = normalizePlatformFeeRate(
+        safeItem.platformFeeRate !== undefined
+            ? safeItem.platformFeeRate
+            : safeOptions.platformFeeRate
+    );
+    const hasVendorPrice = hasOwnField(safeItem, "vendorPrice") || hasOwnField(safeItem, "basePrice");
+    const hasPlatformFee = hasOwnField(safeItem, "platformFee");
+    const rawCustomerPrice = getCheckoutCustomerPrice(safeItem);
+    const hasCustomerPrice = rawCustomerPrice !== undefined && rawCustomerPrice !== null;
+    let vendorPrice;
+
+    if (hasOwnField(safeItem, "vendorPrice")) {
+        vendorPrice = normalizeCurrencyAmount(safeItem.vendorPrice);
+    } else if (hasOwnField(safeItem, "basePrice")) {
+        vendorPrice = normalizeCurrencyAmount(safeItem.basePrice);
+    } else if (hasCustomerPrice && hasPlatformFee) {
+        vendorPrice = normalizeCurrencyAmount(
+            normalizeCurrencyAmount(rawCustomerPrice) - normalizeCurrencyAmount(safeItem.platformFee)
+        );
+    } else if (hasCustomerPrice) {
+        vendorPrice = normalizeCurrencyAmount(normalizeCurrencyAmount(rawCustomerPrice) / (1 + platformFeeRate));
+    } else {
+        vendorPrice = 0;
+    }
+
+    const platformFee = hasPlatformFee
+        ? normalizeCurrencyAmount(safeItem.platformFee)
+        : hasCustomerPrice
+            ? normalizeCurrencyAmount(normalizeCurrencyAmount(rawCustomerPrice) - vendorPrice)
+            : hasVendorPrice
+                ? normalizeCurrencyAmount(vendorPrice * platformFeeRate)
+                : 0;
+    const customerPrice = hasCustomerPrice
+        ? normalizeCurrencyAmount(rawCustomerPrice)
+        : normalizeCurrencyAmount(vendorPrice + platformFee);
+
+    return {
+        vendorPrice,
+        basePrice: vendorPrice,
+        platformFeeRate,
+        platformFee,
+        customerPrice,
+        price: customerPrice
+    };
+}
+
 function normalizeCheckoutItem(item) {
     const safeItem = item && typeof item === "object" ? item : {};
     const quantity = normalizePositiveInteger(safeItem.quantity, 1) || 1;
-    const price = normalizeNumber(
-        safeItem.price !== undefined ? safeItem.price : safeItem.unitPrice,
-        0
+    const pricing = calculateCheckoutItemPricing(safeItem);
+    const vendorSubtotal = normalizeCurrencyAmount(pricing.vendorPrice * quantity);
+    const platformFeeTotal = normalizeCurrencyAmount(pricing.platformFee * quantity);
+    const lineTotal = normalizeCurrencyAmount(
+        safeItem.lineTotal !== undefined
+            ? safeItem.lineTotal
+            : safeItem.total !== undefined
+                ? safeItem.total
+                : pricing.price * quantity
     );
-    const lineTotal = normalizeNumber(
-        safeItem.lineTotal !== undefined ? safeItem.lineTotal : safeItem.total,
-        price * quantity
-    );
+    const itemId = normalizeText(safeItem.itemId || safeItem.menuItemId || safeItem.id);
 
     return {
         ...safeItem,
-        itemId: normalizeText(safeItem.itemId || safeItem.menuItemId || safeItem.id),
+        itemId,
+        menuItemId: normalizeText(safeItem.menuItemId || itemId),
         name: normalizeText(safeItem.name || safeItem.itemName || safeItem.title),
         vendorUid: normalizeText(safeItem.vendorUid),
         vendorName: normalizeText(safeItem.vendorName),
         quantity,
-        price,
-        unitPrice: normalizeNumber(safeItem.unitPrice, price),
-        lineTotal
+        vendorPrice: pricing.vendorPrice,
+        basePrice: pricing.basePrice,
+        platformFeeRate: pricing.platformFeeRate,
+        platformFee: pricing.platformFee,
+        customerPrice: pricing.customerPrice,
+        price: pricing.price,
+        unitPrice: normalizeCurrencyAmount(safeItem.unitPrice, pricing.price),
+        vendorSubtotal,
+        lineVendorSubtotal: vendorSubtotal,
+        platformFeeTotal,
+        linePlatformFee: platformFeeTotal,
+        lineTotal,
+        lineCustomerTotal: lineTotal
     };
 }
 
@@ -264,7 +372,19 @@ function normalizeCheckoutItems(items) {
 
 function calculateCheckoutSubtotal(items) {
     return normalizeCheckoutItems(items).reduce(function sumItems(total, item) {
-        return total + normalizeNumber(item.lineTotal, item.price * item.quantity);
+        return normalizeCurrencyAmount(total + normalizeNumber(item.lineTotal, item.price * item.quantity));
+    }, 0);
+}
+
+function calculateCheckoutVendorSubtotal(items) {
+    return normalizeCheckoutItems(items).reduce(function sumVendor(total, item) {
+        return normalizeCurrencyAmount(total + item.vendorSubtotal);
+    }, 0);
+}
+
+function calculateCheckoutPlatformFee(items) {
+    return normalizeCheckoutItems(items).reduce(function sumPlatform(total, item) {
+        return normalizeCurrencyAmount(total + item.platformFeeTotal);
     }, 0);
 }
 
@@ -284,6 +404,29 @@ function buildOrderFromCheckoutSession(checkoutRecord, options = {}) {
         checkout.total !== undefined ? checkout.total : checkout.totalAmount,
         subtotal
     );
+    const calculatedVendorSubtotal = calculateCheckoutVendorSubtotal(items);
+    const calculatedPlatformFee = calculateCheckoutPlatformFee(items);
+    const vendorSubtotal = normalizeCurrencyAmount(
+        checkout.vendorSubtotal !== undefined
+            ? checkout.vendorSubtotal
+            : checkout.vendorEarnings !== undefined
+                ? checkout.vendorEarnings
+                : calculatedVendorSubtotal,
+        calculatedVendorSubtotal
+    );
+    const platformFee = normalizeCurrencyAmount(
+        checkout.platformFee !== undefined
+            ? checkout.platformFee
+            : checkout.platformEarnings !== undefined
+                ? checkout.platformEarnings
+                : calculatedPlatformFee,
+        calculatedPlatformFee
+    );
+    const platformFeeRate = normalizePlatformFeeRate(
+        checkout.platformFeeRate,
+        items[0] ? items[0].platformFeeRate : DEFAULT_PLATFORM_FEE_RATE
+    );
+    const customerTotal = normalizeCurrencyAmount(checkout.customerTotal, total);
     const paymentAmount = normalizeNumber(checkout.paymentAmount, total);
     const paymentAmountInMinorUnits = normalizePositiveInteger(
         checkout.paymentAmountInMinorUnits !== undefined
@@ -305,6 +448,13 @@ function buildOrderFromCheckoutSession(checkoutRecord, options = {}) {
         subtotal,
         total,
         totalAmount: total,
+        vendorSubtotal,
+        vendorEarnings: vendorSubtotal,
+        platformFeeRate,
+        platformFee,
+        platformEarnings: platformFee,
+        customerTotal,
+        financeModel: normalizeText(checkout.financeModel || checkout.pricingModel) || FINANCE_MODEL,
         status: normalizeText(safeOptions.orderStatus) || "pending",
         paymentStatus: "paid",
         paymentProvider: normalizeLowerText(checkout.paymentProvider || checkout.provider) || "paystack",
@@ -801,6 +951,8 @@ const paymentFunctions = createPaymentFunctions();
 
 module.exports = {
     DEFAULT_REGION,
+    DEFAULT_PLATFORM_FEE_RATE,
+    FINANCE_MODEL,
     optionalRequire,
     HttpsError,
     createLocalCallable,
@@ -813,15 +965,22 @@ module.exports = {
     normalizeLowerText,
     normalizeUpperText,
     normalizeNumber,
+    normalizeCurrencyAmount,
+    normalizePlatformFeeRate,
     normalizePositiveInteger,
+    hasOwnField,
     resolveOrderId,
     resolveCheckoutId,
     createOrderIdFromCheckout,
     resolveAdminFirestore,
     buildCheckoutConversionPatch,
+    getCheckoutCustomerPrice,
+    calculateCheckoutItemPricing,
     normalizeCheckoutItem,
     normalizeCheckoutItems,
     calculateCheckoutSubtotal,
+    calculateCheckoutVendorSubtotal,
+    calculateCheckoutPlatformFee,
     buildOrderFromCheckoutSession,
     isCheckoutPaid,
     isCheckoutConverted,

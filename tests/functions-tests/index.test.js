@@ -3,6 +3,8 @@ const functionsIndex = require("../../functions/index.js");
 describe("functions/index.js", () => {
     test("exports callable payment functions and helper utilities", () => {
         expect(functionsIndex.DEFAULT_REGION).toBe("africa-south1");
+        expect(functionsIndex.DEFAULT_PLATFORM_FEE_RATE).toBe(0.1);
+        expect(functionsIndex.FINANCE_MODEL).toBe("vendor-price-plus-platform-fee");
         expect(typeof functionsIndex.initializePayment).toBe("function");
         expect(typeof functionsIndex.verifyPayment).toBe("function");
         expect(typeof functionsIndex.refundPayment).toBe("function");
@@ -12,10 +14,51 @@ describe("functions/index.js", () => {
         expect(typeof functionsIndex.createRefundPaymentHandler).toBe("function");
         expect(typeof functionsIndex.createConvertCheckoutToOrderHandler).toBe("function");
         expect(typeof functionsIndex.buildOrderFromCheckoutSession).toBe("function");
+        expect(typeof functionsIndex.calculateCheckoutItemPricing).toBe("function");
+        expect(typeof functionsIndex.calculateCheckoutVendorSubtotal).toBe("function");
+        expect(typeof functionsIndex.calculateCheckoutPlatformFee).toBe("function");
         expect(typeof functionsIndex.convertCheckoutSessionToOrder).toBe("function");
         expect(typeof functionsIndex.persistCheckoutOrderConversion).toBe("function");
         expect(typeof functionsIndex.persistThenAssertPaymentResult).toBe("function");
         expect(functionsIndex.optionalRequire("definitely-not-installed-module")).toBeNull();
+    });
+
+    test("normalizes checkout item finance fields for converted orders", () => {
+        expect(functionsIndex.normalizePlatformFeeRate("10")).toBe(0.1);
+        expect(functionsIndex.normalizeCurrencyAmount("45.678")).toBe(45.68);
+        expect(functionsIndex.getCheckoutCustomerPrice({ customerPrice: "55" })).toBe("55");
+
+        expect(functionsIndex.normalizeCheckoutItem({
+            itemId: "meal-1",
+            name: "Rice Bowl",
+            price: 55,
+            quantity: 2
+        })).toMatchObject({
+            itemId: "meal-1",
+            menuItemId: "meal-1",
+            vendorPrice: 50,
+            platformFee: 5,
+            customerPrice: 55,
+            price: 55,
+            vendorSubtotal: 100,
+            platformFeeTotal: 10,
+            lineTotal: 110
+        });
+
+        expect(functionsIndex.normalizeCheckoutItem({
+            itemId: "vendor-meal",
+            name: "Vendor Meal",
+            vendorPrice: 100,
+            quantity: 1
+        })).toMatchObject({
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110,
+            vendorSubtotal: 100,
+            platformFeeTotal: 10,
+            lineTotal: 110
+        });
     });
 
     test("normalizes callable data and auth context", () => {
@@ -365,6 +408,8 @@ describe("functions/index.js", () => {
         expect(functionsIndex.resolveCheckoutId(checkout)).toBe("checkout-1");
         expect(functionsIndex.createOrderIdFromCheckout(checkout)).toBe("order-checkout-1");
         expect(functionsIndex.calculateCheckoutSubtotal(checkout.items)).toBe(85);
+        expect(functionsIndex.calculateCheckoutVendorSubtotal(checkout.items)).toBe(77.28);
+        expect(functionsIndex.calculateCheckoutPlatformFee(checkout.items)).toBe(7.72);
         expect(functionsIndex.isCheckoutPaid(checkout)).toBe(true);
 
         const order = functionsIndex.buildOrderFromCheckoutSession(checkout, {
@@ -380,6 +425,14 @@ describe("functions/index.js", () => {
             itemCount: 2,
             subtotal: 85,
             total: 85,
+            totalAmount: 85,
+            vendorSubtotal: 77.28,
+            vendorEarnings: 77.28,
+            platformFeeRate: 0.1,
+            platformFee: 7.72,
+            platformEarnings: 7.72,
+            customerTotal: 85,
+            financeModel: "vendor-price-plus-platform-fee",
             paymentStatus: "paid",
             paymentProvider: "paystack",
             paymentReference: "paystack-ref",
@@ -388,6 +441,15 @@ describe("functions/index.js", () => {
             status: "pending",
             createdAt: "server-time",
             updatedAt: "server-time"
+        });
+        expect(order.items[0]).toMatchObject({
+            itemId: "meal-1",
+            vendorPrice: 31.82,
+            platformFee: 3.18,
+            customerPrice: 35,
+            vendorSubtotal: 63.64,
+            platformFeeTotal: 6.36,
+            lineTotal: 70
         });
         expect(order.timeline).toEqual([
             expect.objectContaining({
