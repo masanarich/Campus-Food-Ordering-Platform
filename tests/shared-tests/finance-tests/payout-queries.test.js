@@ -416,3 +416,230 @@ describe("shared/finance/payout-queries.js", () => {
         await expect(payoutQueries.fetchFirstPayoutByStatus({ firestoreFns: {} })).resolves.toBeNull();
     });
 });
+
+// ============================================================================
+// Index-building fallback path
+// ============================================================================
+
+describe("isMissingIndexError", () => {
+    test("matches Firebase failed-precondition errors", () => {
+        expect(payoutQueries.isMissingIndexError({ code: "failed-precondition", message: "anything" })).toBe(true);
+    });
+
+    test("matches messages mentioning 'index' + 'building/require/create/composite'", () => {
+        expect(payoutQueries.isMissingIndexError({ message: "The query requires an index" })).toBe(true);
+        expect(payoutQueries.isMissingIndexError({ message: "That index is currently building" })).toBe(true);
+        expect(payoutQueries.isMissingIndexError({ message: "You can create a composite index" })).toBe(true);
+    });
+
+    test("does not match unrelated errors", () => {
+        expect(payoutQueries.isMissingIndexError(null)).toBe(false);
+        expect(payoutQueries.isMissingIndexError({ message: "permission denied" })).toBe(false);
+        expect(payoutQueries.isMissingIndexError({ code: "not-found", message: "no such doc" })).toBe(false);
+    });
+});
+
+describe("in-memory helpers", () => {
+    test("getPayoutSortValue handles Date, ISO string, number, Timestamp shape, missing", () => {
+        expect(payoutQueries.getPayoutSortValue({ x: new Date(1000) }, "x")).toBe(1000);
+        expect(payoutQueries.getPayoutSortValue({ x: "1970-01-01T00:00:01Z" }, "x")).toBe(1000);
+        expect(payoutQueries.getPayoutSortValue({ x: 1000 }, "x")).toBe(1000);
+        expect(payoutQueries.getPayoutSortValue({ x: { toMillis: () => 1000 } }, "x")).toBe(1000);
+        expect(payoutQueries.getPayoutSortValue({}, "x")).toBe(0);
+        expect(payoutQueries.getPayoutSortValue(null, "x")).toBe(0);
+    });
+
+    test("sortPayoutsInMemory orders by orderByField then requestedAt", () => {
+        const rows = [
+            { id: "a", updatedAt: new Date(100), requestedAt: new Date(50) },
+            { id: "b", updatedAt: new Date(200), requestedAt: new Date(40) },
+            { id: "c", updatedAt: new Date(200), requestedAt: new Date(60) }
+        ];
+        const sorted = payoutQueries.sortPayoutsInMemory(rows, {});
+        // updatedAt desc → b, c first; tie-break requestedAt desc → c before b
+        expect(sorted.map(r => r.id)).toEqual(["c", "b", "a"]);
+    });
+
+    test("sortPayoutsInMemory respects orderDirection asc and includeRequestedAtOrder=false", () => {
+        const rows = [
+            { id: "a", updatedAt: new Date(200) },
+            { id: "b", updatedAt: new Date(100) }
+        ];
+        const sorted = payoutQueries.sortPayoutsInMemory(rows, {
+            orderDirection: "asc",
+            includeRequestedAtOrder: false
+        });
+        expect(sorted.map(r => r.id)).toEqual(["b", "a"]);
+    });
+
+    test("filterPayoutsByStatusesInMemory keeps only allowed statuses", () => {
+        const rows = [
+            { id: "a", status: "pending" },
+            { id: "b", status: "paid" },
+            { id: "c", status: "approved" }
+        ];
+        const filtered = payoutQueries.filterPayoutsByStatusesInMemory(rows, ["pending", "approved"]);
+        expect(filtered.map(r => r.id).sort()).toEqual(["a", "c"]);
+    });
+
+    test("filterPayoutsByStatusesInMemory returns all when no statuses given", () => {
+        const rows = [{ id: "a", status: "any" }];
+        expect(payoutQueries.filterPayoutsByStatusesInMemory(rows, [])).toEqual(rows);
+        expect(payoutQueries.filterPayoutsByStatusesInMemory(rows, null)).toEqual(rows);
+    });
+
+    test("filterPayoutsByVendorInMemory keeps matching vendor only", () => {
+        const rows = [
+            { id: "a", vendorUid: "vendor-1" },
+            { id: "b", vendorUid: "vendor-2" },
+            { id: "c", vendorUid: "  vendor-1  " }
+        ];
+        const filtered = payoutQueries.filterPayoutsByVendorInMemory(rows, "vendor-1");
+        expect(filtered.map(r => r.id)).toEqual(["a", "c"]);
+        expect(payoutQueries.filterPayoutsByVendorInMemory(rows, "")).toEqual(rows);
+    });
+
+    test("applyClientSideLimit slices when limit > 0", () => {
+        const rows = [1, 2, 3, 4, 5];
+        expect(payoutQueries.applyClientSideLimit(rows, 3)).toEqual([1, 2, 3]);
+        expect(payoutQueries.applyClientSideLimit(rows, 0)).toEqual(rows);
+        expect(payoutQueries.applyClientSideLimit(rows, "bogus")).toEqual(rows);
+    });
+});
+
+describe("fallback queries", () => {
+    test("buildVendorPayoutsFallbackQuery uses only the vendorUid where clause", () => {
+        const fns = {
+            collection: jest.fn().mockReturnValue("ref"),
+            where: jest.fn((...args) => ({ type: "where", args })),
+            query: jest.fn((ref, ...constraints) => ({ ref, constraints }))
+        };
+        const q = payoutQueries.buildVendorPayoutsFallbackQuery({ db: {}, firestoreFns: fns, vendorUid: "v1" });
+        expect(fns.query).toHaveBeenCalled();
+        expect(q.constraints.length).toBe(1);
+        expect(q.constraints[0].args[0]).toBe("vendorUid");
+    });
+
+    test("buildAdminPayoutsFallbackQuery has no constraints", () => {
+        const fns = {
+            collection: jest.fn().mockReturnValue("ref"),
+            query: jest.fn((ref, ...constraints) => ({ ref, constraints }))
+        };
+        const q = payoutQueries.buildAdminPayoutsFallbackQuery({ db: {}, firestoreFns: fns });
+        expect(q.constraints).toEqual([]);
+    });
+});
+
+describe("fetch functions with index-fallback path", () => {
+    function buildSnapshot(records) {
+        return {
+            docs: records.map((r, i) => ({
+                id: r.payoutId || `p${i}`,
+                exists: () => true,
+                data: () => {
+                    const { payoutId, ...rest } = r;
+                    return rest;
+                }
+            }))
+        };
+    }
+
+    function makeFns(primaryError, fallbackRecords) {
+        let call = 0;
+        return {
+            collection: jest.fn().mockReturnValue("ordersRef"),
+            where: jest.fn((...args) => ({ type: "where", args })),
+            orderBy: jest.fn((...args) => ({ type: "orderBy", args })),
+            limit: jest.fn((...args) => ({ type: "limit", args })),
+            query: jest.fn((ref, ...constraints) => ({ ref, constraints })),
+            getDocs: jest.fn(() => {
+                call++;
+                if (call === 1) return Promise.reject(primaryError);
+                return Promise.resolve(buildSnapshot(fallbackRecords));
+            })
+        };
+    }
+
+    test("fetchVendorPayouts retries with fallback on missing-index error, then filters + sorts in memory", async () => {
+        const error = { code: "failed-precondition", message: "The query requires an index. That index is currently building." };
+        const records = [
+            { payoutId: "p1", vendorUid: "v1", status: "pending", updatedAt: new Date(100), requestedAt: new Date(100) },
+            { payoutId: "p2", vendorUid: "v2", status: "pending", updatedAt: new Date(200), requestedAt: new Date(200) }, // foreign
+            { payoutId: "p3", vendorUid: "v1", status: "rejected", updatedAt: new Date(300), requestedAt: new Date(300) }, // wrong status
+            { payoutId: "p4", vendorUid: "v1", status: "pending", updatedAt: new Date(400), requestedAt: new Date(400) }
+        ];
+        const fns = makeFns(error, records);
+        const result = await payoutQueries.fetchVendorPayouts({
+            db: {},
+            firestoreFns: fns,
+            vendorUid: "v1",
+            statuses: ["pending"]
+        });
+        // Foreign vendor + wrong status are filtered out; remainder sorted desc by updatedAt
+        expect(result.map(r => r.payoutId)).toEqual(["p4", "p1"]);
+        expect(fns.getDocs).toHaveBeenCalledTimes(2);
+    });
+
+    test("fetchAdminPayouts retries with fallback, then sorts in memory", async () => {
+        const error = { message: "index is currently building" };
+        const records = [
+            { payoutId: "p1", status: "approved", updatedAt: new Date(100), requestedAt: new Date(100) },
+            { payoutId: "p2", status: "approved", updatedAt: new Date(300), requestedAt: new Date(300) },
+            { payoutId: "p3", status: "approved", updatedAt: new Date(200), requestedAt: new Date(200) }
+        ];
+        const fns = makeFns(error, records);
+        const result = await payoutQueries.fetchAdminPayouts({
+            db: {},
+            firestoreFns: fns,
+            statuses: ["approved"]
+        });
+        expect(result.map(r => r.payoutId)).toEqual(["p2", "p3", "p1"]);
+        expect(fns.getDocs).toHaveBeenCalledTimes(2);
+    });
+
+    test("fetchActiveVendorPayouts uses default active statuses on fallback", async () => {
+        const error = { code: "failed-precondition", message: "index building" };
+        const records = [
+            { payoutId: "p1", vendorUid: "v1", status: "pending", updatedAt: new Date(100), requestedAt: new Date(100) },
+            { payoutId: "p2", vendorUid: "v1", status: "paid", updatedAt: new Date(200), requestedAt: new Date(200) },
+            { payoutId: "p3", vendorUid: "v1", status: "approved", updatedAt: new Date(150), requestedAt: new Date(150) }
+        ];
+        const fns = makeFns(error, records);
+        const result = await payoutQueries.fetchActiveVendorPayouts({
+            db: {},
+            firestoreFns: fns,
+            vendorUid: "v1"
+        });
+        // Default active = ["pending", "approved"] — "paid" gets filtered out
+        expect(result.map(r => r.payoutId).sort()).toEqual(["p1", "p3"]);
+    });
+
+    test("non-index errors propagate without falling back", async () => {
+        const error = { code: "permission-denied", message: "Missing or insufficient permissions" };
+        const fns = makeFns(error, []);
+        await expect(payoutQueries.fetchVendorPayouts({
+            db: {},
+            firestoreFns: fns,
+            vendorUid: "v1"
+        })).rejects.toEqual(error);
+        expect(fns.getDocs).toHaveBeenCalledTimes(1);
+    });
+
+    test("fetchAdminPayouts honors the limit option on fallback", async () => {
+        const error = { code: "failed-precondition", message: "index" };
+        const records = Array.from({ length: 10 }, (_, i) => ({
+            payoutId: `p${i}`,
+            status: "approved",
+            updatedAt: new Date(1000 - i),
+            requestedAt: new Date(1000 - i)
+        }));
+        const fns = makeFns(error, records);
+        const result = await payoutQueries.fetchAdminPayouts({
+            db: {},
+            firestoreFns: fns,
+            statuses: ["approved"],
+            limitCount: 3
+        });
+        expect(result.length).toBe(3);
+    });
+});

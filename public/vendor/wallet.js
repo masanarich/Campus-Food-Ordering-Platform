@@ -23,6 +23,27 @@
         return normalizeText(value).toLowerCase();
     }
 
+    /**
+     * Turn a raw error (Firebase or otherwise) into a short, user-friendly
+     * status message. Firebase's "missing index" errors include a long URL
+     * that we don't want to display to vendors.
+     */
+    function summarizeWalletError(error) {
+        if (!error) return STATUS_MESSAGES.failed;
+        const code = typeof error.code === "string" ? error.code : "";
+        const message = typeof error.message === "string" ? error.message : "";
+        const looksLikeIndexError =
+            code === "failed-precondition" ||
+            (/\bindex\b/i.test(message) && /\b(building|require[ds]?|create[ds]?|composite)\b/i.test(message));
+        if (looksLikeIndexError) {
+            return "Wallet data is still preparing (Firestore indexes are building). Please try Refresh again in a minute or two.";
+        }
+        if (code === "permission-denied") {
+            return "You don't have permission to view this wallet.";
+        }
+        return STATUS_MESSAGES.failed;
+    }
+
     function normalizeCurrencyAmount(value, fallbackValue) {
         const parsed = Number.parseFloat(value);
         const fallbackParsed = Number.parseFloat(fallbackValue);
@@ -921,7 +942,7 @@
                 console.error(`${MODULE_NAME}: Failed to load wallet.`, error);
                 setStatusMessage(
                     elements.statusElement,
-                    error && error.message ? error.message : STATUS_MESSAGES.failed,
+                    summarizeWalletError(error),
                     "error"
                 );
 
