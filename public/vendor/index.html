@@ -168,8 +168,7 @@
             <menu class="action-menu" aria-label="Portal shortcuts">
                 <li><button id="go-customer-portal-button" class="button-secondary" type="button">Customer
                         Portal</button></li>
-                <li><button id="go-vendor-portal-button" class="button-secondary" type="button">Vendor Portal</button>
-                </li>
+
                 <li><button id="go-admin-portal-button" class="button-secondary" type="button">Admin Portal</button>
                 </li>
             </menu>
@@ -200,55 +199,55 @@
         <p>Campus Food Ordering Platform © 2026</p>
     </footer>
 
-  <script src="../shared/finance/platform-pricing.js"></script>
-<script src="../shared/finance/payout-model.js"></script>
-<script src="../shared/finance/payout-queries.js"></script>
-<script src="../authentication/auth-utils.js"></script>
-<script src="../authentication/auth-core.js"></script>
-<script src="./index.js"></script>
+    <script src="../shared/finance/platform-pricing.js"></script>
+    <script src="../shared/finance/payout-model.js"></script>
+    <script src="../shared/finance/payout-queries.js"></script>
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="../authentication/auth-core.js"></script>
+    <script src="./index.js"></script>
 
-<script type="module">
-    import { auth, db } from "../authentication/config.js";
-    import { authService } from "../authentication/auth.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-    import {
-        collection,
-        doc,
-        getDoc,
-        getDocs,
-        query,
-        where,
-        orderBy,
-        limit
-    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+    <script type="module">
+        import { auth, db } from "../authentication/config.js";
+        import { authService } from "../authentication/auth.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            query,
+            where,
+            orderBy,
+            limit
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-    window.auth = auth;
-    window.db = db;
-    window.authService = authService;
-    window.authFns = { onAuthStateChanged };
-    window.firestoreFns = {
-        collection,
-        doc,
-        getDoc,
-        getDocs,
-        query,
-        where,
-        orderBy,
-        limit
-    };
+        window.auth = auth;
+        window.db = db;
+        window.authService = authService;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            query,
+            where,
+            orderBy,
+            limit
+        };
 
-    window.vendorHomePage.initializeVendorHomePage({
-        auth,
-        db,
-        authService,
-        authFns: window.authFns,
-        firestoreFns: window.firestoreFns,
-        authUtils: window.authUtils,
-        platformPricing: window.platformPricing,
-        payoutModel: window.payoutModel,
-        payoutQueries: window.payoutQueries
-    });
-</script>
+        window.vendorHomePage.initializeVendorHomePage({
+            auth,
+            db,
+            authService,
+            authFns: window.authFns,
+            firestoreFns: window.firestoreFns,
+            authUtils: window.authUtils,
+            platformPricing: window.platformPricing,
+            payoutModel: window.payoutModel,
+            payoutQueries: window.payoutQueries
+        });
+    </script>
 
 </body>
 
