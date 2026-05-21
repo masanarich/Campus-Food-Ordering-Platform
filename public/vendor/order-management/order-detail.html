@@ -28,8 +28,8 @@
             <h2 id="vendor-order-detail-heading">Vendor Order Detail</h2>
 
             <p>
-                Review the customer, items, payment, and refund state before moving this order.
-                Paid rejected orders will start a customer refund.
+                Review the customer, items, payment, and refund state before moving this order
+                through accepting, preparing, ready for pickup, or collection.
             </p>
 
             <p id="vendor-order-detail-status" aria-live="polite" aria-atomic="true"></p>
@@ -147,9 +147,7 @@
                 orderFormatters: window.orderFormatters,
                 paymentStatus: window.paymentStatus,
                 paymentFormatters: window.paymentFormatters,
-                refundStatus: window.refundStatus,
-                functions,
-                functionsFns: window.functionsFns
+                refundStatus: window.refundStatus
             });
         }
     </script>

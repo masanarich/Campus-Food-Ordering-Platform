@@ -246,32 +246,6 @@
         return new Date().toISOString();
     }
 
-    function resolveTimelineTimestampValue(options = {}) {
-        const safeOptions = options && typeof options === "object" ? options : {};
-
-        if (safeOptions.timelineTimestampValue !== undefined) {
-            return safeOptions.timelineTimestampValue;
-        }
-
-        if (safeOptions.timelineAt !== undefined) {
-            return safeOptions.timelineAt;
-        }
-
-        if (safeOptions.timestampValue !== undefined) {
-            return safeOptions.timestampValue;
-        }
-
-        if (safeOptions.now !== undefined) {
-            return safeOptions.now;
-        }
-
-        if (typeof safeOptions.nowFactory === "function") {
-            return safeOptions.nowFactory();
-        }
-
-        return new Date().toISOString();
-    }
-
     function getCheckoutDependencies(options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
 
@@ -596,7 +570,7 @@
         const checkoutModel = resolveCheckoutModel(safeOptions.checkoutModel);
         const timestamp = safeOptions.at !== undefined
             ? safeOptions.at
-            : resolveTimelineTimestampValue(safeOptions);
+            : resolveTimestampValue(safeOptions);
 
         if (checkoutModel) {
             return checkoutModel.createCheckoutTimelineEntry(
@@ -634,17 +608,13 @@
         };
     }
 
-    function validatePaymentVerification(checkoutRecord, verificationValues = {}, options = {}) {
+    function validatePaymentVerification(checkoutRecord, verificationValues = {}) {
         const safeCheckout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
         const safeVerification = verificationValues && typeof verificationValues === "object"
             ? verificationValues
             : {};
-        const safeOptions = options && typeof options === "object" ? options : {};
         const expectedReference = normalizeText(safeCheckout.paymentReference);
         const actualReference = normalizeText(safeVerification.reference || safeVerification.paymentReference);
-        const allowReferenceRefresh =
-            safeOptions.allowReferenceRefresh === true ||
-            safeOptions.allowPaymentReferenceRefresh === true;
         const expectedAmount = Number.parseInt(safeCheckout.paymentAmountInMinorUnits, 10);
         const actualAmount = Number.parseInt(
             safeVerification.amountInMinorUnits !== undefined
@@ -657,17 +627,13 @@
         const verificationStatus = normalizeLowerText(safeVerification.status);
         const errors = {};
 
-        if (
-            verificationStatus !== "success" &&
-            verificationStatus !== "successful" &&
-            verificationStatus !== "paid"
-        ) {
+        if (verificationStatus !== "success") {
             errors.status = "Payment verification must be successful before checkout can be marked paid.";
         }
 
         if (!actualReference) {
             errors.reference = "Verified payment reference is required.";
-        } else if (expectedReference && actualReference !== expectedReference && !allowReferenceRefresh) {
+        } else if (expectedReference && actualReference !== expectedReference) {
             errors.reference = "Verified payment reference does not match the checkout payment reference.";
         }
 
@@ -679,26 +645,15 @@
             errors.currency = "Verified payment currency does not match the checkout payment currency.";
         }
 
-        const value = {
-            status: verificationStatus,
-            reference: actualReference,
-            amountInMinorUnits: actualAmount,
-            currency: actualCurrency
-        };
-
-        if (
-            expectedReference &&
-            actualReference &&
-            actualReference !== expectedReference &&
-            allowReferenceRefresh
-        ) {
-            value.referenceWasRefreshed = true;
-        }
-
         return {
             isValid: Object.keys(errors).length === 0,
             errors,
-            value
+            value: {
+                status: verificationStatus,
+                reference: actualReference,
+                amountInMinorUnits: actualAmount,
+                currency: actualCurrency
+            }
         };
     }
 
@@ -714,7 +669,6 @@
         }
 
         const timestamp = resolveTimestampValue(safeOptions);
-        const timelineTimestamp = resolveTimelineTimestampValue(safeOptions);
         const checkoutId = createCheckoutId({
             ...safeOptions,
             timestampSeed: safeOptions.timestampSeed || timestamp
@@ -728,30 +682,7 @@
                     checkoutId,
                     status: "draft",
                     createdAt: timestamp,
-                    updatedAt: timestamp,
-                    timeline: [
-                        dependencies.checkoutModel.createCheckoutTimelineEntry(
-                            "draft",
-                            {
-                                actorRole: safeOptions.createdByRole || safeOptions.actorRole || "customer",
-                                actorUid:
-                                    safeOptions.createdByUid ||
-                                    (safeOptions.customer && (
-                                        safeOptions.customer.customerUid ||
-                                        safeOptions.customer.uid
-                                    )),
-                                actorName:
-                                    safeOptions.createdByName ||
-                                    (safeOptions.customer && (
-                                        safeOptions.customer.customerName ||
-                                        safeOptions.customer.displayName
-                                    )),
-                                note: safeOptions.statusNote || safeOptions.note || "",
-                                at: timelineTimestamp
-                            },
-                            dependencies.checkoutStatus
-                        )
-                    ]
+                    updatedAt: timestamp
                 }
             )
             : buildCheckoutWritePayload(
@@ -760,22 +691,7 @@
                     checkoutId,
                     status: safeOptions.status || "draft",
                     createdAt: timestamp,
-                    updatedAt: timestamp,
-                    timeline: Array.isArray(safeOptions.checkout && safeOptions.checkout.timeline)
-                        ? safeOptions.checkout.timeline
-                        : [
-                            dependencies.checkoutModel.createCheckoutTimelineEntry(
-                                safeOptions.status || "draft",
-                                {
-                                    actorRole: safeOptions.createdByRole || safeOptions.actorRole || "customer",
-                                    actorUid: safeOptions.createdByUid,
-                                    actorName: safeOptions.createdByName,
-                                    note: safeOptions.statusNote || safeOptions.note || "",
-                                    at: timelineTimestamp
-                                },
-                                dependencies.checkoutStatus
-                            )
-                        ]
+                    updatedAt: timestamp
                 },
                 {
                     ...safeOptions,
@@ -846,7 +762,6 @@
         }
 
         const updatedAt = resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const paymentReference = createPaymentReference(currentCheckout, {
             ...safeOptions,
             timestampSeed: safeOptions.timestampSeed || updatedAt
@@ -860,7 +775,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole: safeOptions.actorRole || "customer",
                 note: safeOptions.note || "Payment initialized.",
-                at: timelineAt
+                at: updatedAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -920,7 +835,6 @@
             { checkoutStatus: dependencies.checkoutStatus }
         );
         const updatedAt = resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const reference = normalizeText(
             safeResponse.reference ||
             safeResponse.paymentReference ||
@@ -935,7 +849,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole: safeOptions.actorRole || "system",
                 note: safeOptions.note || "Payment gateway returned checkout details.",
-                at: timelineAt
+                at: updatedAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -987,7 +901,6 @@
         const failedAt = safeOptions.failedAt !== undefined
             ? safeOptions.failedAt
             : resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const reason = normalizeText(
             safeFailure.reason ||
             safeFailure.message ||
@@ -1003,7 +916,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole: safeOptions.actorRole || "system",
                 note: safeOptions.note || reason,
-                at: timelineAt
+                at: failedAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -1044,7 +957,7 @@
             checkoutRecord,
             { checkoutStatus: dependencies.checkoutStatus }
         );
-        const verification = validatePaymentVerification(currentCheckout, verificationValues, safeOptions);
+        const verification = validatePaymentVerification(currentCheckout, verificationValues);
 
         if (!verification.isValid) {
             const failedResult = applyFailedPayment(
@@ -1070,7 +983,6 @@
         const verifiedAt = safeOptions.verifiedAt !== undefined
             ? safeOptions.verifiedAt
             : resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const timelineUpdate = appendTimelineEntry(
             currentCheckout,
             dependencies.checkoutStatus.CHECKOUT_STATUSES.PAID,
@@ -1080,7 +992,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole: safeOptions.actorRole || "system",
                 note: safeOptions.note || "Payment verified.",
-                at: timelineAt
+                at: verifiedAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -1148,7 +1060,6 @@
         }
 
         const updatedAt = resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const timelineUpdate = appendTimelineEntry(
             currentCheckout,
             nextStatus,
@@ -1158,7 +1069,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole,
                 note: safeOptions.note,
-                at: timelineAt
+                at: updatedAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -1224,7 +1135,6 @@
         const cancelledAt = safeOptions.cancelledAt !== undefined
             ? safeOptions.cancelledAt
             : resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const timelineUpdate = appendTimelineEntry(
             currentCheckout,
             dependencies.checkoutStatus.CHECKOUT_STATUSES.CANCELLED,
@@ -1234,7 +1144,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole: safeOptions.actorRole || "customer",
                 note: safeOptions.note || "Checkout cancelled before payment was completed.",
-                at: timelineAt
+                at: cancelledAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -1337,7 +1247,6 @@
         const convertedAt = safeOptions.convertedAt !== undefined
             ? safeOptions.convertedAt
             : resolveTimestampValue(safeOptions);
-        const timelineAt = resolveTimelineTimestampValue(safeOptions);
         const timelineUpdate = appendTimelineEntry(
             currentCheckout,
             dependencies.checkoutStatus.CHECKOUT_STATUSES.CONVERTED,
@@ -1347,7 +1256,7 @@
                 checkoutModel: dependencies.checkoutModel,
                 actorRole: safeOptions.actorRole || "system",
                 note: safeOptions.note || "Paid checkout converted into an order.",
-                at: timelineAt
+                at: convertedAt
             }
         );
         const checkout = buildCheckoutWritePayload(
@@ -1738,7 +1647,6 @@
         createServiceResult,
         createCheckoutFailure,
         resolveTimestampValue,
-        resolveTimelineTimestampValue,
         getCheckoutDependencies,
         getCheckoutDocRef,
         getCheckoutsCollectionRef,

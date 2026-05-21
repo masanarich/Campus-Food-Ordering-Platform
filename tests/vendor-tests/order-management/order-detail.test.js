@@ -143,7 +143,7 @@ function createRefundStatusStub() {
         getRefundStatusLabel: jest.fn(status => {
             const labels = {
                 not_requested: "Refund Not Requested",
-                requested: "Refund Started",
+                requested: "Refund Requested",
                 processing: "Refund Processing",
                 refunded: "Refunded",
                 failed: "Refund Failed",
@@ -693,186 +693,28 @@ describe("vendor/order-management/order-detail.js - payment rendering and gating
         );
 
         expect(dom.paymentContainer.querySelector(".vendor-order-payment-checkout-id").textContent).toBe("Checkout ID: checkout-1");
-        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refund Started");
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refund Requested");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").getAttribute("data-tone")).toBe("loading");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-amount").textContent).toBe("Refund amount: R25.00");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-reference").textContent).toContain("refund-ref");
         expect(dom.paymentContainer.querySelector(".vendor-order-refund-reason").textContent).toContain("Vendor rejected order.");
     });
 
-    test("renderOrderPayment shows refunded status when the refund is recorded in the timeline", () => {
-        const refundedOrder = createOrder({
-            status: "rejected",
-            paymentStatus: "paid",
-            refundStatus: "",
-            timeline: [
-                {
-                    status: "pending",
-                    actorRole: "customer",
-                    actorName: "Student One",
-                    note: "Order placed.",
-                    at: "2026-04-20T12:00:00.000Z"
-                },
-                {
-                    status: "rejected",
-                    label: "Customer Refunded",
-                    actorRole: "system",
-                    actorName: "System",
-                    note: "Customer was refunded and the rejected order is now closed.",
-                    at: "2026-04-20T12:15:00.000Z"
-                }
-            ]
-        });
+    test("renderOrderPayment warns when a paid rejected order has not been refunded", () => {
         const view = vendorOrderDetailPage.buildPaymentView(
-            refundedOrder,
+            createOrder({ status: "rejected", paymentStatus: "paid" }),
             { paymentStatus, paymentFormatters, refundStatus }
         );
 
         vendorOrderDetailPage.renderOrderPayment(
-            refundedOrder,
+            createOrder({ status: "rejected", paymentStatus: "paid" }),
             dom.paymentContainer,
             { paymentStatus, paymentFormatters, refundStatus }
         );
 
-        expect(view.status).toBe("refunded");
-        expect(view.paymentStatus).toBe("paid");
-        expect(view.statusLabel).toBe("Refunded");
-        expect(view.refundStatus).toBe("refunded");
-        expect(view.refundAmountText).toBe("R85.00");
-        expect(view.requiresRefund).toBe(false);
-        expect(view.refundRecordedInTimeline).toBe(true);
-        expect(dom.paymentContainer.querySelector(".vendor-order-payment-status").textContent).toBe("Status: Refunded");
-        expect(dom.paymentContainer.querySelector(".vendor-order-refund-status").textContent).toBe("Refund status: Refunded");
-        expect(dom.paymentContainer.querySelector(".vendor-order-refund-notice")).toBeNull();
-        expect(dom.paymentContainer.textContent).not.toContain("automatic customer refund");
-    });
-
-    test("builds refund requests only for paid rejected orders that still need refunds", () => {
-        const paidOrder = createOrder({
-            status: "pending",
-            paymentStatus: "paid",
-            paymentAmountInMinorUnits: 8500
-        });
-        const request = vendorOrderDetailPage.buildRefundPaymentRequest(paidOrder, {
-            paymentStatus,
-            paymentFormatters,
-            refundStatus,
-            currentUser: {
-                uid: "vendor-1",
-                displayName: "Campus Bites"
-            }
-        });
-
-        expect(vendorOrderDetailPage.shouldRefundRejectedOrder(paidOrder, {
-            paymentStatus,
-            paymentFormatters,
-            refundStatus
-        })).toBe(true);
-        expect(vendorOrderDetailPage.shouldRefundRejectedOrder(createOrder({
-            paymentStatus: "unpaid"
-        }), {
-            paymentStatus,
-            refundStatus
-        })).toBe(false);
-        expect(vendorOrderDetailPage.shouldRefundRejectedOrder(createOrder({
-            paymentStatus: "paid",
-            refundStatus: "processing"
-        }), {
-            paymentStatus,
-            refundStatus
-        })).toBe(false);
-        expect(request).toEqual(expect.objectContaining({
-            reference: "paystack-ref",
-            refundAmount: 85,
-            reason: "Vendor rejected the paid order."
-        }));
-        expect(request.payment).toEqual(expect.objectContaining({
-            orderId: "order-1",
-            status: "paid",
-            paymentReference: "paystack-ref",
-            amountInMinorUnits: 8500
-        }));
-        expect(request.metadata).toEqual(expect.objectContaining({
-            orderId: "order-1",
-            vendorUid: "vendor-1",
-            rejectedByUid: "vendor-1",
-            rejectedByName: "Campus Bites"
-        }));
-    });
-
-    test("refundRejectedOrder calls the refund callable and unwraps callable data", async () => {
-        const refundPaymentCallable = jest.fn(async request => ({
-            data: {
-                success: true,
-                refund: {
-                    refundReference: "refund-ref"
-                },
-                patch: {
-                    refundStatus: "refunded"
-                },
-                patchResult: {
-                    success: true
-                },
-                reference: request.reference
-            }
-        }));
-
-        const result = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
-            paymentStatus,
-            paymentFormatters,
-            refundStatus,
-            refundPaymentCallable,
-            currentUser: {
-                uid: "vendor-1"
-            }
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.refund.refundReference).toBe("refund-ref");
-        expect(result.patch.refundStatus).toBe("refunded");
-        expect(refundPaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
-            reference: "paystack-ref",
-            payment: expect.objectContaining({
-                orderId: "order-1"
-            })
-        }));
-    });
-
-    test("refundRejectedOrder reports unavailable and failed refund callables", async () => {
-        const unavailable = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
-            paymentStatus,
-            paymentFormatters,
-            refundStatus
-        });
-        const failed = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
-            paymentStatus,
-            paymentFormatters,
-            refundStatus,
-            refundPaymentCallable: jest.fn(async () => ({
-                data: {
-                    success: false,
-                    error: {
-                        code: "payments/refund-failed",
-                        message: "Refund failed."
-                    }
-                }
-            }))
-        });
-        const thrown = await vendorOrderDetailPage.refundRejectedOrder(createOrder(), {
-            paymentStatus,
-            paymentFormatters,
-            refundStatus,
-            refundPaymentCallable: jest.fn(async () => {
-                throw new Error("network down");
-            })
-        });
-
-        expect(unavailable.success).toBe(false);
-        expect(unavailable.error.code).toBe("vendor-order/refund-unavailable");
-        expect(failed.success).toBe(false);
-        expect(failed.error.message).toBe("Refund failed.");
-        expect(thrown.success).toBe(false);
-        expect(thrown.error.message).toBe("network down");
+        expect(view.requiresRefund).toBe(true);
+        expect(dom.paymentContainer.querySelector(".vendor-order-refund-notice").textContent)
+            .toContain("must be refunded");
     });
 
     test("renderOrderPayment surfaces failure reason for failed payments", () => {
@@ -1092,103 +934,6 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
             nextStatus: "rejected",
             actorRole: "vendor"
         }));
-    });
-
-    test("handleOrderAction refunds the customer when a paid order is rejected", async () => {
-        const paymentStatus = createPaymentStatusStub();
-        const paymentFormatters = createPaymentFormattersStub();
-        const refundStatus = createRefundStatusStub();
-        const updateOrderStatus = jest.fn(async () => ({
-            success: true,
-            order: createOrder({ status: "rejected", paymentStatus: "paid" })
-        }));
-        const refundPaymentCallable = jest.fn(async () => ({
-            data: {
-                success: true,
-                refund: {
-                    refundReference: "refund-ref"
-                },
-                patch: {
-                    refundStatus: "refunded",
-                    refundReference: "refund-ref"
-                },
-                patchResult: {
-                    success: true
-                }
-            }
-        }));
-
-        const result = await vendorOrderDetailPage.handleOrderAction({
-            type: "status_change",
-            nextStatus: "rejected"
-        }, {
-            db: { kind: "db" },
-            firestoreFns: {},
-            orderService: { getOrderById: jest.fn(), updateOrderStatus },
-            currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
-            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
-            paymentStatus,
-            paymentFormatters,
-            refundStatus,
-            refundPaymentCallable,
-            statusSelector: "#vendor-order-detail-status"
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.refundRequired).toBe(true);
-        expect(result.refundResult.success).toBe(true);
-        expect(refundPaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
-            reference: "paystack-ref",
-            reason: "Vendor rejected the paid order.",
-            payment: expect.objectContaining({
-                orderId: "order-1",
-                status: "paid",
-                timeline: expect.any(Array)
-            })
-        }));
-        expect(dom.statusElement.textContent).toContain("customer refunded");
-    });
-
-    test("handleOrderAction reports refund failure after rejecting a paid order", async () => {
-        const paymentStatus = createPaymentStatusStub();
-        const paymentFormatters = createPaymentFormattersStub();
-        const refundStatus = createRefundStatusStub();
-        const updateOrderStatus = jest.fn(async () => ({
-            success: true,
-            order: createOrder({ status: "rejected", paymentStatus: "paid" })
-        }));
-        const refundPaymentCallable = jest.fn(async () => ({
-            data: {
-                success: false,
-                error: {
-                    message: "Refund service failed."
-                }
-            }
-        }));
-
-        const result = await vendorOrderDetailPage.handleOrderAction({
-            type: "status_change",
-            nextStatus: "rejected"
-        }, {
-            db: { kind: "db" },
-            firestoreFns: {},
-            orderService: { getOrderById: jest.fn(), updateOrderStatus },
-            currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
-            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
-            paymentStatus,
-            paymentFormatters,
-            refundStatus,
-            refundPaymentCallable,
-            statusSelector: "#vendor-order-detail-status"
-        });
-
-        expect(result.success).toBe(false);
-        expect(result.orderUpdated).toBe(true);
-        expect(result.refundRequired).toBe(true);
-        expect(result.error).toBe("Refund service failed.");
-        expect(updateOrderStatus).toHaveBeenCalled();
-        expect(refundPaymentCallable).toHaveBeenCalled();
-        expect(dom.statusElement.textContent).toContain("Refund service failed.");
     });
 
     test("handleOrderAction covers unavailable service, failure states, confirm collection, and refresh after success", async () => {

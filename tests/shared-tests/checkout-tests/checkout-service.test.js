@@ -130,9 +130,6 @@ describe("shared/checkout/checkout-service.js", () => {
         expect(checkoutService.normalizeText(" test ")).toBe("test");
         expect(checkoutService.normalizeLowerText(" PAID ")).toBe("paid");
         expect(checkoutService.normalizeUpperText(" zar ")).toBe("ZAR");
-        expect(checkoutService.resolveTimelineTimestampValue({
-            timelineTimestampValue: "timeline-time"
-        })).toBe("timeline-time");
         expect(checkoutService.resolveCheckoutStatus(checkoutStatus)).toBe(checkoutStatus);
         expect(checkoutService.resolveCheckoutModel(checkoutModel)).toBe(checkoutModel);
         expect(checkoutService.resolveCheckoutValidation(checkoutValidation)).toBe(checkoutValidation);
@@ -388,13 +385,6 @@ describe("shared/checkout/checkout-service.js", () => {
         });
 
         expect(checkoutService.validatePaymentVerification(checkout, {
-            status: "paid",
-            reference: "ref-1",
-            amount: 12000,
-            currency: "ZAR"
-        }).isValid).toBe(true);
-
-        expect(checkoutService.validatePaymentVerification(checkout, {
             status: "failed",
             reference: "wrong-ref",
             amount: 100,
@@ -408,25 +398,6 @@ describe("shared/checkout/checkout-service.js", () => {
         expect(checkoutService.validatePaymentVerification(checkout, {
             status: "success"
         }).errors.reference).toBe("Verified payment reference is required.");
-
-        expect(checkoutService.validatePaymentVerification(checkout, {
-            status: "success",
-            reference: "fresh-ref",
-            amount: 12000,
-            currency: "ZAR"
-        }, {
-            allowReferenceRefresh: true
-        })).toEqual({
-            isValid: true,
-            errors: {},
-            value: {
-                status: "success",
-                reference: "fresh-ref",
-                amountInMinorUnits: 12000,
-                currency: "ZAR",
-                referenceWasRefreshed: true
-            }
-        });
     });
 
     test("prepares checkout creation from cart and rejects invalid create inputs", () => {
@@ -467,40 +438,6 @@ describe("shared/checkout/checkout-service.js", () => {
             checkoutModel: {},
             checkoutValidation: {}
         }).error.code).toBe("checkout/dependencies-missing");
-    });
-
-    test("keeps serverTimestamp values out of checkout timeline arrays", () => {
-        const serverTimestampValue = {
-            kind: "serverTimestamp"
-        };
-        const firestoreFns = createFirestoreFns();
-        firestoreFns.serverTimestamp = jest.fn(() => serverTimestampValue);
-
-        const createResult = checkoutService.prepareCreateCheckout({
-            ...fullDeps(),
-            cartItems: createCartItems(),
-            customer: createCustomer(),
-            checkoutId: "checkout-server-time",
-            firestoreFns,
-            timelineTimestampValue: "timeline-time"
-        });
-
-        expect(createResult.success).toBe(true);
-        expect(createResult.checkout.createdAt).toBe(serverTimestampValue);
-        expect(createResult.checkout.updatedAt).toBe(serverTimestampValue);
-        expect(createResult.checkout.timeline[0].at).toBe("timeline-time");
-
-        const initResult = checkoutService.preparePaymentInitialization(createResult.checkout, {
-            ...fullDeps(),
-            firestoreFns,
-            timelineTimestampValue: "timeline-payment-time"
-        });
-
-        expect(initResult.success).toBe(true);
-        expect(initResult.checkout.updatedAt).toBe(serverTimestampValue);
-        expect(initResult.timelineEntry.at).toBe("timeline-payment-time");
-        expect(initResult.patch.timeline[initResult.patch.timeline.length - 1].at)
-            .toBe("timeline-payment-time");
     });
 
     test("prepares payment initialization payloads and rejects invalid initialization", () => {
@@ -612,23 +549,6 @@ describe("shared/checkout/checkout-service.js", () => {
         expect(mismatch.success).toBe(false);
         expect(mismatch.error.code).toBe("checkout/payment-verification-mismatch");
         expect(mismatch.checkout.status).toBe("payment_failed");
-
-        const refreshedReference = checkoutService.applyVerifiedPayment(initialized.checkout, {
-            status: "success",
-            reference: "fresh-ref",
-            amount: 12000,
-            currency: "ZAR"
-        }, {
-            ...fullDeps(),
-            timestampValue: "verified-at",
-            allowReferenceRefresh: true
-        });
-        expect(refreshedReference.success).toBe(true);
-        expect(refreshedReference.checkout).toEqual(expect.objectContaining({
-            status: "paid",
-            paymentReference: "fresh-ref"
-        }));
-        expect(refreshedReference.verification.referenceWasRefreshed).toBe(true);
     });
 
     test("builds status, cancellation, expiry, and conversion plans", () => {

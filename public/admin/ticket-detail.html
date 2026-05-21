@@ -5,17 +5,15 @@
     <meta charset="UTF-8">
     <title>Ticket Detail | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Admin ticket triage workspace for the Campus Food Ordering Platform.">
+    <meta name="description" content="Admin ticket detail and triage workspace placeholder.">
     <link rel="stylesheet" href="./index.css">
-    <link rel="stylesheet" href="./admin-support.css">
 </head>
 
-<body class="admin-shell admin-support" data-page="admin-ticket-detail">
-
-    <header class="app-header">
+<body>
+    <header>
         <h1>Campus Food Ordering Platform</h1>
 
-        <nav class="app-nav" aria-label="Admin ticket detail navigation">
+        <nav aria-label="Admin ticket detail navigation">
             <a href="./index.html">Dashboard</a>
             <a href="./users.html">Manage Users</a>
             <a href="./disputes.html">Support Inbox</a>
@@ -24,168 +22,31 @@
         </nav>
     </header>
 
-    <main class="admin-main">
-        <section class="page-hero shared-section" aria-labelledby="admin-ticket-heading">
-            <h2 id="admin-ticket-heading">Ticket Detail</h2>
+    <main>
+        <section aria-labelledby="admin-ticket-detail-heading">
+            <h2 id="admin-ticket-detail-heading">Ticket Detail</h2>
 
             <p>
-                Review the full conversation on a single support ticket, post a public reply or
-                internal note, and move the ticket through its lifecycle.
+                Review the full conversation on a single support ticket, change its status, and
+                reply to the reporter from one place.
             </p>
 
-            <p id="admin-ticket-status" aria-live="polite" aria-atomic="true"></p>
+            <p id="admin-ticket-detail-status" aria-live="polite">Coming soon.</p>
 
-            <menu class="action-menu" aria-label="Admin ticket detail actions">
-                <li><a href="./disputes.html" class="button-secondary">Back to Support Inbox</a></li>
-                <li><a href="./index.html" class="button-secondary">Back to Dashboard</a></li>
+            <menu aria-label="Admin ticket detail actions">
+                <li><a href="./disputes.html">Back to Support Inbox</a></li>
+                <li><a href="./index.html">Back to Admin Dashboard</a></li>
             </menu>
-        </section>
-
-        <section id="admin-ticket-summary-section" class="shared-section admin-ticket-summary-section"
-            aria-labelledby="admin-ticket-summary-heading" hidden>
-            <h3 id="admin-ticket-summary-heading">
-                <output id="admin-ticket-subject">Loading...</output>
-            </h3>
-
-            <section class="admin-ticket-summary-grid" aria-label="Ticket overview">
-                <p><strong>Ticket ID:</strong> <output id="admin-ticket-id">—</output></p>
-                <p><strong>Status:</strong> <output id="admin-ticket-current-status">—</output></p>
-                <p><strong>Category:</strong> <output id="admin-ticket-category">—</output></p>
-                <p><strong>Priority:</strong> <output id="admin-ticket-priority">—</output></p>
-                <p><strong>Reporter:</strong> <output id="admin-ticket-reporter">—</output></p>
-                <p><strong>Related order:</strong> <output id="admin-ticket-order">—</output></p>
-                <p><strong>Opened:</strong> <output id="admin-ticket-opened">—</output></p>
-                <p><strong>Replies:</strong> <output id="admin-ticket-replies-count">—</output></p>
-            </section>
-
-            <p id="admin-ticket-resolution" class="admin-ticket-resolution"
-                aria-live="polite" hidden></p>
-
-            <section class="admin-ticket-description" aria-labelledby="admin-ticket-description-heading">
-                <h4 id="admin-ticket-description-heading">Reporter's message</h4>
-                <p id="admin-ticket-description-body" class="admin-ticket-description-body">—</p>
-            </section>
-        </section>
-
-        <section id="admin-ticket-progress-section" class="shared-section admin-ticket-progress-section"
-            aria-labelledby="admin-ticket-progress-heading" hidden>
-            <h3 id="admin-ticket-progress-heading">Activity Timeline</h3>
-            <ol id="admin-ticket-timeline" class="ticket-timeline"></ol>
-        </section>
-
-        <section id="admin-ticket-replies-section" class="shared-section admin-ticket-replies-section"
-            aria-labelledby="admin-ticket-replies-heading" hidden>
-            <h3 id="admin-ticket-replies-heading">Conversation</h3>
-            <p id="admin-ticket-replies-empty" class="ticket-replies-empty" hidden>
-                No replies yet. Be the first to respond to this reporter.
-            </p>
-            <ol id="admin-ticket-replies-list" class="ticket-replies-list"></ol>
-        </section>
-
-        <section id="admin-ticket-reply-form-section" class="shared-section admin-ticket-reply-form-section"
-            aria-labelledby="admin-ticket-reply-form-heading" hidden>
-            <h3 id="admin-ticket-reply-form-heading">Reply</h3>
-
-            <form id="admin-ticket-reply-form" class="admin-ticket-reply-form" novalidate>
-                <p class="admin-ticket-reply-field">
-                    <label for="admin-ticket-reply-body">Your message</label>
-                </p>
-                <p class="admin-ticket-reply-field-input">
-                    <textarea id="admin-ticket-reply-body" name="body" rows="5" maxlength="4000"
-                        required aria-describedby="admin-ticket-reply-error"
-                        placeholder="Respond to the reporter or add an internal note for other admins."></textarea>
-                </p>
-
-                <p class="admin-ticket-reply-internal">
-                    <label for="admin-ticket-reply-internal">
-                        <input id="admin-ticket-reply-internal" name="isInternalNote" type="checkbox">
-                        Mark as internal note (only admins can see this)
-                    </label>
-                </p>
-
-                <p id="admin-ticket-reply-error" class="admin-ticket-reply-error" aria-live="polite"></p>
-
-                <menu class="action-menu admin-ticket-reply-actions" aria-label="Reply actions">
-                    <li><button id="admin-ticket-reply-submit" type="submit" class="button-primary">Send Reply</button></li>
-                </menu>
-            </form>
-        </section>
-
-        <section id="admin-ticket-status-form-section" class="shared-section admin-ticket-status-form-section"
-            aria-labelledby="admin-ticket-status-form-heading" hidden>
-            <h3 id="admin-ticket-status-form-heading">Change Status</h3>
-
-            <form id="admin-ticket-status-form" class="admin-ticket-status-form" novalidate>
-                <p class="admin-ticket-status-field">
-                    <label for="admin-ticket-next-status">Move ticket to</label>
-                </p>
-                <p class="admin-ticket-status-field-input">
-                    <select id="admin-ticket-next-status" name="nextStatus">
-                        <option value="open">Open</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="awaiting_user">Awaiting User</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
-                    </select>
-                </p>
-
-                <p class="admin-ticket-status-field">
-                    <label for="admin-ticket-resolution-note">Resolution note (optional)</label>
-                </p>
-                <p class="admin-ticket-status-field-input">
-                    <textarea id="admin-ticket-resolution-note" name="resolutionNote" rows="3" maxlength="4000"
-                        placeholder="Saved when you move the ticket to Resolved."></textarea>
-                </p>
-
-                <p id="admin-ticket-status-error" class="admin-ticket-status-error" aria-live="polite"></p>
-
-                <menu class="action-menu admin-ticket-status-actions" aria-label="Status actions">
-                    <li><button id="admin-ticket-status-submit" type="submit" class="button-primary">Apply Status Change</button></li>
-                </menu>
-            </form>
         </section>
     </main>
 
-    <footer class="app-footer">
+    <footer>
         <p>Campus Food Ordering Platform &copy; 2026</p>
     </footer>
 
-    <script src="../authentication/auth-utils.js"></script>
-    <script src="../shared/support/ticket-status.js"></script>
-    <script src="../shared/support/ticket-categories.js"></script>
-    <script src="../shared/support/ticket-model.js"></script>
-    <script src="../shared/support/ticket-queries.js"></script>
-    <script src="../shared/support/ticket-validation.js"></script>
-    <script src="../shared/support/ticket-service.js"></script>
-    <script src="../shared/support/ticket-formatters.js"></script>
     <script src="./ticket-detail.js"></script>
-    <script type="module">
-        import { db, auth } from "../authentication/config.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-        import {
-            collection, doc, getDoc, getDocs, setDoc, updateDoc,
-            query, where, orderBy, limit, serverTimestamp
-        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
-
-        window.db = db;
-        window.auth = auth;
-        window.authFns = { onAuthStateChanged };
-        window.firestoreFns = {
-            collection, doc, getDoc, getDocs, setDoc, updateDoc,
-            query, where, orderBy, limit, serverTimestamp
-        };
-
-        if (window.adminTicketDetailPage && typeof window.adminTicketDetailPage.init === "function") {
-            await window.adminTicketDetailPage.init({
-                db, auth,
-                authFns: window.authFns,
-                firestoreFns: window.firestoreFns,
-                ticketService: window.ticketService,
-                ticketStatus: window.ticketStatus,
-                ticketCategories: window.ticketCategories,
-                ticketFormatters: window.ticketFormatters
-            });
-        }
+    <script>
+        window.adminTicketDetailPage.initializeAdminTicketDetailPage();
     </script>
 </body>
 

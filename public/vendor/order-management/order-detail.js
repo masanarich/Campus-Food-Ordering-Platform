@@ -630,16 +630,10 @@
         const defaultRefundStatus = refundStatus && typeof refundStatus.getDefaultRefundStatus === "function"
             ? refundStatus.getDefaultRefundStatus()
             : "not_requested";
-        let normalizedRefundStatus =
+        const normalizedRefundStatus =
             refundStatus && typeof refundStatus.normalizeRefundStatus === "function"
                 ? refundStatus.normalizeRefundStatus(rawRefundStatus, defaultRefundStatus)
                 : rawRefundStatus.toLowerCase() || defaultRefundStatus;
-        const refundRecordedInTimeline = hasRefundTimelineEntry(safeOrder);
-
-        if (refundRecordedInTimeline && normalizedRefundStatus === defaultRefundStatus) {
-            normalizedRefundStatus = "refunded";
-        }
-
         const refundStatusLabel =
             refundStatus && typeof refundStatus.getRefundStatusLabel === "function"
                 ? refundStatus.getRefundStatusLabel(normalizedRefundStatus)
@@ -650,7 +644,7 @@
                 : "neutral";
         const refundAmount = Number.isFinite(Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount))
             ? Number(safeOrder.refundAmount || safeOrder.paymentRefundAmount)
-            : (normalizedRefundStatus !== defaultRefundStatus ? amount : 0);
+            : 0;
         const refundAmountText = refundAmount > 0
             ? (paymentFormatters && typeof paymentFormatters.formatPaymentAmount === "function"
                 ? paymentFormatters.formatPaymentAmount(refundAmount, currency)
@@ -665,16 +659,6 @@
             isPaid &&
             normalizeLowerText(safeOrder.status) === "rejected" &&
             normalizedRefundStatus === "not_requested";
-        const refundIsComplete =
-            refundStatus && typeof refundStatus.isRefunded === "function"
-                ? refundStatus.isRefunded(normalizedRefundStatus)
-                : normalizedRefundStatus === "refunded";
-        const displayStatus = refundIsComplete ? "refunded" : normalizedPaymentStatus;
-        const displayStatusLabel = refundIsComplete ? "Refunded" : statusLabel;
-        const displayDescription = refundIsComplete
-            ? "Payment was refunded after this order was rejected. The rejected order is closed."
-            : description;
-        const displayTone = refundIsComplete ? "success" : tone;
 
         return {
             status: displayStatus,
@@ -701,7 +685,6 @@
             refundAmountText,
             refundReference: normalizeText(safeOrder.refundReference || safeOrder.paymentRefundReference),
             refundReason: normalizeText(safeOrder.refundReason || safeOrder.paymentRefundReason),
-            refundRecordedInTimeline,
             requiresRefund
         };
     }
@@ -907,6 +890,14 @@
             refundStatusLine.setAttribute("data-refund-status", view.refundStatus);
         }
 
+        if (view.requiresRefund) {
+            const refundNotice = createParagraph(
+                "This paid rejected order must be refunded before it is considered settled.",
+                "vendor-order-refund-notice"
+            );
+            refundNotice.setAttribute("data-tone", "warning");
+            container.appendChild(refundNotice);
+        }
     }
 
     function renderOrderTimeline(orderRecord, container, options = {}) {
@@ -1047,7 +1038,6 @@
 
         const gate = getPaymentGate(currentOrder, options);
         const isRejection = normalizeLowerText(safeAction.nextStatus) === "rejected";
-        const refundRequired = isRejection && shouldRefundRejectedOrder(currentOrder, options);
 
         if (gate.blocked && !isRejection) {
             setStatusMessage(statusElement, gate.reason, "error");
@@ -1059,13 +1049,7 @@
             };
         }
 
-        setStatusMessage(
-            statusElement,
-            refundRequired
-                ? "Rejecting order and starting customer refund..."
-                : "Updating order status...",
-            "loading"
-        );
+        setStatusMessage(statusElement, "Updating order status...", "loading");
 
         let result;
 
