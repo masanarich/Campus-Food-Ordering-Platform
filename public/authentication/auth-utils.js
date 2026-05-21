@@ -104,6 +104,109 @@ function normalizeRoles(roles) {
     };
 }
 
+function normalizePreferenceTagList(value) {
+    const rawValues = Array.isArray(value)
+        ? value
+        : normalizeText(value)
+            ? normalizeText(value).split(",")
+            : [];
+
+    return rawValues
+        .map(function normalizeTag(tag) {
+            return normalizeText(tag).toLowerCase();
+        })
+        .filter(Boolean)
+        .filter(function keepUnique(tag, index, list) {
+            return list.indexOf(tag) === index;
+        });
+}
+
+function normalizeRecommendationOptIn(value, fallbackValue = true) {
+    if (value === true || value === false) {
+        return value;
+    }
+
+    if (value === "true" || value === "1" || value === 1) {
+        return true;
+    }
+
+    if (value === "false" || value === "0" || value === 0) {
+        return false;
+    }
+
+    return fallbackValue;
+}
+
+function getOwnField(source, fieldName) {
+    const safeSource = source && typeof source === "object" ? source : {};
+
+    if (Object.prototype.hasOwnProperty.call(safeSource, fieldName)) {
+        return safeSource[fieldName];
+    }
+
+    return undefined;
+}
+
+function getFirstDefinedField(sources, fieldName, aliases = []) {
+    const safeSources = Array.isArray(sources) ? sources : [];
+    const safeAliases = Array.isArray(aliases) ? aliases : [];
+
+    for (let sourceIndex = 0; sourceIndex < safeSources.length; sourceIndex += 1) {
+        const source = safeSources[sourceIndex];
+        const directValue = getOwnField(source, fieldName);
+
+        if (directValue !== undefined) {
+            return directValue;
+        }
+
+        for (let aliasIndex = 0; aliasIndex < safeAliases.length; aliasIndex += 1) {
+            const aliasValue = getOwnField(source, safeAliases[aliasIndex]);
+
+            if (aliasValue !== undefined) {
+                return aliasValue;
+            }
+        }
+    }
+
+    return undefined;
+}
+
+function getRecommendationPreferenceFields(userData, fallbackData = {}) {
+    const safeUser = userData && typeof userData === "object" ? userData : {};
+    const safeFallback = fallbackData && typeof fallbackData === "object" ? fallbackData : {};
+    const sources = [safeUser, safeFallback];
+
+    return {
+        dietaryPreferences: normalizePreferenceTagList(
+            getFirstDefinedField(
+                sources,
+                "dietaryPreferences",
+                ["preferredDietaryTags", "dietary"]
+            )
+        ),
+        dietaryRestrictions: normalizePreferenceTagList(
+            getFirstDefinedField(
+                sources,
+                "dietaryRestrictions",
+                ["requiredDietaryTags", "restrictedDietary"]
+            )
+        ),
+        allergenRestrictions: normalizePreferenceTagList(
+            getFirstDefinedField(
+                sources,
+                "allergenRestrictions",
+                ["allergensToAvoid", "restrictedAllergens"]
+            )
+        ),
+        recommendationOptIn: normalizeRecommendationOptIn(
+            getFirstDefinedField(sources, "recommendationOptIn"),
+            safeFallback.recommendationOptIn !== undefined
+                ? normalizeRecommendationOptIn(safeFallback.recommendationOptIn, true)
+                : true
+        )
+    };
+}
+
 function hasAuthenticatedIdentity(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
 
@@ -234,6 +337,7 @@ function getDerivedRoles(userData) {
 function normaliseUserData(userData) {
     const safeUser = userData && typeof userData === "object" ? userData : {};
     const derivedRoles = getDerivedRoles(safeUser);
+    const recommendationPreferences = getRecommendationPreferenceFields(safeUser);
 
     return {
         uid: normalizeText(safeUser.uid),
@@ -247,6 +351,10 @@ function normaliseUserData(userData) {
         adminApplicationStatus: getAdminApplicationStatus(safeUser),
         adminApplicationReason: getAdminApplicationReason(safeUser),
         accountStatus: getAccountStatus(safeUser),
+        dietaryPreferences: recommendationPreferences.dietaryPreferences,
+        dietaryRestrictions: recommendationPreferences.dietaryRestrictions,
+        allergenRestrictions: recommendationPreferences.allergenRestrictions,
+        recommendationOptIn: recommendationPreferences.recommendationOptIn,
         createdAt: safeUser.createdAt || null,
         updatedAt: safeUser.updatedAt || null,
         lastLoginAt: safeUser.lastLoginAt || null,
@@ -476,6 +584,7 @@ function shouldShowPendingAdminPage(userData) {
 
 function createBaseUserProfile(authUser, overrides = {}) {
     const safeOverrides = overrides && typeof overrides === "object" ? overrides : {};
+    const recommendationPreferences = getRecommendationPreferenceFields(safeOverrides);
     const now = new Date().toISOString();
 
     const profile = {
@@ -507,6 +616,10 @@ function createBaseUserProfile(authUser, overrides = {}) {
         adminApplicationStatus: ADMIN_APPLICATION_STATUSES.NONE,
         adminApplicationReason: "",
         accountStatus: ACCOUNT_STATUSES.ACTIVE,
+        dietaryPreferences: recommendationPreferences.dietaryPreferences,
+        dietaryRestrictions: recommendationPreferences.dietaryRestrictions,
+        allergenRestrictions: recommendationPreferences.allergenRestrictions,
+        recommendationOptIn: recommendationPreferences.recommendationOptIn,
         createdAt: now,
         updatedAt: now,
         lastLoginAt: now
@@ -525,6 +638,7 @@ function createBaseUserProfile(authUser, overrides = {}) {
 function mergeProfileWithAuthData(existingProfile, authUser, overrides = {}) {
     const safeExisting = normaliseUserData(existingProfile);
     const safeOverrides = overrides && typeof overrides === "object" ? overrides : {};
+    const recommendationPreferences = getRecommendationPreferenceFields(safeOverrides, safeExisting);
     const now = new Date().toISOString();
 
     const mergedProfile = {
@@ -564,6 +678,10 @@ function mergeProfileWithAuthData(existingProfile, authUser, overrides = {}) {
         adminApplicationStatus: safeExisting.adminApplicationStatus,
         adminApplicationReason: safeExisting.adminApplicationReason,
         accountStatus: safeExisting.accountStatus,
+        dietaryPreferences: recommendationPreferences.dietaryPreferences,
+        dietaryRestrictions: recommendationPreferences.dietaryRestrictions,
+        allergenRestrictions: recommendationPreferences.allergenRestrictions,
+        recommendationOptIn: recommendationPreferences.recommendationOptIn,
         createdAt: safeExisting.createdAt || now,
         updatedAt: now,
         lastLoginAt: now
@@ -854,6 +972,9 @@ const authUtils = {
     isValidPhoneNumber,
     createEmptyRoles,
     normalizeRoles,
+    normalizePreferenceTagList,
+    normalizeRecommendationOptIn,
+    getRecommendationPreferenceFields,
     hasAuthenticatedIdentity,
     getAccountStatus,
     isAccountActive,

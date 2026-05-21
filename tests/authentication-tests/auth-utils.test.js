@@ -12,6 +12,9 @@ const {
     isValidPhoneNumber,
     createEmptyRoles,
     normalizeRoles,
+    normalizePreferenceTagList,
+    normalizeRecommendationOptIn,
+    getRecommendationPreferenceFields,
     hasAuthenticatedIdentity,
     getAccountStatus,
     isAccountActive,
@@ -376,6 +379,10 @@ describe("auth-utils user normalization", () => {
             adminApplicationStatus: "none",
             adminApplicationReason: "",
             accountStatus: "active",
+            dietaryPreferences: [],
+            dietaryRestrictions: [],
+            allergenRestrictions: [],
+            recommendationOptIn: true,
             createdAt: null,
             updatedAt: null,
             lastLoginAt: null,
@@ -400,6 +407,10 @@ describe("auth-utils user normalization", () => {
             accountStatus: "inactive",
             rejectionReason: "  Missing docs  ",
             adminRejectionReason: "  Waiting for review  ",
+            dietaryPreferences: [" Halal ", "Vegan", "halal"],
+            dietaryRestrictions: "Gluten Free",
+            allergenRestrictions: [" Nuts ", "milk"],
+            recommendationOptIn: "false",
             createdAt: "yesterday",
             updatedAt: "today",
             lastLoginAt: "just now"
@@ -417,6 +428,10 @@ describe("auth-utils user normalization", () => {
             adminApplicationStatus: "pending",
             adminApplicationReason: "Waiting for review",
             accountStatus: "active",
+            dietaryPreferences: ["halal", "vegan"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["nuts", "milk"],
+            recommendationOptIn: false,
             createdAt: "yesterday",
             updatedAt: "today",
             lastLoginAt: "just now",
@@ -431,6 +446,49 @@ describe("auth-utils user normalization", () => {
     test("normalizeUserData is an alias of normaliseUserData", () => {
         const input = { email: " USER@example.com " };
         expect(normalizeUserData(input)).toEqual(normaliseUserData(input));
+    });
+
+    test("recommendation preference helpers normalize aliases and opt-in", () => {
+        expect(normalizePreferenceTagList(" Halal, Vegan, halal ")).toEqual([
+            "halal",
+            "vegan"
+        ]);
+        expect(normalizePreferenceTagList([" Nuts ", "", "milk", "nuts"])).toEqual([
+            "nuts",
+            "milk"
+        ]);
+        expect(normalizeRecommendationOptIn("false")).toBe(false);
+        expect(normalizeRecommendationOptIn("0")).toBe(false);
+        expect(normalizeRecommendationOptIn(undefined)).toBe(true);
+
+        expect(
+            getRecommendationPreferenceFields({
+                preferredDietaryTags: "Vegetarian, Halal",
+                requiredDietaryTags: ["Gluten Free"],
+                allergensToAvoid: "Nuts, Milk",
+                recommendationOptIn: "0"
+            })
+        ).toEqual({
+            dietaryPreferences: ["vegetarian", "halal"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["nuts", "milk"],
+            recommendationOptIn: false
+        });
+
+        expect(
+            getRecommendationPreferenceFields(
+                {},
+                {
+                    dietaryPreferences: ["Vegan"],
+                    recommendationOptIn: false
+                }
+            )
+        ).toEqual({
+            dietaryPreferences: ["vegan"],
+            dietaryRestrictions: [],
+            allergenRestrictions: [],
+            recommendationOptIn: false
+        });
     });
 
     test("hasRole supports customer, vendor, admin and rejects unknown roles", () => {
@@ -728,7 +786,11 @@ describe("auth-utils profile shaping", () => {
             },
             {
                 displayName: "Override Name",
-                photoURL: "https://example.com/override.jpg"
+                photoURL: "https://example.com/override.jpg",
+                dietaryPreferences: "Halal, Vegan",
+                dietaryRestrictions: ["Gluten Free"],
+                allergenRestrictions: ["Nuts"],
+                recommendationOptIn: false
             }
         );
 
@@ -743,6 +805,10 @@ describe("auth-utils profile shaping", () => {
         expect(result.adminApplicationStatus).toBe("none");
         expect(result.adminApplicationReason).toBe("");
         expect(result.accountStatus).toBe("active");
+        expect(result.dietaryPreferences).toEqual(["halal", "vegan"]);
+        expect(result.dietaryRestrictions).toEqual(["gluten free"]);
+        expect(result.allergenRestrictions).toEqual(["nuts"]);
+        expect(result.recommendationOptIn).toBe(false);
         expect(result.roles).toEqual({
             customer: true,
             vendor: false,
@@ -761,6 +827,10 @@ describe("auth-utils profile shaping", () => {
         expect(result.email).toBe("");
         expect(result.phoneNumber).toBe("");
         expect(result.photoURL).toBe("");
+        expect(result.dietaryPreferences).toEqual([]);
+        expect(result.dietaryRestrictions).toEqual([]);
+        expect(result.allergenRestrictions).toEqual([]);
+        expect(result.recommendationOptIn).toBe(true);
         expect(result.roles).toEqual({
             customer: false,
             vendor: false,
@@ -782,6 +852,10 @@ describe("auth-utils profile shaping", () => {
                 adminApplicationStatus: "approved",
                 adminApplicationReason: "",
                 accountStatus: "blocked",
+                dietaryPreferences: ["vegan"],
+                dietaryRestrictions: ["halal"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: false,
                 createdAt: "2026-01-01T10:00:00.000Z"
             },
             {
@@ -792,7 +866,9 @@ describe("auth-utils profile shaping", () => {
                 photoURL: "https://example.com/auth.jpg"
             },
             {
-                displayName: "Override Name"
+                displayName: "Override Name",
+                dietaryPreferences: ["Vegetarian"],
+                recommendationOptIn: true
             }
         );
 
@@ -807,6 +883,10 @@ describe("auth-utils profile shaping", () => {
         expect(result.adminApplicationStatus).toBe("approved");
         expect(result.adminApplicationReason).toBe("");
         expect(result.accountStatus).toBe("blocked");
+        expect(result.dietaryPreferences).toEqual(["vegetarian"]);
+        expect(result.dietaryRestrictions).toEqual(["halal"]);
+        expect(result.allergenRestrictions).toEqual(["nuts"]);
+        expect(result.recommendationOptIn).toBe(true);
         expect(result.createdAt).toBe("2026-01-01T10:00:00.000Z");
         expectIsoString(result.updatedAt);
         expectIsoString(result.lastLoginAt);

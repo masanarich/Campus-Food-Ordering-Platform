@@ -457,7 +457,11 @@ describe("auth-core profile document methods", () => {
             uid: "user-4",
             email: "user4@example.com",
             displayName: "User Four",
-            vendorStatus: "none"
+            vendorStatus: "none",
+            dietaryPreferences: [" Halal ", "Vegan", "halal"],
+            dietaryRestrictions: "Gluten Free",
+            allergenRestrictions: "Nuts, Milk",
+            recommendationOptIn: "false"
         };
 
         const result = await service.saveUserProfile(profile);
@@ -484,6 +488,10 @@ describe("auth-core profile document methods", () => {
                 adminApplicationStatus: "none",
                 adminApplicationReason: "",
                 accountStatus: "active",
+                dietaryPreferences: ["halal", "vegan"],
+                dietaryRestrictions: ["gluten free"],
+                allergenRestrictions: ["nuts", "milk"],
+                recommendationOptIn: false,
                 createdAt: "SERVER_TIMESTAMP",
                 updatedAt: "SERVER_TIMESTAMP",
                 lastLoginAt: "SERVER_TIMESTAMP"
@@ -496,7 +504,11 @@ describe("auth-core profile document methods", () => {
                 displayName: "User Four",
                 email: "user4@example.com",
                 vendorStatus: "none",
-                accountStatus: "active"
+                accountStatus: "active",
+                dietaryPreferences: ["halal", "vegan"],
+                dietaryRestrictions: ["gluten free"],
+                allergenRestrictions: ["nuts", "milk"],
+                recommendationOptIn: false
             })
         );
     });
@@ -513,7 +525,11 @@ describe("auth-core profile document methods", () => {
                 email: "merge@example.com",
                 displayName: "Merge User",
                 vendorStatus: "approved",
-                accountStatus: "active"
+                accountStatus: "active",
+                preferredDietaryTags: ["Vegetarian"],
+                requiredDietaryTags: ["Halal"],
+                allergensToAvoid: ["Peanuts"],
+                recommendationOptIn: true
             },
             { merge: true }
         );
@@ -530,6 +546,10 @@ describe("auth-core profile document methods", () => {
                 email: "merge@example.com",
                 vendorStatus: "approved",
                 accountStatus: "active",
+                dietaryPreferences: ["vegetarian"],
+                dietaryRestrictions: ["halal"],
+                allergenRestrictions: ["peanuts"],
+                recommendationOptIn: true,
                 updatedAt: "SERVER_TIMESTAMP",
                 lastLoginAt: "SERVER_TIMESTAMP"
             }),
@@ -588,7 +608,11 @@ describe("auth-core profile document methods", () => {
             vendorStatus: "suspended",
             vendorReason: "Policy issue",
             accountStatus: "unknown",
-            isAdmin: true
+            isAdmin: true,
+            dietaryPreferences: "Halal, Vegan",
+            dietaryRestrictions: ["Gluten Free"],
+            allergenRestrictions: ["Nuts", "nuts"],
+            recommendationOptIn: "false"
         });
 
         expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
@@ -602,6 +626,10 @@ describe("auth-core profile document methods", () => {
                 vendorStatus: "blocked",
                 vendorReason: "Policy issue",
                 accountStatus: "active",
+                dietaryPreferences: ["halal", "vegan"],
+                dietaryRestrictions: ["gluten free"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: false,
                 updatedAt: "SERVER_TIMESTAMP"
             }
         );
@@ -612,6 +640,10 @@ describe("auth-core profile document methods", () => {
             vendorStatus: "blocked",
             vendorReason: "Policy issue",
             accountStatus: "active",
+            dietaryPreferences: ["halal", "vegan"],
+            dietaryRestrictions: ["gluten free"],
+            allergenRestrictions: ["nuts"],
+            recommendationOptIn: false,
             updatedAt: "SERVER_TIMESTAMP"
         });
     });
@@ -687,7 +719,11 @@ describe("auth-core current-user profile methods", () => {
             photoURL: "https://example.com/new-photo.jpg",
             vendorStatus: "approved",
             vendorReason: "All good",
-            accountStatus: "active"
+            accountStatus: "active",
+            dietaryPreferences: ["Vegetarian", "Halal"],
+            dietaryRestrictions: "Gluten Free",
+            allergenRestrictions: ["Nuts"],
+            recommendationOptIn: false
         });
 
         expect(deps.authFns.updateProfile).toHaveBeenCalledWith(
@@ -711,6 +747,10 @@ describe("auth-core current-user profile methods", () => {
                 vendorStatus: "approved",
                 vendorReason: "All good",
                 accountStatus: "active",
+                dietaryPreferences: ["vegetarian", "halal"],
+                dietaryRestrictions: ["gluten free"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: false,
                 updatedAt: "SERVER_TIMESTAMP"
             }
         );
@@ -724,7 +764,11 @@ describe("auth-core current-user profile methods", () => {
                 photoURL: "https://example.com/new-photo.jpg",
                 vendorStatus: "approved",
                 vendorReason: "All good",
-                accountStatus: "active"
+                accountStatus: "active",
+                dietaryPreferences: ["vegetarian", "halal"],
+                dietaryRestrictions: ["gluten free"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: false
             })
         );
     });
@@ -1257,7 +1301,11 @@ describe("auth-core profile sync and auth flows", () => {
             vendorReason: "",
             adminApplicationStatus: "approved",
             adminApplicationReason: "",
-            accountStatus: "active"
+            accountStatus: "active",
+            dietaryPreferences: ["vegan"],
+            dietaryRestrictions: ["halal"],
+            allergenRestrictions: ["nuts"],
+            recommendationOptIn: false
         };
 
         deps.firestoreFns.getDoc.mockResolvedValue({
@@ -1299,6 +1347,10 @@ describe("auth-core profile sync and auth flows", () => {
                 adminApplicationStatus: "approved",
                 adminApplicationReason: "",
                 accountStatus: "active",
+                dietaryPreferences: ["vegan"],
+                dietaryRestrictions: ["halal"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: false,
                 updatedAt: "SERVER_TIMESTAMP",
                 lastLoginAt: "SERVER_TIMESTAMP"
             }),
@@ -1310,7 +1362,11 @@ describe("auth-core profile sync and auth flows", () => {
                 uid: "user-6",
                 displayName: "Updated Name",
                 email: "updated@example.com",
-                providerPhotoURL: "https://provider.example.com/auth.jpg"
+                providerPhotoURL: "https://provider.example.com/auth.jpg",
+                dietaryPreferences: ["vegan"],
+                dietaryRestrictions: ["halal"],
+                allergenRestrictions: ["nuts"],
+                recommendationOptIn: false
             })
         );
     });
@@ -1338,7 +1394,11 @@ describe("auth-core profile sync and auth flows", () => {
                 email: "user7@example.com",
                 displayName: "User Seven",
                 vendorStatus: "none",
-                adminApplicationStatus: "none"
+                adminApplicationStatus: "none",
+                dietaryPreferences: [],
+                dietaryRestrictions: [],
+                allergenRestrictions: [],
+                recommendationOptIn: true
             })
         );
     });
@@ -1433,7 +1493,10 @@ describe("auth-core profile sync and auth flows", () => {
                 vendorReason: "",
                 adminApplicationStatus: "suspended",
                 adminApplicationReason: "",
-                accountStatus: "unknown"
+                accountStatus: "unknown",
+                dietaryPreferences: ["halal"],
+                allergenRestrictions: ["milk"],
+                recommendationOptIn: false
             })
         });
 
@@ -1456,6 +1519,9 @@ describe("auth-core profile sync and auth flows", () => {
         expect(result.vendorStatus).toBe("blocked");
         expect(result.adminApplicationStatus).toBe("blocked");
         expect(result.accountStatus).toBe("active");
+        expect(result.dietaryPreferences).toEqual(["halal"]);
+        expect(result.allergenRestrictions).toEqual(["milk"]);
+        expect(result.recommendationOptIn).toBe(false);
 
         await expect(service.ensureUserProfile(null)).rejects.toThrow(
             "A valid authenticated user is required."
