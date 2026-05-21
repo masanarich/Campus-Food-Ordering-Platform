@@ -204,9 +204,18 @@ service cloud.firestore {
         request.resource.data.customerUid is string &&
         request.resource.data.vendorUid is string &&
         request.resource.data.vendorUid != "" &&
-        request.resource.data.status is string &&
+        request.resource.data.status == "pending" &&
         request.resource.data.items is list &&
         request.resource.data.items.size() > 0 &&
+        request.resource.data.get("vendorSubtotal", 0) >= 0 &&
+        request.resource.data.get("vendorEarnings", 0) >= 0 &&
+        request.resource.data.get("platformFee", 0) >= 0 &&
+        request.resource.data.get("platformEarnings", 0) >= 0 &&
+        request.resource.data.get("customerTotal", 0) >= 0 &&
+        (
+          !("financeModel" in request.resource.data) ||
+          request.resource.data.financeModel == "vendor-price-plus-platform-fee"
+        ) &&
         request.resource.data.paymentStatus == "paid" &&
         request.resource.data.paymentReference is string &&
         request.resource.data.paymentReference != "" &&
@@ -258,6 +267,13 @@ service cloud.firestore {
         "itemCount",
         "subtotal",
         "total",
+        "vendorSubtotal",
+        "vendorEarnings",
+        "platformFeeRate",
+        "platformFee",
+        "platformEarnings",
+        "customerTotal",
+        "financeModel",
         "status",
         "paymentProvider",
         "paymentReference",
@@ -311,7 +327,14 @@ service cloud.firestore {
         request.resource.data.createdAt == resource.data.createdAt &&
         request.resource.data.items == resource.data.items &&
         request.resource.data.subtotal == resource.data.subtotal &&
-        request.resource.data.total == resource.data.total;
+        request.resource.data.total == resource.data.total &&
+        request.resource.data.get("vendorSubtotal", 0) == resource.data.get("vendorSubtotal", 0) &&
+        request.resource.data.get("vendorEarnings", 0) == resource.data.get("vendorEarnings", 0) &&
+        request.resource.data.get("platformFeeRate", 0) == resource.data.get("platformFeeRate", 0) &&
+        request.resource.data.get("platformFee", 0) == resource.data.get("platformFee", 0) &&
+        request.resource.data.get("platformEarnings", 0) == resource.data.get("platformEarnings", 0) &&
+        request.resource.data.get("customerTotal", 0) == resource.data.get("customerTotal", 0) &&
+        request.resource.data.get("financeModel", "") == resource.data.get("financeModel", "");
     }
 
     function checkoutClientWritableStatus(status) {
@@ -370,6 +393,135 @@ service cloud.firestore {
         checkoutServerOnlyFieldsPreserved() &&
         request.resource.data.status is string &&
         checkoutClientWritableStatus(request.resource.data.status);
+    }
+
+    // -----------------------------------------------------------------
+    // Payout helpers
+    // -----------------------------------------------------------------
+
+    function isPayoutOwner() {
+      return signedIn() && resource.data.vendorUid == request.auth.uid;
+    }
+
+    function payoutStatusIsValid(status) {
+      return status == "pending" ||
+        status == "approved" ||
+        status == "paid" ||
+        status == "rejected" ||
+        status == "cancelled";
+    }
+
+    function payoutCreateAffectsOnlyAllowedKeys() {
+      return request.resource.data.keys().hasOnly([
+        "payoutId",
+        "vendorUid",
+        "vendorName",
+        "vendorEmail",
+        "amount",
+        "amountInMinorUnits",
+        "currency",
+        "status",
+        "statusLabel",
+        "fakeBankName",
+        "fakeAccountHolder",
+        "fakeAccountNumberLast4",
+        "fakeAccountNumberMasked",
+        "fakeBranchCode",
+        "fakeAccountType",
+        "requestedAt",
+        "approvedAt",
+        "paidAt",
+        "rejectedAt",
+        "cancelledAt",
+        "processedAt",
+        "processedByUid",
+        "processedByName",
+        "rejectionReason",
+        "notes",
+        "testMode",
+        "testEmailQueued",
+        "emailNotificationId",
+        "timeline",
+        "createdAt",
+        "updatedAt"
+      ]);
+    }
+
+    function payoutUpdateAffectsOnlyAllowedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "statusLabel",
+        "approvedAt",
+        "paidAt",
+        "rejectedAt",
+        "cancelledAt",
+        "processedAt",
+        "processedByUid",
+        "processedByName",
+        "rejectionReason",
+        "testEmailQueued",
+        "emailNotificationId",
+        "timeline",
+        "updatedAt"
+      ]);
+    }
+
+    function vendorPayoutCancelAffectsOnlyAllowedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "statusLabel",
+        "cancelledAt",
+        "timeline",
+        "updatedAt"
+      ]);
+    }
+
+    function isValidPayoutCreate() {
+      return signedIn() &&
+        isApprovedVendor() &&
+        payoutCreateAffectsOnlyAllowedKeys() &&
+        request.resource.data.vendorUid == request.auth.uid &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.amountInMinorUnits is int &&
+        request.resource.data.amountInMinorUnits > 0 &&
+        request.resource.data.currency is string &&
+        request.resource.data.currency != "" &&
+        request.resource.data.status == "pending" &&
+        request.resource.data.statusLabel == "Pending" &&
+        request.resource.data.fakeBankName is string &&
+        request.resource.data.fakeBankName != "" &&
+        request.resource.data.fakeAccountHolder is string &&
+        request.resource.data.fakeAccountHolder != "" &&
+        request.resource.data.fakeAccountNumberLast4 is string &&
+        request.resource.data.fakeAccountNumberLast4.size() <= 4 &&
+        request.resource.data.fakeAccountNumberMasked is string &&
+        request.resource.data.fakeBranchCode is string &&
+        request.resource.data.fakeBranchCode != "" &&
+        request.resource.data.fakeAccountType is string &&
+        request.resource.data.testMode == true &&
+        request.resource.data.testEmailQueued is bool &&
+        request.resource.data.timeline is list &&
+        request.resource.data.timeline.size() > 0 &&
+        request.resource.data.createdAt != null &&
+        request.resource.data.updatedAt != null &&
+        request.resource.data.requestedAt != null;
+    }
+
+    function isValidPayoutUpdate() {
+      return signedIn() &&
+        payoutUpdateAffectsOnlyAllowedKeys() &&
+        payoutStatusIsValid(request.resource.data.status) &&
+        (
+          isAdmin() ||
+          (
+            isPayoutOwner() &&
+            resource.data.status == "pending" &&
+            request.resource.data.status == "cancelled" &&
+            request.resource.data.statusLabel == "Cancelled" &&
+            vendorPayoutCancelAffectsOnlyAllowedKeys()
+          )
+        );
     }
 
     // -----------------------------------------------------------------
@@ -634,9 +786,24 @@ service cloud.firestore {
       allow create: if isValidOrderCreate();
 
       allow get: if isOrderParticipant();
-      allow list: if signedIn();
+      allow list: if isOrderParticipant();
 
       allow update: if isValidOrderUpdate();
+
+      allow delete: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // /payoutRequests
+    // -----------------------------------------------------------------
+
+    match /payoutRequests/{payoutId} {
+      allow create: if isValidPayoutCreate() || isAdmin();
+
+      allow get: if isPayoutOwner() || isAdmin();
+      allow list: if isPayoutOwner() || isAdmin();
+
+      allow update: if isValidPayoutUpdate();
 
       allow delete: if isAdmin();
     }

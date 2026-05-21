@@ -17,6 +17,35 @@ function normalizeLowerText(value) {
     return normalizeText(value).toLowerCase();
 }
 
+function normalizeCurrencyAmount(value, fallbackValue) {
+    const parsed = Number.parseFloat(value);
+    const fallbackParsed = Number.parseFloat(fallbackValue);
+
+    if (Number.isFinite(parsed)) {
+        return Math.max(0, Math.round((parsed + Number.EPSILON) * 100) / 100);
+    }
+
+    if (Number.isFinite(fallbackParsed)) {
+        return Math.max(0, Math.round((fallbackParsed + Number.EPSILON) * 100) / 100);
+    }
+
+    return 0;
+}
+
+function formatCurrency(amount, currency) {
+    const safeCurrency = normalizeText(currency) || "ZAR";
+
+    try {
+        return new Intl.NumberFormat("en-ZA", {
+            style: "currency",
+            currency: safeCurrency,
+            currencyDisplay: "narrowSymbol"
+        }).format(normalizeCurrencyAmount(amount));
+    } catch (error) {
+        return `R${normalizeCurrencyAmount(amount).toFixed(2)}`;
+    }
+}
+
 function normalizeVendorStatus(status) {
     const value = normalizeLowerText(status);
 
@@ -97,6 +126,53 @@ function getFallbackRoutes() {
         analytics: "./analytics.html",
         login: "../authentication/login.html"
     };
+}
+
+function resolveGlobal(name) {
+    if (typeof window !== "undefined" && window[name]) {
+        return window[name];
+    }
+
+    if (typeof globalThis !== "undefined" && globalThis[name]) {
+        return globalThis[name];
+    }
+
+    return null;
+}
+
+function resolvePlatformPricing(explicitPlatformPricing) {
+    if (
+        explicitPlatformPricing &&
+        typeof explicitPlatformPricing.calculatePlatformBalance === "function"
+    ) {
+        return explicitPlatformPricing;
+    }
+
+    const globalPlatformPricing = resolveGlobal("platformPricing");
+
+    if (
+        globalPlatformPricing &&
+        typeof globalPlatformPricing.calculatePlatformBalance === "function"
+    ) {
+        return globalPlatformPricing;
+    }
+
+    if (typeof require === "function") {
+        try {
+            const requiredPlatformPricing = require("../shared/finance/platform-pricing.js");
+
+            if (
+                requiredPlatformPricing &&
+                typeof requiredPlatformPricing.calculatePlatformBalance === "function"
+            ) {
+                return requiredPlatformPricing;
+            }
+        } catch (error) {
+            return null;
+        }
+    }
+
+    return null;
 }
 
 function getPortalRoute(routeName, authUtils) {
@@ -361,6 +437,106 @@ function getWelcomeMessage(profile, authUtils) {
     return `Welcome back, ${name}.`;
 }
 
+function isCompletedPaidOrder(order) {
+    const safeOrder = order && typeof order === "object" ? order : {};
+    const status = normalizeLowerText(safeOrder.status || safeOrder.orderStatus);
+    const paymentStatus = normalizeLowerText(safeOrder.paymentStatus || safeOrder.paymentState);
+
+    return status === "completed" && (!paymentStatus || paymentStatus === "paid");
+}
+
+function getDefaultFinanceSummary() {
+    return {
+        completedOrders: 0,
+        customerRevenue: 0,
+        platformEarnings: 0,
+        platformBalance: 0,
+        vendorEarnings: 0
+    };
+}
+
+function calculateAdminFinanceSummary(orders, options = {}) {
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const safeOrders = Array.isArray(orders) ? orders : [];
+    const platformPricing = resolvePlatformPricing(safeOptions.platformPricing);
+    const platformBalance = platformPricing && typeof platformPricing.calculatePlatformBalance === "function"
+        ? platformPricing.calculatePlatformBalance(safeOrders, safeOptions)
+        : null;
+    const completedOrders = safeOrders.filter(isCompletedPaidOrder);
+    const vendorEarnings = completedOrders.reduce(function sumVendor(total, order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const amount = safeOrder.vendorEarnings !== undefined
+            ? safeOrder.vendorEarnings
+            : safeOrder.vendorSubtotal;
+
+        return normalizeCurrencyAmount(total + normalizeCurrencyAmount(amount));
+    }, 0);
+
+    if (platformBalance) {
+        return {
+            ...getDefaultFinanceSummary(),
+            completedOrders: platformBalance.completedOrders || completedOrders.length,
+            customerRevenue: normalizeCurrencyAmount(platformBalance.customerRevenue),
+            platformEarnings: normalizeCurrencyAmount(platformBalance.platformEarnings),
+            platformBalance: normalizeCurrencyAmount(platformBalance.platformBalance),
+            vendorEarnings
+        };
+    }
+
+    const customerRevenue = completedOrders.reduce(function sumRevenue(total, order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const amount = safeOrder.paymentAmount !== undefined
+            ? safeOrder.paymentAmount
+            : safeOrder.total !== undefined
+                ? safeOrder.total
+                : safeOrder.totalAmount;
+
+        return normalizeCurrencyAmount(total + normalizeCurrencyAmount(amount));
+    }, 0);
+    const platformEarnings = completedOrders.reduce(function sumPlatform(total, order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const amount = safeOrder.platformEarnings !== undefined
+            ? safeOrder.platformEarnings
+            : safeOrder.platformFee;
+
+        return normalizeCurrencyAmount(total + normalizeCurrencyAmount(amount));
+    }, 0);
+
+    return {
+        completedOrders: completedOrders.length,
+        customerRevenue,
+        platformEarnings,
+        platformBalance: platformEarnings,
+        vendorEarnings
+    };
+}
+
+async function loadAdminFinanceSummary(dependencies = {}) {
+    const safeDependencies = dependencies && typeof dependencies === "object" ? dependencies : {};
+
+    try {
+        if (typeof safeDependencies.financeLoader === "function") {
+            const financeData = await safeDependencies.financeLoader();
+            const safeFinanceData = financeData && typeof financeData === "object" ? financeData : {};
+
+            return {
+                summary: calculateAdminFinanceSummary(safeFinanceData.orders, safeDependencies),
+                error: null
+            };
+        }
+
+        return {
+            summary: calculateAdminFinanceSummary(safeDependencies.orders, safeDependencies),
+            error: null
+        };
+    } catch (error) {
+        return {
+            summary: getDefaultFinanceSummary(),
+            error
+        };
+    }
+}
+
 function getHomeState(profile, authUtils) {
     const safeProfile = normalizeProfile(profile, authUtils);
     const showCustomerPortal = canAccessCustomerPortal(safeProfile, authUtils);
@@ -391,7 +567,9 @@ function getHomeState(profile, authUtils) {
         disputesRoute: getPortalRoute("disputes", authUtils),
         ticketDetailRoute: getPortalRoute("ticketDetail", authUtils),
         analyticsRoute: getPortalRoute("analytics", authUtils),
-        signOutRoute: getPortalRoute("signOut", authUtils)
+        signOutRoute: getPortalRoute("signOut", authUtils),
+        financeSummary: getDefaultFinanceSummary(),
+        financeStatusMessage: "Open Finance to review platform earnings and fake payout requests."
     };
 }
 
@@ -480,6 +658,9 @@ function renderAdminHomePage(elements, state) {
     setText(elements.welcomeMessageElement, state.welcomeMessage);
     setText(elements.managementSummaryElement, state.managementSummary);
     setText(elements.adminAccessNoteElement, state.adminAccessNote);
+    renderFinanceSummary(elements, state.financeSummary, {
+        message: state.financeStatusMessage
+    });
 
     if (elements.photoCaptionElement) {
         setText(
@@ -500,6 +681,30 @@ function renderAdminHomePage(elements, state) {
     setHidden(elements.customerPortalButton, !state.showCustomerPortal);
     setHidden(elements.vendorPortalButton, !state.showVendorPortal);
     setHidden(elements.choosePortalButton, !state.showChoosePortal);
+}
+
+function renderFinanceSummary(elements, financeSummary, options = {}) {
+    if (!elements) {
+        return;
+    }
+
+    const summary = {
+        ...getDefaultFinanceSummary(),
+        ...(financeSummary && typeof financeSummary === "object" ? financeSummary : {})
+    };
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const hasFinance = summary.platformEarnings > 0 || summary.customerRevenue > 0 || summary.completedOrders > 0;
+    const message = normalizeText(safeOptions.message) || (
+        hasFinance
+            ? "Completed paid orders are reflected in this finance snapshot."
+            : "No completed paid orders have added platform earnings yet."
+    );
+
+    setText(elements.financeNoteElement, message);
+    setText(elements.platformBalanceElement, formatCurrency(summary.platformBalance));
+    setText(elements.customerRevenueElement, formatCurrency(summary.customerRevenue));
+    setText(elements.vendorEarningsElement, formatCurrency(summary.vendorEarnings));
+    setText(elements.completedOrdersElement, String(summary.completedOrders || 0));
 }
 
 function attachNavigationHandler(options = {}) {
@@ -625,6 +830,18 @@ async function loadAdminHomeState(dependencies = {}) {
         };
     }
 
+    const finance = await loadAdminFinanceSummary({
+        ...dependencies,
+        authUtils
+    });
+
+    state.financeSummary = finance.summary;
+    state.financeStatusMessage = finance.error
+        ? "Finance figures could not be loaded here. Open Finance for the full view."
+        : state.financeSummary.completedOrders > 0
+            ? "Completed paid orders are reflected in this finance snapshot."
+            : "Open Finance to review platform earnings and fake payout requests.";
+
     return {
         success: true,
         user,
@@ -663,6 +880,11 @@ async function initializeAdminHomePage(options = {}) {
         welcomeMessageElement: document.querySelector("#welcome-message"),
         managementSummaryElement: document.querySelector("#management-summary"),
         adminAccessNoteElement: document.querySelector("#admin-access-note"),
+        financeNoteElement: document.querySelector("#admin-finance-note"),
+        platformBalanceElement: document.querySelector("#admin-platform-balance"),
+        customerRevenueElement: document.querySelector("#admin-customer-revenue"),
+        vendorEarningsElement: document.querySelector("#admin-vendor-earnings"),
+        completedOrdersElement: document.querySelector("#admin-completed-orders"),
         profileButton: document.querySelector("#go-profile-button"),
         manageUsersButton: document.querySelector("#manage-users-button"),
         financeButton: document.querySelector("#finance-button"),
@@ -802,10 +1024,14 @@ async function initializeAdminHomePage(options = {}) {
 
 const adminHomePage = {
     normalizeText,
+    normalizeCurrencyAmount,
+    formatCurrency,
     normalizeVendorStatus,
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
+    resolveGlobal,
+    resolvePlatformPricing,
     getPortalRoute,
     hasAuthenticatedIdentity,
     normalizeProfile,
@@ -819,6 +1045,10 @@ const adminHomePage = {
     getManagementSummary,
     getAdminAccessNote,
     getWelcomeMessage,
+    isCompletedPaidOrder,
+    getDefaultFinanceSummary,
+    calculateAdminFinanceSummary,
+    loadAdminFinanceSummary,
     getHomeState,
     getDefaultAvatar,
     getSafeRedirectRoute,
@@ -826,6 +1056,7 @@ const adminHomePage = {
     setHidden,
     setStatusMessage,
     setImage,
+    renderFinanceSummary,
     renderAdminHomePage,
     attachNavigationHandler,
     attachSignOutHandler,

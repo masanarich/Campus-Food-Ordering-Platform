@@ -137,6 +137,42 @@
       ]
     },
     {
+      "collectionGroup": "payoutRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payoutRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payoutRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vendorUid", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payoutRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vendorUid", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "supportTickets",
       "queryScope": "COLLECTION",
       "fields": [

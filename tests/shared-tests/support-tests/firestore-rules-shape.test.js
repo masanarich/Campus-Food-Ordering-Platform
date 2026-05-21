@@ -78,6 +78,13 @@ const CHECKOUT_CREATE_ALLOWED_KEYS = [
     "itemCount",
     "subtotal",
     "total",
+    "vendorSubtotal",
+    "vendorEarnings",
+    "platformFeeRate",
+    "platformFee",
+    "platformEarnings",
+    "customerTotal",
+    "financeModel",
     "status",
     "paymentProvider",
     "paymentReference",
@@ -128,6 +135,57 @@ const CHECKOUT_CUSTOMER_WRITABLE_STATUSES = [
     "payment_failed",
     "cancelled",
     "expired"
+];
+
+const PAYOUT_CREATE_ALLOWED_KEYS = [
+    "payoutId",
+    "vendorUid",
+    "vendorName",
+    "vendorEmail",
+    "amount",
+    "amountInMinorUnits",
+    "currency",
+    "status",
+    "statusLabel",
+    "fakeBankName",
+    "fakeAccountHolder",
+    "fakeAccountNumberLast4",
+    "fakeAccountNumberMasked",
+    "fakeBranchCode",
+    "fakeAccountType",
+    "requestedAt",
+    "approvedAt",
+    "paidAt",
+    "rejectedAt",
+    "cancelledAt",
+    "processedAt",
+    "processedByUid",
+    "processedByName",
+    "rejectionReason",
+    "notes",
+    "testMode",
+    "testEmailQueued",
+    "emailNotificationId",
+    "timeline",
+    "createdAt",
+    "updatedAt"
+];
+
+const PAYOUT_UPDATE_ALLOWED_KEYS = [
+    "status",
+    "statusLabel",
+    "approvedAt",
+    "paidAt",
+    "rejectedAt",
+    "cancelledAt",
+    "processedAt",
+    "processedByUid",
+    "processedByName",
+    "rejectionReason",
+    "testEmailQueued",
+    "emailNotificationId",
+    "timeline",
+    "updatedAt"
 ];
 
 function extractStringList(text, functionName) {
@@ -283,9 +341,52 @@ describe("firestore.rules - checkout sessions (security shape)", () => {
     test("order create rule only allows paid verified orders into vendor workflow", () => {
         const block = /function isValidOrderCreate[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
         expect(block).not.toBeNull();
+        expect(block[0]).toMatch(/status\s*==\s*"pending"/);
         expect(block[0]).toMatch(/paymentStatus\s*==\s*"paid"/);
         expect(block[0]).toMatch(/paymentReference\s+is\s+string/);
         expect(block[0]).toMatch(/paymentReference\s*!=\s*""/);
+        expect(block[0]).toMatch(/financeModel/);
+        expect(block[0]).toMatch(/vendor-price-plus-platform-fee/);
+    });
+});
+
+describe("firestore.rules - payout requests (security shape)", () => {
+    test("the rules file contains a /payoutRequests match block", () => {
+        expect(RULES_TEXT).toMatch(/match\s+\/payoutRequests\/\{payoutId\}\s*\{/);
+        expect(RULES_TEXT).toMatch(/allow\s+create:\s*if\s+isValidPayoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
+        expect(RULES_TEXT).toMatch(/allow\s+get:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/);
+        expect(RULES_TEXT).toMatch(/allow\s+list:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/);
+        expect(RULES_TEXT).toMatch(/allow\s+update:\s*if\s+isValidPayoutUpdate\(\);/);
+    });
+
+    test("payout create keys match the local mirror", () => {
+        const parsed = extractStringList(RULES_TEXT, "payoutCreateAffectsOnlyAllowedKeys");
+        expect(parsed).toEqual(PAYOUT_CREATE_ALLOWED_KEYS);
+    });
+
+    test("payout update keys match the local mirror", () => {
+        const parsed = extractStringList(RULES_TEXT, "payoutUpdateAffectsOnlyAllowedKeys");
+        expect(parsed).toEqual(PAYOUT_UPDATE_ALLOWED_KEYS);
+    });
+
+    test("vendor-created payouts must be pending, test-mode, and self-owned", () => {
+        const block = /function isValidPayoutCreate[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+        expect(block[0]).toMatch(/isApprovedVendor\(\)/);
+        expect(block[0]).toMatch(/vendorUid\s*==\s*request\.auth\.uid/);
+        expect(block[0]).toMatch(/status\s*==\s*"pending"/);
+        expect(block[0]).toMatch(/statusLabel\s*==\s*"Pending"/);
+        expect(block[0]).toMatch(/testMode\s*==\s*true/);
+    });
+
+    test("vendor payout updates are limited to cancelling their own pending request", () => {
+        const block = /function isValidPayoutUpdate[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+        expect(block[0]).toMatch(/isAdmin\(\)/);
+        expect(block[0]).toMatch(/isPayoutOwner\(\)/);
+        expect(block[0]).toMatch(/resource\.data\.status\s*==\s*"pending"/);
+        expect(block[0]).toMatch(/request\.resource\.data\.status\s*==\s*"cancelled"/);
+        expect(block[0]).toMatch(/vendorPayoutCancelAffectsOnlyAllowedKeys\(\)/);
     });
 });
 
@@ -486,6 +587,17 @@ describe("firestore.indexes.json - tickets (queries ↔ index parity)", () => {
         });
     }
 
+    function findPayoutIndex(fields) {
+        return INDEXES.indexes.find(function matches(index) {
+            if (index.collectionGroup !== "payoutRequests") return false;
+            if (!Array.isArray(index.fields) || index.fields.length !== fields.length) return false;
+            return fields.every(function eq(field, i) {
+                return index.fields[i].fieldPath === field.fieldPath &&
+                    index.fields[i].mode === field.mode;
+            });
+        });
+    }
+
     test("checkout session indexes cover customer resume and history queries", () => {
         expect(findCheckoutIndex([
             { fieldPath: "customerUid", mode: "ASCENDING" },
@@ -513,6 +625,32 @@ describe("firestore.indexes.json - tickets (queries ↔ index parity)", () => {
             { fieldPath: "status", mode: "ASCENDING" },
             { fieldPath: "updatedAt", mode: "DESCENDING" },
             { fieldPath: "createdAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+    });
+
+    test("payout request indexes cover wallet and admin finance queries", () => {
+        expect(findPayoutIndex([
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "requestedAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+
+        expect(findPayoutIndex([
+            { fieldPath: "status", mode: "ASCENDING" },
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "requestedAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+
+        expect(findPayoutIndex([
+            { fieldPath: "vendorUid", mode: "ASCENDING" },
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "requestedAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+
+        expect(findPayoutIndex([
+            { fieldPath: "vendorUid", mode: "ASCENDING" },
+            { fieldPath: "status", mode: "ASCENDING" },
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "requestedAt", mode: "DESCENDING" }
         ])).toBeDefined();
     });
 

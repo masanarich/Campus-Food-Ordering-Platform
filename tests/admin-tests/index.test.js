@@ -4,10 +4,13 @@
 
 const {
     normalizeText,
+    normalizeCurrencyAmount,
+    formatCurrency,
     normalizeVendorStatus,
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
+    resolvePlatformPricing,
     getPortalRoute,
     hasAuthenticatedIdentity,
     normalizeProfile,
@@ -21,6 +24,9 @@ const {
     getManagementSummary,
     getAdminAccessNote,
     getWelcomeMessage,
+    getDefaultFinanceSummary,
+    calculateAdminFinanceSummary,
+    loadAdminFinanceSummary,
     getHomeState,
     getDefaultAvatar,
     getSafeRedirectRoute,
@@ -28,12 +34,14 @@ const {
     setHidden,
     setStatusMessage,
     setImage,
+    renderFinanceSummary,
     renderAdminHomePage,
     attachNavigationHandler,
     attachSignOutHandler,
     loadAdminHomeState,
     initializeAdminHomePage
 } = require("../../public/admin/index.js");
+const platformPricing = require("../../public/shared/finance/platform-pricing.js");
 
 function createAdminHomeDom() {
     document.body.innerHTML = `
@@ -53,6 +61,12 @@ function createAdminHomeDom() {
             <p id="welcome-message"></p>
             <p id="management-summary"></p>
             <p id="admin-access-note"></p>
+
+            <p id="admin-finance-note"></p>
+            <output id="admin-platform-balance"></output>
+            <output id="admin-customer-revenue"></output>
+            <output id="admin-vendor-earnings"></output>
+            <output id="admin-completed-orders"></output>
 
             <button id="go-profile-button" type="button">Profile</button>
             <button id="manage-users-button" type="button">Manage Users</button>
@@ -80,6 +94,11 @@ function createAdminHomeDom() {
         welcomeMessageElement: document.querySelector("#welcome-message"),
         managementSummaryElement: document.querySelector("#management-summary"),
         adminAccessNoteElement: document.querySelector("#admin-access-note"),
+        financeNoteElement: document.querySelector("#admin-finance-note"),
+        platformBalanceElement: document.querySelector("#admin-platform-balance"),
+        customerRevenueElement: document.querySelector("#admin-customer-revenue"),
+        vendorEarningsElement: document.querySelector("#admin-vendor-earnings"),
+        completedOrdersElement: document.querySelector("#admin-completed-orders"),
         profileButton: document.querySelector("#go-profile-button"),
         manageUsersButton: document.querySelector("#manage-users-button"),
         financeButton: document.querySelector("#finance-button"),
@@ -107,12 +126,15 @@ describe("admin/index.js helpers", () => {
     test("normalize helpers clean values", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
         expect(normalizeText(undefined)).toBe("");
+        expect(normalizeCurrencyAmount("12.345")).toBe(12.35);
+        expect(formatCurrency(120)).toContain("120");
         expect(normalizeVendorStatus("suspended")).toBe("blocked");
         expect(normalizeVendorStatus("mystery")).toBe("none");
         expect(normalizeAdminApplicationStatus("pending", false)).toBe("pending");
         expect(normalizeAdminApplicationStatus("anything", true)).toBe("approved");
         expect(normalizeAccountStatus("blocked")).toBe("blocked");
         expect(normalizeAccountStatus("inactive")).toBe("active");
+        expect(resolvePlatformPricing(platformPricing)).toBe(platformPricing);
     });
 
     test("resolveAuthUtils prefers explicit utils then window utils", () => {
@@ -265,6 +287,69 @@ describe("admin/index.js helpers", () => {
         expect(getWelcomeMessage({ displayName: "Faranani" })).toBe("Welcome back, Faranani.");
     });
 
+    test("finance summary helpers calculate platform earnings snapshots", async () => {
+        expect(getDefaultFinanceSummary()).toEqual({
+            completedOrders: 0,
+            customerRevenue: 0,
+            platformEarnings: 0,
+            platformBalance: 0,
+            vendorEarnings: 0
+        });
+
+        const summary = calculateAdminFinanceSummary([
+            {
+                orderId: "order-1",
+                status: "completed",
+                paymentStatus: "paid",
+                paymentAmount: 110,
+                vendorEarnings: 100,
+                platformEarnings: 10
+            },
+            {
+                orderId: "order-2",
+                status: "ready",
+                paymentStatus: "paid",
+                paymentAmount: 55,
+                vendorEarnings: 50,
+                platformEarnings: 5
+            }
+        ], {
+            platformPricing
+        });
+
+        expect(summary).toEqual({
+            completedOrders: 1,
+            customerRevenue: 110,
+            platformEarnings: 10,
+            platformBalance: 10,
+            vendorEarnings: 100
+        });
+
+        await expect(loadAdminFinanceSummary({
+            platformPricing,
+            financeLoader: jest.fn(async () => ({
+                orders: [
+                    {
+                        status: "completed",
+                        paymentStatus: "paid",
+                        paymentAmount: 220,
+                        vendorEarnings: 200,
+                        platformEarnings: 20
+                    }
+                ]
+            }))
+        })).resolves.toEqual({
+            summary: {
+                completedOrders: 1,
+                customerRevenue: 220,
+                platformEarnings: 20,
+                platformBalance: 20,
+                vendorEarnings: 200
+            },
+            error: null
+        });
+    });
+
     test("getHomeState builds admin dashboard state", () => {
         const state = getHomeState({
             uid: "user-1",
@@ -355,6 +440,14 @@ describe("admin/index.js DOM helpers", () => {
             welcomeMessage: "Welcome back, Faranani.",
             managementSummary: "Manage users, review applications, and prepare to handle customer support disputes from this portal.",
             adminAccessNote: "Your admin access is approved and active.",
+            financeSummary: {
+                completedOrders: 1,
+                customerRevenue: 110,
+                platformEarnings: 10,
+                platformBalance: 10,
+                vendorEarnings: 100
+            },
+            financeStatusMessage: "Completed paid orders are reflected in this finance snapshot.",
             showCustomerPortal: true,
             showVendorPortal: false,
             showAdminPortal: true,
@@ -371,11 +464,20 @@ describe("admin/index.js DOM helpers", () => {
             .toBe("You can switch between the customer and admin portals.");
         expect(elements.managementSummaryElement.textContent)
             .toContain("customer support disputes");
+        expect(elements.financeNoteElement.textContent)
+            .toBe("Completed paid orders are reflected in this finance snapshot.");
+        expect(elements.platformBalanceElement.textContent).toContain("10");
+        expect(elements.customerRevenueElement.textContent).toContain("110");
+        expect(elements.vendorEarningsElement.textContent).toContain("100");
+        expect(elements.completedOrdersElement.textContent).toBe("1");
         expect(elements.photoCaptionElement.textContent)
             .toBe("No profile picture was found, so a default avatar is being shown.");
         expect(elements.customerPortalButton.hidden).toBe(false);
         expect(elements.vendorPortalButton.hidden).toBe(true);
         expect(elements.choosePortalButton.hidden).toBe(false);
+
+        renderFinanceSummary(elements, null);
+        expect(elements.completedOrdersElement.textContent).toBe("0");
     });
 
     test("renderAdminHomePage does nothing with missing inputs", () => {
@@ -533,14 +635,32 @@ describe("admin/index.js loading and initialization", () => {
                 accountStatus: "active"
             })
         };
+        const financeLoader = jest.fn(async () => ({
+            orders: [
+                {
+                    status: "completed",
+                    paymentStatus: "paid",
+                    paymentAmount: 165,
+                    vendorEarnings: 150,
+                    platformEarnings: 15
+                }
+            ]
+        }));
 
-        const result = await loadAdminHomeState({ authService });
+        const result = await loadAdminHomeState({
+            authService,
+            financeLoader,
+            platformPricing
+        });
 
         expect(result.success).toBe(true);
         expect(result.profile.uid).toBe("user-3");
         expect(result.state.displayName).toBe("Faranani");
         expect(result.state.showAdminPortal).toBe(true);
         expect(result.state.showVendorPortal).toBe(true);
+        expect(result.state.financeSummary.platformBalance).toBe(15);
+        expect(result.state.financeStatusMessage).toBe("Completed paid orders are reflected in this finance snapshot.");
+        expect(financeLoader).toHaveBeenCalledTimes(1);
     });
 
     test("initializeAdminHomePage throws when authService is missing", async () => {
