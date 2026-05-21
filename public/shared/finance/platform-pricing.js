@@ -96,14 +96,21 @@
         return Math.round(normalizeCurrencyAmount(amount) * 100);
     }
 
-    function formatCurrency(amount, currency) {
+    function getCurrencyDisplay(currency) {
         const safeCurrency = normalizeText(currency) || DEFAULT_CURRENCY;
 
-        return new Intl.NumberFormat("en-ZA", {
-            style: "currency",
-            currency: safeCurrency,
-            currencyDisplay: "narrowSymbol"
-        }).format(normalizeCurrencyAmount(amount));
+        if (safeCurrency.toUpperCase() === "ZAR") {
+            return "R";
+        }
+
+        return safeCurrency.toUpperCase();
+    }
+
+    function formatCurrency(amount, currency) {
+        const currencyDisplay = getCurrencyDisplay(currency);
+        const formattedAmount = normalizeCurrencyAmount(amount).toFixed(2);
+
+        return `${currencyDisplay} ${formattedAmount}`;
     }
 
     function calculatePlatformFee(vendorAmount, options) {
@@ -351,6 +358,7 @@
         normalizePlatformFeeRate,
         resolvePlatformFeeRate,
         amountToMinorUnits,
+        getCurrencyDisplay,
         formatCurrency,
         calculatePlatformFee,
         calculateCustomerPrice,

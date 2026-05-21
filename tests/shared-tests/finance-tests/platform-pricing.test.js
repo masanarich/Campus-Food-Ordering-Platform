@@ -19,6 +19,17 @@ describe("shared/finance/platform-pricing.js", () => {
         expect(platformPricing.amountToMinorUnits(110)).toBe(11000);
     });
 
+    test("formats currency consistently across local and GitHub environments", () => {
+        expect(platformPricing.getCurrencyDisplay("ZAR")).toBe("R");
+        expect(platformPricing.getCurrencyDisplay(" zar ")).toBe("R");
+        expect(platformPricing.getCurrencyDisplay("USD")).toBe("USD");
+
+        expect(platformPricing.formatCurrency(110)).toBe("R 110.00");
+        expect(platformPricing.formatCurrency("110.5")).toBe("R 110.50");
+        expect(platformPricing.formatCurrency("bad")).toBe("R 0.00");
+        expect(platformPricing.formatCurrency(110, "USD")).toBe("USD 110.00");
+    });
+
     test("normalizes fee rates from decimal, percent strings, and whole percent numbers", () => {
         expect(platformPricing.normalizePlatformFeeRate(0.1)).toBe(0.1);
         expect(platformPricing.normalizePlatformFeeRate("10%")).toBe(0.1);
@@ -192,7 +203,7 @@ describe("shared/finance/platform-pricing.js", () => {
     });
 
     test("exposes browser global when loaded outside CommonJS", () => {
-        expect(platformPricing.formatCurrency(110)).toContain("110.00");
+        expect(platformPricing.formatCurrency(110)).toBe("R 110.00");
         expect(platformPricing.payoutReservesBalance({ status: "approved" })).toBe(true);
         expect(platformPricing.payoutReservesBalance({ status: "rejected" })).toBe(false);
     });
