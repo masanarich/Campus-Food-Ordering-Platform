@@ -9,6 +9,62 @@
 }
 
 /* ----------------------------------------------------------
+   Site nav override
+   The customer-analytics page only carries a single "Back" link in
+   its site-nav. The shared index.css collapses .nav-list behind a
+   .menu-toggle hamburger at small widths, but this page does not
+   render a toggle — without this override the back button vanishes
+   on mobile. Keep the nav-list visible at every breakpoint here.
+   ---------------------------------------------------------- */
+.site-header {
+    padding: 1rem 1.25rem;
+}
+
+.site-header .site-nav {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.site-header .nav-list,
+.site-header .nav-list.open {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.site-header .nav-list .back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.1rem;
+    min-height: 2.75rem;
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 600;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    color: var(--text, #1f2937);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.site-header .nav-list .back-button:hover,
+.site-header .nav-list .back-button:focus {
+    transform: translateX(-2px);
+    border-color: var(--color-primary, #f97316);
+    color: var(--color-primary, #f97316);
+    outline: none;
+}
+
+/* ----------------------------------------------------------
    Hero
    ---------------------------------------------------------- */
 .analytics-hero {
@@ -534,6 +590,17 @@ figure {
 }
 
 @media (max-width: 480px) {
+    .site-header {
+        padding: 0.75rem 0.85rem;
+    }
+
+    .site-header .nav-list .back-button {
+        width: 100%;
+        justify-content: center;
+        padding: 0.65rem 0.9rem;
+        font-size: 0.9rem;
+    }
+
     .stats-grid {
         grid-template-columns: 1fr;
         gap: 0.75rem;
