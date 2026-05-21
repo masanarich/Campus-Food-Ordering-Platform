@@ -850,9 +850,99 @@ footer p {
     width: 100%;
   }
 
+  /* Header nav: at this breakpoint, give the two pills equal width so they
+     don't sit awkwardly squashed against each other on small phones. */
+  header nav {
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    padding: 0.7rem 0.7rem;
+  }
+
+  header nav a {
+    flex: 1 1 calc(50% - 0.55rem);
+    justify-content: center;
+    min-height: 2.9rem;
+    padding: 0.75rem 0.75rem;
+    text-align: center;
+  }
+
+  /* More space between stacked form/sign-in/links cards so the Login submit
+     button isn't visually adjacent to the Google/Apple buttons below. */
+  main {
+    gap: 1.1rem;
+  }
+
+  main > section + section,
+  main > article + article,
+  main > form + section,
+  main > section + form,
+  main > form + article {
+    margin-top: 0.25rem;
+  }
+
+  /* Anything inside a section that uses raw <button>s as a stacked group
+     (e.g. "Continue with Google" / "Continue with Apple") gets a vertical gap. */
+  main > section > button + button {
+    margin-top: 0.6rem;
+  }
+
+  /* Make sure form submit + helper text don't sit right on top of each other */
+  form button + p,
+  form button + output {
+    margin-top: 0.4rem;
+  }
+
   #profile-photo {
     width: 7.5rem;
     height: 7.5rem;
+  }
+}
+
+/* Smaller phones — give nav links their own row each so they're easy to tap */
+@media (max-width: 420px) {
+  header nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  header nav a {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  body > header {
+    padding: 0.8rem 0.7rem 0.4rem;
+  }
+
+  main {
+    padding: 0.75rem 0.7rem 2rem;
+    gap: 1rem;
+  }
+
+  main > section,
+  main > article,
+  main > form,
+  main > aside {
+    padding: 1.05rem 1rem;
+  }
+
+  /* Slightly larger touch target for inputs on tiny screens */
+  input,
+  select,
+  textarea {
+    padding: 0.95rem 0.95rem;
+    border-radius: 0.95rem;
+  }
+
+  button,
+  .button-link,
+  a.button-link,
+  input[type="submit"],
+  input[type="button"],
+  input[type="reset"] {
+    min-height: 3.15rem;
+    padding: 0.95rem 1.1rem;
   }
 }
 

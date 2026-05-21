@@ -30,6 +30,7 @@
     const DEFAULT_STATUS_MESSAGE = "Loading your menu workspace...";
     const DEFAULT_NOTE_MESSAGE = "Use this page to create, update, and organize your shop menu.";
     const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+    const DEFAULT_PLATFORM_FEE_RATE = 0.1;
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
@@ -52,6 +53,89 @@
         }
 
         return `R${parsed.toFixed(2)}`;
+    }
+
+    function resolvePlatformPricing(explicitPlatformPricing) {
+        if (explicitPlatformPricing && typeof explicitPlatformPricing.calculateLinePricing === "function") {
+            return explicitPlatformPricing;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.platformPricing &&
+            typeof globalScope.platformPricing.calculateLinePricing === "function"
+        ) {
+            return globalScope.platformPricing;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../shared/finance/platform-pricing.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function roundMoney(value) {
+        const parsed = Number.parseFloat(value);
+
+        return Number.isFinite(parsed)
+            ? Math.max(0, Math.round((parsed + Number.EPSILON) * 100) / 100)
+            : 0;
+    }
+
+    function calculateMenuItemPricing(vendorPrice, options = {}) {
+        const platformPricing = resolvePlatformPricing(options.platformPricing);
+        const platformFeeRate = options.platformFeeRate !== undefined
+            ? options.platformFeeRate
+            : DEFAULT_PLATFORM_FEE_RATE;
+        const parsedVendorPrice = roundMoney(vendorPrice);
+
+        if (platformPricing && typeof platformPricing.calculateLinePricing === "function") {
+            const priced = platformPricing.calculateLinePricing({
+                vendorPrice: parsedVendorPrice,
+                quantity: 1
+            }, { platformFeeRate });
+
+            return {
+                vendorPrice: priced.vendorPrice,
+                platformFeeRate: priced.platformFeeRate,
+                platformFee: priced.platformFee,
+                customerPrice: priced.customerPrice,
+                price: priced.customerPrice
+            };
+        }
+
+        const platformFee = roundMoney(parsedVendorPrice * platformFeeRate);
+        const customerPrice = roundMoney(parsedVendorPrice + platformFee);
+
+        return {
+            vendorPrice: parsedVendorPrice,
+            platformFeeRate,
+            platformFee,
+            customerPrice,
+            price: customerPrice
+        };
+    }
+
+    function getProductVendorPrice(productRecord) {
+        const safeRecord = productRecord && typeof productRecord === "object" ? productRecord : {};
+        const explicitVendorPrice = parsePrice(
+            safeRecord.vendorPrice !== undefined
+                ? safeRecord.vendorPrice
+                : safeRecord.basePrice
+        );
+
+        if (Number.isFinite(explicitVendorPrice)) {
+            return roundMoney(explicitVendorPrice);
+        }
+
+        const fallbackPrice = parsePrice(safeRecord.price);
+
+        return Number.isFinite(fallbackPrice) ? roundMoney(fallbackPrice) : null;
     }
 
     function normalizeAvailability(value) {
@@ -93,6 +177,16 @@
 
     function normalizeProductRecord(productRecord, fallbackId) {
         const safeRecord = productRecord && typeof productRecord === "object" ? productRecord : {};
+        const vendorPrice = getProductVendorPrice(safeRecord);
+        const pricing = calculateMenuItemPricing(vendorPrice || 0, {
+            platformFeeRate: safeRecord.platformFeeRate
+        });
+        const customerPrice = Number.isFinite(parsePrice(safeRecord.customerPrice))
+            ? roundMoney(safeRecord.customerPrice)
+            : pricing.customerPrice;
+        const platformFee = Number.isFinite(parsePrice(safeRecord.platformFee))
+            ? roundMoney(safeRecord.platformFee)
+            : pricing.platformFee;
 
         return {
             id: normalizeText(safeRecord.id || fallbackId),
@@ -100,7 +194,12 @@
             name: normalizeText(safeRecord.name),
             category: normalizeText(safeRecord.category),
             description: normalizeText(safeRecord.description),
-            price: typeof safeRecord.price === "number" ? safeRecord.price : parsePrice(safeRecord.price),
+            vendorPrice: vendorPrice !== null ? vendorPrice : null,
+            basePrice: vendorPrice !== null ? vendorPrice : null,
+            platformFeeRate: pricing.platformFeeRate,
+            platformFee,
+            customerPrice,
+            price: customerPrice,
             photoURL: getDisplayPhotoUrl(safeRecord),
             photoPath: normalizeText(safeRecord.photoPath),
             availability: normalizeAvailability(safeRecord.availability),
@@ -245,6 +344,9 @@
 
     function toProduct(values) {
         const safeValues = values && typeof values === "object" ? values : {};
+        const pricing = calculateMenuItemPricing(safeValues.price, {
+            platformFeeRate: safeValues.platformFeeRate
+        });
 
         return normalizeProductRecord({
             id: normalizeText(safeValues.productId),
@@ -252,7 +354,12 @@
             name: normalizeText(safeValues.name),
             category: normalizeText(safeValues.category),
             description: normalizeText(safeValues.description),
-            price: parsePrice(safeValues.price),
+            vendorPrice: pricing.vendorPrice,
+            basePrice: pricing.vendorPrice,
+            platformFeeRate: pricing.platformFeeRate,
+            platformFee: pricing.platformFee,
+            customerPrice: pricing.customerPrice,
+            price: pricing.customerPrice,
             photoURL: normalizeText(safeValues.photoURL || safeValues.photoDataUrl),
             photoPath: normalizeText(safeValues.photoPath),
             availability: normalizeAvailability(safeValues.availability),
@@ -428,6 +535,7 @@
         const storage = dependencies.storage || null;
         const firestoreFns = dependencies.firestoreFns || {};
         const storageFns = dependencies.storageFns || {};
+        const platformPricing = resolvePlatformPricing(dependencies.platformPricing);
         const navigate =
             typeof dependencies.navigate === "function"
                 ? dependencies.navigate
@@ -492,6 +600,8 @@
                 categoryInput: getElement("product-category"),
                 descriptionInput: getElement("product-description"),
                 priceInput: getElement("product-price"),
+                platformFeeOutput: getElement("product-platform-fee-output"),
+                customerPriceOutput: getElement("product-customer-price-output"),
                 photoFileInput: getElement("product-photo-file"),
                 availabilityInput: getElement("product-availability"),
                 /*dietaryTagsInput: getElement("product-dietary-tags"),
@@ -665,6 +775,25 @@
             }
         }
 
+        function updatePricingPreview(product) {
+            const elements = getFormElements();
+            const safeProduct = product && typeof product === "object" ? product : {};
+            const vendorPrice = safeProduct.vendorPrice !== undefined && safeProduct.vendorPrice !== null
+                ? safeProduct.vendorPrice
+                : elements.priceInput
+                    ? elements.priceInput.value
+                    : "";
+            const pricing = calculateMenuItemPricing(vendorPrice, { platformPricing });
+
+            if (elements.platformFeeOutput) {
+                elements.platformFeeOutput.textContent = formatPrice(pricing.platformFee);
+            }
+
+            if (elements.customerPriceOutput) {
+                elements.customerPriceOutput.textContent = formatPrice(pricing.customerPrice);
+            }
+        }
+
         function updateSummary(product) {
             const safeProduct = product && typeof product === "object" ? product : {};
 
@@ -672,6 +801,8 @@
             const categoryOutput = getElement("product-category-output");
             const descriptionOutput = getElement("product-description-output");
             const priceOutput = getElement("product-price-output");
+            const summaryPlatformFeeOutput = getElement("product-summary-platform-fee-output");
+            const summaryCustomerPriceOutput = getElement("product-summary-customer-price-output");
             const availabilityOutput = getElement("product-availability-output");
             const soldOutOutput = getElement("product-sold-out-output");
             const dietaryTagsOutput = getElement("product-dietary-tags-output");
@@ -690,7 +821,15 @@
             }
 
             if (priceOutput) {
-                priceOutput.textContent = formatPrice(safeProduct.price);
+                priceOutput.textContent = formatPrice(safeProduct.vendorPrice);
+            }
+
+            if (summaryPlatformFeeOutput) {
+                summaryPlatformFeeOutput.textContent = formatPrice(safeProduct.platformFee);
+            }
+
+            if (summaryCustomerPriceOutput) {
+                summaryCustomerPriceOutput.textContent = formatPrice(safeProduct.customerPrice);
             }
 
             if (availabilityOutput) {
@@ -709,6 +848,7 @@
                 allergenTagsOutput.textContent = formatTagList(safeProduct.allergenTags);
             }
 
+            updatePricingPreview(safeProduct);
             updatePreviewVisibility(getDisplayPhotoUrl(safeProduct));
         }
 
@@ -810,7 +950,7 @@
 
             if (elements.priceInput) {
                 elements.priceInput.value =
-                    typeof safeProduct.price === "number" ? safeProduct.price.toFixed(2) : "";
+                    typeof safeProduct.vendorPrice === "number" ? safeProduct.vendorPrice.toFixed(2) : "";
             }
 
             if (elements.availabilityInput) {
@@ -868,6 +1008,8 @@
             if (elements.priceInput) {
                 elements.priceInput.value = "";
             }
+
+            updatePricingPreview({});
 
             if (elements.availabilityInput) {
                 elements.availabilityInput.value = "available";
@@ -944,7 +1086,12 @@
 
             const price = document.createElement("p");
             price.className = "product-card-price";
-            price.textContent = formatPrice(product.price);
+            price.textContent = formatPrice(product.customerPrice);
+
+            const priceMeta = document.createElement("span");
+            priceMeta.className = "product-card-price-meta";
+            priceMeta.textContent = `Vendor ${formatPrice(product.vendorPrice)} + fee ${formatPrice(product.platformFee)}`;
+            price.appendChild(priceMeta);
 
             topRow.appendChild(titleWrap);
             topRow.appendChild(price);
@@ -1175,6 +1322,11 @@
                 name: product.name,
                 category: product.category,
                 description: product.description,
+                vendorPrice: product.vendorPrice,
+                basePrice: product.basePrice,
+                platformFeeRate: product.platformFeeRate,
+                platformFee: product.platformFee,
+                customerPrice: product.customerPrice,
                 price: product.price,
                 photoURL: product.photoURL,
                 photoPath: product.photoPath,
@@ -1667,6 +1819,9 @@
                 normalizeLowerText,
                 parsePrice,
                 formatPrice,
+                resolvePlatformPricing,
+                calculateMenuItemPricing,
+                getProductVendorPrice,
                 normalizeAvailability,
                 normalizeTagList,
                 formatTagList,
@@ -1698,6 +1853,9 @@
             normalizeLowerText,
             parsePrice,
             formatPrice,
+            resolvePlatformPricing,
+            calculateMenuItemPricing,
+            getProductVendorPrice,
             normalizeAvailability,
             normalizeTagList,
             formatTagList,

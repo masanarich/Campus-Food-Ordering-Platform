@@ -7,6 +7,7 @@
     const CART_STORAGE_KEY = "campus-food-cart";
     const DEFAULT_PAGE_SIZE = 10;
     const MAX_VISIBLE_PAGE_BUTTONS = 5;
+    const DEFAULT_PLATFORM_FEE_RATE = 0.1;
     let initInFlight = null;
 
     // ==========================================
@@ -28,6 +29,21 @@
     function resolveOrderService(explicit) {
         if (explicit) return explicit;
         if (globalScope.orderService) return globalScope.orderService;
+        return null;
+    }
+
+    function resolvePlatformPricing(explicit) {
+        if (explicit) return explicit;
+        if (globalScope.platformPricing) return globalScope.platformPricing;
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/finance/platform-pricing.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
         return null;
     }
 
@@ -64,6 +80,104 @@
         return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
     }
 
+    function roundMoney(value) {
+        return Math.round((normalizePrice(value) + Number.EPSILON) * 100) / 100;
+    }
+
+    function resolvePlatformFeeRate(value, fallbackValue = DEFAULT_PLATFORM_FEE_RATE) {
+        const pricing = resolvePlatformPricing();
+
+        if (pricing && typeof pricing.normalizePlatformFeeRate === "function") {
+            return pricing.normalizePlatformFeeRate(value, fallbackValue);
+        }
+
+        const parsed = Number.parseFloat(value);
+        const fallbackParsed = Number.parseFloat(fallbackValue);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return parsed > 1 ? Number((parsed / 100).toFixed(4)) : Number(parsed.toFixed(4));
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return fallbackParsed > 1
+                ? Number((fallbackParsed / 100).toFixed(4))
+                : Number(fallbackParsed.toFixed(4));
+        }
+
+        return DEFAULT_PLATFORM_FEE_RATE;
+    }
+
+    function hasPriceField(source, fieldName) {
+        return source && Object.prototype.hasOwnProperty.call(source, fieldName);
+    }
+
+    function calculateMenuItemPricing(item, options = {}) {
+        const safeItem = item && typeof item === "object" ? item : {};
+        const platformPricing = resolvePlatformPricing(options.platformPricing);
+        const platformFeeRate = resolvePlatformFeeRate(
+            safeItem.platformFeeRate !== undefined ? safeItem.platformFeeRate : options.platformFeeRate,
+            DEFAULT_PLATFORM_FEE_RATE
+        );
+        const hasCustomerPrice = hasPriceField(safeItem, "customerPrice");
+        const hasPlatformFee = hasPriceField(safeItem, "platformFee");
+        const explicitCustomerPrice = hasCustomerPrice ? roundMoney(safeItem.customerPrice) : null;
+        let vendorPrice;
+
+        if (hasPriceField(safeItem, "vendorPrice")) {
+            vendorPrice = roundMoney(safeItem.vendorPrice);
+        } else if (hasPriceField(safeItem, "basePrice")) {
+            vendorPrice = roundMoney(safeItem.basePrice);
+        } else if (hasCustomerPrice && hasPlatformFee) {
+            vendorPrice = roundMoney(explicitCustomerPrice - roundMoney(safeItem.platformFee));
+        } else if (hasCustomerPrice) {
+            vendorPrice = roundMoney(explicitCustomerPrice / (1 + platformFeeRate));
+        } else {
+            vendorPrice = roundMoney(safeItem.price);
+        }
+
+        if (platformPricing && typeof platformPricing.calculateLinePricing === "function" && !hasCustomerPrice) {
+            const priced = platformPricing.calculateLinePricing(
+                {
+                    ...safeItem,
+                    vendorPrice,
+                    price: vendorPrice,
+                    quantity: 1
+                },
+                { platformFeeRate }
+            );
+
+            return {
+                vendorPrice: roundMoney(priced.vendorPrice),
+                basePrice: roundMoney(priced.vendorPrice),
+                platformFeeRate: priced.platformFeeRate,
+                platformFee: roundMoney(priced.platformFee),
+                customerPrice: roundMoney(priced.customerPrice),
+                price: roundMoney(priced.customerPrice)
+            };
+        }
+
+        const calculatedPlatformFee = hasPlatformFee
+            ? roundMoney(safeItem.platformFee)
+            : hasCustomerPrice
+                ? roundMoney(explicitCustomerPrice - vendorPrice)
+                : roundMoney(vendorPrice * platformFeeRate);
+        const customerPrice = explicitCustomerPrice !== null
+            ? explicitCustomerPrice
+            : roundMoney(vendorPrice + calculatedPlatformFee);
+        const platformFee = hasPlatformFee
+            ? calculatedPlatformFee
+            : roundMoney(customerPrice - vendorPrice);
+
+        return {
+            vendorPrice,
+            basePrice: vendorPrice,
+            platformFeeRate,
+            platformFee,
+            customerPrice,
+            price: customerPrice
+        };
+    }
+
     function normalizePositiveQuantity(value, fallbackValue = 1) {
         const parsed = Number.parseInt(value, 10);
 
@@ -96,36 +210,49 @@
         return globalScope.location?.search || "";
     }
 
-    function normalizeMenuItemRecord(docSnapshot, vendorUid, vendorName) {
-        const data = docSnapshot && typeof docSnapshot.data === "function"
-            ? (docSnapshot.data() || {})
-            : {};
-        const itemId = normalizeText(docSnapshot && docSnapshot.id) || normalizeText(data.menuItemId || data.id);
-        const availabilityValue = normalizeLowerText(data.availability);
+    function normalizeMenuItemData(data, fallbackItemId, vendorUid, vendorName) {
+        const safeData = data && typeof data === "object" ? data : {};
+        const itemId = normalizeText(fallbackItemId) || normalizeText(safeData.menuItemId || safeData.id);
+        const pricing = calculateMenuItemPricing(safeData);
+        const availabilityValue = normalizeLowerText(safeData.availability);
         const availableFlag =
             availabilityValue
                 ? availabilityValue !== "unavailable"
-                : data.available !== false;
+                : safeData.available !== false;
 
         return {
             menuItemId: itemId,
             id: itemId,
-            vendorUid: normalizeText(data.vendorUid) || normalizeText(vendorUid),
-            vendorName: normalizeText(data.vendorName) || decodeText(vendorName),
-            name: normalizeText(data.name) || "Unknown Item",
-            category: normalizeText(data.category) || "Other",
-            description: normalizeText(data.description),
-            price: normalizePrice(data.price),
-            photoURL: normalizeText(data.photoURL || data.photoDataUrl || data.photoUrl),
+            vendorUid: normalizeText(safeData.vendorUid) || normalizeText(vendorUid),
+            vendorName: normalizeText(safeData.vendorName) || decodeText(vendorName),
+            name: normalizeText(safeData.name) || "Unknown Item",
+            category: normalizeText(safeData.category) || "Other",
+            description: normalizeText(safeData.description),
+            vendorPrice: pricing.vendorPrice,
+            basePrice: pricing.basePrice,
+            platformFeeRate: pricing.platformFeeRate,
+            platformFee: pricing.platformFee,
+            customerPrice: pricing.customerPrice,
+            price: pricing.customerPrice,
+            photoURL: normalizeText(safeData.photoURL || safeData.photoDataUrl || safeData.photoUrl),
             available: availableFlag,
-            soldOut: data.soldOut === true,
-            allergens: Array.isArray(data.allergens)
-                ? data.allergens
-                : (Array.isArray(data.allergenTags) ? data.allergenTags : []),
-            dietary: Array.isArray(data.dietary)
-                ? data.dietary
-                : (Array.isArray(data.dietaryTags) ? data.dietaryTags : [])
+            soldOut: safeData.soldOut === true,
+            allergens: Array.isArray(safeData.allergens)
+                ? safeData.allergens
+                : (Array.isArray(safeData.allergenTags) ? safeData.allergenTags : []),
+            dietary: Array.isArray(safeData.dietary)
+                ? safeData.dietary
+                : (Array.isArray(safeData.dietaryTags) ? safeData.dietaryTags : [])
         };
+    }
+
+    function normalizeMenuItemRecord(docSnapshot, vendorUid, vendorName) {
+        const data = docSnapshot && typeof docSnapshot.data === "function"
+            ? (docSnapshot.data() || {})
+            : {};
+        const itemId = normalizeText(docSnapshot && docSnapshot.id);
+
+        return normalizeMenuItemData(data, itemId, vendorUid, vendorName);
     }
 
     // ==========================================
@@ -180,6 +307,7 @@
         const cart = getCart();
         const safeItem = item && typeof item === "object" ? item : {};
         const safeQuantity = normalizePositiveQuantity(quantity, 1);
+        const pricing = calculateMenuItemPricing(safeItem);
 
         // Check if item already in cart
         const existingIndex = cart.findIndex(
@@ -193,6 +321,12 @@
                 cart[existingIndex].quantity,
                 0
             ) + safeQuantity;
+            cart[existingIndex].vendorPrice = pricing.vendorPrice;
+            cart[existingIndex].basePrice = pricing.basePrice;
+            cart[existingIndex].platformFeeRate = pricing.platformFeeRate;
+            cart[existingIndex].platformFee = pricing.platformFee;
+            cart[existingIndex].customerPrice = pricing.customerPrice;
+            cart[existingIndex].price = pricing.customerPrice;
         } else {
             // Add new item
             cart.push({
@@ -201,7 +335,12 @@
                 vendorName: normalizeText(safeItem.vendorName),
                 name: normalizeText(safeItem.name) || "Unknown Item",
                 category: normalizeText(safeItem.category) || "Other",
-                price: normalizePrice(safeItem.price),
+                vendorPrice: pricing.vendorPrice,
+                basePrice: pricing.basePrice,
+                platformFeeRate: pricing.platformFeeRate,
+                platformFee: pricing.platformFee,
+                customerPrice: pricing.customerPrice,
+                price: pricing.customerPrice,
                 quantity: safeQuantity,
                 photoURL: normalizeText(safeItem.photoURL),
                 notes: ""
@@ -266,7 +405,24 @@
                     Array.isArray(result.menuItems) &&
                     typeof result.success === "boolean"
                 ) {
-                    return result;
+                    const normalizedMenuItems = result.menuItems
+                        .map(function normalizeServiceItem(menuItem) {
+                            return normalizeMenuItemData(
+                                menuItem,
+                                menuItem && (menuItem.menuItemId || menuItem.id),
+                                vendorUid,
+                                vendorName
+                            );
+                        })
+                        .filter(function keepAvailable(menuItem) {
+                            return menuItem.available && menuItem.soldOut !== true;
+                        });
+
+                    return {
+                        ...result,
+                        menuItems: normalizedMenuItems,
+                        count: normalizedMenuItems.length
+                    };
                 }
             } catch (error) {
                 console.error(`${MODULE_NAME}: Error fetching menu via orderService:`, error);
@@ -419,9 +575,14 @@
      */
     function createMenuItemCard(item) {
         const safeItem = item && typeof item === "object" ? item : {};
+        const pricing = calculateMenuItemPricing(safeItem);
         const article = globalScope.document.createElement("article");
         article.className = safeItem.available ? "menu-item-card" : "menu-item-card unavailable";
         article.setAttribute("data-menu-item-id", safeItem.menuItemId || safeItem.id);
+        article.setAttribute("data-vendor-price", pricing.vendorPrice.toFixed(2));
+        article.setAttribute("data-platform-fee", pricing.platformFee.toFixed(2));
+        article.setAttribute("data-platform-fee-rate", pricing.platformFeeRate.toString());
+        article.setAttribute("data-customer-price", pricing.customerPrice.toFixed(2));
 
         // Item image
         const figure = globalScope.document.createElement("figure");
@@ -496,9 +657,13 @@
         priceLabel.className = "menu-item-label";
         priceLabel.textContent = "Price:";
         const priceStrong = globalScope.document.createElement("strong");
-        priceStrong.textContent = `R${normalizePrice(safeItem.price).toFixed(2)}`;
+        priceStrong.textContent = `R${pricing.customerPrice.toFixed(2)}`;
+        const priceNote = globalScope.document.createElement("span");
+        priceNote.className = "menu-item-price-note";
+        priceNote.textContent = "Includes 10% platform fee";
         price.appendChild(priceLabel);
         price.appendChild(priceStrong);
+        price.appendChild(priceNote);
 
         footer.appendChild(price);
 
@@ -847,6 +1012,10 @@
         const priceText = priceEl.textContent.replace("R", "");
         const price = parseFloat(priceText);
         const category = categoryEl ? categoryEl.textContent : "Other";
+        const vendorPrice = card.getAttribute("data-vendor-price");
+        const platformFee = card.getAttribute("data-platform-fee");
+        const platformFeeRate = card.getAttribute("data-platform-fee-rate");
+        const customerPrice = card.getAttribute("data-customer-price");
 
         // Get vendor info from URL params
         const urlParams = new URLSearchParams(globalScope.location.search);
@@ -859,7 +1028,12 @@
             vendorName: decodeText(vendorName),
             name: normalizeText(name),
             category: normalizeText(category) || "Other",
-            price: normalizePrice(price)
+            vendorPrice,
+            basePrice: vendorPrice,
+            platformFeeRate,
+            platformFee,
+            customerPrice: customerPrice || price,
+            price: customerPrice || price
         };
 
         const result = addToCart(item, quantity);
@@ -1034,6 +1208,8 @@
     const customerBrowseMenu = {
         init,
         fetchVendorMenu,
+        calculateMenuItemPricing,
+        normalizeMenuItemData,
         normalizeMenuItemRecord,
         getLocationSearch,
         renderMenuItems,

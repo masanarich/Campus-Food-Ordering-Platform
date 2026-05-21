@@ -3,6 +3,7 @@
 
     const MODULE_NAME = "customer/order-management/checkout";
     const CART_STORAGE_KEY = "campus-food-cart";
+    const DEFAULT_PLATFORM_FEE_RATE = 0.1;
     let initInFlight = null;
 
     function normalizeText(value) {
@@ -12,6 +13,124 @@
     function normalizePrice(value) {
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    }
+
+    function roundMoney(value) {
+        return Math.round((normalizePrice(value) + Number.EPSILON) * 100) / 100;
+    }
+
+    function resolvePlatformPricing(explicitPlatformPricing) {
+        if (explicitPlatformPricing) {
+            return explicitPlatformPricing;
+        }
+
+        if (globalScope.platformPricing) {
+            return globalScope.platformPricing;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/finance/platform-pricing.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolvePlatformFeeRate(value, fallbackValue = DEFAULT_PLATFORM_FEE_RATE) {
+        const platformPricing = resolvePlatformPricing();
+
+        if (platformPricing && typeof platformPricing.normalizePlatformFeeRate === "function") {
+            return platformPricing.normalizePlatformFeeRate(value, fallbackValue);
+        }
+
+        const parsed = Number.parseFloat(value);
+        const fallbackParsed = Number.parseFloat(fallbackValue);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return parsed > 1 ? Number((parsed / 100).toFixed(4)) : Number(parsed.toFixed(4));
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return fallbackParsed > 1
+                ? Number((fallbackParsed / 100).toFixed(4))
+                : Number(fallbackParsed.toFixed(4));
+        }
+
+        return DEFAULT_PLATFORM_FEE_RATE;
+    }
+
+    function hasPriceField(source, fieldName) {
+        return source && Object.prototype.hasOwnProperty.call(source, fieldName);
+    }
+
+    function calculateCheckoutItemPricing(item, options = {}) {
+        const safeItem = item && typeof item === "object" ? item : {};
+        const platformPricing = resolvePlatformPricing(options.platformPricing);
+        const platformFeeRate = resolvePlatformFeeRate(
+            safeItem.platformFeeRate !== undefined ? safeItem.platformFeeRate : options.platformFeeRate,
+            DEFAULT_PLATFORM_FEE_RATE
+        );
+        const hasCustomerPrice = hasPriceField(safeItem, "customerPrice");
+        const hasPlatformFee = hasPriceField(safeItem, "platformFee");
+        const explicitCustomerPrice = hasCustomerPrice ? roundMoney(safeItem.customerPrice) : null;
+        let vendorPrice;
+
+        if (hasPriceField(safeItem, "vendorPrice")) {
+            vendorPrice = roundMoney(safeItem.vendorPrice);
+        } else if (hasPriceField(safeItem, "basePrice")) {
+            vendorPrice = roundMoney(safeItem.basePrice);
+        } else if (hasCustomerPrice && hasPlatformFee) {
+            vendorPrice = roundMoney(explicitCustomerPrice - roundMoney(safeItem.platformFee));
+        } else if (hasCustomerPrice) {
+            vendorPrice = roundMoney(explicitCustomerPrice / (1 + platformFeeRate));
+        } else {
+            vendorPrice = roundMoney(safeItem.price);
+        }
+
+        if (platformPricing && typeof platformPricing.calculateLinePricing === "function" && !hasCustomerPrice) {
+            const priced = platformPricing.calculateLinePricing(
+                {
+                    ...safeItem,
+                    vendorPrice,
+                    price: vendorPrice,
+                    quantity: 1
+                },
+                { platformFeeRate }
+            );
+
+            return {
+                vendorPrice: roundMoney(priced.vendorPrice),
+                basePrice: roundMoney(priced.vendorPrice),
+                platformFeeRate: priced.platformFeeRate,
+                platformFee: roundMoney(priced.platformFee),
+                customerPrice: roundMoney(priced.customerPrice),
+                price: roundMoney(priced.customerPrice)
+            };
+        }
+
+        const calculatedPlatformFee = hasPlatformFee
+            ? roundMoney(safeItem.platformFee)
+            : hasCustomerPrice
+                ? roundMoney(explicitCustomerPrice - vendorPrice)
+                : roundMoney(vendorPrice * platformFeeRate);
+        const customerPrice = explicitCustomerPrice !== null
+            ? explicitCustomerPrice
+            : roundMoney(vendorPrice + calculatedPlatformFee);
+        const platformFee = hasPlatformFee
+            ? calculatedPlatformFee
+            : roundMoney(customerPrice - vendorPrice);
+
+        return {
+            vendorPrice,
+            basePrice: vendorPrice,
+            platformFeeRate,
+            platformFee,
+            customerPrice,
+            price: customerPrice
+        };
     }
 
     function normalizePositiveQuantity(value, fallbackValue = 1) {
@@ -342,6 +461,7 @@
         const safeItem = item && typeof item === "object" ? item : {};
         const menuItemId = normalizeText(safeItem.menuItemId || safeItem.id || `item-${fallbackIndex + 1}`);
         const vendorUid = normalizeText(safeItem.vendorUid);
+        const pricing = calculateCheckoutItemPricing(safeItem);
 
         return {
             menuItemId,
@@ -349,11 +469,49 @@
             vendorName: normalizeText(safeItem.vendorName) || "Unknown Vendor",
             name: normalizeText(safeItem.name) || "Unknown Item",
             category: normalizeText(safeItem.category) || "Other",
-            price: normalizePrice(safeItem.price),
+            vendorPrice: pricing.vendorPrice,
+            basePrice: pricing.basePrice,
+            platformFeeRate: pricing.platformFeeRate,
+            platformFee: pricing.platformFee,
+            customerPrice: pricing.customerPrice,
+            price: pricing.customerPrice,
             quantity: normalizePositiveQuantity(safeItem.quantity, 1),
             photoURL: normalizeText(safeItem.photoURL),
             notes: normalizeText(safeItem.notes),
             itemKey: `${vendorUid || "vendor"}::${menuItemId}`
+        };
+    }
+
+    function summarizeCheckoutItems(items) {
+        const normalizedItems = Array.isArray(items)
+            ? items.map(function normalizeOne(item, index) {
+                return normalizeCartItem(item, index);
+            })
+            : [];
+        const vendorSubtotal = roundMoney(normalizedItems.reduce(function sumVendorSubtotal(total, item) {
+            return total + (item.vendorPrice * item.quantity);
+        }, 0));
+        const platformFee = roundMoney(normalizedItems.reduce(function sumPlatformFee(total, item) {
+            return total + (item.platformFee * item.quantity);
+        }, 0));
+        const customerTotal = roundMoney(normalizedItems.reduce(function sumCustomerTotal(total, item) {
+            return total + (item.price * item.quantity);
+        }, 0));
+        const itemCount = normalizedItems.reduce(function sumQuantity(total, item) {
+            return total + item.quantity;
+        }, 0);
+
+        return {
+            items: normalizedItems,
+            vendorSubtotal,
+            vendorEarnings: vendorSubtotal,
+            platformFee,
+            platformEarnings: platformFee,
+            platformFeeRate: normalizedItems[0] ? normalizedItems[0].platformFeeRate : DEFAULT_PLATFORM_FEE_RATE,
+            subtotal: customerTotal,
+            total: customerTotal,
+            customerTotal,
+            itemCount
         };
     }
 
@@ -382,22 +540,22 @@
 
         const derivedVendorName = vendorItems[0] ? vendorItems[0].vendorName : "";
         const vendorName = requestedVendorName || derivedVendorName || "Unknown Vendor";
-
-        const subtotal = vendorItems.reduce(function sumSubtotal(total, item) {
-            return total + (item.price * item.quantity);
-        }, 0);
-
-        const itemCount = vendorItems.reduce(function sumQuantity(total, item) {
-            return total + item.quantity;
-        }, 0);
+        const summary = summarizeCheckoutItems(vendorItems);
 
         return {
             vendorUid: fallbackVendorUid,
             vendorName,
             vendorItems,
             allCartItems,
-            subtotal,
-            itemCount
+            vendorSubtotal: summary.vendorSubtotal,
+            vendorEarnings: summary.vendorEarnings,
+            platformFee: summary.platformFee,
+            platformEarnings: summary.platformEarnings,
+            platformFeeRate: summary.platformFeeRate,
+            subtotal: summary.subtotal,
+            total: summary.total,
+            customerTotal: summary.customerTotal,
+            itemCount: summary.itemCount
         };
     }
 
@@ -478,7 +636,11 @@
 
         const unitPriceLine = globalScope.document.createElement("p");
         unitPriceLine.className = "checkout-item-price";
-        unitPriceLine.textContent = `Unit Price: ${formatCurrency(safeItem.price)}`;
+        unitPriceLine.textContent = `Customer Price: ${formatCurrency(safeItem.price)}`;
+
+        const priceBreakdownLine = globalScope.document.createElement("p");
+        priceBreakdownLine.className = "checkout-item-price-breakdown";
+        priceBreakdownLine.textContent = `Vendor ${formatCurrency(safeItem.vendorPrice)} + platform fee ${formatCurrency(safeItem.platformFee)}`;
 
         const totalLine = globalScope.document.createElement("p");
         totalLine.className = "checkout-item-total";
@@ -488,6 +650,7 @@
         article.appendChild(categoryLine);
         article.appendChild(quantityLine);
         article.appendChild(unitPriceLine);
+        article.appendChild(priceBreakdownLine);
         article.appendChild(totalLine);
 
         return article;
@@ -528,11 +691,19 @@
         const itemCountLine = globalScope.document.createElement("p");
         itemCountLine.textContent = `Items: ${safeContext.itemCount}`;
 
+        const vendorSubtotalLine = globalScope.document.createElement("p");
+        vendorSubtotalLine.textContent = `Vendor Earnings: ${formatCurrency(safeContext.vendorSubtotal)}`;
+
+        const platformFeeLine = globalScope.document.createElement("p");
+        platformFeeLine.textContent = `Platform Fee: ${formatCurrency(safeContext.platformFee)}`;
+
         const totalLine = globalScope.document.createElement("p");
-        totalLine.textContent = `Total: ${formatCurrency(safeContext.subtotal)}`;
+        totalLine.textContent = `Customer Total: ${formatCurrency(safeContext.customerTotal || safeContext.subtotal)}`;
 
         summarySection.appendChild(vendorLine);
         summarySection.appendChild(itemCountLine);
+        summarySection.appendChild(vendorSubtotalLine);
+        summarySection.appendChild(platformFeeLine);
         summarySection.appendChild(totalLine);
     }
 
@@ -713,6 +884,21 @@
         }
 
         const customer = buildCustomerSnapshot(currentUser);
+        const financeSummary = summarizeCheckoutItems(context.vendorItems || []);
+        const customerTotal = context.customerTotal !== undefined
+            ? roundMoney(context.customerTotal)
+            : context.subtotal !== undefined
+                ? roundMoney(context.subtotal)
+                : financeSummary.customerTotal;
+        const vendorSubtotal = context.vendorSubtotal !== undefined
+            ? roundMoney(context.vendorSubtotal)
+            : financeSummary.vendorSubtotal;
+        const platformFee = context.platformFee !== undefined
+            ? roundMoney(context.platformFee)
+            : financeSummary.platformFee;
+        const platformFeeRate = context.platformFeeRate !== undefined
+            ? resolvePlatformFeeRate(context.platformFeeRate)
+            : financeSummary.platformFeeRate;
 
         const orderItems = context.vendorItems.map(function mapItem(item) {
             const safeItem = normalizeCartItem(item);
@@ -722,8 +908,16 @@
                 vendorName: safeItem.vendorName,
                 name: safeItem.name,
                 category: safeItem.category,
+                vendorPrice: safeItem.vendorPrice,
+                basePrice: safeItem.basePrice,
+                platformFeeRate: safeItem.platformFeeRate,
+                platformFee: safeItem.platformFee,
+                customerPrice: safeItem.customerPrice,
                 price: safeItem.price,
                 quantity: safeItem.quantity,
+                vendorSubtotal: roundMoney(safeItem.vendorPrice * safeItem.quantity),
+                platformFeeTotal: roundMoney(safeItem.platformFee * safeItem.quantity),
+                lineTotal: roundMoney(safeItem.price * safeItem.quantity),
                 photoURL: safeItem.photoURL,
                 notes: safeItem.notes
             };
@@ -740,9 +934,15 @@
             items: orderItems,
             itemCount: context.itemCount,
 
-            subtotal: context.subtotal,
-            total: context.subtotal,
-            totalAmount: context.subtotal,
+            subtotal: customerTotal,
+            total: customerTotal,
+            totalAmount: customerTotal,
+            vendorSubtotal,
+            vendorEarnings: vendorSubtotal,
+            platformFeeRate,
+            platformFee,
+            platformEarnings: platformFee,
+            customerTotal,
 
             notes: orderNotes,
             status: "placed",
@@ -751,13 +951,14 @@
             paymentReference: "",
             paymentAccessCode: "",
             paymentAuthorizationUrl: "",
-            paymentAmount: context.subtotal,
-            paymentAmountInMinorUnits: Math.round(context.subtotal * 100),
+            paymentAmount: customerTotal,
+            paymentAmountInMinorUnits: Math.round(customerTotal * 100),
             paymentCurrency: "ZAR",
             paymentPaidAt: null,
             paymentFailedAt: null,
             paymentVerifiedAt: null,
             paymentFailureReason: "",
+            financeModel: "vendor-price-plus-platform-fee",
 
             createdAt: firestoreFns.serverTimestamp(),
             updatedAt: firestoreFns.serverTimestamp()
@@ -1220,6 +1421,22 @@
             };
         }
 
+        const financeSummary = summarizeCheckoutItems(context.vendorItems || []);
+        const customerTotal = context.customerTotal !== undefined
+            ? roundMoney(context.customerTotal)
+            : context.subtotal !== undefined
+                ? roundMoney(context.subtotal)
+                : financeSummary.customerTotal;
+        const vendorSubtotal = context.vendorSubtotal !== undefined
+            ? roundMoney(context.vendorSubtotal)
+            : financeSummary.vendorSubtotal;
+        const platformFee = context.platformFee !== undefined
+            ? roundMoney(context.platformFee)
+            : financeSummary.platformFee;
+        const platformFeeRate = context.platformFeeRate !== undefined
+            ? resolvePlatformFeeRate(context.platformFeeRate)
+            : financeSummary.platformFeeRate;
+
         return checkoutService.createCheckout({
             ...safeOptions,
             ...buildCheckoutDependencyOptions(safeOptions),
@@ -1229,9 +1446,23 @@
             customer: buildCustomerSnapshot(currentUser),
             vendorUid: context.vendorUid,
             vendorName: context.vendorName,
+            subtotal: customerTotal,
+            total: customerTotal,
+            paymentAmount: customerTotal,
+            paymentAmountInMinorUnits: Math.round(customerTotal * 100),
             notes: normalizeText(safeOptions.orderNotes),
             metadata: {
-                source: "customer-checkout-page"
+                ...(safeOptions.metadata && typeof safeOptions.metadata === "object" ? safeOptions.metadata : {}),
+                source: "customer-checkout-page",
+                finance: {
+                    model: "vendor-price-plus-platform-fee",
+                    vendorSubtotal,
+                    vendorEarnings: vendorSubtotal,
+                    platformFeeRate,
+                    platformFee,
+                    platformEarnings: platformFee,
+                    customerTotal
+                }
             }
         });
     }
@@ -1842,6 +2073,10 @@
         CART_STORAGE_KEY,
         normalizeText,
         normalizePrice,
+        roundMoney,
+        resolvePlatformPricing,
+        resolvePlatformFeeRate,
+        calculateCheckoutItemPricing,
         normalizePositiveQuantity,
         formatCurrency,
         decodeText,
@@ -1866,6 +2101,7 @@
         getCart,
         saveCart,
         normalizeCartItem,
+        summarizeCheckoutItems,
         buildCheckoutContext,
         buildCustomerSnapshot,
         removeVendorItemsFromCart,

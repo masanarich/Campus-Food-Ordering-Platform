@@ -72,6 +72,7 @@ function getFallbackRoutes() {
         orderdetail: "./order-management/order-detail.html",
         ordernotifications: "./order-management/notifications.html",
         support: "./support/index.html",
+        wallet: "./wallet.html",
         analytics: "./analytics.html",
         login: "../authentication/login.html"
     };
@@ -369,6 +370,7 @@ function getHomeState(profile, authUtils) {
         orderDetailRoute: getPortalRoute("orderDetail", authUtils),
         orderNotificationsRoute: getPortalRoute("orderNotifications", authUtils),
         supportRoute: getPortalRoute("support", authUtils),
+        walletRoute: getPortalRoute("wallet", authUtils),
         analyticsRoute: getPortalRoute("analytics", authUtils),
         signOutRoute: getPortalRoute("signOut", authUtils)
     };
@@ -647,6 +649,8 @@ async function initializeVendorHomePage(options = {}) {
         orderDetailButton: document.querySelector("#go-order-detail-button"),
         orderNotificationsButton: document.querySelector("#go-order-notifications-button"),
         supportLink: document.querySelector("#vendor-support-link"),
+        walletButton: document.querySelector("#go-wallet-button"),
+        walletLink: document.querySelector("#wallet-link"),
         analyticsLink: document.querySelector("#analytics-link"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
@@ -724,6 +728,18 @@ async function initializeVendorHomePage(options = {}) {
             navigate
         });
 
+        const walletButtonController = attachNavigationHandler({
+            button: elements.walletButton,
+            route: result.state.walletRoute,
+            navigate
+        });
+
+        const walletLinkController = attachNavigationHandler({
+            button: elements.walletLink,
+            route: result.state.walletRoute,
+            navigate
+        });
+
         const analyticsController = attachNavigationHandler({
             button: elements.analyticsLink,
             route: result.state.analyticsRoute,
@@ -780,6 +796,8 @@ async function initializeVendorHomePage(options = {}) {
             orderDetailController,
             orderNotificationsController,
             supportController,
+            walletButtonController,
+            walletLinkController,
             analyticsController,
             choosePortalController,
             customerPortalController,

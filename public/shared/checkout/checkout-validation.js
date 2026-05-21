@@ -182,6 +182,36 @@
         return normalizeText(value) !== "";
     }
 
+    function hasOwnField(source, fieldName) {
+        return source && Object.prototype.hasOwnProperty.call(source, fieldName);
+    }
+
+    function getRawItemPrice(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
+
+        if (hasOwnField(safeItem, "price")) {
+            return safeItem.price;
+        }
+
+        if (hasOwnField(safeItem, "customerPrice")) {
+            return safeItem.customerPrice;
+        }
+
+        if (hasOwnField(safeItem, "unitPrice")) {
+            return safeItem.unitPrice;
+        }
+
+        if (hasOwnField(safeItem, "vendorPrice")) {
+            return safeItem.vendorPrice;
+        }
+
+        if (hasOwnField(safeItem, "basePrice")) {
+            return safeItem.basePrice;
+        }
+
+        return undefined;
+    }
+
     function validateCustomerSnapshot(customerSnapshot, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const safeSnapshot = customerSnapshot && typeof customerSnapshot === "object" ? customerSnapshot : {};
@@ -271,10 +301,10 @@
                 vendorName: normalizeText(safeItem.vendorName),
                 name: normalizeText(safeItem.name || safeItem.itemName),
                 category: normalizeText(safeItem.category),
-                price: normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice),
+                price: normalizeCurrencyAmount(getRawItemPrice(safeItem)),
                 quantity: Number.parseInt(safeItem.quantity, 10) > 0 ? Number.parseInt(safeItem.quantity, 10) : 1,
                 lineTotal: normalizeCurrencyAmount(
-                    normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice) *
+                    normalizeCurrencyAmount(getRawItemPrice(safeItem)) *
                     (Number.parseInt(safeItem.quantity, 10) > 0 ? Number.parseInt(safeItem.quantity, 10) : 1)
                 ),
                 photoURL: normalizeText(safeItem.photoURL || safeItem.imageUrl || safeItem.imageURL),
@@ -282,7 +312,7 @@
             };
         const errors = {};
         const rawQuantity = safeItem.quantity !== undefined ? safeItem.quantity : safeItem.qty;
-        const rawPrice = safeItem.price !== undefined ? safeItem.price : safeItem.unitPrice;
+        const rawPrice = getRawItemPrice(safeItem);
         const rawMenuItemId = normalizeText(
             safeItem.menuItemId ||
             safeItem.productId ||
@@ -414,11 +444,33 @@
         const expectedSubtotal = checkoutModel
             ? checkoutModel.calculateCheckoutSubtotal(normalizedRecord.items)
             : normalizeCurrencyAmount(normalizedRecord.subtotal);
+        const expectedVendorSubtotal = checkoutModel &&
+            typeof checkoutModel.calculateCheckoutVendorSubtotal === "function"
+            ? checkoutModel.calculateCheckoutVendorSubtotal(normalizedRecord.items)
+            : normalizeCurrencyAmount(normalizedRecord.vendorSubtotal, normalizedRecord.vendorEarnings);
+        const expectedPlatformFee = checkoutModel &&
+            typeof checkoutModel.calculateCheckoutPlatformFee === "function"
+            ? checkoutModel.calculateCheckoutPlatformFee(normalizedRecord.items)
+            : normalizeCurrencyAmount(normalizedRecord.platformFee, normalizedRecord.platformEarnings);
         const subtotal = normalizeCurrencyAmount(normalizedRecord.subtotal);
         const total = normalizeCurrencyAmount(normalizedRecord.total);
+        const vendorSubtotal = normalizeCurrencyAmount(normalizedRecord.vendorSubtotal, expectedVendorSubtotal);
+        const vendorEarnings = normalizeCurrencyAmount(normalizedRecord.vendorEarnings, vendorSubtotal);
+        const platformFee = normalizeCurrencyAmount(normalizedRecord.platformFee, expectedPlatformFee);
+        const platformEarnings = normalizeCurrencyAmount(normalizedRecord.platformEarnings, platformFee);
+        const customerTotal = normalizeCurrencyAmount(normalizedRecord.customerTotal, total);
         const paymentAmount = normalizeCurrencyAmount(normalizedRecord.paymentAmount);
         const paymentAmountInMinorUnits = normalizeAmountInMinorUnits(normalizedRecord.paymentAmountInMinorUnits);
         const expectedAmountInMinorUnits = Math.round(paymentAmount * 100);
+        const hasFinanceFields = [
+            "vendorSubtotal",
+            "vendorEarnings",
+            "platformFee",
+            "platformEarnings",
+            "customerTotal"
+        ].some(function hasFinanceField(fieldName) {
+            return hasOwnField(normalizedRecord, fieldName);
+        });
 
         if (subtotal !== expectedSubtotal) {
             setError(
@@ -430,6 +482,38 @@
 
         if (total < subtotal) {
             setError(errors, "total", "Checkout total cannot be less than subtotal.");
+        }
+
+        if (vendorSubtotal !== expectedVendorSubtotal) {
+            setError(
+                errors,
+                "vendorSubtotal",
+                `Vendor subtotal must match the vendor share of its items (${expectedVendorSubtotal}).`
+            );
+        }
+
+        if (vendorEarnings !== vendorSubtotal) {
+            setError(errors, "vendorEarnings", "Vendor earnings must match the vendor subtotal.");
+        }
+
+        if (platformFee !== expectedPlatformFee) {
+            setError(
+                errors,
+                "platformFee",
+                `Platform fee must match the platform share of its items (${expectedPlatformFee}).`
+            );
+        }
+
+        if (platformEarnings !== platformFee) {
+            setError(errors, "platformEarnings", "Platform earnings must match the platform fee.");
+        }
+
+        if (customerTotal !== total) {
+            setError(errors, "customerTotal", "Customer total must match the checkout total.");
+        }
+
+        if ((checkoutModel || hasFinanceFields) && normalizeCurrencyAmount(vendorSubtotal + platformFee) !== customerTotal) {
+            setError(errors, "financeTotal", "Vendor subtotal plus platform fee must match the customer total.");
         }
 
         if (paymentAmount !== total) {
@@ -448,9 +532,16 @@
             value: {
                 subtotal,
                 total,
+                vendorSubtotal,
+                vendorEarnings,
+                platformFee,
+                platformEarnings,
+                customerTotal,
                 paymentAmount,
                 paymentAmountInMinorUnits,
                 expectedSubtotal,
+                expectedVendorSubtotal,
+                expectedPlatformFee,
                 expectedAmountInMinorUnits
             }
         });
@@ -840,6 +931,8 @@
         mergeErrors,
         normalizeAllowedValues,
         isValidEmail,
+        hasOwnField,
+        getRawItemPrice,
         validateCustomerSnapshot,
         validateVendorSnapshot,
         validateCheckoutItem,

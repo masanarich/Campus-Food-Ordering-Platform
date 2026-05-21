@@ -139,10 +139,24 @@
                         <p id="product-description-error" class="form-error" aria-live="polite"></p>
 
                         <label class="field-block" for="product-price">
-                            <strong>Price (R)</strong>
+                            <strong>Vendor price (R)</strong>
                             <input id="product-price" name="price" type="number" min="0" step="0.01" placeholder="e.g. 45.00" required aria-describedby="product-price-error">
                         </label>
                         <p id="product-price-error" class="form-error" aria-live="polite"></p>
+
+                        <section class="pricing-preview field-block field-block-wide" aria-label="Customer price preview">
+                            <article>
+                                <strong>Platform fee</strong>
+                                <output id="product-platform-fee-output">R0.00</output>
+                            </article>
+                            <article>
+                                <strong>Customer price</strong>
+                                <output id="product-customer-price-output">R0.00</output>
+                            </article>
+                            <p>
+                                Customers see the vendor price plus the 10% platform fee.
+                            </p>
+                        </section>
 
                         <label class="field-block" for="product-availability">
                             <strong>Availability</strong>
@@ -230,7 +244,9 @@
                     <section class="summary-grid" aria-label="Live menu item summary">
                         <p><strong>Name:</strong> <output id="product-name-output">-</output></p>
                         <p><strong>Category:</strong> <output id="product-category-output">-</output></p>
-                        <p><strong>Price:</strong> <output id="product-price-output">-</output></p>
+                        <p><strong>Vendor price:</strong> <output id="product-price-output">-</output></p>
+                        <p><strong>Platform fee:</strong> <output id="product-summary-platform-fee-output">-</output></p>
+                        <p><strong>Customer price:</strong> <output id="product-summary-customer-price-output">-</output></p>
                         <p><strong>Availability:</strong> <output id="product-availability-output">-</output></p>
                         <p><strong>Sold out:</strong> <output id="product-sold-out-output">No</output></p>
                         <p><strong>Dietary tags:</strong> <output id="product-dietary-tags-output">-</output></p>
@@ -255,6 +271,7 @@
 
     <script src="../authentication/auth-utils.js"></script>
     <script src="../authentication/auth-core.js"></script>
+    <script src="../shared/finance/platform-pricing.js"></script>
     <script src="./products.js"></script>
 
     <script type="module">

@@ -401,9 +401,12 @@ body.customer-portal [hidden] {
 .customer-portal .menu-item-allergens,
 .customer-portal .checkout-item-category,
 .customer-portal .checkout-item-quantity,
+.customer-portal .checkout-item-price-breakdown,
 .customer-portal .checkout-item-total,
 .customer-portal .cart-item-category,
 .customer-portal .cart-item-price,
+.customer-portal .cart-item-price-breakdown,
+.customer-portal .cart-vendor-fee-summary,
 .customer-portal .cart-item-total {
     margin: 0;
 }
@@ -598,6 +601,21 @@ body.customer-portal [hidden] {
 .customer-portal .menu-item-price strong {
     margin: 0;
     color: var(--order-text);
+}
+
+.customer-portal .menu-item-price-note {
+    flex-basis: 100%;
+    color: var(--order-text-soft);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.customer-portal .cart-item-price-breakdown,
+.customer-portal .checkout-item-price-breakdown,
+.customer-portal .cart-vendor-fee-summary {
+    color: var(--order-text-soft);
+    font-size: 0.9rem;
+    font-weight: 700;
 }
 
 .customer-portal .quantity-controls,

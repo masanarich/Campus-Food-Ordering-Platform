@@ -6,13 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Analytics</title>
 
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- excel spreadsheets -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-    <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <link rel="stylesheet" href="../../index.css" />
@@ -32,13 +27,87 @@
             </ul>
         </nav>
     </header>
+
     <main class="analytics-main">
 
-        <!-- PAGE HEADING -->
         <section class="analytics-hero">
             <section class="analytics-hero-text">
                 <h1>My Analytics</h1>
                 <p class="hero-sub">A summary of your orders, spending, and habits.</p>
+            </section>
+
+            <section class="hero-actions">
+                <button id="exportCsvBtn" class="button secondary" type="button">↓ CSV</button>
+                <button id="exportExcelBtn" class="button secondary" type="button">↓ Excel</button>
+                <button id="exportPdfBtn" class="button secondary" type="button">↓ PDF</button>
+            </section>
+        </section>
+
+        <nav class="time-chip-bar" aria-label="Quick time window">
+            <button type="button" class="time-chip active" data-window="all" aria-pressed="true">All time</button>
+            <button type="button" class="time-chip" data-window="month" aria-pressed="false">This month</button>
+            <button type="button" class="time-chip" data-window="3m" aria-pressed="false">Last 3 months</button>
+            <button type="button" class="time-chip" data-window="6m" aria-pressed="false">Last 6 months</button>
+            <button type="button" class="time-chip" data-window="year" aria-pressed="false">This year</button>
+        </nav>
+
+        <!-- HEADLINE STATS -->
+        <section class="stats-grid" aria-label="Headline stats">
+            <article class="stat-card">
+                <small class="stat-label">Total spent</small>
+                <strong class="stat-value" id="stat-total-spent">R 0.00</strong>
+            </article>
+            <article class="stat-card">
+                <small class="stat-label">Total orders</small>
+                <strong class="stat-value" id="stat-total-orders">0</strong>
+            </article>
+            <article class="stat-card">
+                <small class="stat-label">Favourite vendor</small>
+                <strong class="stat-value" id="stat-fav-vendor">—</strong>
+            </article>
+            <article class="stat-card">
+                <small class="stat-label">Active months</small>
+                <strong class="stat-value" id="stat-active-months">0</strong>
+            </article>
+        </section>
+
+        <!-- SPEND TRENDS -->
+        <section id="report-trends" class="report-section">
+            <section class="report-header">
+                <section class="report-title-group">
+                    <h2>Spend trends</h2>
+                    <p class="report-description">How this month compares — and where you're heading.</p>
+                </section>
+            </section>
+            <section class="trend-grid">
+                <article class="trend-card">
+                    <small class="stat-label">This month</small>
+                    <strong class="stat-value" id="stat-this-month">R 0.00</strong>
+                    <small class="stat-delta" id="stat-month-delta">—</small>
+                </article>
+                <article class="trend-card">
+                    <small class="stat-label">Projected month spend</small>
+                    <strong class="stat-value" id="stat-projection">R 0.00</strong>
+                    <small class="stat-sub">based on days elapsed</small>
+                </article>
+                <article class="trend-card">
+                    <small class="stat-label">Avg per week</small>
+                    <strong class="stat-value" id="stat-avg-week">R 0.00</strong>
+                    <small class="stat-sub">across your order history</small>
+                </article>
+            </section>
+        </section>
+
+        <!-- MILESTONES -->
+        <section id="report-milestones" class="report-section">
+            <section class="report-header">
+                <section class="report-title-group">
+                    <h2>Milestones</h2>
+                    <p class="report-description">Quick stats and achievements based on your activity.</p>
+                </section>
+            </section>
+            <section id="milestonesWrap" class="milestones-wrap" aria-live="polite">
+                <p class="loading-text">Loading…</p>
             </section>
         </section>
 
@@ -46,12 +115,8 @@
         <section id="report-spending" class="report-section">
             <section class="report-header">
                 <section class="report-title-group">
-                    <h2>My Spending Over Time</h2>
+                    <h2>Spending over time</h2>
                     <p class="report-description">Monthly breakdown of how much you've spent.</p>
-                </section>
-                <section class="report-actions">
-                    <button class="button secondary" id="exportSpendingCSV">Export Excel</button>
-                    <button class="button secondary" id="exportSpendingPDF">Export PDF</button>
                 </section>
             </section>
             <figure class="chart-container">
@@ -63,14 +128,36 @@
         <section id="report-history" class="report-section">
             <section class="report-header">
                 <section class="report-title-group">
-                    <h2>My Order History</h2>
-                    <p class="report-description">Your most recent orders.</p>
-                </section>
-                <section class="report-actions">
-                    <button class="button secondary" id="exportHistoryCSV">Export Excel</button>
-                    <button class="button secondary" id="exportHistoryPDF">Export PDF</button>
+                    <h2>Order history</h2>
+                    <p class="report-description">Search, sort, and browse every order you've placed.</p>
                 </section>
             </section>
+
+            <section class="table-toolbar" aria-label="Order history controls">
+                <label class="toolbar-field">
+                    <small>Search</small>
+                    <input id="history-search" type="search" placeholder="Vendor or item name..." />
+                </label>
+                <label class="toolbar-field">
+                    <small>Sort by</small>
+                    <select id="history-sort">
+                        <option value="date:desc">Date (newest first)</option>
+                        <option value="date:asc">Date (oldest first)</option>
+                        <option value="total:desc">Total (high → low)</option>
+                        <option value="total:asc">Total (low → high)</option>
+                        <option value="vendor:asc">Vendor (A → Z)</option>
+                    </select>
+                </label>
+                <label class="toolbar-field">
+                    <small>Per page</small>
+                    <select id="history-page-size">
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </label>
+            </section>
+
             <section class="report-table-wrapper">
                 <table class="report-table">
                     <thead>
@@ -85,18 +172,20 @@
                     <tbody id="historyTableBody"></tbody>
                 </table>
             </section>
+
+            <footer class="pagination-bar">
+                <button id="history-prev-button" type="button" class="button secondary">Prev</button>
+                <output id="history-page-indicator">Page 1 of 1</output>
+                <button id="history-next-button" type="button" class="button secondary">Next</button>
+            </footer>
         </section>
 
         <!-- FAVOURITE VENDORS -->
         <section id="report-vendors" class="report-section">
             <section class="report-header">
                 <section class="report-title-group">
-                    <h2>My Favourite Vendors</h2>
+                    <h2>Favourite vendors</h2>
                     <p class="report-description">Spending breakdown by vendor.</p>
-                </section>
-                <section class="report-actions">
-                    <button class="button secondary" id="exportVendorsCSV">Export Excel</button>
-                    <button class="button secondary" id="exportVendorsPDF">Export PDF</button>
                 </section>
             </section>
             <section class="popular-layout">
@@ -110,7 +199,7 @@
                                 <th>Rank</th>
                                 <th>Vendor</th>
                                 <th>Orders</th>
-                                <th>Total Spent</th>
+                                <th>Total spent</th>
                             </tr>
                         </thead>
                         <tbody id="vendorsTableBody"></tbody>
@@ -123,12 +212,8 @@
         <section id="report-items" class="report-section">
             <section class="report-header">
                 <section class="report-title-group">
-                    <h2>My Most Ordered Items</h2>
+                    <h2>Most ordered items</h2>
                     <p class="report-description">Your go-to items ranked by how often you order them.</p>
-                </section>
-                <section class="report-actions">
-                    <button class="button secondary" id="exportItemsCSV">Export Excel</button>
-                    <button class="button secondary" id="exportItemsPDF">Export PDF</button>
                 </section>
             </section>
             <section class="popular-layout">
@@ -141,7 +226,7 @@
                             <tr>
                                 <th>Rank</th>
                                 <th>Item</th>
-                                <th>Times Ordered</th>
+                                <th>Times ordered</th>
                             </tr>
                         </thead>
                         <tbody id="itemsTableBody"></tbody>
@@ -150,10 +235,50 @@
             </section>
         </section>
 
+        <!-- ORDERING HABITS (hourly) -->
+        <section id="report-habits" class="report-section">
+            <section class="report-header">
+                <section class="report-title-group">
+                    <h2>Ordering habits</h2>
+                    <p class="report-description">When you usually order during the day.</p>
+                </section>
+            </section>
+            <figure class="chart-container">
+                <canvas id="habitsChart"></canvas>
+            </figure>
+            <p id="habitsInsight" class="peak-insight" aria-live="polite">Place an order to see your peak hour.</p>
+        </section>
+
+        <!-- CATEGORY PREFERENCES -->
+        <section id="report-categories" class="report-section">
+            <section class="report-header">
+                <section class="report-title-group">
+                    <h2>Category preferences</h2>
+                    <p class="report-description">Where your spending goes — by category.</p>
+                </section>
+            </section>
+            <section id="categoriesWrap" class="popular-layout">
+                <figure class="chart-container chart-container--doughnut">
+                    <canvas id="categoriesChart"></canvas>
+                </figure>
+            </section>
+        </section>
+
     </main>
 
+    <script type="module">
+        import { db, auth } from "../../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection, query, where, onSnapshot
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-    <script type="module" src="customer-analytics.js"></script>
+        window.db = db;
+        window.auth = auth;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = { collection, query, where, onSnapshot };
+    </script>
+    <script defer src="customer-analytics.js"></script>
 
 </body>
 

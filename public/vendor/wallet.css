@@ -1,0 +1,208 @@
+.wallet-main {
+    align-items: stretch;
+}
+
+.wallet-hero,
+.wallet-summary-panel {
+    grid-column: 1 / -1;
+}
+
+#wallet-status {
+    min-height: 1.5rem;
+    margin: 1rem 0 0;
+    padding: 0.95rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.14);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+    font-weight: 800;
+}
+
+#wallet-status[data-state="success"] {
+    border-color: rgba(31, 106, 71, 0.14);
+    background: var(--success-soft);
+    color: var(--success-text);
+}
+
+#wallet-status[data-state="error"] {
+    border-color: rgba(139, 47, 36, 0.14);
+    background: var(--danger-soft);
+    color: var(--danger-text);
+}
+
+.withdrawal-panel,
+.payout-history-panel {
+    grid-column: span 6;
+}
+
+.wallet-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1.2rem;
+}
+
+.wallet-metric-card {
+    min-height: 10.5rem;
+    padding: 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 253, 249, 0.9);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.wallet-metric-primary {
+    background:
+        linear-gradient(135deg, rgba(227, 240, 231, 0.96), rgba(255, 253, 249, 0.92));
+    border-color: rgba(31, 106, 71, 0.18);
+}
+
+.wallet-metric-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.wallet-metric-value {
+    display: block;
+    font-size: 1.85rem;
+    line-height: 1.1;
+    font-weight: 900;
+    color: var(--text);
+    word-break: break-word;
+}
+
+.wallet-metric-note {
+    color: var(--text-soft);
+    font-size: 0.95rem;
+}
+
+.wallet-form {
+    display: grid;
+    gap: 0.95rem;
+    margin-top: 1.15rem;
+}
+
+.wallet-form p {
+    margin: 0;
+}
+
+.wallet-form label {
+    margin-bottom: 0.4rem;
+}
+
+.withdrawal-actions {
+    margin-top: 0.2rem;
+}
+
+.payout-history-list {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.payout-card {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 253, 249, 0.9);
+    box-shadow: var(--shadow-sm);
+}
+
+.payout-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.payout-card-title {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.02rem;
+}
+
+.payout-card-amount {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.payout-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 6rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    background: var(--info-soft);
+    color: var(--info-text);
+    border: 1px solid rgba(91, 70, 153, 0.12);
+}
+
+.payout-status[data-status="approved"],
+.payout-status[data-status="paid"] {
+    background: var(--success-soft);
+    color: var(--success-text);
+    border-color: rgba(31, 106, 71, 0.12);
+}
+
+.payout-status[data-status="rejected"],
+.payout-status[data-status="cancelled"] {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: rgba(139, 47, 36, 0.12);
+}
+
+.payout-card-details {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.payout-card-details p {
+    margin: 0;
+}
+
+.wallet-empty-state,
+.loading-message {
+    margin: 0;
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+@media (max-width: 1050px) {
+    .wallet-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .withdrawal-panel,
+    .payout-history-panel {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 620px) {
+    .wallet-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .payout-card-header {
+        flex-direction: column;
+    }
+
+    .payout-status {
+        width: 100%;
+    }
+}

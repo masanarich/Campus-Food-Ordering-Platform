@@ -1,0 +1,209 @@
+.finance-main {
+    align-items: stretch;
+}
+
+.finance-hero,
+.finance-summary-panel,
+.payout-summary-panel,
+.payout-admin-panel {
+    grid-column: 1 / -1;
+}
+
+#admin-finance-status {
+    min-height: 1.5rem;
+    margin: 1rem 0 0;
+    padding: 0.95rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.14);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+    font-weight: 800;
+}
+
+#admin-finance-status[data-state="success"] {
+    border-color: rgba(31, 106, 71, 0.14);
+    background: var(--success-soft);
+    color: var(--success-text);
+}
+
+#admin-finance-status[data-state="error"] {
+    border-color: rgba(139, 47, 36, 0.14);
+    background: var(--danger-soft);
+    color: var(--danger-text);
+}
+
+.finance-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1.2rem;
+}
+
+.finance-metric-card {
+    min-height: 10.5rem;
+    padding: 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 253, 249, 0.9);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.finance-metric-primary {
+    background:
+        linear-gradient(135deg, rgba(227, 240, 231, 0.96), rgba(255, 253, 249, 0.92));
+    border-color: rgba(31, 106, 71, 0.18);
+}
+
+.finance-metric-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.finance-metric-card output {
+    display: block;
+    font-size: 1.85rem;
+    line-height: 1.1;
+    font-weight: 900;
+    color: var(--text);
+    word-break: break-word;
+}
+
+.finance-metric-note {
+    color: var(--text-soft);
+    font-size: 0.95rem;
+}
+
+.finance-section-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.finance-section-header h3 {
+    margin-bottom: 0.35rem;
+}
+
+.finance-filter {
+    width: min(16rem, 100%);
+    display: grid;
+    gap: 0.4rem;
+}
+
+.payout-admin-list {
+    display: grid;
+    gap: 0.9rem;
+    margin-top: 1rem;
+}
+
+.admin-payout-card {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 253, 249, 0.9);
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-payout-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 0.8rem;
+}
+
+.admin-payout-title {
+    margin: 0 0 0.25rem;
+    color: var(--text);
+    font-size: 1.05rem;
+}
+
+.admin-payout-amount {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.payout-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 6rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    background: var(--info-soft);
+    color: var(--info-text);
+    border: 1px solid rgba(91, 70, 153, 0.12);
+}
+
+.payout-status[data-status="approved"],
+.payout-status[data-status="paid"] {
+    background: var(--success-soft);
+    color: var(--success-text);
+    border-color: rgba(31, 106, 71, 0.12);
+}
+
+.payout-status[data-status="rejected"],
+.payout-status[data-status="cancelled"] {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: rgba(139, 47, 36, 0.12);
+}
+
+.admin-payout-details {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+}
+
+.admin-payout-details p {
+    margin: 0;
+}
+
+.admin-payout-actions {
+    margin-top: 1rem;
+}
+
+.admin-payout-actions button {
+    padding: 0.7rem 0.95rem;
+}
+
+.finance-empty-state,
+.loading-message {
+    margin: 0;
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+@media (max-width: 1050px) {
+    .finance-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 680px) {
+    .finance-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .finance-section-header,
+    .admin-payout-header {
+        flex-direction: column;
+    }
+
+    .finance-filter,
+    .payout-status {
+        width: 100%;
+    }
+}

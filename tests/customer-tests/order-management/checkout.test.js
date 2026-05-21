@@ -5,13 +5,31 @@
 const customerCheckout = require("../../../public/customer/order-management/checkout.js");
 
 function createCartItem(overrides = {}) {
+    const requestedPrice = Number.isFinite(Number(overrides.price)) ? Number(overrides.price) : 55;
+    const requestedVendorPrice = Number.isFinite(Number(overrides.vendorPrice))
+        ? Number(overrides.vendorPrice)
+        : Number.isFinite(Number(overrides.customerPrice))
+            ? Math.round((Number(overrides.customerPrice) / 1.1 + Number.EPSILON) * 100) / 100
+            : Math.round((requestedPrice / 1.1 + Number.EPSILON) * 100) / 100;
+    const requestedPlatformFee = Number.isFinite(Number(overrides.platformFee))
+        ? Number(overrides.platformFee)
+        : Math.round(((requestedPrice - requestedVendorPrice) + Number.EPSILON) * 100) / 100;
+    const requestedCustomerPrice = Number.isFinite(Number(overrides.customerPrice))
+        ? Number(overrides.customerPrice)
+        : requestedPrice;
+
     return {
         menuItemId: "item-1",
         vendorUid: "vendor-1",
         vendorName: "Campus Bites",
         name: "Burger",
         category: "Meals",
-        price: 55,
+        vendorPrice: requestedVendorPrice,
+        basePrice: requestedVendorPrice,
+        platformFeeRate: 0.1,
+        platformFee: requestedPlatformFee,
+        customerPrice: requestedCustomerPrice,
+        price: requestedCustomerPrice,
         quantity: 2,
         photoURL: "",
         notes: "",
@@ -132,6 +150,32 @@ describe("customer/order-management/checkout.js - helpers", () => {
         expect(context.vendorItems).toHaveLength(1);
         expect(context.itemCount).toBe(2);
         expect(context.subtotal).toBe(20);
+        expect(context.customerTotal).toBe(20);
+        expect(context.platformFee).toBeCloseTo(1.82);
+        expect(context.vendorSubtotal).toBeCloseTo(18.18);
+    });
+
+    test("normalizeCartItem adds 10% for older cart prices and preserves newer split prices", () => {
+        const olderItem = customerCheckout.normalizeCartItem({
+            menuItemId: "old-item",
+            vendorUid: "vendor-1",
+            price: 100
+        });
+        const newerItem = customerCheckout.normalizeCartItem(createCartItem({
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110
+        }));
+
+        expect(olderItem.vendorPrice).toBe(100);
+        expect(olderItem.platformFee).toBe(10);
+        expect(olderItem.customerPrice).toBe(110);
+        expect(olderItem.price).toBe(110);
+        expect(newerItem.vendorPrice).toBe(100);
+        expect(newerItem.platformFee).toBe(10);
+        expect(newerItem.customerPrice).toBe(110);
+        expect(newerItem.price).toBe(110);
     });
 
     test("buildCustomerSnapshot maps the authenticated user", () => {
@@ -273,7 +317,8 @@ describe("customer/order-management/checkout.js - helpers", () => {
 
         expect(article.querySelector(".checkout-item-name").textContent).toBe("Burger");
         expect(article.textContent).toContain("Quantity: 3");
-        expect(article.textContent).toContain("Unit Price: R15.00");
+        expect(article.textContent).toContain("Customer Price: R15.00");
+        expect(article.textContent).toContain("platform fee");
         expect(article.textContent).toContain("Line Total: R45.00");
     });
 
@@ -361,12 +406,16 @@ describe("customer/order-management/checkout.js - rendering", () => {
         customerCheckout.renderCheckoutSummary({
             vendorName: "Campus Bites",
             itemCount: 3,
+            vendorSubtotal: 68.18,
+            platformFee: 6.82,
             subtotal: 75
         }, dom.summarySection);
 
         expect(dom.summarySection.textContent).toContain("Vendor: Campus Bites");
         expect(dom.summarySection.textContent).toContain("Items: 3");
-        expect(dom.summarySection.textContent).toContain("Total: R75.00");
+        expect(dom.summarySection.textContent).toContain("Vendor Earnings: R68.18");
+        expect(dom.summarySection.textContent).toContain("Platform Fee: R6.82");
+        expect(dom.summarySection.textContent).toContain("Customer Total: R75.00");
     });
 
     test("updateCheckoutView updates heading and status", () => {
@@ -715,9 +764,14 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
                 paymentProvider: "paystack",
                 paymentAmount: 20,
                 paymentAmountInMinorUnits: 2000,
-                paymentCurrency: "ZAR"
+                paymentCurrency: "ZAR",
+                customerTotal: 20
             })
         );
+        expect(result.orders[0].vendorSubtotal).toBeCloseTo(18.18);
+        expect(result.orders[0].vendorEarnings).toBeCloseTo(18.18);
+        expect(result.orders[0].platformFee).toBeCloseTo(1.82);
+        expect(result.orders[0].platformEarnings).toBeCloseTo(1.82);
     });
 
     test("initializeOrderPayment calls the cloud function, patches the order, and navigates to Paystack", async () => {
@@ -1126,7 +1180,7 @@ describe("customer/order-management/checkout.js - placeOrder and init", () => {
         expect(result.context.vendorItems).toHaveLength(1);
         expect(dom.vendorHeading.textContent).toBe("Campus Bites");
         expect(dom.backButtonHost.querySelector(".checkout-back-button")).not.toBeNull();
-        expect(dom.summarySection.textContent).toContain("Total: R20.00");
+        expect(dom.summarySection.textContent).toContain("Customer Total: R20.00");
     });
 
     test("place order button updates the status after a successful click", async () => {

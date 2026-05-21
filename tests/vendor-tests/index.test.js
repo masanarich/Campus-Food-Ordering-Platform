@@ -57,7 +57,9 @@ function createVendorHomeDom() {
             <button id="go-order-management-button" type="button">Manage Orders</button>
             <button id="go-order-detail-button" type="button">Order Detail</button>
             <button id="go-order-notifications-button" type="button">Order Notifications</button>
+            <button id="go-wallet-button" type="button">Wallet</button>
             <a id="vendor-support-link" href="./support/index.html">Support & Disputes</a>
+            <a id="wallet-link" href="./wallet.html">Wallet</a>
             <a id="analytics-link" href="./analytics.html">View Analytics</a>
             <button id="choose-portal-button" type="button">Choose Portal</button>
             <button id="sign-out-button" type="button">Sign Out</button>
@@ -85,7 +87,9 @@ function createVendorHomeDom() {
         orderManagementButton: document.querySelector("#go-order-management-button"),
         orderDetailButton: document.querySelector("#go-order-detail-button"),
         orderNotificationsButton: document.querySelector("#go-order-notifications-button"),
+        walletButton: document.querySelector("#go-wallet-button"),
         supportLink: document.querySelector("#vendor-support-link"),
+        walletLink: document.querySelector("#wallet-link"),
         analyticsLink: document.querySelector("#analytics-link"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
         signOutButton: document.querySelector("#sign-out-button"),
@@ -132,6 +136,7 @@ describe("vendor/index.js helpers", () => {
         expect(getPortalRoute("orderDetail")).toBe("./order-management/order-detail.html");
         expect(getPortalRoute("orderNotifications")).toBe("./order-management/notifications.html");
         expect(getPortalRoute("support")).toBe("./support/index.html");
+        expect(getPortalRoute("wallet")).toBe("./wallet.html");
         expect(getPortalRoute("analytics")).toBe("./analytics.html");
         expect(getPortalRoute("signOut")).toBe("../authentication/login.html");
 
@@ -252,6 +257,7 @@ describe("vendor/index.js helpers", () => {
         expect(state.orderDetailRoute).toBe("./order-management/order-detail.html");
         expect(state.orderNotificationsRoute).toBe("./order-management/notifications.html");
         expect(state.supportRoute).toBe("./support/index.html");
+        expect(state.walletRoute).toBe("./wallet.html");
         expect(state.analyticsRoute).toBe("./analytics.html");
         expect(state.signOutRoute).toBe("../authentication/login.html");
 
@@ -493,6 +499,8 @@ describe("vendor/index.js loading and initialization", () => {
         expect(result.orderDetailController).toBeTruthy();
         expect(result.orderNotificationsController).toBeTruthy();
         expect(result.supportController).toBeTruthy();
+        expect(result.walletButtonController).toBeTruthy();
+        expect(result.walletLinkController).toBeTruthy();
         expect(result.analyticsController).toBeTruthy();
         expect(result.choosePortalController).toBeTruthy();
         expect(result.customerPortalController).toBeTruthy();
@@ -507,6 +515,8 @@ describe("vendor/index.js loading and initialization", () => {
         elements.orderDetailButton.click();
         elements.orderNotificationsButton.click();
         elements.supportLink.click();
+        elements.walletButton.click();
+        elements.walletLink.click();
         elements.analyticsLink.click();
         elements.customerPortalButton.click();
         elements.adminPortalButton.click();
@@ -523,6 +533,7 @@ describe("vendor/index.js loading and initialization", () => {
         expect(navigate).toHaveBeenCalledWith("./order-management/order-detail.html");
         expect(navigate).toHaveBeenCalledWith("./order-management/notifications.html");
         expect(navigate).toHaveBeenCalledWith("./support/index.html");
+        expect(navigate).toHaveBeenCalledWith("./wallet.html");
         expect(navigate).toHaveBeenCalledWith("./analytics.html");
         expect(navigate).toHaveBeenCalledWith("../customer/index.html");
         expect(navigate).toHaveBeenCalledWith("../admin/index.html");

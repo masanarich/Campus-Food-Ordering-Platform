@@ -100,6 +100,7 @@ describe("customer/order-management/browse-menu.js - Module Structure", () => {
         expect(customerBrowseMenu.renderMenuItems).toBeDefined();
         expect(customerBrowseMenu.createMenuItemCard).toBeDefined();
         expect(customerBrowseMenu.getVisiblePageNumbers).toBeDefined();
+        expect(customerBrowseMenu.calculateMenuItemPricing).toBeDefined();
         expect(customerBrowseMenu.getCart).toBeDefined();
         expect(customerBrowseMenu.addToCart).toBeDefined();
         expect(customerBrowseMenu.getCartItemCount).toBeDefined();
@@ -155,6 +156,10 @@ describe("customer/order-management/browse-menu.js - Cart Management", () => {
         expect(result.cart).toHaveLength(1);
         expect(result.cart[0].quantity).toBe(2);
         expect(result.cart[0].name).toBe("Burger");
+        expect(result.cart[0].vendorPrice).toBe(50);
+        expect(result.cart[0].platformFee).toBe(5);
+        expect(result.cart[0].customerPrice).toBe(55);
+        expect(result.cart[0].price).toBe(55);
     });
 
     test("addToCart updates quantity for existing item", () => {
@@ -176,6 +181,22 @@ describe("customer/order-management/browse-menu.js - Cart Management", () => {
 
         const count = customerBrowseMenu.getCartItemCount();
         expect(count).toBe(5);
+    });
+
+    test("addToCart does not add the platform fee twice when customerPrice exists", () => {
+        const item = createMockMenuItem({
+            vendorPrice: 50,
+            platformFee: 5,
+            customerPrice: 55,
+            price: 55
+        });
+
+        const result = customerBrowseMenu.addToCart(item, 1);
+
+        expect(result.cart[0].vendorPrice).toBe(50);
+        expect(result.cart[0].platformFee).toBe(5);
+        expect(result.cart[0].customerPrice).toBe(55);
+        expect(result.cart[0].price).toBe(55);
     });
 
     test("getCartItemCount returns 0 for empty cart", () => {
@@ -289,6 +310,49 @@ describe("customer/order-management/browse-menu.js - fetchVendorMenu", () => {
         expect(result.menuItems[0].price).toBe(0);
     });
 
+    test("normalizes older vendor prices into customer prices with platform fee", async () => {
+        const mockMenuItems = [createMockMenuItem({ price: 100 })];
+        const mockDb = { kind: "db" };
+        const firestoreFns = createFirestoreFns({ mockMenuItems });
+
+        const result = await customerBrowseMenu.fetchVendorMenu({
+            vendorUid: "vendor-1",
+            db: mockDb,
+            firestoreFns
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.menuItems[0].vendorPrice).toBe(100);
+        expect(result.menuItems[0].platformFee).toBe(10);
+        expect(result.menuItems[0].customerPrice).toBe(110);
+        expect(result.menuItems[0].price).toBe(110);
+    });
+
+    test("keeps stored customer prices from newer product records", async () => {
+        const mockMenuItems = [
+            createMockMenuItem({
+                vendorPrice: 100,
+                platformFee: 10,
+                customerPrice: 110,
+                price: 110
+            })
+        ];
+        const mockDb = { kind: "db" };
+        const firestoreFns = createFirestoreFns({ mockMenuItems });
+
+        const result = await customerBrowseMenu.fetchVendorMenu({
+            vendorUid: "vendor-1",
+            db: mockDb,
+            firestoreFns
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.menuItems[0].vendorPrice).toBe(100);
+        expect(result.menuItems[0].platformFee).toBe(10);
+        expect(result.menuItems[0].customerPrice).toBe(110);
+        expect(result.menuItems[0].price).toBe(110);
+    });
+
     test("normalizes vendor allergenTags for customer display", async () => {
         const itemWithVendorTags = createMockMenuItem({
             allergens: undefined,
@@ -344,8 +408,9 @@ describe("customer/order-management/browse-menu.js - createMenuItemCard", () => 
 
         // Check price
         const price = card.querySelector(".menu-item-price strong");
-        expect(price.textContent).toBe("R50.00");
+        expect(price.textContent).toBe("R55.00");
         expect(card.querySelector(".menu-item-price .menu-item-label").textContent).toBe("Price:");
+        expect(card.querySelector(".menu-item-price-note").textContent).toBe("Includes 10% platform fee");
 
         // Check add to cart button
         const button = card.querySelector(".add-to-cart-button");

@@ -7,6 +7,8 @@ const {
     normalizeLowerText,
     parsePrice,
     formatPrice,
+    calculateMenuItemPricing,
+    getProductVendorPrice,
     normalizeAvailability,
     normalizeTagList,
     formatTagList,
@@ -78,6 +80,8 @@ function createDom() {
                 <p id="product-description-error" hidden></p>
                 <input id="product-price" type="number">
                 <p id="product-price-error" hidden></p>
+                <output id="product-platform-fee-output"></output>
+                <output id="product-customer-price-output"></output>
                 <input id="product-photo-file" type="file">
                 <select id="product-availability">
                     <option value="available">Available</option>
@@ -121,6 +125,8 @@ function createDom() {
             <output id="product-category-output"></output>
             <output id="product-description-output"></output>
             <output id="product-price-output"></output>
+            <output id="product-summary-platform-fee-output"></output>
+            <output id="product-summary-customer-price-output"></output>
             <output id="product-availability-output"></output>
             <output id="product-sold-out-output"></output>
             <output id="product-dietary-tags-output"></output>
@@ -309,6 +315,14 @@ describe("products.js helpers", () => {
         expect(parsePrice("abc")).toBeNull();
         expect(formatPrice(25)).toBe("R25.00");
         expect(formatPrice("bad")).toBe("-");
+        expect(calculateMenuItemPricing(100)).toEqual({
+            vendorPrice: 100,
+            platformFeeRate: 0.1,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110
+        });
+        expect(getProductVendorPrice({ vendorPrice: "75.00", price: "82.50" })).toBe(75);
         expect(normalizeAvailability("unavailable")).toBe("unavailable");
         expect(normalizeAvailability("other")).toBe("available");
         expect(normalizeTagList("halal, vegan, halal")).toEqual(["halal", "vegan"]);
@@ -338,7 +352,12 @@ describe("products.js helpers", () => {
             name: "Burger",
             category: "Burgers",
             description: "Nice burger",
-            price: 45,
+            vendorPrice: 45,
+            basePrice: 45,
+            platformFeeRate: 0.1,
+            platformFee: 4.5,
+            customerPrice: 49.5,
+            price: 49.5,
             photoURL: "https://files.example/menu.jpg",
             photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
             availability: "unavailable",
@@ -371,7 +390,10 @@ describe("products.js helpers", () => {
         ).toEqual(expect.objectContaining({
             id: "abc",
             vendorUid: "vendor-1",
-            price: 45,
+            vendorPrice: 45,
+            platformFee: 4.5,
+            customerPrice: 49.5,
+            price: 49.5,
             soldOut: true
         }));
     });
@@ -660,7 +682,11 @@ describe("createVendorProductsPage", () => {
                 name: "Chicken Burger",
                 category: "Burgers",
                 description: "A juicy chicken burger with chips.",
-                price: 55,
+                vendorPrice: 55,
+                basePrice: 55,
+                platformFee: 5.5,
+                customerPrice: 60.5,
+                price: 60.5,
                 photoURL: "https://storage.example/menuItemPhotos/vendor-1/created-1/cover.jpg",
                 photoPath: "menuItemPhotos/vendor-1/created-1/cover.jpg",
                 availability: "available",
@@ -693,7 +719,10 @@ describe("createVendorProductsPage", () => {
             { db: deps.db, segments: ["users", "vendor-1", "menuItems", "item-1"] },
             expect.objectContaining({
                 name: "Chicken Burger",
-                price: 60,
+                vendorPrice: 60,
+                platformFee: 6,
+                customerPrice: 66,
+                price: 66,
                 photoURL: "https://files.example/item-1.jpg",
                 photoPath: "menuItemPhotos/vendor-1/item-1/cover.jpg",
                 updatedAt: "SERVER_TIME"

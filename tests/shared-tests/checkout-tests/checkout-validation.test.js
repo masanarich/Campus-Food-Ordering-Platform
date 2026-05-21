@@ -68,6 +68,8 @@ describe("shared/checkout/checkout-validation.js", () => {
             .toEqual(["ZAR", "USD"]);
         expect(checkoutValidation.isValidEmail("student@example.com")).toBe(true);
         expect(checkoutValidation.isValidEmail("student.example.com")).toBe(false);
+        expect(checkoutValidation.getRawItemPrice({ customerPrice: "33.50" })).toBe("33.50");
+        expect(checkoutValidation.getRawItemPrice({ vendorPrice: "30" })).toBe("30");
     });
 
     test("creates validation results and preserves the first error for each key", () => {
@@ -180,9 +182,29 @@ describe("shared/checkout/checkout-validation.js", () => {
         expect(result.value).toMatchObject({
             menuItemId: "item-1",
             name: "Wrap",
+            vendorPrice: 23.18,
+            platformFee: 2.32,
             price: 25.5,
             quantity: 2,
+            vendorSubtotal: 46.36,
+            platformFeeTotal: 4.64,
             lineTotal: 51
+        });
+
+        const vendorPriced = checkoutValidation.validateCheckoutItem({
+            id: "vendor-priced",
+            itemName: "Vendor Meal",
+            vendorPrice: "100",
+            quantity: 1,
+            vendorUid: "vendor-1"
+        }, { requireVendorDetails: true });
+        expect(vendorPriced.isValid).toBe(true);
+        expect(vendorPriced.value).toMatchObject({
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110,
+            lineTotal: 110
         });
 
         const invalid = checkoutValidation.validateCheckoutItem({
@@ -253,18 +275,29 @@ describe("shared/checkout/checkout-validation.js", () => {
         const valid = checkoutValidation.validateCheckoutTotals(createValidCheckout());
         expect(valid.isValid).toBe(true);
         expect(valid.value.expectedSubtotal).toBe(90);
+        expect(valid.value.expectedVendorSubtotal).toBe(81.82);
+        expect(valid.value.expectedPlatformFee).toBe(8.18);
+        expect(valid.value.customerTotal).toBe(90);
         expect(valid.value.expectedAmountInMinorUnits).toBe(9000);
 
         const invalid = checkoutValidation.validateCheckoutTotals(createValidCheckout({
             subtotal: 80,
             total: 70,
+            vendorSubtotal: 70,
+            vendorEarnings: 60,
+            platformFee: 3,
+            platformEarnings: 2,
+            customerTotal: 80,
             paymentAmount: 60,
             paymentAmountInMinorUnits: 5000
         }));
         expect(invalid.isValid).toBe(false);
-        expect(invalid.errors).toEqual({
+        expect(invalid.errors).toMatchObject({
             subtotal: "Checkout subtotal must match the sum of its items (90).",
             total: "Checkout total cannot be less than subtotal.",
+            vendorSubtotal: "Vendor subtotal must match the vendor share of its items (81.82).",
+            platformFee: "Platform fee must match the platform share of its items (8.18).",
+            customerTotal: "Customer total must match the checkout total.",
             paymentAmount: "Payment amount must match the checkout total.",
             paymentAmountInMinorUnits: "Payment amount in minor units must match the payment amount."
         });

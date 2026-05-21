@@ -5,6 +5,8 @@ const paymentStatus = require("../../../public/shared/payments/payment-status.js
 describe("shared/orders/order-model.js", () => {
     test("exports a real shared model module", () => {
         expect(orderModel.MODULE_NAME).toBe("order-model");
+        expect(orderModel.DEFAULT_PLATFORM_FEE_RATE).toBe(0.1);
+        expect(orderModel.FINANCE_MODEL).toBe("vendor-price-plus-platform-fee");
         expect(orderModel.resolveOrderStatus(orderStatus)).toBe(orderStatus);
         expect(orderModel.resolvePaymentStatus(paymentStatus)).toBe(paymentStatus);
     });
@@ -48,6 +50,8 @@ describe("shared/orders/order-model.js", () => {
         expect(orderModel.normalizeAmountInMinorUnits("1234")).toBe(1234);
         expect(orderModel.normalizeAmountInMinorUnits(-20, 500)).toBe(0);
         expect(orderModel.normalizeAmountInMinorUnits("bad", 500)).toBe(500);
+        expect(orderModel.normalizePlatformFeeRate("10")).toBe(0.1);
+        expect(orderModel.normalizePlatformFeeRate("0.125")).toBe(0.125);
         expect(orderModel.amountToMinorUnits(12.34)).toBe(1234);
         expect(orderModel.normalizePaymentProvider(" PayStack ")).toBe("paystack");
         expect(orderModel.normalizePaymentProvider("", "campus-pay")).toBe("campus-pay");
@@ -114,12 +118,41 @@ describe("shared/orders/order-model.js", () => {
             vendorName: "Campus Bites",
             name: "Chicken Wrap",
             category: "",
+            vendorPrice: 50.45,
+            basePrice: 50.45,
+            platformFeeRate: 0.1,
+            platformFee: 5.05,
+            customerPrice: 55.5,
             price: 55.5,
             quantity: 2,
+            vendorSubtotal: 100.9,
+            lineVendorSubtotal: 100.9,
+            platformFeeTotal: 10.1,
+            linePlatformFee: 10.1,
             subtotal: 111,
+            lineTotal: 111,
+            lineCustomerTotal: 111,
             photoURL: "https://example.com/a.jpg",
             notes: "No mayo"
         });
+
+        expect(
+            orderModel.normalizeOrderItem({
+                id: "vendor-priced",
+                name: "Vendor Meal",
+                vendorPrice: "100",
+                quantity: 2
+            })
+        ).toEqual(expect.objectContaining({
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110,
+            vendorSubtotal: 200,
+            platformFeeTotal: 20,
+            subtotal: 220,
+            lineTotal: 220
+        }));
 
         expect(
             orderModel.normalizeOrderItems([
@@ -134,9 +167,20 @@ describe("shared/orders/order-model.js", () => {
                 vendorName: "",
                 name: "Burger",
                 category: "",
+                vendorPrice: 45.45,
+                basePrice: 45.45,
+                platformFeeRate: 0.1,
+                platformFee: 4.55,
+                customerPrice: 50,
                 price: 50,
                 quantity: 1,
+                vendorSubtotal: 45.45,
+                lineVendorSubtotal: 45.45,
+                platformFeeTotal: 4.55,
+                linePlatformFee: 4.55,
                 subtotal: 50,
+                lineTotal: 50,
+                lineCustomerTotal: 50,
                 photoURL: "",
                 notes: ""
             },
@@ -146,9 +190,20 @@ describe("shared/orders/order-model.js", () => {
                 vendorName: "",
                 name: "Water",
                 category: "",
+                vendorPrice: 9.09,
+                basePrice: 9.09,
+                platformFeeRate: 0.1,
+                platformFee: 0.91,
+                customerPrice: 10,
                 price: 10,
                 quantity: 2,
+                vendorSubtotal: 18.18,
+                lineVendorSubtotal: 18.18,
+                platformFeeTotal: 1.82,
+                linePlatformFee: 1.82,
                 subtotal: 20,
+                lineTotal: 20,
+                lineCustomerTotal: 20,
                 photoURL: "",
                 notes: ""
             }
@@ -165,6 +220,8 @@ describe("shared/orders/order-model.js", () => {
 
         expect(orderModel.calculateOrderItemCount(items)).toBe(5);
         expect(orderModel.calculateOrderSubtotal(items)).toBe(168.5);
+        expect(orderModel.calculateOrderVendorSubtotal(items)).toBe(153.17);
+        expect(orderModel.calculateOrderPlatformFee(items)).toBe(15.33);
         expect(orderModel.groupOrderItemsByVendor(items)).toEqual([
             {
                 vendorUid: "vendor-1",
@@ -176,9 +233,20 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "Campus Bites",
                         name: "Burger",
                         category: "",
+                        vendorPrice: 45.45,
+                        basePrice: 45.45,
+                        platformFeeRate: 0.1,
+                        platformFee: 4.55,
+                        customerPrice: 50,
                         price: 50,
                         quantity: 2,
+                        vendorSubtotal: 90.9,
+                        lineVendorSubtotal: 90.9,
+                        platformFeeTotal: 9.1,
+                        linePlatformFee: 9.1,
                         subtotal: 100,
+                        lineTotal: 100,
+                        lineCustomerTotal: 100,
                         photoURL: "",
                         notes: ""
                     },
@@ -188,16 +256,32 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "",
                         name: "Chips",
                         category: "",
+                        vendorPrice: 27.27,
+                        basePrice: 27.27,
+                        platformFeeRate: 0.1,
+                        platformFee: 2.73,
+                        customerPrice: 30,
                         price: 30,
                         quantity: 1,
+                        vendorSubtotal: 27.27,
+                        lineVendorSubtotal: 27.27,
+                        platformFeeTotal: 2.73,
+                        linePlatformFee: 2.73,
                         subtotal: 30,
+                        lineTotal: 30,
+                        lineCustomerTotal: 30,
                         photoURL: "",
                         notes: ""
                     }
                 ],
                 itemCount: 3,
                 subtotal: 130,
-                total: 130
+                total: 130,
+                vendorSubtotal: 118.17,
+                vendorEarnings: 118.17,
+                platformFee: 11.83,
+                platformEarnings: 11.83,
+                customerTotal: 130
             },
             {
                 vendorUid: "vendor-2",
@@ -209,16 +293,32 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "Fresh Corner",
                         name: "Juice",
                         category: "",
+                        vendorPrice: 16.82,
+                        basePrice: 16.82,
+                        platformFeeRate: 0.1,
+                        platformFee: 1.68,
+                        customerPrice: 18.5,
                         price: 18.5,
                         quantity: 1,
+                        vendorSubtotal: 16.82,
+                        lineVendorSubtotal: 16.82,
+                        platformFeeTotal: 1.68,
+                        linePlatformFee: 1.68,
                         subtotal: 18.5,
+                        lineTotal: 18.5,
+                        lineCustomerTotal: 18.5,
                         photoURL: "",
                         notes: ""
                     }
                 ],
                 itemCount: 1,
                 subtotal: 18.5,
-                total: 18.5
+                total: 18.5,
+                vendorSubtotal: 16.82,
+                vendorEarnings: 16.82,
+                platformFee: 1.68,
+                platformEarnings: 1.68,
+                customerTotal: 18.5
             }
         ]);
 
@@ -238,9 +338,20 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "",
                         name: "Tea",
                         category: "",
+                        vendorPrice: 10.91,
+                        basePrice: 10.91,
+                        platformFeeRate: 0.1,
+                        platformFee: 1.09,
+                        customerPrice: 12,
                         price: 12,
                         quantity: 1,
+                        vendorSubtotal: 10.91,
+                        lineVendorSubtotal: 10.91,
+                        platformFeeTotal: 1.09,
+                        linePlatformFee: 1.09,
                         subtotal: 12,
+                        lineTotal: 12,
+                        lineCustomerTotal: 12,
                         photoURL: "",
                         notes: ""
                     },
@@ -250,16 +361,32 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "Bakery Bar",
                         name: "Cake",
                         category: "",
+                        vendorPrice: 22.73,
+                        basePrice: 22.73,
+                        platformFeeRate: 0.1,
+                        platformFee: 2.27,
+                        customerPrice: 25,
                         price: 25,
                         quantity: 1,
+                        vendorSubtotal: 22.73,
+                        lineVendorSubtotal: 22.73,
+                        platformFeeTotal: 2.27,
+                        linePlatformFee: 2.27,
                         subtotal: 25,
+                        lineTotal: 25,
+                        lineCustomerTotal: 25,
                         photoURL: "",
                         notes: ""
                     }
                 ],
                 itemCount: 2,
                 subtotal: 37,
-                total: 37
+                total: 37,
+                vendorSubtotal: 33.64,
+                vendorEarnings: 33.64,
+                platformFee: 3.36,
+                platformEarnings: 3.36,
+                customerTotal: 37
             }
         ]);
     });
@@ -348,9 +475,20 @@ describe("shared/orders/order-model.js", () => {
                     vendorName: "Campus Bites",
                     name: "Burger",
                     category: "",
+                    vendorPrice: 45.45,
+                    basePrice: 45.45,
+                    platformFeeRate: 0.1,
+                    platformFee: 4.55,
+                    customerPrice: 50,
                     price: 50,
                     quantity: 2,
+                    vendorSubtotal: 90.9,
+                    lineVendorSubtotal: 90.9,
+                    platformFeeTotal: 9.1,
+                    linePlatformFee: 9.1,
                     subtotal: 100,
+                    lineTotal: 100,
+                    lineCustomerTotal: 100,
                     photoURL: "",
                     notes: ""
                 },
@@ -360,9 +498,20 @@ describe("shared/orders/order-model.js", () => {
                     vendorName: "Campus Bites",
                     name: "Chips",
                     category: "",
+                    vendorPrice: 27.27,
+                    basePrice: 27.27,
+                    platformFeeRate: 0.1,
+                    platformFee: 2.73,
+                    customerPrice: 30,
                     price: 30,
                     quantity: 1,
+                    vendorSubtotal: 27.27,
+                    lineVendorSubtotal: 27.27,
+                    platformFeeTotal: 2.73,
+                    linePlatformFee: 2.73,
                     subtotal: 30,
+                    lineTotal: 30,
+                    lineCustomerTotal: 30,
                     photoURL: "",
                     notes: ""
                 }
@@ -370,6 +519,14 @@ describe("shared/orders/order-model.js", () => {
             itemCount: 3,
             subtotal: 130,
             total: 130,
+            totalAmount: 130,
+            vendorSubtotal: 118.17,
+            vendorEarnings: 118.17,
+            platformFeeRate: 0.1,
+            platformFee: 11.83,
+            platformEarnings: 11.83,
+            customerTotal: 130,
+            financeModel: "vendor-price-plus-platform-fee",
             status: "accepted",
             paymentStatus: "unpaid",
             paymentProvider: "paystack",

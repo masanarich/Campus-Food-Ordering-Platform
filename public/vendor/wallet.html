@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Wallet | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Vendor wallet and simulated payout workspace.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./wallet.css">
+</head>
+
+<body class="vendor-shell">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Vendor wallet navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./shop.html">Shop Details</a>
+            <a href="./products.html">Manage Menu</a>
+            <a href="./order-management/index.html">Manage Orders</a>
+            <a href="./wallet.html" aria-current="page">Wallet</a>
+            <a href="./analytics.html">View Analytics</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="vendor-main wallet-main">
+        <section class="shared-section wallet-hero" aria-labelledby="wallet-heading">
+            <h2 id="wallet-heading">Vendor Wallet</h2>
+            <p>
+                Track completed-order earnings, reserved withdrawal requests, and simulated payout activity for your
+                vendor account.
+            </p>
+
+            <p id="wallet-status" aria-live="polite" aria-atomic="true">Loading wallet...</p>
+
+            <menu class="action-menu" aria-label="Wallet page actions">
+                <li><button id="refresh-wallet-button" class="button-secondary" type="button">Refresh Wallet</button></li>
+                <li><a class="button-secondary" href="./index.html">Vendor Dashboard</a></li>
+                <li><a class="button-secondary" href="./order-management/index.html">Manage Orders</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section wallet-summary-panel" aria-labelledby="wallet-summary-heading">
+            <h3 id="wallet-summary-heading">Balance Summary</h3>
+
+            <section class="wallet-metrics" aria-label="Wallet balance metrics">
+                <article class="wallet-metric-card wallet-metric-primary">
+                    <span class="wallet-metric-label">Available Balance</span>
+                    <output id="wallet-available-balance" class="wallet-metric-value">R0.00</output>
+                    <span class="wallet-metric-note">Can be requested for simulated payout.</span>
+                </article>
+
+                <article class="wallet-metric-card">
+                    <span class="wallet-metric-label">Total Earned</span>
+                    <output id="wallet-total-earned" class="wallet-metric-value">R0.00</output>
+                    <span class="wallet-metric-note">Vendor share from completed paid orders.</span>
+                </article>
+
+                <article class="wallet-metric-card">
+                    <span class="wallet-metric-label">Reserved Withdrawals</span>
+                    <output id="wallet-reserved-withdrawals" class="wallet-metric-value">R0.00</output>
+                    <span class="wallet-metric-note">Pending, approved, or paid payout requests.</span>
+                </article>
+
+                <article class="wallet-metric-card">
+                    <span class="wallet-metric-label">Completed Orders</span>
+                    <output id="wallet-completed-orders" class="wallet-metric-value">0</output>
+                    <span class="wallet-metric-note">Orders counted toward wallet earnings.</span>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section withdrawal-panel" aria-labelledby="withdrawal-heading">
+            <h3 id="withdrawal-heading">Request Simulated Withdrawal</h3>
+            <p>
+                This school-project payout request uses fake bank details only. No real money is moved.
+            </p>
+
+            <form id="withdrawal-form" class="wallet-form" novalidate>
+                <p>
+                    <label for="withdrawal-amount">Amount</label>
+                    <input id="withdrawal-amount" name="amount" type="number" min="1" step="0.01"
+                        placeholder="100.00" required>
+                    <span id="withdrawal-amount-error" class="form-error" hidden></span>
+                </p>
+
+                <p>
+                    <label for="fake-bank-name">Fake Bank Name</label>
+                    <input id="fake-bank-name" name="fakeBankName" type="text" placeholder="Campus Test Bank" required>
+                    <span id="withdrawal-fakeBankName-error" class="form-error" hidden></span>
+                </p>
+
+                <p>
+                    <label for="fake-account-holder">Fake Account Holder</label>
+                    <input id="fake-account-holder" name="fakeAccountHolder" type="text" placeholder="Your shop name"
+                        required>
+                    <span id="withdrawal-fakeAccountHolder-error" class="form-error" hidden></span>
+                </p>
+
+                <p>
+                    <label for="fake-account-number">Fake Account Number</label>
+                    <input id="fake-account-number" name="fakeAccountNumber" type="text" inputmode="numeric"
+                        placeholder="1234567890" required>
+                    <span id="withdrawal-fakeAccountNumber-error" class="form-error" hidden></span>
+                </p>
+
+                <p>
+                    <label for="fake-branch-code">Fake Branch Code</label>
+                    <input id="fake-branch-code" name="fakeBranchCode" type="text" inputmode="numeric"
+                        placeholder="250655" required>
+                    <span id="withdrawal-fakeBranchCode-error" class="form-error" hidden></span>
+                </p>
+
+                <p>
+                    <label for="fake-account-type">Fake Account Type</label>
+                    <select id="fake-account-type" name="fakeAccountType">
+                        <option value="cheque">Cheque</option>
+                        <option value="savings">Savings</option>
+                        <option value="business">Business</option>
+                    </select>
+                </p>
+
+                <p>
+                    <label for="withdrawal-notes">Notes</label>
+                    <textarea id="withdrawal-notes" name="notes" rows="4"
+                        placeholder="Optional note for admin review."></textarea>
+                </p>
+
+                <menu class="action-menu withdrawal-actions" aria-label="Withdrawal form actions">
+                    <li><button id="request-withdrawal-button" class="button-primary" type="submit">Request Withdrawal</button></li>
+                    <li><button id="clear-withdrawal-form-button" class="button-secondary" type="reset">Clear Form</button></li>
+                </menu>
+            </form>
+        </section>
+
+        <section class="shared-section payout-history-panel" aria-labelledby="payout-history-heading">
+            <h3 id="payout-history-heading">Payout Requests</h3>
+            <p id="payout-history-summary">Your payout request history will appear here.</p>
+            <section id="payout-history-list" class="payout-history-list" aria-live="polite">
+                <p class="loading-message">Loading payout requests...</p>
+            </section>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../shared/finance/platform-pricing.js"></script>
+    <script src="../shared/finance/payout-model.js"></script>
+    <script src="../shared/finance/payout-queries.js"></script>
+    <script src="../shared/finance/payout-service.js"></script>
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="./wallet.js"></script>
+
+    <script type="module">
+        import { auth, db } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.auth = auth;
+        window.db = db;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            serverTimestamp
+        };
+
+        if (!window.vendorWalletPage || typeof window.vendorWalletPage.initializeVendorWalletPage !== "function") {
+            const statusElement = document.getElementById("wallet-status");
+            if (statusElement) {
+                statusElement.textContent = "Wallet script failed to load.";
+                statusElement.setAttribute("data-state", "error");
+            }
+        } else {
+            try {
+                await window.vendorWalletPage.initializeVendorWalletPage({
+                    auth,
+                    db,
+                    authFns: window.authFns,
+                    firestoreFns: window.firestoreFns,
+                    authUtils: window.authUtils,
+                    platformPricing: window.platformPricing,
+                    payoutModel: window.payoutModel,
+                    payoutQueries: window.payoutQueries,
+                    payoutService: window.payoutService
+                });
+            } catch (error) {
+                console.error("Vendor wallet init failed:", error);
+                const statusElement = document.getElementById("wallet-status");
+                if (statusElement) {
+                    statusElement.textContent = error?.message || "Failed to initialise vendor wallet.";
+                    statusElement.setAttribute("data-state", "error");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

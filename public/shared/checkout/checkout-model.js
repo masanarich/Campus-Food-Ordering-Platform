@@ -4,6 +4,8 @@
     const MODULE_NAME = "checkout-model";
     const DEFAULT_PROVIDER = "paystack";
     const DEFAULT_CURRENCY = "ZAR";
+    const DEFAULT_PLATFORM_FEE_RATE = 0.1;
+    const FINANCE_MODEL = "vendor-price-plus-platform-fee";
 
     function resolveCheckoutStatus(explicitCheckoutStatus) {
         if (
@@ -126,6 +128,153 @@
         return normalizeUpperText(value || fallbackValue) || DEFAULT_CURRENCY;
     }
 
+    function resolvePlatformPricing(explicitPlatformPricing) {
+        if (explicitPlatformPricing) {
+            return explicitPlatformPricing;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.platformPricing &&
+            typeof globalScope.platformPricing.calculateLinePricing === "function"
+        ) {
+            return globalScope.platformPricing;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredPlatformPricing = require("../finance/platform-pricing.js");
+
+                if (
+                    requiredPlatformPricing &&
+                    typeof requiredPlatformPricing.calculateLinePricing === "function"
+                ) {
+                    return requiredPlatformPricing;
+                }
+            /* istanbul ignore next */
+            } catch (error) {
+                /* istanbul ignore next */
+                return null;
+            }
+        }
+
+        /* istanbul ignore next */
+        return null;
+    }
+
+    function normalizePlatformFeeRate(value, fallbackValue) {
+        const platformPricing = resolvePlatformPricing();
+
+        if (platformPricing && typeof platformPricing.normalizePlatformFeeRate === "function") {
+            return platformPricing.normalizePlatformFeeRate(value, fallbackValue || DEFAULT_PLATFORM_FEE_RATE);
+        }
+
+        const parsed = Number.parseFloat(value);
+        const fallbackParsed = Number.parseFloat(fallbackValue);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return parsed > 1 ? Number((parsed / 100).toFixed(4)) : Number(parsed.toFixed(4));
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return fallbackParsed > 1
+                ? Number((fallbackParsed / 100).toFixed(4))
+                : Number(fallbackParsed.toFixed(4));
+        }
+
+        return DEFAULT_PLATFORM_FEE_RATE;
+    }
+
+    function hasOwnField(source, fieldName) {
+        return source && Object.prototype.hasOwnProperty.call(source, fieldName);
+    }
+
+    function calculateCheckoutItemPricing(itemValues = {}, options = {}) {
+        const safeItem = itemValues && typeof itemValues === "object" ? itemValues : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const platformPricing = resolvePlatformPricing(safeOptions.platformPricing);
+        const platformFeeRate = normalizePlatformFeeRate(
+            safeItem.platformFeeRate !== undefined
+                ? safeItem.platformFeeRate
+                : safeOptions.platformFeeRate,
+            DEFAULT_PLATFORM_FEE_RATE
+        );
+        const hasCustomerPrice = hasOwnField(safeItem, "customerPrice");
+        const hasPlatformFee = hasOwnField(safeItem, "platformFee");
+        const hasVendorPrice = hasOwnField(safeItem, "vendorPrice") || hasOwnField(safeItem, "basePrice");
+        const explicitCustomerPrice = hasCustomerPrice
+            ? normalizeCurrencyAmount(safeItem.customerPrice)
+            : null;
+        let vendorPrice;
+
+        if (hasOwnField(safeItem, "vendorPrice")) {
+            vendorPrice = normalizeCurrencyAmount(safeItem.vendorPrice);
+        } else if (hasOwnField(safeItem, "basePrice")) {
+            vendorPrice = normalizeCurrencyAmount(safeItem.basePrice);
+        } else if (hasCustomerPrice && hasPlatformFee) {
+            vendorPrice = normalizeCurrencyAmount(explicitCustomerPrice - normalizeCurrencyAmount(safeItem.platformFee));
+        } else if (hasCustomerPrice) {
+            vendorPrice = normalizeCurrencyAmount(explicitCustomerPrice / (1 + platformFeeRate));
+        } else {
+            vendorPrice = normalizeCurrencyAmount(
+                normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice) / (1 + platformFeeRate)
+            );
+        }
+
+        if (
+            platformPricing &&
+            typeof platformPricing.calculateLinePricing === "function" &&
+            !hasCustomerPrice &&
+            hasVendorPrice
+        ) {
+            const priced = platformPricing.calculateLinePricing(
+                {
+                    ...safeItem,
+                    vendorPrice,
+                    price: vendorPrice,
+                    quantity: 1
+                },
+                { platformFeeRate }
+            );
+
+            return {
+                vendorPrice: normalizeCurrencyAmount(priced.vendorPrice),
+                basePrice: normalizeCurrencyAmount(priced.vendorPrice),
+                platformFeeRate: priced.platformFeeRate,
+                platformFee: normalizeCurrencyAmount(priced.platformFee),
+                customerPrice: normalizeCurrencyAmount(priced.customerPrice),
+                price: normalizeCurrencyAmount(priced.customerPrice)
+            };
+        }
+
+        const calculatedPlatformFee = hasPlatformFee
+            ? normalizeCurrencyAmount(safeItem.platformFee)
+            : hasCustomerPrice
+                ? normalizeCurrencyAmount(explicitCustomerPrice - vendorPrice)
+                : hasVendorPrice
+                    ? normalizeCurrencyAmount(vendorPrice * platformFeeRate)
+                    : normalizeCurrencyAmount(
+                        normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice) - vendorPrice
+                    );
+        const customerPrice = explicitCustomerPrice !== null
+            ? explicitCustomerPrice
+            : hasVendorPrice
+                ? normalizeCurrencyAmount(vendorPrice + calculatedPlatformFee)
+                : normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice);
+        const platformFee = hasPlatformFee
+            ? calculatedPlatformFee
+            : normalizeCurrencyAmount(customerPrice - vendorPrice);
+
+        return {
+            vendorPrice,
+            basePrice: vendorPrice,
+            platformFeeRate,
+            platformFee,
+            customerPrice,
+            price: customerPrice
+        };
+    }
+
     function normalizeMetadata(metadata) {
         if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
             return {};
@@ -171,8 +320,11 @@
             safeItem.id
         ) || `item-${fallbackIndex + 1}`;
         const vendorUid = normalizeText(safeItem.vendorUid);
-        const price = normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice);
+        const pricing = calculateCheckoutItemPricing(safeItem);
         const quantity = normalizePositiveInteger(safeItem.quantity, 1);
+        const vendorSubtotal = normalizeCurrencyAmount(pricing.vendorPrice * quantity);
+        const platformFeeTotal = normalizeCurrencyAmount(pricing.platformFee * quantity);
+        const lineTotal = normalizeCurrencyAmount(pricing.price * quantity);
 
         return {
             menuItemId,
@@ -180,9 +332,19 @@
             vendorName: normalizeText(safeItem.vendorName) || "Unknown Vendor",
             name: normalizeText(safeItem.name || safeItem.itemName) || "Unknown Item",
             category: normalizeText(safeItem.category) || "Other",
-            price,
+            vendorPrice: pricing.vendorPrice,
+            basePrice: pricing.basePrice,
+            platformFeeRate: pricing.platformFeeRate,
+            platformFee: pricing.platformFee,
+            customerPrice: pricing.customerPrice,
+            price: pricing.price,
             quantity,
-            lineTotal: normalizeCurrencyAmount(price * quantity),
+            vendorSubtotal,
+            lineVendorSubtotal: vendorSubtotal,
+            platformFeeTotal,
+            linePlatformFee: platformFeeTotal,
+            lineTotal,
+            lineCustomerTotal: lineTotal,
             photoURL: normalizeText(safeItem.photoURL || safeItem.imageUrl || safeItem.imageURL),
             notes: normalizeText(safeItem.notes || safeItem.note),
             itemKey: `${vendorUid || "vendor"}::${menuItemId}`
@@ -209,6 +371,22 @@
         return normalizeCurrencyAmount(
             normalizeCheckoutItems(items).reduce(function sumSubtotal(total, item) {
                 return total + item.lineTotal;
+            }, 0)
+        );
+    }
+
+    function calculateCheckoutVendorSubtotal(items) {
+        return normalizeCurrencyAmount(
+            normalizeCheckoutItems(items).reduce(function sumVendorSubtotal(total, item) {
+                return total + item.vendorSubtotal;
+            }, 0)
+        );
+    }
+
+    function calculateCheckoutPlatformFee(items) {
+        return normalizeCurrencyAmount(
+            normalizeCheckoutItems(items).reduce(function sumPlatformFee(total, item) {
+                return total + item.platformFeeTotal;
             }, 0)
         );
     }
@@ -254,12 +432,31 @@
         const customer = createCustomerSnapshot(safeValues.customer || safeValues);
         const vendor = createVendorSnapshot(safeValues.vendor || safeValues);
         const items = normalizeCheckoutItems(safeValues.items || safeValues.cartItems);
+        const calculatedVendorSubtotal = calculateCheckoutVendorSubtotal(items);
+        const calculatedPlatformFee = calculateCheckoutPlatformFee(items);
         const subtotal = safeValues.subtotal !== undefined
             ? normalizeCurrencyAmount(safeValues.subtotal, calculateCheckoutSubtotal(items))
             : calculateCheckoutSubtotal(items);
         const total = safeValues.total !== undefined
             ? normalizeCurrencyAmount(safeValues.total, subtotal)
             : subtotal;
+        const vendorSubtotal = safeValues.vendorSubtotal !== undefined
+            ? normalizeCurrencyAmount(safeValues.vendorSubtotal, calculatedVendorSubtotal)
+            : safeValues.vendorEarnings !== undefined
+                ? normalizeCurrencyAmount(safeValues.vendorEarnings, calculatedVendorSubtotal)
+                : calculatedVendorSubtotal;
+        const platformFee = safeValues.platformFee !== undefined
+            ? normalizeCurrencyAmount(safeValues.platformFee, calculatedPlatformFee)
+            : safeValues.platformEarnings !== undefined
+                ? normalizeCurrencyAmount(safeValues.platformEarnings, calculatedPlatformFee)
+                : calculatedPlatformFee;
+        const platformFeeRate = normalizePlatformFeeRate(
+            safeValues.platformFeeRate,
+            items[0] ? items[0].platformFeeRate : DEFAULT_PLATFORM_FEE_RATE
+        );
+        const customerTotal = safeValues.customerTotal !== undefined
+            ? normalizeCurrencyAmount(safeValues.customerTotal, total)
+            : total;
         const paymentAmount = safeValues.paymentAmount !== undefined
             ? normalizeCurrencyAmount(safeValues.paymentAmount, total)
             : total;
@@ -315,6 +512,13 @@
             itemCount: calculateCheckoutItemCount(items),
             subtotal,
             total,
+            vendorSubtotal,
+            vendorEarnings: vendorSubtotal,
+            platformFeeRate,
+            platformFee,
+            platformEarnings: platformFee,
+            customerTotal,
+            financeModel: normalizeText(safeValues.financeModel || safeValues.pricingModel) || FINANCE_MODEL,
             status: normalizedStatus || defaultStatus,
             paymentProvider: normalizeProvider(safeValues.paymentProvider || safeValues.provider),
             paymentReference: normalizeText(
@@ -434,6 +638,13 @@
             subtotal: session.subtotal,
             total: session.total,
             totalAmount: session.total,
+            vendorSubtotal: session.vendorSubtotal,
+            vendorEarnings: session.vendorEarnings,
+            platformFeeRate: session.platformFeeRate,
+            platformFee: session.platformFee,
+            platformEarnings: session.platformEarnings,
+            customerTotal: session.customerTotal,
+            financeModel: session.financeModel,
             status: normalizeText(safeOptions.status) || "pending",
             paymentStatus: "paid",
             paymentProvider: session.paymentProvider,
@@ -457,6 +668,8 @@
         MODULE_NAME,
         DEFAULT_PROVIDER,
         DEFAULT_CURRENCY,
+        DEFAULT_PLATFORM_FEE_RATE,
+        FINANCE_MODEL,
         resolveCheckoutStatus,
         normalizeText,
         normalizeLowerText,
@@ -468,6 +681,9 @@
         normalizeTimestampValue,
         normalizeProvider,
         normalizeCurrency,
+        resolvePlatformPricing,
+        normalizePlatformFeeRate,
+        calculateCheckoutItemPricing,
         normalizeMetadata,
         createCustomerSnapshot,
         createVendorSnapshot,
@@ -475,6 +691,8 @@
         normalizeCheckoutItems,
         calculateCheckoutItemCount,
         calculateCheckoutSubtotal,
+        calculateCheckoutVendorSubtotal,
+        calculateCheckoutPlatformFee,
         createCheckoutTimelineEntry,
         createCheckoutSessionRecord,
         normalizeCheckoutSessionRecord,

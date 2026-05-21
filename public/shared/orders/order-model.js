@@ -2,6 +2,8 @@
     "use strict";
 
     const MODULE_NAME = "order-model";
+    const DEFAULT_PLATFORM_FEE_RATE = 0.1;
+    const FINANCE_MODEL = "vendor-price-plus-platform-fee";
 
     function resolveOrderStatus(explicitOrderStatus) {
         if (
@@ -103,6 +105,23 @@
         return 0;
     }
 
+    function normalizePlatformFeeRate(value, fallbackValue) {
+        const parsed = Number.parseFloat(value);
+        const fallbackParsed = Number.parseFloat(fallbackValue);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return parsed > 1 ? Number((parsed / 100).toFixed(4)) : Number(parsed.toFixed(4));
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return fallbackParsed > 1
+                ? Number((fallbackParsed / 100).toFixed(4))
+                : Number(fallbackParsed.toFixed(4));
+        }
+
+        return DEFAULT_PLATFORM_FEE_RATE;
+    }
+
     function normalizePositiveInteger(value, fallbackValue) {
         const parsed = Number.parseInt(value, 10);
         const fallbackParsed = Number.parseInt(fallbackValue, 10);
@@ -171,6 +190,78 @@
         return null;
     }
 
+    function hasOwnField(source, fieldName) {
+        return source && Object.prototype.hasOwnProperty.call(source, fieldName);
+    }
+
+    function getCustomerFacingPrice(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
+
+        if (hasOwnField(safeItem, "price")) {
+            return safeItem.price;
+        }
+
+        if (hasOwnField(safeItem, "customerPrice")) {
+            return safeItem.customerPrice;
+        }
+
+        if (hasOwnField(safeItem, "unitPrice")) {
+            return safeItem.unitPrice;
+        }
+
+        return undefined;
+    }
+
+    function calculateOrderItemPricing(itemValues = {}, options = {}) {
+        const safeItem = itemValues && typeof itemValues === "object" ? itemValues : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const platformFeeRate = normalizePlatformFeeRate(
+            safeItem.platformFeeRate !== undefined
+                ? safeItem.platformFeeRate
+                : safeOptions.platformFeeRate,
+            DEFAULT_PLATFORM_FEE_RATE
+        );
+        const hasVendorPrice = hasOwnField(safeItem, "vendorPrice") || hasOwnField(safeItem, "basePrice");
+        const hasPlatformFee = hasOwnField(safeItem, "platformFee");
+        const rawCustomerPrice = getCustomerFacingPrice(safeItem);
+        const hasCustomerPrice = rawCustomerPrice !== undefined && rawCustomerPrice !== null;
+        let vendorPrice;
+
+        if (hasOwnField(safeItem, "vendorPrice")) {
+            vendorPrice = normalizeCurrencyAmount(safeItem.vendorPrice);
+        } else if (hasOwnField(safeItem, "basePrice")) {
+            vendorPrice = normalizeCurrencyAmount(safeItem.basePrice);
+        } else if (hasCustomerPrice && hasPlatformFee) {
+            vendorPrice = normalizeCurrencyAmount(
+                normalizeCurrencyAmount(rawCustomerPrice) - normalizeCurrencyAmount(safeItem.platformFee)
+            );
+        } else if (hasCustomerPrice) {
+            vendorPrice = normalizeCurrencyAmount(normalizeCurrencyAmount(rawCustomerPrice) / (1 + platformFeeRate));
+        } else {
+            vendorPrice = 0;
+        }
+
+        const platformFee = hasPlatformFee
+            ? normalizeCurrencyAmount(safeItem.platformFee)
+            : hasCustomerPrice
+                ? normalizeCurrencyAmount(normalizeCurrencyAmount(rawCustomerPrice) - vendorPrice)
+                : hasVendorPrice
+                    ? normalizeCurrencyAmount(vendorPrice * platformFeeRate)
+                    : 0;
+        const customerPrice = hasCustomerPrice
+            ? normalizeCurrencyAmount(rawCustomerPrice)
+            : normalizeCurrencyAmount(vendorPrice + platformFee);
+
+        return {
+            vendorPrice,
+            basePrice: vendorPrice,
+            platformFeeRate,
+            platformFee,
+            customerPrice,
+            price: customerPrice
+        };
+    }
+
     function amountToMinorUnits(amount) {
         return Math.round(normalizeCurrencyAmount(amount) * 100);
     }
@@ -226,8 +317,11 @@
 
     function normalizeOrderItem(item) {
         const safeItem = item && typeof item === "object" ? item : {};
-        const price = normalizeCurrencyAmount(safeItem.price, safeItem.unitPrice);
+        const pricing = calculateOrderItemPricing(safeItem);
         const quantity = normalizePositiveInteger(safeItem.quantity, safeItem.qty);
+        const vendorSubtotal = normalizeCurrencyAmount(pricing.vendorPrice * quantity);
+        const platformFeeTotal = normalizeCurrencyAmount(pricing.platformFee * quantity);
+        const lineTotal = normalizeCurrencyAmount(pricing.price * quantity);
 
         return {
             menuItemId: normalizeText(
@@ -247,9 +341,20 @@
                 safeItem.itemName
             ),
             category: normalizeText(safeItem.category),
-            price,
+            vendorPrice: pricing.vendorPrice,
+            basePrice: pricing.basePrice,
+            platformFeeRate: pricing.platformFeeRate,
+            platformFee: pricing.platformFee,
+            customerPrice: pricing.customerPrice,
+            price: pricing.price,
             quantity,
-            subtotal: Number((price * quantity).toFixed(2)),
+            vendorSubtotal,
+            lineVendorSubtotal: vendorSubtotal,
+            platformFeeTotal,
+            linePlatformFee: platformFeeTotal,
+            subtotal: lineTotal,
+            lineTotal,
+            lineCustomerTotal: lineTotal,
             photoURL: normalizeText(
                 safeItem.photoURL ||
                 safeItem.imageUrl ||
@@ -291,6 +396,22 @@
         );
     }
 
+    function calculateOrderVendorSubtotal(items) {
+        return normalizeCurrencyAmount(
+            normalizeOrderItems(items).reduce(function sumVendorSubtotal(total, item) {
+                return total + item.vendorSubtotal;
+            }, 0)
+        );
+    }
+
+    function calculateOrderPlatformFee(items) {
+        return normalizeCurrencyAmount(
+            normalizeOrderItems(items).reduce(function sumPlatformFee(total, item) {
+                return total + item.platformFeeTotal;
+            }, 0)
+        );
+    }
+
     function groupOrderItemsByVendor(items) {
         const groupsByVendor = {};
 
@@ -308,7 +429,12 @@
                     items: [],
                     itemCount: 0,
                     subtotal: 0,
-                    total: 0
+                    total: 0,
+                    vendorSubtotal: 0,
+                    vendorEarnings: 0,
+                    platformFee: 0,
+                    platformEarnings: 0,
+                    customerTotal: 0
                 };
             }
 
@@ -318,6 +444,15 @@
                 (groupsByVendor[vendorUid].subtotal + item.subtotal).toFixed(2)
             );
             groupsByVendor[vendorUid].total = groupsByVendor[vendorUid].subtotal;
+            groupsByVendor[vendorUid].vendorSubtotal = normalizeCurrencyAmount(
+                groupsByVendor[vendorUid].vendorSubtotal + item.vendorSubtotal
+            );
+            groupsByVendor[vendorUid].vendorEarnings = groupsByVendor[vendorUid].vendorSubtotal;
+            groupsByVendor[vendorUid].platformFee = normalizeCurrencyAmount(
+                groupsByVendor[vendorUid].platformFee + item.platformFeeTotal
+            );
+            groupsByVendor[vendorUid].platformEarnings = groupsByVendor[vendorUid].platformFee;
+            groupsByVendor[vendorUid].customerTotal = groupsByVendor[vendorUid].total;
 
             if (!groupsByVendor[vendorUid].vendorName && item.vendorName) {
                 groupsByVendor[vendorUid].vendorName = item.vendorName;
@@ -331,7 +466,12 @@
                 items: groupsByVendor[vendorUid].items.slice(),
                 itemCount: groupsByVendor[vendorUid].itemCount,
                 subtotal: groupsByVendor[vendorUid].subtotal,
-                total: groupsByVendor[vendorUid].total
+                total: groupsByVendor[vendorUid].total,
+                vendorSubtotal: groupsByVendor[vendorUid].vendorSubtotal,
+                vendorEarnings: groupsByVendor[vendorUid].vendorEarnings,
+                platformFee: groupsByVendor[vendorUid].platformFee,
+                platformEarnings: groupsByVendor[vendorUid].platformEarnings,
+                customerTotal: groupsByVendor[vendorUid].customerTotal
             };
         });
     }
@@ -420,6 +560,25 @@
         const total = safeValues.total !== undefined
             ? normalizeCurrencyAmount(safeValues.total, subtotal)
             : subtotal;
+        const calculatedVendorSubtotal = calculateOrderVendorSubtotal(items);
+        const calculatedPlatformFee = calculateOrderPlatformFee(items);
+        const vendorSubtotal = safeValues.vendorSubtotal !== undefined
+            ? normalizeCurrencyAmount(safeValues.vendorSubtotal, calculatedVendorSubtotal)
+            : safeValues.vendorEarnings !== undefined
+                ? normalizeCurrencyAmount(safeValues.vendorEarnings, calculatedVendorSubtotal)
+                : calculatedVendorSubtotal;
+        const platformFee = safeValues.platformFee !== undefined
+            ? normalizeCurrencyAmount(safeValues.platformFee, calculatedPlatformFee)
+            : safeValues.platformEarnings !== undefined
+                ? normalizeCurrencyAmount(safeValues.platformEarnings, calculatedPlatformFee)
+                : calculatedPlatformFee;
+        const platformFeeRate = normalizePlatformFeeRate(
+            safeValues.platformFeeRate,
+            items[0] ? items[0].platformFeeRate : DEFAULT_PLATFORM_FEE_RATE
+        );
+        const customerTotal = safeValues.customerTotal !== undefined
+            ? normalizeCurrencyAmount(safeValues.customerTotal, total)
+            : total;
         const paymentAmount = safeValues.paymentAmount !== undefined
             ? normalizeCurrencyAmount(safeValues.paymentAmount, total)
             : total;
@@ -446,6 +605,14 @@
             itemCount: calculateOrderItemCount(items),
             subtotal,
             total,
+            totalAmount: total,
+            vendorSubtotal,
+            vendorEarnings: vendorSubtotal,
+            platformFeeRate,
+            platformFee,
+            platformEarnings: platformFee,
+            customerTotal,
+            financeModel: normalizeText(safeValues.financeModel || safeValues.pricingModel) || FINANCE_MODEL,
             status: normalizedStatus || defaultStatus,
             paymentStatus: normalizedPaymentStatus || defaultPaymentStatus,
             paymentProvider: normalizePaymentProvider(safeValues.paymentProvider),
@@ -528,16 +695,22 @@
 
     const orderModel = {
         MODULE_NAME,
+        DEFAULT_PLATFORM_FEE_RATE,
+        FINANCE_MODEL,
         resolveOrderStatus,
         resolvePaymentStatus,
         normalizeText,
         normalizeLowerText,
         normalizeUpperText,
         normalizeCurrencyAmount,
+        normalizePlatformFeeRate,
         normalizePositiveInteger,
         normalizeAmountInMinorUnits,
         normalizeBoolean,
         normalizeTimestampValue,
+        hasOwnField,
+        getCustomerFacingPrice,
+        calculateOrderItemPricing,
         amountToMinorUnits,
         normalizePaymentProvider,
         normalizePaymentCurrency,
@@ -547,6 +720,8 @@
         normalizeOrderItems,
         calculateOrderItemCount,
         calculateOrderSubtotal,
+        calculateOrderVendorSubtotal,
+        calculateOrderPlatformFee,
         groupOrderItemsByVendor,
         createOrderTimelineEntry,
         createOrderRecord,

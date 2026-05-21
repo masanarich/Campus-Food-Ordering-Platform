@@ -223,8 +223,249 @@ figure {
 }
 
 /* ----------------------------------------------------------
+   Hero actions
+   ---------------------------------------------------------- */
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* ----------------------------------------------------------
+   Time-window chips
+   ---------------------------------------------------------- */
+.time-chip-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    max-width: 1200px;
+    margin: 0 auto 1.5rem;
+    padding: 0.6rem 2rem;
+}
+
+.time-chip {
+    padding: 0.55rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    background: var(--card-bg, #fff);
+    color: var(--text, #1f2937);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    min-height: 36px;
+}
+
+.time-chip:hover {
+    background: var(--row-hover-bg, #f9fafb);
+}
+
+.time-chip.active,
+.time-chip[aria-pressed="true"] {
+    background: var(--color-primary, #f97316);
+    color: #fff;
+    border-color: var(--color-primary, #f97316);
+}
+
+/* ----------------------------------------------------------
+   Spend trends grid
+   ---------------------------------------------------------- */
+.trend-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.trend-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.trend-card .stat-value {
+    font-size: clamp(1.2rem, 2.2vw, 1.7rem);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.stat-delta {
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.stat-delta.up {
+    color: #15803d;
+}
+
+.stat-delta.down {
+    color: #b91c1c;
+}
+
+.stat-delta.flat {
+    color: #6b7280;
+}
+
+.stat-sub {
+    font-size: 0.78rem;
+    opacity: 0.6;
+}
+
+/* ----------------------------------------------------------
+   Milestones
+   ---------------------------------------------------------- */
+.milestones-wrap {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.milestone-card {
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+    background: var(--insight-bg, #fff7ed);
+    border: 1px solid var(--insight-border, #fed7aa);
+    border-left: 4px solid var(--color-primary, #f97316);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+}
+
+.milestone-icon {
+    font-style: normal;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.milestone-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.milestone-text strong {
+    font-size: 0.95rem;
+    color: var(--text, #1f2937);
+}
+
+.milestone-text small {
+    font-size: 0.82rem;
+    opacity: 0.7;
+}
+
+/* ----------------------------------------------------------
+   Table toolbar (search + sort + page size)
+   ---------------------------------------------------------- */
+.table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.toolbar-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1 1 180px;
+    min-width: 140px;
+}
+
+.toolbar-field small {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+}
+
+.toolbar-field input,
+.toolbar-field select {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.92rem;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    background: var(--card-bg, #fff);
+    color: var(--text, #1f2937);
+    font-family: inherit;
+    min-height: 40px;
+}
+
+.toolbar-field input:focus,
+.toolbar-field select:focus {
+    outline: none;
+    border-color: var(--color-primary, #f97316);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+
+/* ----------------------------------------------------------
+   Pagination
+   ---------------------------------------------------------- */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.pagination-bar output {
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+    flex: 1 1 auto;
+    color: var(--text, #1f2937);
+    opacity: 0.75;
+}
+
+.pagination-bar .button {
+    min-height: 40px;
+    padding: 0.5rem 1.1rem;
+}
+
+.pagination-bar .button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------
+   Loading text
+   ---------------------------------------------------------- */
+.loading-text {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--text, #1f2937);
+    opacity: 0.6;
+    font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------------
    Responsive
    ---------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .popular-layout {
+        flex-direction: column;
+    }
+
+    .chart-container--doughnut {
+        width: 100%;
+        max-width: 320px;
+        margin: 0 auto;
+    }
+}
+
 @media (max-width: 768px) {
     .analytics-hero {
         flex-direction: column;
@@ -260,5 +501,115 @@ figure {
 
     .stat-value {
         font-size: 1.3rem;
+    }
+
+    .time-chip-bar {
+        padding: 0.5rem 1.25rem;
+    }
+
+    .time-chip {
+        flex: 1 1 auto;
+        font-size: 0.78rem;
+        padding: 0.5rem 0.7rem;
+    }
+
+    .trend-grid,
+    .milestones-wrap {
+        grid-template-columns: 1fr;
+    }
+
+    .table-toolbar {
+        flex-direction: column;
+        gap: 0.6rem;
+    }
+
+    .toolbar-field {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .pagination-bar .button {
+        flex: 1 1 auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        padding: 0 1rem;
+    }
+
+    .stat-value {
+        font-size: clamp(1.15rem, 4.5vw, 1.5rem);
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    .report-section {
+        margin: 0 0.75rem 1.5rem;
+        padding: 1rem;
+    }
+
+    .chart-container {
+        height: 220px;
+    }
+
+    .chart-container--doughnut {
+        max-width: 260px;
+        height: 240px;
+    }
+
+    /* Tables become stacked cards on the smallest screens */
+    .report-table-wrapper {
+        border: none;
+    }
+
+    .report-table thead {
+        display: none;
+    }
+
+    .report-table,
+    .report-table tbody,
+    .report-table tr,
+    .report-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .report-table tbody tr {
+        background: var(--card-bg, #fff);
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: 10px;
+        margin-bottom: 0.7rem;
+        padding: 0.5rem 0.4rem;
+    }
+
+    .report-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .report-table tbody td {
+        padding: 0.4rem 0.6rem;
+        border-bottom: none;
+        text-align: right;
+        position: relative;
+        padding-left: 45%;
+        font-size: 0.88rem;
+    }
+
+    .report-table tbody td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 0.6rem;
+        top: 0.4rem;
+        width: 42%;
+        text-align: left;
+        font-weight: 700;
+        color: var(--text, #1f2937);
+        opacity: 0.55;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
     }
 }

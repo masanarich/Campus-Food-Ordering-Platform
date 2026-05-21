@@ -6,6 +6,8 @@ describe("shared/checkout/checkout-model.js", () => {
         expect(checkoutModel.MODULE_NAME).toBe("checkout-model");
         expect(checkoutModel.DEFAULT_PROVIDER).toBe("paystack");
         expect(checkoutModel.DEFAULT_CURRENCY).toBe("ZAR");
+        expect(checkoutModel.DEFAULT_PLATFORM_FEE_RATE).toBe(0.1);
+        expect(checkoutModel.FINANCE_MODEL).toBe("vendor-price-plus-platform-fee");
 
         expect(checkoutModel.normalizeText("  hello  ")).toBe("hello");
         expect(checkoutModel.normalizeText(null)).toBe("");
@@ -141,9 +143,19 @@ describe("shared/checkout/checkout-model.js", () => {
             vendorName: "Campus Bites",
             name: "Burger",
             category: "Meals",
+            vendorPrice: 45.45,
+            basePrice: 45.45,
+            platformFeeRate: 0.1,
+            platformFee: 4.55,
+            customerPrice: 50,
             price: 50,
             quantity: 2,
+            vendorSubtotal: 90.9,
+            lineVendorSubtotal: 90.9,
+            platformFeeTotal: 9.1,
+            linePlatformFee: 9.1,
             lineTotal: 100,
+            lineCustomerTotal: 100,
             photoURL: "https://example.test/burger.jpg",
             notes: "No onions",
             itemKey: "vendor-1::burger-1"
@@ -155,13 +167,51 @@ describe("shared/checkout/checkout-model.js", () => {
             vendorName: "Unknown Vendor",
             name: "Unknown Item",
             category: "Other",
+            vendorPrice: 0,
+            basePrice: 0,
+            platformFeeRate: 0.1,
+            platformFee: 0,
+            customerPrice: 0,
             price: 0,
             quantity: 1,
+            vendorSubtotal: 0,
+            lineVendorSubtotal: 0,
+            platformFeeTotal: 0,
+            linePlatformFee: 0,
             lineTotal: 0,
+            lineCustomerTotal: 0,
             photoURL: "",
             notes: "",
             itemKey: "vendor::item-4"
         });
+
+        expect(checkoutModel.normalizeCheckoutItem({
+            id: "priced",
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110
+        })).toEqual(expect.objectContaining({
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110,
+            lineTotal: 110
+        }));
+
+        expect(checkoutModel.normalizeCheckoutItem({
+            id: "vendor-priced",
+            vendorPrice: 100,
+            quantity: 2
+        })).toEqual(expect.objectContaining({
+            vendorPrice: 100,
+            platformFee: 10,
+            customerPrice: 110,
+            price: 110,
+            vendorSubtotal: 200,
+            platformFeeTotal: 20,
+            lineTotal: 220
+        }));
 
         const items = checkoutModel.normalizeCheckoutItems([
             item,
@@ -171,6 +221,8 @@ describe("shared/checkout/checkout-model.js", () => {
         expect(items).toHaveLength(2);
         expect(checkoutModel.normalizeCheckoutItems(null)).toEqual([]);
         expect(checkoutModel.calculateCheckoutItemCount(items)).toBe(5);
+        expect(checkoutModel.calculateCheckoutVendorSubtotal(items)).toBeCloseTo(131.82);
+        expect(checkoutModel.calculateCheckoutPlatformFee(items)).toBeCloseTo(13.18);
         expect(checkoutModel.calculateCheckoutSubtotal(items)).toBe(145);
     });
 
@@ -218,6 +270,13 @@ describe("shared/checkout/checkout-model.js", () => {
             itemCount: 0,
             subtotal: 0,
             total: 0,
+            vendorSubtotal: 0,
+            vendorEarnings: 0,
+            platformFeeRate: 0.1,
+            platformFee: 0,
+            platformEarnings: 0,
+            customerTotal: 0,
+            financeModel: "vendor-price-plus-platform-fee",
             status: "draft",
             paymentProvider: "paystack",
             paymentReference: "",
@@ -294,6 +353,11 @@ describe("shared/checkout/checkout-model.js", () => {
             itemCount: 2,
             subtotal: 91,
             total: 91,
+            vendorSubtotal: 82.72,
+            vendorEarnings: 82.72,
+            platformFee: 8.28,
+            platformEarnings: 8.28,
+            customerTotal: 91,
             status: "payment_pending",
             paymentProvider: "paystack",
             paymentReference: "ref-1",
@@ -318,6 +382,9 @@ describe("shared/checkout/checkout-model.js", () => {
         expect(record.items).toEqual([
             expect.objectContaining({
                 menuItemId: "burger",
+                vendorPrice: 41.36,
+                platformFee: 4.14,
+                customerPrice: 45.5,
                 lineTotal: 91
             })
         ]);
@@ -408,11 +475,21 @@ describe("shared/checkout/checkout-model.js", () => {
             convertedOrderId: "order-alt",
             cancelledAt: "t-cancelled",
             notes: "Alt checkout note",
+            subtotal: 12.35,
+            total: 12.35,
+            vendorSubtotal: 11.23,
+            vendorEarnings: 11.23,
+            platformFee: 1.12,
+            platformEarnings: 1.12,
+            customerTotal: 12.35,
             createdAt: "t-created",
             updatedAt: "t-updated"
         }));
         expect(record.items[0]).toEqual(expect.objectContaining({
             menuItemId: "item-alt",
+            vendorPrice: 11.23,
+            platformFee: 1.12,
+            customerPrice: 12.35,
             price: 12.35,
             quantity: 1,
             lineTotal: 12.35
@@ -467,6 +544,8 @@ describe("shared/checkout/checkout-model.js", () => {
         })).toEqual(expect.objectContaining({
             status: "payment_failed",
             itemCount: 2,
+            vendorSubtotal: 18.18,
+            platformFee: 1.82,
             total: 20
         }));
     });
@@ -495,6 +574,11 @@ describe("shared/checkout/checkout-model.js", () => {
             itemCount: 3,
             subtotal: 80,
             total: 80,
+            vendorSubtotal: 72.73,
+            vendorEarnings: 72.73,
+            platformFee: 7.27,
+            platformEarnings: 7.27,
+            customerTotal: 80,
             createdAt: "t-created"
         }));
         expect(session.items.map((item) => item.menuItemId)).toEqual(["burger", "chips"]);
@@ -515,6 +599,8 @@ describe("shared/checkout/checkout-model.js", () => {
         expect(session.vendorName).toBe("Override Vendor");
         expect(session.customerUid).toBe("customer-2");
         expect(session.customerName).toBe("Sam");
+        expect(session.vendorSubtotal).toBe(18.18);
+        expect(session.platformFee).toBe(1.82);
         expect(session.total).toBe(20);
     });
 
@@ -578,16 +664,41 @@ describe("shared/checkout/checkout-model.js", () => {
             vendorUid: "vendor-1",
             vendorName: "Campus Bites",
             items: [
-                expect.objectContaining({
+                {
+                    basePrice: 50,
+                    category: "Other",
+                    customerPrice: 55,
+                    itemKey: "vendor-1::burger",
+                    lineCustomerTotal: 55,
+                    linePlatformFee: 5,
+                    lineTotal: 55,
+                    lineVendorSubtotal: 50,
                     menuItemId: "burger",
+                    name: "Burger",
+                    notes: "",
+                    photoURL: "",
+                    platformFee: 5,
+                    platformFeeRate: 0.1,
+                    platformFeeTotal: 5,
                     price: 55,
-                    quantity: 1
-                })
+                    quantity: 1,
+                    vendorName: "Unknown Vendor",
+                    vendorPrice: 50,
+                    vendorSubtotal: 50,
+                    vendorUid: "vendor-1"
+                }
             ],
             itemCount: 1,
             subtotal: 55,
             total: 55,
             totalAmount: 55,
+            vendorSubtotal: 50,
+            vendorEarnings: 50,
+            platformFeeRate: 0.1,
+            platformFee: 5,
+            platformEarnings: 5,
+            customerTotal: 55,
+            financeModel: "vendor-price-plus-platform-fee",
             status: "pending",
             paymentStatus: "paid",
             paymentProvider: "paystack",

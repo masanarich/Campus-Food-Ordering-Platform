@@ -91,6 +91,7 @@ function getFallbackRoutes() {
         rolechoice: "../authentication/role-choice.html",
         profile: "../authentication/profile.html",
         users: "./users.html",
+        finance: "./finance.html",
         disputes: "./disputes.html",
         ticketdetail: "./ticket-detail.html",
         analytics: "./analytics.html",
@@ -386,6 +387,7 @@ function getHomeState(profile, authUtils) {
         showAdminPortal,
         showChoosePortal: [showCustomerPortal, showVendorPortal, showAdminPortal].filter(Boolean).length > 1,
         manageUsersRoute: getPortalRoute("users", authUtils),
+        financeRoute: getPortalRoute("finance", authUtils),
         disputesRoute: getPortalRoute("disputes", authUtils),
         ticketDetailRoute: getPortalRoute("ticketDetail", authUtils),
         analyticsRoute: getPortalRoute("analytics", authUtils),
@@ -663,6 +665,7 @@ async function initializeAdminHomePage(options = {}) {
         adminAccessNoteElement: document.querySelector("#admin-access-note"),
         profileButton: document.querySelector("#go-profile-button"),
         manageUsersButton: document.querySelector("#manage-users-button"),
+        financeButton: document.querySelector("#finance-button"),
         reviewDisputesButton: document.querySelector("#review-disputes-button"),
         ticketDetailLink: document.querySelector("#admin-ticket-detail-link"),
         choosePortalButton: document.querySelector("#choose-portal-button"),
@@ -708,6 +711,12 @@ async function initializeAdminHomePage(options = {}) {
         const manageUsersController = attachNavigationHandler({
             button: elements.manageUsersButton,
             route: result.state.manageUsersRoute,
+            navigate
+        });
+
+        const financeController = attachNavigationHandler({
+            button: elements.financeButton,
+            route: result.state.financeRoute,
             navigate
         });
 
@@ -766,6 +775,7 @@ async function initializeAdminHomePage(options = {}) {
             state: result.state,
             profileController,
             manageUsersController,
+            financeController,
             reviewDisputesController,
             ticketDetailController,
             analyticsController,

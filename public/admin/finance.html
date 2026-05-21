@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Finance | Campus Food Ordering Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Admin finance dashboard for platform earnings and simulated vendor payouts.">
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./finance.css">
+</head>
+
+<body class="admin-shell">
+
+    <header class="app-header">
+        <h1>Campus Food Ordering Platform</h1>
+
+        <nav class="app-nav" aria-label="Admin finance navigation">
+            <a href="./index.html">Dashboard</a>
+            <a href="./users.html">Manage Users</a>
+            <a href="./finance.html" aria-current="page">Finance</a>
+            <a href="./disputes.html">Support Inbox</a>
+            <a href="./ticket-detail.html">Ticket Detail</a>
+            <a href="./analytics.html">View Analytics</a>
+            <a href="../authentication/profile.html">Profile</a>
+        </nav>
+    </header>
+
+    <main class="admin-main finance-main">
+        <section class="shared-section finance-hero" aria-labelledby="finance-heading">
+            <h2 id="finance-heading">Finance</h2>
+            <p>
+                Review simulated platform earnings, completed-order revenue, and fake vendor payout requests.
+                This page is test mode only and does not move real money.
+            </p>
+
+            <p id="admin-finance-status" aria-live="polite" aria-atomic="true">Loading finance...</p>
+
+            <menu class="action-menu" aria-label="Finance page actions">
+                <li><button id="refresh-finance-button" class="button-secondary" type="button">Refresh Finance</button></li>
+                <li><a id="back-dashboard-link" class="button-secondary" href="./index.html">Admin Dashboard</a></li>
+                <li><a class="button-secondary" href="./users.html">Manage Users</a></li>
+            </menu>
+        </section>
+
+        <section class="shared-section finance-summary-panel" aria-labelledby="finance-summary-heading">
+            <h3 id="finance-summary-heading">Platform Summary</h3>
+
+            <section class="finance-metrics" aria-label="Platform finance metrics">
+                <article class="finance-metric-card finance-metric-primary">
+                    <span class="finance-metric-label">Platform Balance</span>
+                    <output id="platform-balance">R0.00</output>
+                    <span class="finance-metric-note">The 10% platform cut from completed paid orders.</span>
+                </article>
+
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Customer Revenue</span>
+                    <output id="customer-revenue">R0.00</output>
+                    <span class="finance-metric-note">Total paid by customers after the platform fee.</span>
+                </article>
+
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Vendor Earnings</span>
+                    <output id="vendor-earnings">R0.00</output>
+                    <span class="finance-metric-note">Vendor share from completed paid orders.</span>
+                </article>
+
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Completed Orders</span>
+                    <output id="completed-orders">0</output>
+                    <span class="finance-metric-note">Orders counted in finance totals.</span>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section payout-summary-panel" aria-labelledby="payout-summary-heading">
+            <h3 id="payout-summary-heading">Payout Summary</h3>
+
+            <section class="finance-metrics payout-metrics" aria-label="Payout metrics">
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Pending Requests</span>
+                    <output id="pending-payout-count">0</output>
+                    <span class="finance-metric-note">Waiting for admin review.</span>
+                </article>
+
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Approved Requests</span>
+                    <output id="approved-payout-count">0</output>
+                    <span class="finance-metric-note">Approved but not marked paid.</span>
+                </article>
+
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Paid Withdrawals</span>
+                    <output id="paid-payout-total">R0.00</output>
+                    <span class="finance-metric-note">Simulated withdrawals marked paid.</span>
+                </article>
+
+                <article class="finance-metric-card">
+                    <span class="finance-metric-label">Reserved Vendor Balance</span>
+                    <output id="reserved-payout-total">R0.00</output>
+                    <span class="finance-metric-note">Pending, approved, and paid payout amounts.</span>
+                </article>
+            </section>
+        </section>
+
+        <section class="shared-section payout-admin-panel" aria-labelledby="payout-admin-heading">
+            <header class="finance-section-header">
+                <section>
+                    <h3 id="payout-admin-heading">Vendor Payout Requests</h3>
+                    <p id="payout-admin-summary">Payout requests will appear here.</p>
+                </section>
+
+                <label class="finance-filter" for="payout-status-filter">
+                    <strong>Status</strong>
+                    <select id="payout-status-filter">
+                        <option value="all">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="paid">Paid</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </label>
+            </header>
+
+            <section id="payout-admin-list" class="payout-admin-list" aria-live="polite">
+                <p class="loading-message">Loading payout requests...</p>
+            </section>
+        </section>
+    </main>
+
+    <footer>
+        <p>Campus Food Ordering Platform © 2026</p>
+    </footer>
+
+    <script src="../shared/finance/platform-pricing.js"></script>
+    <script src="../shared/finance/payout-model.js"></script>
+    <script src="../shared/finance/payout-queries.js"></script>
+    <script src="../shared/finance/payout-service.js"></script>
+    <script src="../authentication/auth-utils.js"></script>
+    <script src="./finance.js"></script>
+
+    <script type="module">
+        import { auth, db } from "../authentication/config.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+        import {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+        window.auth = auth;
+        window.db = db;
+        window.authFns = { onAuthStateChanged };
+        window.firestoreFns = {
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            setDoc,
+            updateDoc,
+            query,
+            where,
+            orderBy,
+            limit,
+            serverTimestamp
+        };
+
+        if (!window.adminFinancePage || typeof window.adminFinancePage.initializeAdminFinancePage !== "function") {
+            const statusElement = document.getElementById("admin-finance-status");
+            if (statusElement) {
+                statusElement.textContent = "Finance script failed to load.";
+                statusElement.setAttribute("data-state", "error");
+            }
+        } else {
+            try {
+                await window.adminFinancePage.initializeAdminFinancePage({
+                    auth,
+                    db,
+                    authFns: window.authFns,
+                    firestoreFns: window.firestoreFns,
+                    authUtils: window.authUtils,
+                    platformPricing: window.platformPricing,
+                    payoutModel: window.payoutModel,
+                    payoutQueries: window.payoutQueries,
+                    payoutService: window.payoutService
+                });
+            } catch (error) {
+                console.error("Admin finance init failed:", error);
+                const statusElement = document.getElementById("admin-finance-status");
+                if (statusElement) {
+                    statusElement.textContent = error?.message || "Failed to initialise admin finance.";
+                    statusElement.setAttribute("data-state", "error");
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
