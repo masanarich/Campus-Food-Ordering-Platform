@@ -37,9 +37,9 @@
             <p id="wallet-status" aria-live="polite" aria-atomic="true">Loading wallet...</p>
 
             <menu class="action-menu" aria-label="Wallet page actions">
-                <li><button id="refresh-wallet-button" class="button-secondary" type="button">Refresh Wallet</button></li>
-                <li><a class="button-secondary" href="./index.html">Vendor Dashboard</a></li>
-                <li><a class="button-secondary" href="./order-management/index.html">Manage Orders</a></li>
+                <li><button id="refresh-wallet-button" class="button-secondary" type="button">Refresh Wallet</button>
+                </li>
+
             </menu>
         </section>
 
@@ -82,8 +82,8 @@
             <form id="withdrawal-form" class="wallet-form" novalidate>
                 <p>
                     <label for="withdrawal-amount">Amount</label>
-                    <input id="withdrawal-amount" name="amount" type="number" min="1" step="0.01"
-                        placeholder="100.00" required>
+                    <input id="withdrawal-amount" name="amount" type="number" min="1" step="0.01" placeholder="100.00"
+                        required>
                     <small id="withdrawal-amount-error" class="form-error" role="alert" hidden></small>
                 </p>
 
@@ -130,8 +130,10 @@
                 </p>
 
                 <menu class="action-menu withdrawal-actions" aria-label="Withdrawal form actions">
-                    <li><button id="request-withdrawal-button" class="button-primary" type="submit">Request Withdrawal</button></li>
-                    <li><button id="clear-withdrawal-form-button" class="button-secondary" type="reset">Clear Form</button></li>
+                    <li><button id="request-withdrawal-button" class="button-primary" type="submit">Request
+                            Withdrawal</button></li>
+                    <li><button id="clear-withdrawal-form-button" class="button-secondary" type="reset">Clear
+                            Form</button></li>
                 </menu>
             </form>
         </section>
