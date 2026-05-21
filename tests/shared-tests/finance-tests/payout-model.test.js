@@ -337,3 +337,121 @@ describe("shared/finance/payout-model.js", () => {
         });
     });
 });
+
+// ============================================================================
+// sanitizeTimelineAt — prevents Firestore "serverTimestamp() inside arrays"
+// rejections by coercing FieldValue sentinels to a real Date for timeline
+// entries (timestamps inside array elements).
+// ============================================================================
+
+describe("sanitizeTimelineAt", () => {
+    test("passes Date instances through", () => {
+        const d = new Date("2026-05-01T00:00:00Z");
+        expect(payoutModel.sanitizeTimelineAt(d)).toBe(d);
+    });
+
+    test("passes ISO strings, finite numbers, and Firestore Timestamp shapes through", () => {
+        expect(payoutModel.sanitizeTimelineAt("2026-05-01T00:00:00Z")).toBe("2026-05-01T00:00:00Z");
+        expect(payoutModel.sanitizeTimelineAt(1700000000000)).toBe(1700000000000);
+        const fsTimestamp = { toDate: () => new Date(0) };
+        expect(payoutModel.sanitizeTimelineAt(fsTimestamp)).toBe(fsTimestamp);
+        const secondsTimestamp = { seconds: 100, nanoseconds: 0 };
+        expect(payoutModel.sanitizeTimelineAt(secondsTimestamp)).toBe(secondsTimestamp);
+    });
+
+    test("returns null for null/undefined", () => {
+        expect(payoutModel.sanitizeTimelineAt(null)).toBeNull();
+        expect(payoutModel.sanitizeTimelineAt(undefined)).toBeNull();
+    });
+
+    test("replaces serverTimestamp()-shaped sentinels with a real Date", () => {
+        const fakeSentinel = { _methodName: "serverTimestamp" };
+        const out = payoutModel.sanitizeTimelineAt(fakeSentinel);
+        expect(out).toBeInstanceOf(Date);
+        expect(out).not.toBe(fakeSentinel);
+    });
+
+    test("replaces unknown objects (no toDate / seconds) with a real Date", () => {
+        const out = payoutModel.sanitizeTimelineAt({});
+        expect(out).toBeInstanceOf(Date);
+    });
+
+    test("replaces NaN with a real Date", () => {
+        const out = payoutModel.sanitizeTimelineAt(NaN);
+        expect(out).toBeInstanceOf(Date);
+    });
+});
+
+describe("createPayoutTimelineEntry sanitises `at` to keep arrays Firestore-safe", () => {
+    test("sentinel passed as `at` is replaced with a Date inside the entry", () => {
+        const entry = payoutModel.createPayoutTimelineEntry("pending", {
+            at: { _methodName: "serverTimestamp" },
+            actorRole: "vendor"
+        });
+        expect(entry.at).toBeInstanceOf(Date);
+        expect(entry.status).toBe("pending");
+        expect(entry.actorRole).toBe("vendor");
+    });
+
+    test("a real Date passed as `at` is preserved", () => {
+        const d = new Date("2026-05-21T12:00:00Z");
+        const entry = payoutModel.createPayoutTimelineEntry("paid", { at: d });
+        expect(entry.at).toBe(d);
+    });
+});
+
+describe("createPayoutRequestRecord builds a Firestore-safe timeline", () => {
+    test("when called with a serverTimestamp sentinel as createdAt, the timeline entry's `at` is a Date", () => {
+        const sentinel = { _methodName: "serverTimestamp" };
+        const record = payoutModel.createPayoutRequestRecord({
+            payoutId: "payout-test",
+            vendorUid: "v-1",
+            amount: 100,
+            createdAt: sentinel,
+            requestedAt: sentinel,
+            updatedAt: sentinel
+        });
+        // Top-level fields keep the sentinel (Firestore allows it there).
+        expect(record.createdAt).toBe(sentinel);
+        expect(record.updatedAt).toBe(sentinel);
+        // But the timeline entry MUST NOT contain a sentinel (array-nested
+        // sentinels are rejected by Firestore).
+        expect(record.timeline).toHaveLength(1);
+        expect(record.timeline[0].at).toBeInstanceOf(Date);
+        expect(record.timeline[0].at).not.toBe(sentinel);
+    });
+});
+
+describe("applyPayoutStatus builds a Firestore-safe timeline patch", () => {
+    test("sentinel passed as `timestamp` produces a Date in the appended timeline entry", () => {
+        const sentinel = { _methodName: "serverTimestamp" };
+        const existing = payoutModel.createPayoutRequestRecord({
+            payoutId: "payout-update",
+            vendorUid: "v-1",
+            amount: 100,
+            status: "pending",
+            createdAt: "2026-05-01T00:00:00Z",
+            requestedAt: "2026-05-01T00:00:00Z"
+        });
+        const result = payoutModel.applyPayoutStatus(existing, "approved", {
+            actorRole: "admin",
+            actorUid: "admin-1",
+            actorName: "Admin",
+            timestamp: sentinel
+        });
+        expect(result.success).toBe(true);
+        // The patched top-level updatedAt may carry the sentinel ...
+        expect(result.patch.updatedAt).toBe(sentinel);
+        // ... but every timeline entry's `at` must be array-safe.
+        result.payout.timeline.forEach(entry => {
+            expect(entry.at).not.toBe(sentinel);
+            const valid = entry.at == null
+                || entry.at instanceof Date
+                || typeof entry.at === "string"
+                || typeof entry.at === "number"
+                || (typeof entry.at === "object" &&
+                    (typeof entry.at.toDate === "function" || typeof entry.at.seconds === "number"));
+            expect(valid).toBe(true);
+        });
+    });
+});

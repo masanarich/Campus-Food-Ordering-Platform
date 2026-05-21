@@ -125,9 +125,42 @@
         };
     }
 
+    /**
+     * Coerce a candidate `at` value to something Firestore will accept inside
+     * an array entry. The Firebase SDK rejects writes when a `serverTimestamp()`
+     * sentinel ends up nested in an array — only top-level fields can use it.
+     * Acceptable shapes: Date, ISO string, finite number, Firestore Timestamp
+     * (object with `toDate` or `seconds`). Anything else (incl. FieldValue
+     * sentinels and other unknown objects) is converted to the current Date so
+     * timeline entries still carry an approximate timestamp.
+     */
+    function sanitizeTimelineAt(candidate) {
+        if (candidate == null) return null;
+        if (candidate instanceof Date) return candidate;
+        const t = typeof candidate;
+        if (t === "string") return candidate;
+        if (t === "number" && Number.isFinite(candidate)) return candidate;
+        if (t === "object") {
+            if (typeof candidate.toDate === "function") return candidate;
+            if (typeof candidate.seconds === "number" && Number.isFinite(candidate.seconds)) {
+                return candidate;
+            }
+            // Unknown object — most likely a Firestore FieldValue sentinel
+            // (serverTimestamp / increment / arrayUnion). Replace with a real
+            // Date so the array entry is writable.
+            return new Date();
+        }
+        return new Date();
+    }
+
     function createPayoutTimelineEntry(status, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const normalizedStatus = normalizePayoutStatus(status);
+        const rawAt = safeOptions.at !== undefined
+            ? safeOptions.at
+            : safeOptions.timestamp !== undefined
+                ? safeOptions.timestamp
+                : null;
 
         return {
             status: normalizedStatus,
@@ -136,11 +169,7 @@
             actorUid: normalizeText(safeOptions.actorUid || safeOptions.uid),
             actorName: normalizeText(safeOptions.actorName || safeOptions.name),
             note: normalizeText(safeOptions.note),
-            at: safeOptions.at !== undefined
-                ? safeOptions.at
-                : safeOptions.timestamp !== undefined
-                    ? safeOptions.timestamp
-                    : null
+            at: sanitizeTimelineAt(rawAt)
         };
     }
 
@@ -471,6 +500,7 @@
         normalizeDigits,
         maskAccountNumber,
         createFakeBankSnapshot,
+        sanitizeTimelineAt,
         createPayoutTimelineEntry,
         createPayoutId,
         createPayoutRequestRecord,
