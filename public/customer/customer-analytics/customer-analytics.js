@@ -634,7 +634,7 @@
                     <td data-label="Vendor">${escapeHtml(o.vendorName || "Unknown")}</td>
                     <td data-label="Items">${items}</td>
                     <td data-label="Total">${escapeHtml(fmtRand(getOrderAmount(o)))}</td>
-                    <td data-label="Status"><span class="status-badge">${escapeHtml(o.status || "completed")}</span></td>
+                    <td data-label="Status"><mark class="status-badge">${escapeHtml(o.status || "completed")}</mark></td>
                   </tr>`;
             }).join("");
         }

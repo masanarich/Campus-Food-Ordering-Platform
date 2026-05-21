@@ -536,9 +536,9 @@
         if (metricsEl) {
             metricsEl.innerHTML = cards.map(c => `
                 <article class="metric-card">
-                  <span class="metric-label">${escapeHtml(c.label)}</span>
+                  <strong class="metric-label">${escapeHtml(c.label)}</strong>
                   <strong class="metric-value" ${c.small ? 'style="font-size:1.1rem"' : ""}>${escapeHtml(c.value)}</strong>
-                  <span class="metric-sub">${escapeHtml(c.sub)}</span>
+                  <small class="metric-sub">${escapeHtml(c.sub)}</small>
                 </article>`).join("");
         }
 
@@ -603,10 +603,10 @@
             const legendEl = document.getElementById("salesLegend");
             if (legendEl) {
                 legendEl.innerHTML = topVendorNames.map((v, i) =>
-                    `<span class="legend-item">
+                    `<small class="legend-item">
                        <i class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></i>
                        ${escapeHtml(v)}
-                     </span>`).join("");
+                     </small>`).join("");
             }
         }
 
@@ -679,14 +679,14 @@
                 <td data-label="Revenue">${escapeHtml(fmtRand(row.revenue))}</td>
                 <td data-label="Avg order">${escapeHtml(fmtRand(row.avgOrder))}</td>
                 <td data-label="Share">
-                  <span class="share-bar"
-                        style="width:${Math.min(row.share, 80)}px;background:${color};"></span>
+                  <meter class="share-bar" value="${row.share}" min="0" max="100"
+                        style="width:${Math.min(row.share, 80)}px;background:${color};"></meter>
                   ${row.share.toFixed(1)}%
                 </td>
                 <td data-label="Movement">
-                  <span class="${movementCls}">
+                  <strong class="${movementCls}">
                     <i aria-hidden="true">${arrow}</i> ${Math.abs(row.movementPct).toFixed(1)}%
-                  </span>
+                  </strong>
                 </td>
               </tr>`;
         }).join("");

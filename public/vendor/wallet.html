@@ -48,27 +48,27 @@
 
             <section class="wallet-metrics" aria-label="Wallet balance metrics">
                 <article class="wallet-metric-card wallet-metric-primary">
-                    <span class="wallet-metric-label">Available Balance</span>
+                    <strong class="wallet-metric-label">Available Balance</strong>
                     <output id="wallet-available-balance" class="wallet-metric-value">R0.00</output>
-                    <span class="wallet-metric-note">Can be requested for simulated payout.</span>
+                    <small class="wallet-metric-note">Can be requested for simulated payout.</small>
                 </article>
 
                 <article class="wallet-metric-card">
-                    <span class="wallet-metric-label">Total Earned</span>
+                    <strong class="wallet-metric-label">Total Earned</strong>
                     <output id="wallet-total-earned" class="wallet-metric-value">R0.00</output>
-                    <span class="wallet-metric-note">Vendor share from completed paid orders.</span>
+                    <small class="wallet-metric-note">Vendor share from completed paid orders.</small>
                 </article>
 
                 <article class="wallet-metric-card">
-                    <span class="wallet-metric-label">Reserved Withdrawals</span>
+                    <strong class="wallet-metric-label">Reserved Withdrawals</strong>
                     <output id="wallet-reserved-withdrawals" class="wallet-metric-value">R0.00</output>
-                    <span class="wallet-metric-note">Pending, approved, or paid payout requests.</span>
+                    <small class="wallet-metric-note">Pending, approved, or paid payout requests.</small>
                 </article>
 
                 <article class="wallet-metric-card">
-                    <span class="wallet-metric-label">Completed Orders</span>
+                    <strong class="wallet-metric-label">Completed Orders</strong>
                     <output id="wallet-completed-orders" class="wallet-metric-value">0</output>
-                    <span class="wallet-metric-note">Orders counted toward wallet earnings.</span>
+                    <small class="wallet-metric-note">Orders counted toward wallet earnings.</small>
                 </article>
             </section>
         </section>
@@ -84,34 +84,34 @@
                     <label for="withdrawal-amount">Amount</label>
                     <input id="withdrawal-amount" name="amount" type="number" min="1" step="0.01"
                         placeholder="100.00" required>
-                    <span id="withdrawal-amount-error" class="form-error" hidden></span>
+                    <small id="withdrawal-amount-error" class="form-error" role="alert" hidden></small>
                 </p>
 
                 <p>
                     <label for="fake-bank-name">Fake Bank Name</label>
                     <input id="fake-bank-name" name="fakeBankName" type="text" placeholder="Campus Test Bank" required>
-                    <span id="withdrawal-fakeBankName-error" class="form-error" hidden></span>
+                    <small id="withdrawal-fakeBankName-error" class="form-error" role="alert" hidden></small>
                 </p>
 
                 <p>
                     <label for="fake-account-holder">Fake Account Holder</label>
                     <input id="fake-account-holder" name="fakeAccountHolder" type="text" placeholder="Your shop name"
                         required>
-                    <span id="withdrawal-fakeAccountHolder-error" class="form-error" hidden></span>
+                    <small id="withdrawal-fakeAccountHolder-error" class="form-error" role="alert" hidden></small>
                 </p>
 
                 <p>
                     <label for="fake-account-number">Fake Account Number</label>
                     <input id="fake-account-number" name="fakeAccountNumber" type="text" inputmode="numeric"
                         placeholder="1234567890" required>
-                    <span id="withdrawal-fakeAccountNumber-error" class="form-error" hidden></span>
+                    <small id="withdrawal-fakeAccountNumber-error" class="form-error" role="alert" hidden></small>
                 </p>
 
                 <p>
                     <label for="fake-branch-code">Fake Branch Code</label>
                     <input id="fake-branch-code" name="fakeBranchCode" type="text" inputmode="numeric"
                         placeholder="250655" required>
-                    <span id="withdrawal-fakeBranchCode-error" class="form-error" hidden></span>
+                    <small id="withdrawal-fakeBranchCode-error" class="form-error" role="alert" hidden></small>
                 </p>
 
                 <p>
