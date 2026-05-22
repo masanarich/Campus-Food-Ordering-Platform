@@ -334,6 +334,7 @@ button:disabled {
 }
 
 #customer-home-status,
+#campus-recommendations-status,
 #vendor-application-status,
 #admin-application-status {
     min-height: 1.5rem;
@@ -345,6 +346,7 @@ button:disabled {
 }
 
 #customer-home-status[data-state="success"],
+#campus-recommendations-status[data-state="success"],
 #vendor-application-status[data-state="success"],
 #admin-application-status[data-state="success"] {
     background: var(--success-bg);
@@ -353,6 +355,7 @@ button:disabled {
 }
 
 #customer-home-status[data-state="error"],
+#campus-recommendations-status[data-state="error"],
 #vendor-application-status[data-state="error"],
 #admin-application-status[data-state="error"] {
     background: var(--error-bg);
@@ -362,6 +365,8 @@ button:disabled {
 
 #customer-home-status[data-state="info"],
 #customer-home-status[data-state="loading"],
+#campus-recommendations-status[data-state="info"],
+#campus-recommendations-status[data-state="loading"],
 #vendor-application-status[data-state="info"],
 #vendor-application-status[data-state="loading"],
 #admin-application-status[data-state="info"],
@@ -414,6 +419,94 @@ button:disabled {
 #profile-overview-heading + img + p + p + p + p + p,
 #profile-overview-heading + img + p + p + p + p + p + p {
     margin-bottom: 0.8rem;
+}
+
+#campus-recommendations-section {
+    grid-column: 1 / -1;
+}
+
+#campus-recommendations-container {
+    margin-top: 1rem;
+}
+
+.campus-recommendation-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+}
+
+.campus-recommendation-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-strong);
+    box-shadow: var(--shadow-sm);
+}
+
+.campus-recommendation-card header {
+    width: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+.campus-recommendation-card header::before {
+    content: none;
+}
+
+.campus-recommendation-name {
+    margin: 0 0 0.25rem;
+    font-size: 1.2rem;
+}
+
+.campus-recommendation-vendor {
+    margin: 0;
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.campus-recommendation-meta,
+.campus-recommendation-reasons {
+    margin: 0.9rem 0 0;
+    padding-left: 1.15rem;
+    color: var(--text-soft);
+}
+
+.campus-recommendation-meta li,
+.campus-recommendation-reasons li {
+    margin-bottom: 0.35rem;
+}
+
+.campus-recommendation-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    min-height: 2.8rem;
+    margin-top: auto;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: var(--accent-contrast);
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.campus-recommendation-link:hover,
+.campus-recommendation-link:focus {
+    outline: none;
+    background: linear-gradient(135deg, #d97b27, #904207);
+    color: #fffaf4;
+    transform: translateY(-1px);
+}
+
+.empty-state-message,
+.loading-message {
+    color: var(--text-soft);
+    font-weight: 700;
 }
 
 form {

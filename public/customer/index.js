@@ -68,6 +68,78 @@ function resolveAuthUtils(explicitUtils) {
     return null;
 }
 
+function resolveRecommendationModel(explicitModel) {
+    if (explicitModel && typeof explicitModel.recommendMenuItems === "function") {
+        return explicitModel;
+    }
+
+    if (
+        typeof window !== "undefined" &&
+        window.recommendationModel &&
+        typeof window.recommendationModel.recommendMenuItems === "function"
+    ) {
+        return window.recommendationModel;
+    }
+
+    if (typeof require === "function") {
+        try {
+            return require("../shared/recommendations/recommendation-model.js");
+        } catch (error) {
+            return null;
+        }
+    }
+
+    return null;
+}
+
+function resolveRecommendationQueries(explicitQueries) {
+    if (explicitQueries && typeof explicitQueries.loadRecommendationContext === "function") {
+        return explicitQueries;
+    }
+
+    if (
+        typeof window !== "undefined" &&
+        window.recommendationQueries &&
+        typeof window.recommendationQueries.loadRecommendationContext === "function"
+    ) {
+        return window.recommendationQueries;
+    }
+
+    if (typeof require === "function") {
+        try {
+            return require("../shared/recommendations/recommendation-queries.js");
+        } catch (error) {
+            return null;
+        }
+    }
+
+    return null;
+}
+
+function resolveCampusRecommendationQueries(explicitQueries) {
+    if (explicitQueries && typeof explicitQueries.fetchCampusMenuItems === "function") {
+        return explicitQueries;
+    }
+
+    if (
+        typeof window !== "undefined" &&
+        window.campusRecommendationQueries &&
+        typeof window.campusRecommendationQueries.fetchCampusMenuItems === "function"
+    ) {
+        return window.campusRecommendationQueries;
+    }
+
+    if (typeof require === "function") {
+        try {
+            return require("../shared/recommendations/campus-recommendation-queries.js");
+        } catch (error) {
+            return null;
+        }
+    }
+
+    return null;
+}
+
 function getFallbackRoutes() {
     return {
         customer: "./index.html",
@@ -78,6 +150,7 @@ function getFallbackRoutes() {
         vendorapplication: "./vendor-application.html",
         adminapplication: "./admin-application.html",
         browsevendors: "./order-management/browse-vendors.html",
+        vendormenu: "./order-management/browse-menu.html",
         cart: "./order-management/cart.html",
         checkout: "./order-management/checkout.html",
         orders: "./order-tracking/index.html",
@@ -629,6 +702,285 @@ function setImage(imageElement, imageUrl, altText, fallbackName) {
     imageElement.alt = normalizeText(altText) || "User profile picture";
 }
 
+function getRecommendationConfidenceLabel(confidence) {
+    const parsed = Number(confidence);
+
+    if (!Number.isFinite(parsed)) {
+        return "Emerging";
+    }
+
+    if (parsed >= 0.75) {
+        return "High";
+    }
+
+    if (parsed >= 0.45) {
+        return "Medium";
+    }
+
+    return "Emerging";
+}
+
+function getRecommendationItemUrl(recommendation, fallbackRoute) {
+    const safeRecommendation = recommendation && typeof recommendation === "object" ? recommendation : {};
+    const item = safeRecommendation.item && typeof safeRecommendation.item === "object"
+        ? safeRecommendation.item
+        : safeRecommendation;
+    const campusQueries = resolveCampusRecommendationQueries();
+
+    if (normalizeText(item.vendorMenuUrl)) {
+        return normalizeText(item.vendorMenuUrl);
+    }
+
+    if (campusQueries && typeof campusQueries.buildVendorMenuUrl === "function") {
+        return campusQueries.buildVendorMenuUrl(item, {
+            menuBasePath: fallbackRoute || getPortalRoute("vendorMenu")
+        });
+    }
+
+    const vendorUid = encodeURIComponent(normalizeText(item.vendorUid));
+    const vendorName = encodeURIComponent(normalizeText(item.vendorName));
+    const itemId = encodeURIComponent(normalizeText(item.menuItemId || item.id));
+    const query = [];
+
+    if (vendorUid) {
+        query.push(`vendorUid=${vendorUid}`);
+    }
+
+    if (vendorName) {
+        query.push(`vendorName=${vendorName}`);
+    }
+
+    if (itemId) {
+        query.push(`recommendedItemId=${itemId}`);
+    }
+
+    return `${fallbackRoute || getPortalRoute("vendorMenu")}${query.length ? `?${query.join("&")}` : ""}`;
+}
+
+function createCampusRecommendationCard(recommendation, options = {}) {
+    const safeRecommendation = recommendation && typeof recommendation === "object" ? recommendation : {};
+    const item = safeRecommendation.item && typeof safeRecommendation.item === "object"
+        ? safeRecommendation.item
+        : safeRecommendation;
+    const doc = options.document || document;
+    const card = doc.createElement("article");
+    const title = normalizeText(item.name) || "Recommended meal";
+    const vendorName = normalizeText(item.vendorName) || "Campus vendor";
+    const category = normalizeText(item.category) || "Meal";
+    const price = Number(item.price);
+    const reasons = Array.isArray(safeRecommendation.reasons)
+        ? safeRecommendation.reasons.slice(0, 3)
+        : [];
+
+    card.className = "campus-recommendation-card";
+    card.setAttribute("data-menu-item-id", normalizeText(item.menuItemId || item.id));
+    card.setAttribute("data-vendor-uid", normalizeText(item.vendorUid));
+
+    const header = doc.createElement("header");
+    const heading = doc.createElement("h4");
+    const vendorLine = doc.createElement("p");
+
+    heading.className = "campus-recommendation-name";
+    heading.textContent = title;
+    vendorLine.className = "campus-recommendation-vendor";
+    vendorLine.textContent = vendorName;
+
+    header.appendChild(heading);
+    header.appendChild(vendorLine);
+
+    const metaList = doc.createElement("ul");
+    metaList.className = "campus-recommendation-meta";
+
+    function appendMeta(label, value) {
+        const safeValue = normalizeText(value);
+
+        if (!safeValue) {
+            return;
+        }
+
+        const metaItem = doc.createElement("li");
+        const labelEl = doc.createElement("strong");
+        const valueEl = doc.createElement("output");
+
+        labelEl.textContent = `${label}:`;
+        valueEl.textContent = safeValue;
+
+        metaItem.appendChild(labelEl);
+        metaItem.appendChild(doc.createTextNode(" "));
+        metaItem.appendChild(valueEl);
+        metaList.appendChild(metaItem);
+    }
+
+    appendMeta("Category", category);
+    appendMeta("Price", Number.isFinite(price) ? `R${price.toFixed(2)}` : "");
+    appendMeta("Confidence", getRecommendationConfidenceLabel(safeRecommendation.confidence));
+
+    const reasonList = doc.createElement("ul");
+    reasonList.className = "campus-recommendation-reasons";
+
+    if (reasons.length === 0) {
+        const reason = doc.createElement("li");
+        reason.textContent = "Good discovery pick based on available campus menus.";
+        reasonList.appendChild(reason);
+    } else {
+        reasons.forEach(function appendReason(reasonText) {
+            const reason = doc.createElement("li");
+            reason.textContent = normalizeText(reasonText);
+            reasonList.appendChild(reason);
+        });
+    }
+
+    const link = doc.createElement("a");
+    link.className = "campus-recommendation-link";
+    link.href = getRecommendationItemUrl(safeRecommendation, getPortalRoute("vendorMenu"));
+    link.textContent = "View vendor menu";
+
+    card.appendChild(header);
+    card.appendChild(metaList);
+    card.appendChild(reasonList);
+    card.appendChild(link);
+
+    return card;
+}
+
+function renderCampusRecommendations(result, container, statusElement, options = {}) {
+    if (!container) {
+        return;
+    }
+
+    const safeResult = result && typeof result === "object" ? result : {};
+    const recommendations = Array.isArray(safeResult.recommendations)
+        ? safeResult.recommendations
+        : [];
+    const doc = options.document || document;
+
+    container.innerHTML = "";
+
+    if (safeResult.status === "opted-out") {
+        const message = doc.createElement("p");
+        message.className = "empty-state-message";
+        message.textContent = "Campus recommendations are disabled in your profile.";
+        container.appendChild(message);
+        setStatusMessage(statusElement, "Recommendation learning is disabled.", "info");
+        return;
+    }
+
+    if (recommendations.length === 0) {
+        const message = doc.createElement("p");
+        message.className = "empty-state-message";
+        message.textContent = "No campus-wide meal recommendations are ready yet. Browse vendors to start teaching the model.";
+        container.appendChild(message);
+        setStatusMessage(statusElement, "No campus recommendations available yet.", "info");
+        return;
+    }
+
+    const list = doc.createElement("section");
+    list.className = "campus-recommendation-list";
+
+    recommendations.forEach(function appendRecommendation(recommendation) {
+        list.appendChild(createCampusRecommendationCard(recommendation, { document: doc }));
+    });
+
+    container.appendChild(list);
+
+    const statusMessage = safeResult.status === "personalized"
+        ? `${recommendations.length} personalized campus recommendation${recommendations.length === 1 ? "" : "s"} ready.`
+        : `${recommendations.length} campus recommendation${recommendations.length === 1 ? "" : "s"} based on your saved preferences.`;
+    setStatusMessage(statusElement, statusMessage, "success");
+}
+
+async function loadCampusRecommendations(options = {}) {
+    const recommendationModel = resolveRecommendationModel(options.recommendationModel);
+    const recommendationQueries = resolveRecommendationQueries(options.recommendationQueries);
+    const campusQueries = resolveCampusRecommendationQueries(options.campusRecommendationQueries);
+    const maxRecommendations = options.maxRecommendations || 4;
+
+    if (!recommendationModel || typeof recommendationModel.recommendMenuItems !== "function") {
+        return {
+            success: false,
+            recommendations: [],
+            status: "unavailable",
+            error: {
+                code: "recommendations/no-model",
+                message: "Recommendation model is unavailable."
+            }
+        };
+    }
+
+    if (!campusQueries || typeof campusQueries.fetchCampusMenuItems !== "function") {
+        return {
+            success: false,
+            recommendations: [],
+            status: "unavailable",
+            error: {
+                code: "recommendations/no-campus-queries",
+                message: "Campus recommendation queries are unavailable."
+            }
+        };
+    }
+
+    const menuResult = await campusQueries.fetchCampusMenuItems({
+        db: options.db,
+        firestoreFns: options.firestoreFns,
+        recommendationModel,
+        vendorLimit: options.vendorLimit,
+        menuItemsPerVendorLimit: options.menuItemsPerVendorLimit,
+        totalMenuItemLimit: options.totalMenuItemLimit,
+        menuBasePath: options.menuBasePath || getPortalRoute("vendorMenu"),
+        baseHref: options.baseHref
+    });
+
+    if (!menuResult.success) {
+        return {
+            success: false,
+            recommendations: [],
+            status: "unavailable",
+            error: menuResult.error
+        };
+    }
+
+    let context = {
+        success: false,
+        profile: {},
+        orders: [],
+        orderCount: 0
+    };
+
+    if (recommendationQueries && typeof recommendationQueries.loadRecommendationContext === "function") {
+        context = await recommendationQueries.loadRecommendationContext({
+            db: options.db,
+            auth: options.auth,
+            currentUser: options.currentUser,
+            firestoreFns: options.firestoreFns,
+            recommendationModel,
+            limitCount: options.historyLimit
+        });
+    }
+
+    const ranked = recommendationModel.recommendMenuItems(
+        menuResult.menuItems,
+        context.success ? context.orders : [],
+        context.profile || {},
+        { maxRecommendations }
+    );
+
+    return {
+        success: true,
+        contextLoaded: context.success === true,
+        contextError: context.success === true ? null : context.error || null,
+        vendors: menuResult.vendors,
+        vendorCount: menuResult.vendorCount,
+        menuItems: menuResult.menuItems,
+        menuItemCount: menuResult.menuItemCount,
+        failures: menuResult.failures,
+        partial: menuResult.partial,
+        profile: context.profile || {},
+        orders: context.orders || [],
+        orderCount: context.orderCount || 0,
+        ...ranked
+    };
+}
+
 function renderCustomerHomePage(elements, state) {
     if (!elements || !state) {
         return;
@@ -852,10 +1204,13 @@ async function initializeCustomerHomePage(options = {}) {
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
-        adminPortalButton: document.querySelector("#go-admin-portal-button")
+        adminPortalButton: document.querySelector("#go-admin-portal-button"),
+        campusRecommendationsContainer: document.querySelector("#campus-recommendations-container"),
+        campusRecommendationsStatus: document.querySelector("#campus-recommendations-status")
     };
 
     setStatusMessage(elements.statusElement, "Loading your customer dashboard...", "loading");
+    setStatusMessage(elements.campusRecommendationsStatus, "Preparing campus recommendations...", "loading");
 
     try {
         const result = await loadCustomerHomeState({
@@ -881,6 +1236,46 @@ async function initializeCustomerHomePage(options = {}) {
         }
 
         renderCustomerHomePage(elements, result.state);
+
+        let campusRecommendationsResult = null;
+
+        if (elements.campusRecommendationsContainer) {
+            try {
+                campusRecommendationsResult = await loadCampusRecommendations({
+                    db: options.db || (typeof window !== "undefined" ? window.db : null),
+                    auth: options.auth || (typeof window !== "undefined" ? window.auth : null),
+                    currentUser: result.user,
+                    firestoreFns: options.firestoreFns || (typeof window !== "undefined" ? window.firestoreFns : null),
+                    recommendationModel: options.recommendationModel,
+                    recommendationQueries: options.recommendationQueries,
+                    campusRecommendationQueries: options.campusRecommendationQueries,
+                    maxRecommendations: options.maxCampusRecommendations || 4,
+                    vendorLimit: options.campusVendorLimit,
+                    menuItemsPerVendorLimit: options.campusMenuItemsPerVendorLimit,
+                    totalMenuItemLimit: options.campusTotalMenuItemLimit,
+                    historyLimit: options.recommendationHistoryLimit,
+                    menuBasePath: getPortalRoute("vendorMenu", authUtils)
+                });
+
+                renderCampusRecommendations(
+                    campusRecommendationsResult,
+                    elements.campusRecommendationsContainer,
+                    elements.campusRecommendationsStatus
+                );
+            } catch (recommendationError) {
+                campusRecommendationsResult = {
+                    success: false,
+                    recommendations: [],
+                    status: "unavailable",
+                    error: recommendationError
+                };
+                renderCampusRecommendations(
+                    { recommendations: [], status: "empty" },
+                    elements.campusRecommendationsContainer,
+                    elements.campusRecommendationsStatus
+                );
+            }
+        }
 
         const profileController = attachNavigationHandler({
             button: elements.profileButton,
@@ -1010,7 +1405,12 @@ async function initializeCustomerHomePage(options = {}) {
             notificationsController,
             supportController,
             analyticsController,
-            signOutController
+            signOutController,
+            campusRecommendations: campusRecommendationsResult && Array.isArray(campusRecommendationsResult.recommendations)
+                ? campusRecommendationsResult.recommendations
+                : [],
+            campusRecommendationStatus: campusRecommendationsResult ? campusRecommendationsResult.status : "skipped",
+            campusRecommendationResult: campusRecommendationsResult
         };
     } catch (error) {
         const message =
@@ -1035,6 +1435,9 @@ const customerHomePage = {
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
+    resolveRecommendationModel,
+    resolveRecommendationQueries,
+    resolveCampusRecommendationQueries,
     getFallbackRoutes,
     getPortalRoute,
     hasAuthenticatedIdentity,
@@ -1058,6 +1461,11 @@ const customerHomePage = {
     setHidden,
     setStatusMessage,
     setImage,
+    getRecommendationConfidenceLabel,
+    getRecommendationItemUrl,
+    createCampusRecommendationCard,
+    renderCampusRecommendations,
+    loadCampusRecommendations,
     renderCustomerHomePage,
     attachNavigationHandler,
     attachSignOutHandler,
