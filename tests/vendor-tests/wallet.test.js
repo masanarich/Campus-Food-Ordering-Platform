@@ -312,10 +312,129 @@ describe("vendor/wallet.js helpers", () => {
         ]);
     });
 
+    test("fetches vendor payouts with Firestore helpers when no payout query module is supplied", async () => {
+        const firestoreFns = {
+            collection: jest.fn((db, name) => ({ db, name })),
+            where: jest.fn((field, operator, value) => ({ field, operator, value })),
+            query: jest.fn((collectionRef, ...constraints) => ({ collectionRef, constraints })),
+            orderBy: jest.fn((field, direction) => ({ field, direction })),
+            getDocs: jest.fn(async () => createSnapshot([
+                createPayout({ payoutId: "payout-1", amount: 40, status: "pending" })
+            ], "payoutId"))
+        };
+
+        const payouts = await vendorWalletPage.fetchVendorPayouts({
+            db: { name: "db" },
+            firestoreFns,
+            vendorUid: "vendor-1",
+            payoutQueries: null
+        });
+
+        expect(firestoreFns.collection).toHaveBeenCalledWith({ name: "db" }, "payouts");
+        expect(firestoreFns.where).toHaveBeenCalledWith("vendorUid", "==", "vendor-1");
+        expect(payouts).toEqual([
+            expect.objectContaining({
+                payoutId: "payout-1",
+                vendorUid: "vendor-1",
+                status: "pending"
+            })
+        ]);
+    });
+
+    test("builds a rules-safe payout payload for direct Firestore fallback writes", () => {
+        const payload = vendorWalletPage.buildPayoutRequestPayload({
+            payout: {
+                amount: "60",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                vendorEmail: "vendor@example.com",
+                fakeBankName: "Campus Test Bank",
+                fakeAccountHolder: "Campus Bites",
+                fakeAccountNumber: "1234567890",
+                fakeBranchCode: "250655",
+                fakeAccountType: "cheque",
+                notes: "Please process in test mode."
+            },
+            payoutId: "payout-fixed",
+            now: "2026-05-21T10:00:00.000Z"
+        });
+
+        expect(payload).toEqual(expect.objectContaining({
+            payoutId: "payout-fixed",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            vendorEmail: "vendor@example.com",
+            amount: 60,
+            amountInMinorUnits: 6000,
+            currency: "ZAR",
+            status: "pending",
+            statusLabel: "Pending",
+            fakeBankName: "Campus Test Bank",
+            fakeAccountHolder: "Campus Bites",
+            fakeAccountNumberLast4: "7890",
+            fakeAccountNumberMasked: "****7890",
+            fakeBranchCode: "250655",
+            fakeAccountType: "cheque",
+            notes: "Please process in test mode.",
+            testMode: true,
+            testEmailQueued: false,
+            emailNotificationId: ""
+        }));
+        expect(payload.timeline).toHaveLength(1);
+        expect(payload.timeline[0]).toEqual(expect.objectContaining({
+            status: "pending",
+            label: "Withdrawal requested"
+        }));
+    });
+
+    test("creates a payout through the direct Firestore fallback when payout service is missing", async () => {
+        const firestoreFns = {
+            collection: jest.fn((db, name) => ({ db, name })),
+            doc: jest.fn(collectionRef => ({ id: "generated-payout", collectionRef })),
+            setDoc: jest.fn(async () => undefined)
+        };
+
+        const result = await vendorWalletPage.createFallbackPayoutRequest({
+            db: { name: "db" },
+            firestoreFns,
+            payout: {
+                amount: "60",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                vendorEmail: "vendor@example.com",
+                fakeBankName: "Campus Test Bank",
+                fakeAccountHolder: "Campus Bites",
+                fakeAccountNumber: "1234567890",
+                fakeBranchCode: "250655",
+                fakeAccountType: "cheque"
+            },
+            now: "2026-05-21T10:00:00.000Z"
+        });
+
+        expect(result.success).toBe(true);
+        expect(firestoreFns.collection).toHaveBeenCalledWith({ name: "db" }, "payouts");
+        expect(firestoreFns.setDoc).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "generated-payout" }),
+            expect.objectContaining({
+                payoutId: "generated-payout",
+                vendorUid: "vendor-1",
+                amount: 60,
+                amountInMinorUnits: 6000,
+                status: "pending",
+                statusLabel: "Pending"
+            })
+        );
+        expect(result.payout).toEqual(expect.objectContaining({
+            payoutId: "generated-payout",
+            vendorUid: "vendor-1",
+            amount: 60
+        }));
+    });
+
     test("submits a valid withdrawal, reserves the amount, and resets the form", async () => {
         const elements = createWalletDom();
         const createdPayout = createPayout({ payoutId: "payout-new", amount: 60, status: "pending" });
-        const payoutService = {
+        const fakePayoutService = {
             createPayoutRequest: jest.fn(async () => ({
                 success: true,
                 payout: createdPayout,
@@ -328,7 +447,7 @@ describe("vendor/wallet.js helpers", () => {
             elements,
             platformPricing,
             payoutModel,
-            payoutService
+            payoutService: fakePayoutService
         });
         page.state.currentUser = { uid: "vendor-1" };
         page.state.vendorProfile = {
@@ -351,7 +470,7 @@ describe("vendor/wallet.js helpers", () => {
         const result = await page.submitWithdrawalRequest({ preventDefault: jest.fn() });
 
         expect(result.success).toBe(true);
-        expect(payoutService.createPayoutRequest).toHaveBeenCalledWith(expect.objectContaining({
+        expect(fakePayoutService.createPayoutRequest).toHaveBeenCalledWith(expect.objectContaining({
             payoutModel,
             availableBalance: 100,
             payout: expect.objectContaining({
@@ -409,15 +528,60 @@ describe("vendor/wallet.js helpers", () => {
         }));
     });
 
+    test("submits withdrawal through fallback writer when payout service is not available", async () => {
+        const elements = createWalletDom();
+        const firestoreFns = {
+            collection: jest.fn((db, name) => ({ db, name })),
+            doc: jest.fn(collectionRef => ({ id: "fallback-payout", collectionRef })),
+            setDoc: jest.fn(async () => undefined)
+        };
+        const page = vendorWalletPage.createVendorWalletPage({
+            elements,
+            platformPricing,
+            payoutModel,
+            payoutService: null,
+            db: { name: "db" },
+            firestoreFns,
+            now: "2026-05-21T10:00:00.000Z"
+        });
+        page.state.vendorProfile = {
+            uid: "vendor-1",
+            displayName: "Campus Bites",
+            email: "vendor@example.com",
+            vendorStatus: "approved",
+            accountStatus: "active"
+        };
+        page.state.orders = [
+            createOrder({ orderId: "order-1", vendorEarnings: 100 })
+        ];
+        page.state.summary = vendorWalletPage.calculateWalletSummary(page.state.orders, [], {
+            vendorUid: "vendor-1",
+            platformPricing
+        });
+        fillValidWithdrawalForm();
+
+        const result = await page.submitWithdrawalRequest({ preventDefault: jest.fn() });
+
+        expect(result.success).toBe(true);
+        expect(firestoreFns.setDoc).toHaveBeenCalled();
+        expect(result.payout).toEqual(expect.objectContaining({
+            payoutId: "fallback-payout",
+            vendorUid: "vendor-1",
+            amount: 60,
+            status: "pending"
+        }));
+        expect(page.state.summary.availableBalance).toBe(40);
+    });
+
     test("shows form errors and does not call payout service for invalid withdrawals", async () => {
         const elements = createWalletDom();
-        const payoutService = {
+        const fakePayoutService = {
             createPayoutRequest: jest.fn()
         };
         const page = vendorWalletPage.createVendorWalletPage({
             elements,
             payoutModel,
-            payoutService
+            payoutService: fakePayoutService
         });
         page.state.vendorProfile = {
             uid: "vendor-1",
@@ -434,7 +598,7 @@ describe("vendor/wallet.js helpers", () => {
         const result = await page.submitWithdrawalRequest({ preventDefault: jest.fn() });
 
         expect(result.success).toBe(false);
-        expect(payoutService.createPayoutRequest).not.toHaveBeenCalled();
+        expect(fakePayoutService.createPayoutRequest).not.toHaveBeenCalled();
         expect(elements.errorElements.amount.hidden).toBe(false);
         expect(elements.errorElements.amount.textContent).toBe("Withdrawal amount cannot exceed the available balance.");
         expect(elements.statusElement.getAttribute("data-state")).toBe("error");
@@ -463,5 +627,12 @@ describe("vendor/wallet.js helpers", () => {
         expect(result.success).toBe(true);
         expect(result.page.state.summary.availableBalance).toBe(100);
         expect(typeof result.page.submitWithdrawalRequest).toBe("function");
+    });
+
+    test("summarizes permission errors without showing raw Firebase text", () => {
+        expect(vendorWalletPage.summarizeWalletError({
+            code: "permission-denied",
+            message: "Missing or insufficient permissions."
+        })).toBe("You don't have permission to view or update this wallet.");
     });
 });
