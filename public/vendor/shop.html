@@ -70,7 +70,44 @@
                     <strong class="stats-label">Shopfront photo</strong>
                     <output id="shop-photo-state">No photo uploaded</output>
                 </article>
+
+                <article class="stats-card shop-rating-summary-card">
+                    <strong class="stats-label">Customer rating</strong>
+                    <output id="shop-rating-average" class="shop-rating-average">No ratings yet</output>
+                    <p id="shop-rating-stars" class="shop-rating-stars" aria-hidden="true">☆☆☆☆☆</p>
+                    <p id="shop-rating-count" class="shop-rating-count">0 reviews</p>
+                </article>
             </section>
+        </section>
+
+        <section class="shared-section shop-reviews-section" aria-labelledby="shop-reviews-heading">
+            <header class="shop-editor-head">
+                <article>
+                    <h3 id="shop-reviews-heading">Customer Reviews</h3>
+                    <p>
+                        See how students are rating your shop and the items you sell.
+                        Comments below are what they wrote about specific orders.
+                    </p>
+                </article>
+            </header>
+
+            <p id="shop-reviews-status" aria-live="polite" class="shop-reviews-status">Loading reviews...</p>
+
+            <section class="shop-rating-distribution" aria-label="Rating distribution">
+                <h4>Rating breakdown</h4>
+                <ul id="shop-rating-distribution-list" class="shop-rating-distribution-list">
+                    <li><strong>5 stars</strong> <output data-distribution-bucket="5">0</output></li>
+                    <li><strong>4 stars</strong> <output data-distribution-bucket="4">0</output></li>
+                    <li><strong>3 stars</strong> <output data-distribution-bucket="3">0</output></li>
+                    <li><strong>2 stars</strong> <output data-distribution-bucket="2">0</output></li>
+                    <li><strong>1 star</strong> <output data-distribution-bucket="1">0</output></li>
+                </ul>
+            </section>
+
+            <h4 class="shop-reviews-list-heading">Latest reviews</h4>
+            <ul id="shop-reviews-list" class="shop-reviews-list">
+                <li class="shop-reviews-empty">No reviews yet. Once your orders are completed, customers can rate them and the comments will appear here.</li>
+            </ul>
         </section>
 
         <section class="shared-section shop-editor-section" aria-labelledby="shop-editor-heading">
@@ -266,6 +303,8 @@
     <script src="../authentication/auth-core.js"></script>
     <script src="../shared/shop-schedule/shop-schedule.js"></script>
     <script src="../shared/institutions/south-african-institutions.js"></script>
+    <script src="../shared/ratings/ratings-model.js"></script>
+    <script src="../shared/ratings/ratings-service.js"></script>
     <script src="./shop.js"></script>
 
     <script type="module">
@@ -274,7 +313,12 @@
         import {
             doc,
             getDoc,
+            getDocs,
             updateDoc,
+            collection,
+            query,
+            where,
+            setDoc,
             serverTimestamp
         } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
         import {
@@ -294,7 +338,12 @@
             firestoreFns: {
                 doc,
                 getDoc,
+                getDocs,
                 updateDoc,
+                collection,
+                query,
+                where,
+                setDoc,
                 serverTimestamp
             },
             storageFns: {

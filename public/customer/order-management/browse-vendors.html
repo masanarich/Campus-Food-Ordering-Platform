@@ -158,6 +158,8 @@
 
     <script src="../../shared/shop-schedule/shop-schedule.js"></script>
     <script src="../../shared/institutions/south-african-institutions.js"></script>
+    <script src="../../shared/ratings/ratings-model.js"></script>
+    <script src="../../shared/ratings/ratings-service.js"></script>
     <script src="./browse-vendors.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
@@ -165,6 +167,8 @@
         import {
             collection,
             getDocs,
+            doc,
+            getDoc,
             query,
             where
         } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
@@ -177,6 +181,8 @@
         window.firestoreFns = {
             collection,
             getDocs,
+            doc,
+            getDoc,
             query,
             where
         };

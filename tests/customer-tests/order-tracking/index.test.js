@@ -864,3 +864,169 @@ describe("customer/order-tracking/index.js - filter, sort, paginate", () => {
         expect(customerOrderTrackingPage.buildResultSummary(1, 1)).toBe("Showing all 1 order.");
     });
 });
+
+/**
+ * @jest-environment jsdom
+ */
+describe("customer/order-tracking/index.js - rating helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("canRateOrder returns true only for completed orders", () => {
+        expect(customerOrderTrackingPage.canRateOrder({ status: "completed" })).toBe(true);
+        expect(customerOrderTrackingPage.canRateOrder({ status: "ready" })).toBe(false);
+        expect(customerOrderTrackingPage.canRateOrder(null)).toBe(false);
+    });
+
+    test("getStarDisplay produces ★/☆ glyphs for any rating", () => {
+        expect(customerOrderTrackingPage.getStarDisplay(0)).toBe("☆☆☆☆☆");
+        expect(customerOrderTrackingPage.getStarDisplay(3)).toBe("★★★☆☆");
+        expect(customerOrderTrackingPage.getStarDisplay(5)).toBe("★★★★★");
+        // Out-of-range clamps to bounds rather than overflowing.
+        expect(customerOrderTrackingPage.getStarDisplay(7)).toBe("★★★★★");
+    });
+
+    test("buildRatingButton attaches order id and the open-rate-modal data-action", () => {
+        const btn = customerOrderTrackingPage.buildRatingButton({ orderId: "abc" });
+        expect(btn.tagName).toBe("BUTTON");
+        expect(btn.getAttribute("data-action")).toBe("open-rate-modal");
+        expect(btn.getAttribute("data-order-id")).toBe("abc");
+        expect(btn.textContent).toBe("Rate Order");
+    });
+
+    test("buildRatingModal returns the same dialog on repeated calls (idempotent)", () => {
+        const first = customerOrderTrackingPage.buildRatingModal();
+        const second = customerOrderTrackingPage.buildRatingModal();
+        expect(first).toBe(second);
+        expect(document.querySelectorAll("#rating-modal").length).toBe(1);
+    });
+
+    test("renderStarPicker draws 5 radio inputs and pre-selects the current value", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        customerOrderTrackingPage.renderStarPicker(host, 3, "vendorRating");
+        const inputs = host.querySelectorAll("input[type='radio']");
+        expect(inputs.length).toBe(5);
+        const checked = host.querySelector("input[type='radio']:checked");
+        expect(checked.value).toBe("3");
+    });
+
+    test("fillRatingModal renders the order items in the per-item rating list", () => {
+        const dialog = customerOrderTrackingPage.fillRatingModal({
+            orderId: "abc-12345678",
+            vendorName: "Burger Hut",
+            items: [
+                { menuItemId: "m1", name: "Burger" },
+                { menuItemId: "m2", name: "Shake" }
+            ]
+        }, null);
+
+        const rows = dialog.querySelectorAll(".rating-item-row");
+        expect(rows.length).toBe(2);
+        expect(rows[0].dataset.menuItemId).toBe("m1");
+        expect(rows[1].dataset.menuItemName).toBe("Shake");
+    });
+
+    test("fillRatingModal pre-fills the form when editing an existing review", () => {
+        const dialog = customerOrderTrackingPage.fillRatingModal({
+            orderId: "abc-12345678",
+            vendorName: "Burger Hut",
+            items: [{ menuItemId: "m1", name: "Burger" }]
+        }, {
+            vendorRating: 4,
+            vendorComment: "Tasty",
+            isAnonymous: true,
+            itemRatings: [{ menuItemId: "m1", rating: 5, comment: "Loved it" }]
+        });
+
+        expect(dialog.querySelector("#rating-vendor-comment").value).toBe("Tasty");
+        expect(dialog.querySelector("#rating-anonymous").checked).toBe(true);
+        expect(dialog.querySelector("#rating-modal-heading").textContent).toBe("Update your rating");
+        expect(dialog.querySelector('input[name="vendorRating"]:checked').value).toBe("4");
+    });
+
+    test("readRatingFormValues reads the chosen vendor rating + per-item ratings + comments", () => {
+        const order = {
+            orderId: "abc",
+            vendorName: "Burger Hut",
+            items: [{ menuItemId: "m1", name: "Burger" }]
+        };
+        const dialog = customerOrderTrackingPage.fillRatingModal(order, null);
+        // Manually select 5 stars and fill comment fields.
+        dialog.querySelector('input[name="vendorRating"][value="5"]').checked = true;
+        dialog.querySelector("#rating-vendor-comment").value = "Excellent";
+        dialog.querySelector('input[name="itemRating-0"][value="4"]').checked = true;
+        dialog.querySelector('input[name="itemComment-0"]').value = "Juicy";
+        dialog.querySelector("#rating-anonymous").checked = true;
+
+        const values = customerOrderTrackingPage.readRatingFormValues(dialog, order);
+        expect(values).toEqual({
+            vendorRating: 5,
+            vendorComment: "Excellent",
+            isAnonymous: true,
+            itemRatings: [{
+                menuItemId: "m1",
+                name: "Burger",
+                rating: 4,
+                comment: "Juicy"
+            }]
+        });
+    });
+});
+
+describe("customer/order-tracking/index.js - createOrderCard with existing review", () => {
+    test("a completed order with an existing review shows the rating summary + Edit button", () => {
+        const order = {
+            orderId: "abc-12345678",
+            vendorName: "Burger Hut",
+            status: "completed",
+            paymentStatus: "paid",
+            total: 100,
+            items: []
+        };
+
+        const card = customerOrderTrackingPage.createOrderCard(order, {
+            existingReviews: {
+                "abc-12345678": { vendorRating: 5, vendorComment: "Great" }
+            }
+        });
+
+        expect(card.querySelector(".tracking-order-rating-summary")).not.toBeNull();
+        const rateButton = card.querySelector('button[data-action="open-rate-modal"]');
+        expect(rateButton).not.toBeNull();
+        expect(rateButton.textContent).toBe("Edit your rating");
+        expect(rateButton.getAttribute("data-has-review")).toBe("true");
+    });
+
+    test("a completed order without a review shows the Rate Order button only", () => {
+        const order = {
+            orderId: "abc-22222222",
+            vendorName: "Burger Hut",
+            status: "completed",
+            paymentStatus: "paid",
+            total: 100,
+            items: []
+        };
+
+        const card = customerOrderTrackingPage.createOrderCard(order, {});
+        expect(card.querySelector(".tracking-order-rating-summary")).toBeNull();
+        const rateButton = card.querySelector('button[data-action="open-rate-modal"]');
+        expect(rateButton).not.toBeNull();
+        expect(rateButton.textContent).toBe("Rate Order");
+    });
+
+    test("non-completed orders do not get a Rate button", () => {
+        const order = {
+            orderId: "abc",
+            vendorName: "Burger Hut",
+            status: "ready",
+            paymentStatus: "paid",
+            total: 100,
+            items: []
+        };
+
+        const card = customerOrderTrackingPage.createOrderCard(order, {});
+        expect(card.querySelector('button[data-action="open-rate-modal"]')).toBeNull();
+    });
+});

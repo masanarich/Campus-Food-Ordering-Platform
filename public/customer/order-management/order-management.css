@@ -1192,3 +1192,100 @@ body.customer-portal [hidden] {
         width: 100%;
     }
 }
+
+/* Vendor rating chips on browse-vendors cards */
+.customer-portal .vendor-rating .vendor-rating-stars {
+    color: var(--order-accent, #c86c18);
+    letter-spacing: 0.15em;
+    margin-right: 0.4rem;
+}
+
+.customer-portal .vendor-rating-empty {
+    margin: 0;
+    color: var(--order-text-muted, #9a7f72);
+    font-style: italic;
+}
+
+/* Menu item rating chip + reviews disclosure */
+.customer-portal .menu-item-rating {
+    margin: 0;
+    color: var(--order-text);
+    font-weight: 600;
+}
+
+.customer-portal .menu-item-rating-stars {
+    color: var(--order-accent, #c86c18);
+    letter-spacing: 0.12em;
+    margin-right: 0.35rem;
+}
+
+.customer-portal .menu-item-rating-empty {
+    color: var(--order-text-muted, #9a7f72);
+    font-style: italic;
+}
+
+.customer-portal .menu-item-reviews {
+    margin: 0.35rem 0 0;
+    border: 1px solid rgba(127, 90, 67, 0.14);
+    border-radius: var(--order-radius-md, 0.9rem);
+    padding: 0.4rem 0.6rem;
+    background: rgba(255, 252, 247, 0.7);
+}
+
+.customer-portal .menu-item-reviews summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--order-accent-dark);
+    list-style: none;
+}
+
+.customer-portal .menu-item-reviews summary::-webkit-details-marker {
+    display: none;
+}
+
+.customer-portal .menu-item-reviews summary::before {
+    content: "▸ ";
+    margin-right: 0.25rem;
+}
+
+.customer-portal .menu-item-reviews[open] summary::before {
+    content: "▾ ";
+}
+
+.customer-portal .menu-item-reviews-list {
+    list-style: none;
+    margin: 0.45rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.customer-portal .menu-item-review-entry {
+    border-top: 1px solid rgba(127, 90, 67, 0.1);
+    padding-top: 0.4rem;
+}
+
+.customer-portal .menu-item-review-entry:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.customer-portal .menu-item-review-head {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--order-text);
+}
+
+.customer-portal .menu-item-review-stars {
+    color: var(--order-accent, #c86c18);
+    letter-spacing: 0.1em;
+    margin-left: 0.35rem;
+}
+
+.customer-portal .menu-item-review-body {
+    margin: 0.15rem 0 0;
+    color: var(--order-text-soft);
+    font-style: italic;
+    font-size: 0.92rem;
+}

@@ -1126,3 +1126,90 @@ describe("initializeVendorShopPage entry point", () => {
         expect(deps.authService.getCurrentUser).toHaveBeenCalled();
     });
 });
+
+// =====================================================================
+// Customer reviews panel on vendor/shop page
+// =====================================================================
+
+describe("vendor/shop: customer reviews panel", () => {
+    beforeEach(() => {
+        // Minimal DOM that matches the elements referenced by renderReviewsPanel.
+        document.body.innerHTML = `
+            <main>
+                <output id="shop-rating-average">No ratings yet</output>
+                <p id="shop-rating-stars">☆☆☆☆☆</p>
+                <p id="shop-rating-count">0 reviews</p>
+                <p id="shop-reviews-status">Loading...</p>
+                <ul id="shop-rating-distribution-list">
+                    <li><strong>5 stars</strong> <output data-distribution-bucket="5">0</output></li>
+                    <li><strong>4 stars</strong> <output data-distribution-bucket="4">0</output></li>
+                    <li><strong>3 stars</strong> <output data-distribution-bucket="3">0</output></li>
+                    <li><strong>2 stars</strong> <output data-distribution-bucket="2">0</output></li>
+                    <li><strong>1 star</strong> <output data-distribution-bucket="1">0</output></li>
+                </ul>
+                <ul id="shop-reviews-list"></ul>
+            </main>
+        `;
+    });
+
+    function buildPageInstance(options = {}) {
+        // We don't need any of the form fields here — only the renderer.
+        const deps = {
+            authService: {
+                getCurrentUser: () => ({ uid: "vendor-1" }),
+                getCurrentUserProfile: async () => ({ uid: "vendor-1" })
+            },
+            db: {},
+            storage: {},
+            firestoreFns: {},
+            storageFns: {},
+            ...options
+        };
+        return createVendorShopPage(deps);
+    }
+
+    test("renderReviewsPanel shows 'no ratings yet' state when reviews are empty", () => {
+        const page = buildPageInstance();
+        page.renderReviewsPanel([]);
+
+        expect(document.getElementById("shop-rating-average").textContent).toBe("No ratings yet");
+        expect(document.getElementById("shop-rating-count").textContent).toBe("0 reviews");
+        expect(document.getElementById("shop-reviews-list").querySelector(".shop-reviews-empty"))
+            .not.toBeNull();
+    });
+
+    test("renderReviewsPanel computes summary + distribution + list from review data", () => {
+        const page = buildPageInstance();
+        page.renderReviewsPanel([
+            {
+                reviewId: "r1",
+                vendorRating: 5,
+                vendorComment: "Loved it",
+                customerName: "Alice",
+                createdAt: "2026-05-22T10:00:00Z",
+                itemRatings: [{ menuItemId: "burger", name: "Burger", rating: 5 }]
+            },
+            {
+                reviewId: "r2",
+                vendorRating: 3,
+                isAnonymous: true,
+                customerName: "Bob",
+                createdAt: "2026-05-21T10:00:00Z"
+            }
+        ]);
+
+        // Average = (5+3)/2 = 4.0
+        expect(document.getElementById("shop-rating-average").textContent).toBe("4.0 / 5");
+        expect(document.getElementById("shop-rating-count").textContent).toBe("2 reviews");
+
+        const fiveBucket = document.querySelector('output[data-distribution-bucket="5"]');
+        expect(fiveBucket.textContent).toBe("1");
+
+        const cards = document.querySelectorAll(".shop-review-card");
+        expect(cards.length).toBe(2);
+        // Newest review is rendered first.
+        expect(cards[0].querySelector(".shop-review-head strong").textContent).toBe("Alice");
+        // Anonymous review shows the masked display name.
+        expect(cards[1].querySelector(".shop-review-head strong").textContent).toBe("Anonymous student");
+    });
+});

@@ -1967,3 +1967,80 @@ describe("customer/order-management/browse-vendors.js - init with disableAutoRef
         }
     });
 });
+
+// =====================================================================
+// Ratings merge + on-card rating chip
+// =====================================================================
+
+describe("customer/browse-vendors: ratings merge + rating chip on cards", () => {
+    test("mergeRatingsIntoVendors attaches average + count from vendorReviews", async () => {
+        const ratingsModel = require("../../../public/shared/ratings/ratings-model.js");
+        const fakeRatingsService = {
+            getReviewsByVendorIds: jest.fn(async () => [
+                { vendorUid: "v1", vendorRating: 5 },
+                { vendorUid: "v1", vendorRating: 3 },
+                { vendorUid: "v2", vendorRating: 4 }
+            ])
+        };
+
+        const merged = await customerBrowseVendors.mergeRatingsIntoVendors(
+            [
+                { uid: "v1", businessName: "Burger Hut" },
+                { uid: "v2", businessName: "Pizza Place" },
+                { uid: "v3", businessName: "Empty Shop" }
+            ],
+            { db: {}, firestoreFns: {}, ratingsService: fakeRatingsService, ratingsModel }
+        );
+
+        const burger = merged.find(function find(v) { return v.uid === "v1"; });
+        const empty = merged.find(function find(v) { return v.uid === "v3"; });
+
+        expect(burger.ratingCount).toBe(2);
+        expect(burger.ratingAverage).toBe(4); // (5 + 3) / 2
+        expect(burger.rating).toBe(4);
+        expect(empty.ratingCount).toBe(0);
+        expect(empty.ratingSummaryText).toBe("No ratings yet");
+    });
+
+    test("mergeRatingsIntoVendors short-circuits when the service is unavailable", async () => {
+        const result = await customerBrowseVendors.mergeRatingsIntoVendors(
+            [{ uid: "v1" }],
+            { db: null, firestoreFns: {}, ratingsService: null, ratingsModel: null }
+        );
+        expect(result).toEqual([{ uid: "v1" }]);
+    });
+
+    test("createVendorCard renders the rating chip with stars and review count", () => {
+        document.body.innerHTML = "";
+        const vendor = createMockVendor({
+            uid: "v1",
+            businessName: "Burger Hut",
+            ratingAverage: 4.3,
+            ratingCount: 12
+        });
+
+        const card = customerBrowseVendors.createVendorCard(vendor);
+        document.body.appendChild(card);
+
+        const rating = card.querySelector(".vendor-rating");
+        expect(rating).not.toBeNull();
+        expect(rating.textContent).toContain("4.3");
+        expect(rating.textContent).toContain("(12 reviews)");
+    });
+
+    test("createVendorCard shows 'No ratings yet' when ratingCount is 0", () => {
+        document.body.innerHTML = "";
+        const vendor = createMockVendor({
+            uid: "v2",
+            businessName: "Pizza Place",
+            rating: 0,
+            ratingCount: 0,
+            ratingSummaryText: "No ratings yet"
+        });
+
+        const card = customerBrowseVendors.createVendorCard(vendor);
+        const empty = card.querySelector(".vendor-rating-empty");
+        expect(empty).not.toBeNull();
+        expect(empty.textContent).toBe("No ratings yet");
+    });
+});

@@ -31,6 +31,34 @@
         return null;
     }
 
+    function resolveRatingsModel() {
+        if (typeof globalScope !== "undefined" && globalScope.ratingsModel) {
+            return globalScope.ratingsModel;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function resolveRatingsService() {
+        if (typeof globalScope !== "undefined" && globalScope.ratingsService) {
+            return globalScope.ratingsService;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     const scheduleModule = resolveShopSchedule();
 
     function computeVendorOpenState(vendor, nowDate) {
@@ -489,6 +517,60 @@
         });
     }
 
+    async function mergeRatingsIntoVendors(vendors, deps = {}) {
+        // Pulls all vendor reviews in one query and computes per-vendor
+        // averages + counts. Falls back to whatever rating the user doc
+        // already carries when the ratings service isn't wired up (e.g. in
+        // tests that don't pass it).
+        const safeVendors = Array.isArray(vendors) ? vendors.slice() : [];
+        const ratingsService = deps.ratingsService || resolveRatingsService();
+        const ratingsModel = deps.ratingsModel || resolveRatingsModel();
+
+        if (!ratingsService || !ratingsModel || !deps.db) {
+            return safeVendors;
+        }
+
+        const vendorUids = safeVendors.map(function getUid(v) {
+            return v && v.uid;
+        }).filter(Boolean);
+
+        if (vendorUids.length === 0) {
+            return safeVendors;
+        }
+
+        try {
+            const reviews = await ratingsService.getReviewsByVendorIds({
+                db: deps.db,
+                firestoreFns: deps.firestoreFns
+            }, vendorUids);
+            const grouped = ratingsModel.indexReviewsByVendor(reviews);
+
+            return safeVendors.map(function attach(vendor) {
+                const list = grouped.get(vendor.uid) || [];
+                const summary = ratingsModel.summarizeReviews(list);
+                if (summary.count === 0) {
+                    // Preserve any pre-existing rating value but make ratingCount explicit.
+                    return Object.assign({}, vendor, {
+                        ratingCount: 0,
+                        ratingAverage: 0,
+                        ratingSummaryText: "No ratings yet"
+                    });
+                }
+                return Object.assign({}, vendor, {
+                    rating: summary.average,
+                    ratingAverage: summary.average,
+                    ratingCount: summary.count,
+                    ratingSummaryText: ratingsModel.formatRatingDisplay(summary.average, summary.count)
+                });
+            });
+        } catch (error) {
+            if (typeof console !== "undefined" && console.warn) {
+                console.warn("Failed to load vendor reviews:", error);
+            }
+            return safeVendors;
+        }
+    }
+
     async function fetchApprovedVendors(options = {}) {
         const db = options.db || resolveFirestore(options.firestore);
         const firestoreFns = resolveFirestoreFns(options.firestoreFns);
@@ -695,18 +777,31 @@
         body.appendChild(metaList);
         body.appendChild(descriptionLine);
 
-        const hasRating = Number.isFinite(Number(safeVendor.rating)) && Number(safeVendor.rating) > 0;
+        const ratingValue = Number(safeVendor.ratingAverage || safeVendor.rating);
+        const ratingCount = Number(safeVendor.ratingCount);
+        const hasRating = Number.isFinite(ratingValue) && ratingValue > 0;
+        const hasRatingCount = Number.isFinite(ratingCount) && ratingCount > 0;
         const hasOrders = Number.isFinite(Number(safeVendor.totalOrders)) && Number(safeVendor.totalOrders) > 0;
         let statsSection = null;
 
-        if (hasRating || hasOrders) {
+        if (hasRating || hasOrders || hasRatingCount || ratingCount === 0) {
             statsSection = globalScope.document.createElement("section");
             statsSection.className = "vendor-stats";
 
             if (hasRating) {
                 const ratingLine = globalScope.document.createElement("p");
                 ratingLine.className = "vendor-rating";
-                ratingLine.innerHTML = `Rating: <strong>${Number(safeVendor.rating).toFixed(1)}</strong>`;
+                const stars = "★".repeat(Math.round(ratingValue)) + "☆".repeat(Math.max(0, 5 - Math.round(ratingValue)));
+                const countText = hasRatingCount ? ` (${ratingCount} review${ratingCount === 1 ? "" : "s"})` : "";
+                ratingLine.innerHTML = `<output class="vendor-rating-stars" aria-hidden="true">${stars}</output> <strong>${ratingValue.toFixed(1)}</strong> / 5${countText}`;
+                ratingLine.setAttribute("aria-label", `Rated ${ratingValue.toFixed(1)} out of 5${countText}`);
+                statsSection.appendChild(ratingLine);
+            } else if (ratingCount === 0 || (safeVendor.ratingSummaryText === "No ratings yet")) {
+                // Show an explicit "no ratings yet" line when we know there
+                // genuinely are no reviews (rather than just missing data).
+                const ratingLine = globalScope.document.createElement("p");
+                ratingLine.className = "vendor-rating vendor-rating-empty";
+                ratingLine.textContent = "No ratings yet";
                 statsSection.appendChild(ratingLine);
             }
 
@@ -1461,8 +1556,18 @@
             };
         }
 
+        // Merge in live rating data BEFORE the controller sees the vendor list
+        // so the "Highest rated" sort and the on-card rating chip show real
+        // numbers rather than 0s.
+        const vendorsWithRatings = await mergeRatingsIntoVendors(result.vendors, {
+            db,
+            firestoreFns,
+            ratingsService: options.ratingsService || resolveRatingsService(),
+            ratingsModel: options.ratingsModel || resolveRatingsModel()
+        });
+
         const controller = createBrowseVendorsController(elements);
-        controller.setVendors(result.vendors);
+        controller.setVendors(vendorsWithRatings);
         attachControlListeners(controller, elements);
 
         // Auto-refresh the open/closed state every minute so customers
@@ -1520,6 +1625,9 @@
         resolveAuthFns,
         resolveFirestoreFns,
         resolveShopSchedule,
+        resolveRatingsModel,
+        resolveRatingsService,
+        mergeRatingsIntoVendors,
         computeVendorOpenState,
         isVendorOpen,
         getFallbackRoutes,

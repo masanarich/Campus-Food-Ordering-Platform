@@ -534,3 +534,156 @@
         width: 100%;
     }
 }
+
+/* ============================================================================
+   Customer rating panel on vendor shop page
+   ============================================================================ */
+.shop-rating-summary-card {
+    background: linear-gradient(135deg, rgba(245, 232, 218, 0.85), rgba(255, 253, 249, 0.95));
+    border-color: rgba(197, 106, 26, 0.32);
+}
+
+.shop-rating-average {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--accent-dark);
+    margin: 0.1rem 0 0.2rem;
+}
+
+.shop-rating-stars {
+    margin: 0;
+    color: var(--accent);
+    font-size: 1.2rem;
+    letter-spacing: 0.15em;
+}
+
+.shop-rating-count {
+    margin: 0.2rem 0 0;
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.shop-reviews-section {
+    grid-column: 1 / -1;
+}
+
+.shop-reviews-status {
+    margin: 0.85rem 0 0.5rem;
+    color: var(--text-soft);
+}
+
+.shop-reviews-status[data-state="error"] {
+    color: var(--danger-text);
+    font-weight: 700;
+}
+
+.shop-rating-distribution {
+    margin-top: 0.6rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(255, 253, 249, 0.7);
+}
+
+.shop-rating-distribution h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+}
+
+.shop-rating-distribution-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.45rem 1rem;
+}
+
+.shop-rating-distribution-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.shop-rating-distribution-list output {
+    color: var(--accent-dark);
+    font-weight: 800;
+}
+
+.shop-reviews-list-heading {
+    margin: 1.2rem 0 0.55rem;
+    font-size: 1.05rem;
+}
+
+.shop-reviews-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.85rem;
+}
+
+.shop-review-card {
+    padding: 0.95rem 1.05rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(255, 253, 249, 0.85);
+}
+
+.shop-review-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.shop-review-head strong {
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.shop-review-stars {
+    color: var(--accent);
+    letter-spacing: 0.15em;
+}
+
+.shop-review-rating {
+    margin: 0.25rem 0 0;
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.shop-review-comment {
+    margin: 0.45rem 0 0;
+    color: var(--text-soft);
+    font-style: italic;
+}
+
+.shop-review-items-list {
+    list-style: none;
+    margin: 0.45rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--text);
+    font-size: 0.94rem;
+}
+
+.shop-review-items-list li strong {
+    margin-right: 0.35rem;
+}
+
+.shop-reviews-empty {
+    margin: 0;
+    padding: 0.85rem 1.05rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    background: rgba(255, 253, 249, 0.55);
+    color: var(--text-muted);
+}

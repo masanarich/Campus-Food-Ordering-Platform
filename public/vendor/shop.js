@@ -1652,6 +1652,169 @@
             bindScheduleEditor();
         }
 
+        function resolveRatingsModuleForShop(name) {
+            if (typeof globalScope !== "undefined" && globalScope[name]) {
+                return globalScope[name];
+            }
+            if (typeof require === "function") {
+                try {
+                    return require(
+                        name === "ratingsService"
+                            ? "../shared/ratings/ratings-service.js"
+                            : "../shared/ratings/ratings-model.js"
+                    );
+                } catch (error) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        function renderReviewsPanel(reviews) {
+            // Pure DOM updates — keeps the panel rendering deterministic so
+            // tests can drive it directly without going through the loader.
+            const ratingsModel = resolveRatingsModuleForShop("ratingsModel");
+            if (!ratingsModel) {
+                return;
+            }
+
+            const safeReviews = Array.isArray(reviews) ? reviews : [];
+            const summary = ratingsModel.summarizeReviews(safeReviews);
+
+            const averageOutput = document.getElementById("shop-rating-average");
+            const starsEl = document.getElementById("shop-rating-stars");
+            const countEl = document.getElementById("shop-rating-count");
+            const statusEl = document.getElementById("shop-reviews-status");
+            const listEl = document.getElementById("shop-reviews-list");
+
+            if (averageOutput) {
+                averageOutput.textContent = summary.count > 0
+                    ? `${summary.average.toFixed(1)} / 5`
+                    : "No ratings yet";
+            }
+
+            if (starsEl) {
+                const parts = ratingsModel.getStarSummaryParts(summary.average);
+                starsEl.textContent = parts.display;
+            }
+
+            if (countEl) {
+                countEl.textContent = summary.count === 1
+                    ? "1 review"
+                    : `${summary.count} reviews`;
+            }
+
+            if (statusEl) {
+                statusEl.textContent = summary.count === 0
+                    ? "No reviews yet."
+                    : `Showing the latest ${Math.min(summary.count, 10)} of ${summary.count} review${summary.count === 1 ? "" : "s"}.`;
+            }
+
+            // Distribution bars
+            [1, 2, 3, 4, 5].forEach(function fillBucket(star) {
+                const out = document.querySelector(`output[data-distribution-bucket="${star}"]`);
+                if (out) {
+                    out.textContent = String(summary.distribution[star] || 0);
+                }
+            });
+
+            if (!listEl) {
+                return;
+            }
+
+            listEl.innerHTML = "";
+
+            if (summary.count === 0) {
+                const empty = document.createElement("li");
+                empty.className = "shop-reviews-empty";
+                empty.textContent = "No reviews yet. Once your orders are completed, customers can rate them and the comments will appear here.";
+                listEl.appendChild(empty);
+                return;
+            }
+
+            const recent = ratingsModel.getRecentReviews(safeReviews, 10);
+            recent.forEach(function appendReview(review) {
+                const li = document.createElement("li");
+                li.className = "shop-review-card";
+
+                const head = document.createElement("header");
+                head.className = "shop-review-head";
+
+                const author = document.createElement("strong");
+                author.textContent = review.customerDisplayName;
+
+                const stars = document.createElement("output");
+                stars.className = "shop-review-stars";
+                stars.setAttribute("aria-hidden", "true");
+                const sp = ratingsModel.getStarSummaryParts(review.vendorRating);
+                stars.textContent = sp.display;
+
+                head.appendChild(author);
+                head.appendChild(stars);
+
+                const ratingLabel = document.createElement("p");
+                ratingLabel.className = "shop-review-rating";
+                ratingLabel.setAttribute("aria-label", `Rated ${review.vendorRating} out of 5`);
+                ratingLabel.textContent = `Overall: ${review.vendorRating}/5`;
+
+                li.appendChild(head);
+                li.appendChild(ratingLabel);
+
+                if (review.vendorComment) {
+                    const comment = document.createElement("p");
+                    comment.className = "shop-review-comment";
+                    comment.textContent = `"${review.vendorComment}"`;
+                    li.appendChild(comment);
+                }
+
+                if (review.itemRatings.length > 0) {
+                    const itemList = document.createElement("ul");
+                    itemList.className = "shop-review-items-list";
+                    review.itemRatings.forEach(function appendItem(item) {
+                        if (!item.name) return;
+                        const itemLi = document.createElement("li");
+                        const itemStars = item.rating
+                            ? ratingsModel.getStarSummaryParts(item.rating).display
+                            : "";
+                        const commentText = item.comment ? ` — "${item.comment}"` : "";
+                        itemLi.innerHTML = `<strong>${item.name}</strong> <output aria-hidden="true">${itemStars}</output>${commentText}`;
+                        itemList.appendChild(itemLi);
+                    });
+                    li.appendChild(itemList);
+                }
+
+                listEl.appendChild(li);
+            });
+        }
+
+        async function loadShopReviews() {
+            const ratingsService = resolveRatingsModuleForShop("ratingsService");
+            if (!ratingsService || !state.currentUser || !state.currentUser.uid) {
+                renderReviewsPanel([]);
+                return [];
+            }
+
+            try {
+                const reviews = await ratingsService.getReviewsForVendor({
+                    db,
+                    firestoreFns
+                }, state.currentUser.uid);
+                renderReviewsPanel(reviews);
+                return reviews;
+            } catch (error) {
+                if (typeof console !== "undefined" && console.warn) {
+                    console.warn("Failed to load vendor reviews:", error);
+                }
+                const statusEl = document.getElementById("shop-reviews-status");
+                if (statusEl) {
+                    statusEl.textContent = "Could not load reviews right now.";
+                    statusEl.dataset.state = "error";
+                }
+                renderReviewsPanel([]);
+                return [];
+            }
+        }
+
         async function initializeShopPage() {
             setStatus(DEFAULT_STATUS_MESSAGE, "info");
             setNote(DEFAULT_NOTE_MESSAGE);
@@ -1677,12 +1840,19 @@
                 return { success: false, error: loadResult.error || null };
             }
 
-            return { success: true, shop: loadResult.shop };
+            // Fire-and-forget the reviews panel — failures shouldn't block the
+            // rest of the page from finishing setup, but we await the promise
+            // for any caller that wants to verify the reviews rendered.
+            const reviews = await loadShopReviews();
+
+            return { success: true, shop: loadResult.shop, reviews };
         }
 
         return {
             initializeShopPage,
             loadShopProfile,
+            loadShopReviews,
+            renderReviewsPanel,
             saveShop,
             previewSelectedPhoto,
             removeSelectedPhoto,

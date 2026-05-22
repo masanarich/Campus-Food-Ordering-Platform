@@ -890,6 +890,69 @@ service cloud.firestore {
     }
 
     // -----------------------------------------------------------------
+    // /vendorReviews
+    //
+    // Customers leave one review per completed order via a composite ID
+    // (`{orderId}_{customerUid}`). Anyone signed in can read reviews so that
+    // averages can be shown on browse-vendors / browse-menu / shop pages.
+    // -----------------------------------------------------------------
+
+    function isReviewedOrderCustomer(orderId) {
+      // Tightly couple a review to an actual order the customer placed.
+      return signedIn() &&
+        exists(/databases/$(database)/documents/orders/$(orderId)) &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.customerUid == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.status == "completed";
+    }
+
+    function isValidReviewSubmission() {
+      return signedIn() &&
+        isActiveAccount() &&
+        request.resource.data.customerUid == request.auth.uid &&
+        request.resource.data.orderId is string &&
+        request.resource.data.orderId.size() > 0 &&
+        request.resource.data.vendorUid is string &&
+        request.resource.data.vendorUid.size() > 0 &&
+        request.resource.data.vendorRating is int &&
+        request.resource.data.vendorRating >= 1 &&
+        request.resource.data.vendorRating <= 5 &&
+        (
+          !("vendorComment" in request.resource.data) ||
+          (request.resource.data.vendorComment is string && request.resource.data.vendorComment.size() <= 500)
+        ) &&
+        (
+          !("itemRatings" in request.resource.data) ||
+          request.resource.data.itemRatings is list
+        ) &&
+        (
+          !("isAnonymous" in request.resource.data) ||
+          request.resource.data.isAnonymous is bool
+        );
+    }
+
+    function reviewImmutableFieldsPreserved() {
+      return request.resource.data.customerUid == resource.data.customerUid &&
+        request.resource.data.orderId == resource.data.orderId &&
+        request.resource.data.vendorUid == resource.data.vendorUid;
+    }
+
+    match /vendorReviews/{reviewId} {
+      allow get, list: if signedIn();
+
+      allow create: if isValidReviewSubmission() &&
+        isReviewedOrderCustomer(request.resource.data.orderId);
+
+      allow update: if signedIn() &&
+        isActiveAccount() &&
+        resource.data.customerUid == request.auth.uid &&
+        isValidReviewSubmission() &&
+        reviewImmutableFieldsPreserved();
+
+      allow delete: if isAdmin() ||
+        (signedIn() && resource.data.customerUid == request.auth.uid);
+    }
+
+    // -----------------------------------------------------------------
     // /notifications
     // -----------------------------------------------------------------
 

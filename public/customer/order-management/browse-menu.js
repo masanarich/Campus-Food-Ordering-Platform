@@ -9,6 +9,11 @@
     const MAX_VISIBLE_PAGE_BUTTONS = 5;
     const DEFAULT_PLATFORM_FEE_RATE = 0.1;
     let initInFlight = null;
+    // Module-level rating cache — populated once per vendor load in init() and
+    // consumed by createMenuItemCard without having to thread a parameter
+    // through every render entry point.
+    let menuItemReviewSummaries = {};
+    let menuItemReviewComments = {};
 
     // ==========================================
     // DEPENDENCY RESOLUTION
@@ -45,6 +50,84 @@
         }
 
         return null;
+    }
+
+    function resolveRatingsModel(explicit) {
+        if (explicit && typeof explicit.summarizeMenuItemReviews === "function") {
+            return explicit;
+        }
+        if (globalScope.ratingsModel && typeof globalScope.ratingsModel.summarizeMenuItemReviews === "function") {
+            return globalScope.ratingsModel;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function resolveRatingsService(explicit) {
+        if (explicit && typeof explicit.getReviewsForVendor === "function") {
+            return explicit;
+        }
+        if (globalScope.ratingsService && typeof globalScope.ratingsService.getReviewsForVendor === "function") {
+            return globalScope.ratingsService;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    async function loadMenuItemReviewSummaries(vendorUid, menuItems, deps = {}) {
+        // Cleared at the start so previous vendor's data never leaks across.
+        menuItemReviewSummaries = {};
+        menuItemReviewComments = {};
+
+        const ratingsModel = resolveRatingsModel(deps.ratingsModel);
+        const ratingsService = resolveRatingsService(deps.ratingsService);
+
+        if (!ratingsModel || !ratingsService || !vendorUid) {
+            return { summaries: menuItemReviewSummaries, comments: menuItemReviewComments };
+        }
+
+        let reviews = [];
+        try {
+            reviews = await ratingsService.getReviewsForVendor({
+                db: deps.db,
+                firestoreFns: deps.firestoreFns
+            }, vendorUid);
+        } catch (error) {
+            if (typeof console !== "undefined" && console.warn) {
+                console.warn("Failed to load menu reviews:", error);
+            }
+            return { summaries: menuItemReviewSummaries, comments: menuItemReviewComments };
+        }
+
+        const safeItems = Array.isArray(menuItems) ? menuItems : [];
+        safeItems.forEach(function summarize(item) {
+            const itemId = (item && (item.menuItemId || item.id)) || "";
+            if (!itemId) return;
+            menuItemReviewSummaries[itemId] = ratingsModel.summarizeMenuItemReviews(reviews, itemId);
+            menuItemReviewComments[itemId] = ratingsModel.collectMenuItemReviewComments(reviews, itemId, { limit: 25 });
+        });
+
+        return { summaries: menuItemReviewSummaries, comments: menuItemReviewComments, reviews };
+    }
+
+    function getMenuItemReviewSummary(menuItemId) {
+        return menuItemReviewSummaries[menuItemId] || null;
+    }
+
+    function getMenuItemReviewComments(menuItemId) {
+        return menuItemReviewComments[menuItemId] || [];
     }
 
     function resolveRecommendationModel(explicit) {
@@ -830,6 +913,61 @@
             section.appendChild(allergens);
         }
 
+        // Rating summary + comments for this menu item
+        const menuItemId = safeItem.menuItemId || safeItem.id || "";
+        const reviewSummary = menuItemId ? getMenuItemReviewSummary(menuItemId) : null;
+        const reviewComments = menuItemId ? getMenuItemReviewComments(menuItemId) : [];
+
+        if (reviewSummary) {
+            const ratingP = globalScope.document.createElement("p");
+            ratingP.className = "menu-item-rating";
+            if (reviewSummary.count > 0) {
+                const stars = "★".repeat(Math.round(reviewSummary.average)) +
+                    "☆".repeat(Math.max(0, 5 - Math.round(reviewSummary.average)));
+                ratingP.innerHTML = `<output class="menu-item-rating-stars" aria-hidden="true">${stars}</output> <strong>${reviewSummary.average.toFixed(1)}</strong> / 5 <small>(${reviewSummary.count} review${reviewSummary.count === 1 ? "" : "s"})</small>`;
+                ratingP.setAttribute("aria-label", `Rated ${reviewSummary.average.toFixed(1)} out of 5 across ${reviewSummary.count} reviews`);
+            } else {
+                ratingP.className += " menu-item-rating-empty";
+                ratingP.textContent = "No reviews yet";
+            }
+            section.appendChild(ratingP);
+
+            if (reviewComments.length > 0) {
+                const details = globalScope.document.createElement("details");
+                details.className = "menu-item-reviews";
+
+                const summary = globalScope.document.createElement("summary");
+                summary.textContent = `Read ${reviewComments.length} review${reviewComments.length === 1 ? "" : "s"}`;
+                details.appendChild(summary);
+
+                const list = globalScope.document.createElement("ul");
+                list.className = "menu-item-reviews-list";
+
+                reviewComments.forEach(function appendComment(entry) {
+                    const li = globalScope.document.createElement("li");
+                    li.className = "menu-item-review-entry";
+                    const head = globalScope.document.createElement("p");
+                    head.className = "menu-item-review-head";
+                    const ratingValue = Number(entry.rating);
+                    const headStars = Number.isFinite(ratingValue) && ratingValue > 0
+                        ? "★".repeat(ratingValue) + "☆".repeat(Math.max(0, 5 - ratingValue))
+                        : "";
+                    head.innerHTML = `<strong>${entry.customerDisplayName}</strong> <output class="menu-item-review-stars" aria-hidden="true">${headStars}</output>`;
+                    li.appendChild(head);
+                    if (entry.comment) {
+                        const body = globalScope.document.createElement("p");
+                        body.className = "menu-item-review-body";
+                        body.textContent = `"${entry.comment}"`;
+                        li.appendChild(body);
+                    }
+                    list.appendChild(li);
+                });
+
+                details.appendChild(list);
+                section.appendChild(details);
+            }
+        }
+
         // Price and actions
         const footer = globalScope.document.createElement("footer");
         footer.className = "menu-item-footer";
@@ -1593,6 +1731,15 @@
 
         const focusResult = applyRecommendedItemFocus(result.menuItems, recommendedItemId);
         renderCampusRecommendationNotice(campusRecommendationNotice, focusResult, vendorName);
+
+        // Fetch this vendor's reviews so each menu-item card can show its star
+        // average and let customers expand the review comments.
+        await loadMenuItemReviewSummaries(vendorUid, focusResult.menuItems, {
+            db: options.db,
+            firestoreFns: options.firestoreFns,
+            ratingsModel: options.ratingsModel,
+            ratingsService: options.ratingsService
+        });
 
         // Render the first page; pagination controls update state and re-render.
         const pageState = {

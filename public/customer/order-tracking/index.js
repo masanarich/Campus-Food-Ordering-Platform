@@ -142,6 +142,40 @@
         return null;
     }
 
+    function resolveRatingsModel(explicit) {
+        if (explicit && typeof explicit.validateReview === "function") {
+            return explicit;
+        }
+        if (globalScope.ratingsModel && typeof globalScope.ratingsModel.validateReview === "function") {
+            return globalScope.ratingsModel;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function resolveRatingsService(explicit) {
+        if (explicit && typeof explicit.submitReview === "function") {
+            return explicit;
+        }
+        if (globalScope.ratingsService && typeof globalScope.ratingsService.submitReview === "function") {
+            return globalScope.ratingsService;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     function resolveCheckoutQueries(explicitCheckoutQueries) {
         if (explicitCheckoutQueries && typeof explicitCheckoutQueries.fetchCustomerCheckouts === "function") {
             return explicitCheckoutQueries;
@@ -280,11 +314,24 @@
                     ? `R${paymentAmount.toFixed(2)}`
                     : `${paymentCurrency} ${paymentAmount.toFixed(2)}`);
 
+        const items = Array.isArray(safeOrder.items)
+            ? safeOrder.items.map(function mapItem(rawItem) {
+                const safeItem = rawItem && typeof rawItem === "object" ? rawItem : {};
+                return {
+                    menuItemId: normalizeText(safeItem.menuItemId || safeItem.id || safeItem.productId),
+                    name: normalizeText(safeItem.name || safeItem.itemName || safeItem.title) || "Item",
+                    quantity: Number.isFinite(Number(safeItem.quantity)) ? Number(safeItem.quantity) : 1,
+                    photoURL: normalizeText(safeItem.photoURL || safeItem.imageUrl)
+                };
+            })
+            : [];
+
         return {
             orderId: normalizeText(safeOrder.orderId || safeOrder.id),
             vendorUid: normalizeText(safeOrder.vendorUid),
             vendorName: normalizeText(safeOrder.vendorName) || "Unknown Vendor",
             itemCount: Number.isFinite(Number(safeOrder.itemCount)) ? Number(safeOrder.itemCount) : 0,
+            items,
             total: Number.isFinite(Number(safeOrder.total)) ? Number(safeOrder.total) : 0,
             totalText,
             status: normalizedStatus,
@@ -298,7 +345,9 @@
             paymentCurrency,
             paymentReference: normalizeText(safeOrder.paymentReference),
             paymentProvider: normalizeText(safeOrder.paymentProvider) || "paystack",
-            updatedAt: safeOrder.updatedAt || safeOrder.createdAt || null
+            updatedAt: safeOrder.updatedAt || safeOrder.createdAt || null,
+            customerUid: normalizeText(safeOrder.customerUid),
+            customerName: normalizeText(safeOrder.customerName)
         };
     }
 
@@ -603,6 +652,52 @@
         return url.toString();
     }
 
+    function canRateOrder(order) {
+        if (!order || typeof order !== "object") {
+            return false;
+        }
+        const status = normalizeText(order.status).toLowerCase();
+        return status === "completed";
+    }
+
+    function getStarDisplay(rating, max = 5) {
+        const safe = Math.max(0, Math.min(max, Math.round(Number(rating) || 0)));
+        return "★".repeat(safe) + "☆".repeat(max - safe);
+    }
+
+    function buildRatingButton(order) {
+        // The button gets a fixed dataset; the click handler attached on the
+        // container delegates to the modal so we don't need a closure per row.
+        const button = globalScope.document.createElement("button");
+        button.type = "button";
+        button.className = "button-secondary tracking-order-rate-button";
+        button.setAttribute("data-action", "open-rate-modal");
+        button.setAttribute("data-order-id", order.orderId);
+        button.textContent = "Rate Order";
+        return button;
+    }
+
+    function buildExistingReviewBadge(order, existingReview) {
+        // When a customer revisits a completed order they've already rated,
+        // we surface the stars they gave plus an "Edit" affordance.
+        const wrap = globalScope.document.createElement("section");
+        wrap.className = "tracking-order-rating-summary";
+
+        const stars = globalScope.document.createElement("p");
+        stars.className = "tracking-order-rating-stars";
+        stars.textContent = `Your rating: ${getStarDisplay(existingReview.vendorRating)} (${existingReview.vendorRating}/5)`;
+        wrap.appendChild(stars);
+
+        if (existingReview.vendorComment) {
+            const comment = globalScope.document.createElement("p");
+            comment.className = "tracking-order-rating-comment";
+            comment.textContent = `"${existingReview.vendorComment}"`;
+            wrap.appendChild(comment);
+        }
+
+        return wrap;
+    }
+
     function canReportIssueOnOrder(order) {
         if (!order || typeof order !== "object") {
             return false;
@@ -671,6 +766,21 @@
 
         footer.appendChild(detailItem);
 
+        if (canRateOrder(order)) {
+            const existingReview = options.existingReviews && options.existingReviews[order.orderId]
+                ? options.existingReviews[order.orderId]
+                : null;
+
+            const rateItem = globalScope.document.createElement("li");
+            const rateButton = buildRatingButton(order);
+            if (existingReview) {
+                rateButton.textContent = "Edit your rating";
+                rateButton.setAttribute("data-has-review", "true");
+            }
+            rateItem.appendChild(rateButton);
+            footer.appendChild(rateItem);
+        }
+
         if (canReportIssueOnOrder(order)) {
             const reportItem = globalScope.document.createElement("li");
             const reportLink = globalScope.document.createElement("a");
@@ -694,6 +804,15 @@
             paymentReferenceLine.className = "tracking-order-payment-reference";
             paymentReferenceLine.textContent = `Reference: ${order.paymentReference}`;
             article.appendChild(paymentReferenceLine);
+        }
+
+        if (canRateOrder(order)) {
+            const existingReview = options.existingReviews && options.existingReviews[order.orderId]
+                ? options.existingReviews[order.orderId]
+                : null;
+            if (existingReview && existingReview.vendorRating) {
+                article.appendChild(buildExistingReviewBadge(order, existingReview));
+            }
         }
 
         article.appendChild(footer);
@@ -1106,6 +1225,376 @@
         }
     }
 
+    function buildRatingModal() {
+        // Reuses one modal across all cards. We update its contents per-order
+        // on open and parse the form on submit. The dialog is appended once on
+        // first use to keep tear-down simple.
+        let dialog = globalScope.document.getElementById("rating-modal");
+        if (dialog) {
+            return dialog;
+        }
+        dialog = globalScope.document.createElement("dialog");
+        dialog.id = "rating-modal";
+        dialog.className = "rating-modal";
+        dialog.innerHTML = ""
+            + '<form id="rating-form" class="rating-modal-card" method="dialog" novalidate>'
+            +   '<header class="rating-modal-head">'
+            +     '<h3 id="rating-modal-heading">Rate your order</h3>'
+            +     '<p id="rating-modal-subheading" class="rating-modal-subheading"></p>'
+            +     '<button id="rating-modal-close" type="button" class="button-secondary">Close</button>'
+            +   '</header>'
+            +   '<section class="rating-modal-body">'
+            +     '<fieldset class="rating-vendor-block">'
+            +       '<legend>How was the shop overall?</legend>'
+            +       '<section id="rating-vendor-stars" class="rating-stars" aria-label="Shop star rating"></section>'
+            +       '<label class="rating-comment-label" for="rating-vendor-comment">'
+            +         '<strong>Comment (optional)</strong>'
+            +         '<textarea id="rating-vendor-comment" name="vendorComment" maxlength="500" rows="3"></textarea>'
+            +       '</label>'
+            +     '</fieldset>'
+            +     '<fieldset class="rating-items-block">'
+            +       '<legend>Rate the items you ordered</legend>'
+            +       '<ul id="rating-items-list" class="rating-items-list"></ul>'
+            +     '</fieldset>'
+            +     '<label class="rating-anonymous-row" for="rating-anonymous">'
+            +       '<input id="rating-anonymous" name="isAnonymous" type="checkbox">'
+            +       '<strong>Post this review anonymously</strong>'
+            +     '</label>'
+            +     '<p id="rating-error" class="rating-error" aria-live="polite" hidden></p>'
+            +   '</section>'
+            +   '<menu class="rating-modal-actions action-menu">'
+            +     '<li><button id="rating-submit" type="submit" class="button-primary">Submit rating</button></li>'
+            +     '<li><button id="rating-cancel" type="button" class="button-secondary">Cancel</button></li>'
+            +   '</menu>'
+            + '</form>';
+
+        globalScope.document.body.appendChild(dialog);
+        return dialog;
+    }
+
+    function renderStarPicker(container, currentValue, namePrefix) {
+        if (!container) {
+            return;
+        }
+        container.innerHTML = "";
+        const max = 5;
+        for (let i = 1; i <= max; i += 1) {
+            const label = globalScope.document.createElement("label");
+            label.className = "rating-star-button";
+            const input = globalScope.document.createElement("input");
+            input.type = "radio";
+            input.name = namePrefix;
+            input.value = String(i);
+            input.className = "rating-star-input";
+            if (currentValue === i) {
+                input.checked = true;
+            }
+            const symbol = globalScope.document.createElement("output");
+            symbol.className = "rating-star-symbol";
+            symbol.textContent = "★";
+            symbol.setAttribute("aria-hidden", "true");
+            const srLabel = globalScope.document.createElement("small");
+            srLabel.className = "rating-star-sr";
+            srLabel.textContent = `${i} star${i === 1 ? "" : "s"}`;
+            label.appendChild(input);
+            label.appendChild(symbol);
+            label.appendChild(srLabel);
+            container.appendChild(label);
+        }
+    }
+
+    function fillRatingModal(order, existingReview) {
+        const dialog = buildRatingModal();
+        const heading = dialog.querySelector("#rating-modal-heading");
+        const sub = dialog.querySelector("#rating-modal-subheading");
+        const vendorStars = dialog.querySelector("#rating-vendor-stars");
+        const commentBox = dialog.querySelector("#rating-vendor-comment");
+        const itemsList = dialog.querySelector("#rating-items-list");
+        const anonymousBox = dialog.querySelector("#rating-anonymous");
+        const errorEl = dialog.querySelector("#rating-error");
+
+        if (heading) {
+            heading.textContent = existingReview ? "Update your rating" : "Rate your order";
+        }
+        if (sub) {
+            sub.textContent = `${order.vendorName} — order ${order.orderId.slice(0, 8)}`;
+        }
+        if (errorEl) {
+            errorEl.hidden = true;
+            errorEl.textContent = "";
+        }
+
+        renderStarPicker(
+            vendorStars,
+            existingReview ? Number(existingReview.vendorRating) : null,
+            "vendorRating"
+        );
+
+        if (commentBox) {
+            commentBox.value = existingReview ? String(existingReview.vendorComment || "") : "";
+        }
+
+        if (anonymousBox) {
+            anonymousBox.checked = !!(existingReview && existingReview.isAnonymous);
+        }
+
+        if (itemsList) {
+            itemsList.innerHTML = "";
+            const safeItems = Array.isArray(order.items) ? order.items : [];
+
+            if (safeItems.length === 0) {
+                const empty = globalScope.document.createElement("p");
+                empty.className = "rating-items-empty";
+                empty.textContent = "This order didn't store individual menu items.";
+                itemsList.appendChild(empty);
+            } else {
+                safeItems.forEach(function appendItemRow(item, index) {
+                    const existingItem = existingReview && Array.isArray(existingReview.itemRatings)
+                        ? existingReview.itemRatings.find(function matchItem(entry) {
+                            return entry.menuItemId === item.menuItemId;
+                        })
+                        : null;
+
+                    const row = globalScope.document.createElement("li");
+                    row.className = "rating-item-row";
+                    row.dataset.menuItemId = item.menuItemId;
+                    row.dataset.menuItemName = item.name;
+
+                    const name = globalScope.document.createElement("strong");
+                    name.className = "rating-item-name";
+                    name.textContent = item.name;
+                    row.appendChild(name);
+
+                    const stars = globalScope.document.createElement("section");
+                    stars.className = "rating-stars rating-item-stars";
+                    stars.setAttribute("aria-label", `${item.name} star rating`);
+                    renderStarPicker(
+                        stars,
+                        existingItem && existingItem.rating ? Number(existingItem.rating) : null,
+                        `itemRating-${index}`
+                    );
+                    row.appendChild(stars);
+
+                    const commentLabel = globalScope.document.createElement("label");
+                    commentLabel.className = "rating-comment-label";
+                    commentLabel.textContent = "Comment (optional)";
+                    const commentInput = globalScope.document.createElement("input");
+                    commentInput.type = "text";
+                    commentInput.name = `itemComment-${index}`;
+                    commentInput.maxLength = 300;
+                    commentInput.value = existingItem ? String(existingItem.comment || "") : "";
+                    commentLabel.appendChild(commentInput);
+                    row.appendChild(commentLabel);
+
+                    itemsList.appendChild(row);
+                });
+            }
+        }
+
+        return dialog;
+    }
+
+    function readRatingFormValues(dialog, order) {
+        const form = dialog.querySelector("#rating-form");
+        const vendorRatingInput = form.querySelector('input[name="vendorRating"]:checked');
+        const vendorComment = form.querySelector("#rating-vendor-comment").value;
+        const isAnonymous = form.querySelector("#rating-anonymous").checked === true;
+
+        const safeItems = Array.isArray(order.items) ? order.items : [];
+        const itemRatings = safeItems.map(function readItem(item, index) {
+            const ratingInput = form.querySelector(`input[name="itemRating-${index}"]:checked`);
+            const commentInput = form.querySelector(`input[name="itemComment-${index}"]`);
+            return {
+                menuItemId: item.menuItemId,
+                name: item.name,
+                rating: ratingInput ? Number(ratingInput.value) : null,
+                comment: commentInput ? commentInput.value : ""
+            };
+        });
+
+        return {
+            vendorRating: vendorRatingInput ? Number(vendorRatingInput.value) : null,
+            vendorComment,
+            itemRatings,
+            isAnonymous
+        };
+    }
+
+    function showRatingError(dialog, message) {
+        const errorEl = dialog.querySelector("#rating-error");
+        if (!errorEl) return;
+        errorEl.hidden = !message;
+        errorEl.textContent = message || "";
+    }
+
+    function closeRatingModal(dialog) {
+        if (!dialog) return;
+        if (typeof dialog.close === "function" && dialog.open) {
+            dialog.close();
+        } else {
+            dialog.removeAttribute("open");
+            dialog.open = false;
+        }
+    }
+
+    function openRatingModal(dialog) {
+        if (!dialog) return;
+        if (typeof dialog.showModal === "function") {
+            if (!dialog.open) {
+                dialog.showModal();
+            }
+        } else {
+            dialog.setAttribute("open", "open");
+            dialog.open = true;
+        }
+    }
+
+    async function loadExistingReviews(deps, currentUser, orders) {
+        // Fetch the customer's existing reviews for completed orders so cards
+        // can show "Edit your rating" instead of "Rate Order" when applicable.
+        const ratingsService = resolveRatingsService(deps.ratingsService);
+        const ratingsModel = resolveRatingsModel(deps.ratingsModel);
+
+        if (!ratingsService || !ratingsModel || !currentUser || !currentUser.uid) {
+            return {};
+        }
+
+        const completed = (Array.isArray(orders) ? orders : []).filter(function isComplete(o) {
+            return ratingsModel.isOrderRateable(o);
+        });
+
+        const map = {};
+        // Fetch one-by-one; a small `in` query is also possible but composite
+        // IDs make point reads cheap and avoid index requirements.
+        for (let i = 0; i < completed.length; i += 1) {
+            try {
+                // eslint-disable-next-line no-await-in-loop
+                const review = await ratingsService.getReviewByOrder(deps, completed[i].orderId, currentUser.uid);
+                if (review) {
+                    map[completed[i].orderId] = ratingsModel.normalizeReview(review);
+                }
+            } catch (error) {
+                // Swallow individual fetch errors so a single bad doc doesn't
+                // wreck the entire order list.
+                if (typeof console !== "undefined" && console.warn) {
+                    console.warn("Failed to load review for order", completed[i].orderId, error);
+                }
+            }
+        }
+        return map;
+    }
+
+    function attachRatingHandlers(elements, deps, options) {
+        // Click-delegation: a single listener on the orders container handles
+        // every "Rate Order" / "Edit your rating" button without per-card
+        // closures.
+        const container = elements && elements.container;
+        if (!container || container.dataset.ratingClickBound === "true") {
+            return;
+        }
+        container.dataset.ratingClickBound = "true";
+
+        container.addEventListener("click", function onContainerClick(event) {
+            const button = event.target && typeof event.target.closest === "function"
+                ? event.target.closest('[data-action="open-rate-modal"]')
+                : null;
+            if (!button) {
+                return;
+            }
+            event.preventDefault();
+            const orderId = button.getAttribute("data-order-id");
+            const order = pageState.allOrders.find(function matchOrder(o) {
+                return o.orderId === orderId;
+            });
+            if (!order) {
+                return;
+            }
+            const existing = pageState.existingReviews && pageState.existingReviews[orderId];
+            const dialog = fillRatingModal(order, existing);
+            // Capture the latest order on the dialog so the submit handler
+            // always works against the most recently opened card.
+            dialog._ratingOrder = order;
+            openRatingModal(dialog);
+            bindRatingDialogHandlers(dialog, order, deps, options, elements);
+        });
+    }
+
+    function bindRatingDialogHandlers(dialog, order, deps, options, elements) {
+        if (dialog.dataset.ratingBound === "true") {
+            return;
+        }
+        dialog.dataset.ratingBound = "true";
+
+        const form = dialog.querySelector("#rating-form");
+        const cancelBtn = dialog.querySelector("#rating-cancel");
+        const closeBtn = dialog.querySelector("#rating-modal-close");
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener("click", function onCancel(event) {
+                event.preventDefault();
+                closeRatingModal(dialog);
+            });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener("click", function onClose(event) {
+                event.preventDefault();
+                closeRatingModal(dialog);
+            });
+        }
+
+        if (form) {
+            form.addEventListener("submit", async function onSubmit(event) {
+                event.preventDefault();
+                const currentOrder = dialog._ratingOrder || order;
+                const ratingsModel = resolveRatingsModel(deps.ratingsModel);
+                const ratingsService = resolveRatingsService(deps.ratingsService);
+                if (!ratingsModel || !ratingsService) {
+                    showRatingError(dialog, "Ratings module is not available.");
+                    return;
+                }
+
+                const values = readRatingFormValues(dialog, currentOrder);
+                const build = ratingsModel.buildReviewRecord({
+                    order: currentOrder,
+                    customerUid: deps.currentUser && deps.currentUser.uid,
+                    customerName: (deps.currentUser && deps.currentUser.displayName) || currentOrder.customerName,
+                    values
+                });
+
+                if (!build.ok) {
+                    showRatingError(dialog, build.errors.vendorRating || "Please fix the highlighted fields.");
+                    return;
+                }
+
+                try {
+                    await ratingsService.submitReview({
+                        db: deps.db,
+                        firestoreFns: deps.firestoreFns,
+                        ratingsModel
+                    }, build.record);
+
+                    pageState.existingReviews = pageState.existingReviews || {};
+                    pageState.existingReviews[currentOrder.orderId] = ratingsModel.normalizeReview(build.record);
+
+                    closeRatingModal(dialog);
+                    renderCurrentPage(elements, Object.assign({}, options, {
+                        existingReviews: pageState.existingReviews
+                    }));
+                } catch (error) {
+                    showRatingError(
+                        dialog,
+                        (error && error.message) || "Failed to submit your rating. Please try again."
+                    );
+                }
+            });
+        }
+
+        // Remember the order on the dialog so the submit handler doesn't close
+        // over a stale reference if the same modal is reused for a different
+        // card afterwards.
+        dialog._ratingOrder = order;
+    }
+
     async function init(options = {}) {
         if (initInFlight) {
             return initInFlight;
@@ -1245,9 +1734,33 @@
                 })
                 : [];
 
-            attachToolbarHandlers(elements, options);
-            renderCheckoutPanel(elements, options);
-            renderCurrentPage(elements, options);
+            // Load any existing reviews for this customer's completed orders so
+            // we can swap "Rate Order" for "Edit your rating" on those cards.
+            pageState.existingReviews = await loadExistingReviews(
+                {
+                    db,
+                    firestoreFns,
+                    ratingsService: options.ratingsService,
+                    ratingsModel: options.ratingsModel
+                },
+                currentUser,
+                pageState.allOrders
+            );
+
+            const renderOptions = Object.assign({}, options, {
+                existingReviews: pageState.existingReviews
+            });
+
+            attachToolbarHandlers(elements, renderOptions);
+            attachRatingHandlers(elements, {
+                db,
+                firestoreFns,
+                currentUser,
+                ratingsService: options.ratingsService,
+                ratingsModel: options.ratingsModel
+            }, renderOptions);
+            renderCheckoutPanel(elements, renderOptions);
+            renderCurrentPage(elements, renderOptions);
 
             if (pageState.allOrders.length === 0 && pageState.allCheckouts.length === 0) {
                 setStatusMessage(statusElement, "You do not have any orders to track yet.", "info");
@@ -1318,6 +1831,21 @@
         buildResultSummary,
         buildCheckoutSummary,
         renderCheckoutPanel,
+        canRateOrder,
+        getStarDisplay,
+        buildRatingButton,
+        buildRatingModal,
+        renderStarPicker,
+        fillRatingModal,
+        readRatingFormValues,
+        showRatingError,
+        closeRatingModal,
+        openRatingModal,
+        loadExistingReviews,
+        attachRatingHandlers,
+        bindRatingDialogHandlers,
+        resolveRatingsModel,
+        resolveRatingsService,
         init
     };
 
