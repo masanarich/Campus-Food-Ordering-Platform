@@ -125,6 +125,8 @@ describe("vendor/wallet.js helpers", () => {
         expect(vendorWalletPage.normalizeText("  Campus Bites  ")).toBe("Campus Bites");
         expect(vendorWalletPage.normalizeLowerText(" PAID ")).toBe("paid");
         expect(vendorWalletPage.normalizeCurrencyAmount("12.345")).toBe(12.35);
+        expect(vendorWalletPage.normalizeCurrencyAmount("8999,98")).toBe(8999.98);
+        expect(vendorWalletPage.amountFromMinorUnits(399998)).toBe(3999.98);
         expect(vendorWalletPage.formatCurrency(110)).toContain("110");
 
         const orders = [
@@ -153,6 +155,49 @@ describe("vendor/wallet.js helpers", () => {
             pendingPayouts: 1,
             payoutCount: 2
         });
+    });
+
+    test("prefers stored cent values when calculating refreshed wallet balances", () => {
+        const orders = [
+            createOrder({
+                orderId: "minor-order",
+                vendorEarnings: 8000.02,
+                vendorEarningsInMinorUnits: 800000
+            })
+        ];
+        const payouts = [
+            createPayout({
+                payoutId: "minor-payout",
+                amount: 4000.02,
+                amountInMinorUnits: 400000,
+                status: "pending"
+            })
+        ];
+
+        const summary = vendorWalletPage.calculateWalletSummary(orders, payouts, {
+            vendorUid: "vendor-1",
+            platformPricing: null
+        });
+
+        expect(summary.totalEarned).toBe(8000);
+        expect(summary.reservedWithdrawals).toBe(4000);
+        expect(summary.availableBalance).toBe(4000);
+    });
+
+    test("does not shave cents from vendor subtotal when refreshed earnings are slightly lower", () => {
+        const summary = vendorWalletPage.calculateWalletSummary([
+            createOrder({
+                orderId: "rounded-order",
+                vendorSubtotal: 9000,
+                vendorEarnings: 8999.98
+            })
+        ], [], {
+            vendorUid: "vendor-1",
+            platformPricing
+        });
+
+        expect(summary.totalEarned).toBe(9000);
+        expect(summary.availableBalance).toBe(9000);
     });
 
     test("renders balance metrics and payout history", () => {
@@ -226,7 +271,7 @@ describe("vendor/wallet.js helpers", () => {
     test("validates withdrawal values against fake bank rules and available balance", () => {
         const result = vendorWalletPage.validateWithdrawal(
             {
-                amount: "200",
+                amount: "200,50",
                 fakeBankName: "",
                 fakeAccountHolder: "",
                 fakeAccountNumber: "123",
@@ -242,6 +287,7 @@ describe("vendor/wallet.js helpers", () => {
         );
 
         expect(result.isValid).toBe(false);
+        expect(result.value.amount).toBe(200.5);
         expect(result.errors).toMatchObject({
             amount: "Withdrawal amount cannot exceed the available balance.",
             fakeBankName: "Fake bank name is required.",
@@ -284,6 +330,42 @@ describe("vendor/wallet.js helpers", () => {
         expect(page.state.summary.availableBalance).toBe(110);
         expect(elements.statusElement.textContent).toBe(vendorWalletPage.STATUS_MESSAGES.ready);
         expect(elements.statusElement.getAttribute("data-state")).toBe("success");
+    });
+
+    test("uses the authenticated UID for rules-safe wallet reads when profile uid is stale", async () => {
+        const elements = createWalletDom();
+        const orderReader = jest.fn(async () => [
+            createOrder({ orderId: "order-1", vendorUid: "vendor-1", vendorEarnings: 100 })
+        ]);
+        const payoutReader = jest.fn(async () => []);
+        const page = vendorWalletPage.createVendorWalletPage({
+            elements,
+            platformPricing,
+            payoutModel,
+            auth: {
+                currentUser: {
+                    uid: "vendor-1",
+                    displayName: "Campus Bites",
+                    email: "vendor@example.com"
+                }
+            },
+            authService: {
+                getCurrentUserProfile: jest.fn(async () => ({
+                    uid: "stale-vendor-id",
+                    vendorStatus: "approved",
+                    accountStatus: "active"
+                }))
+            },
+            orderReader,
+            payoutReader
+        });
+
+        const result = await page.loadWalletData();
+
+        expect(result.success).toBe(true);
+        expect(result.vendorProfile.uid).toBe("vendor-1");
+        expect(orderReader).toHaveBeenCalledWith("vendor-1", expect.any(Object));
+        expect(payoutReader).toHaveBeenCalledWith("vendor-1", expect.any(Object));
     });
 
     test("fetches vendor orders with Firestore helpers when no reader is supplied", async () => {
@@ -482,7 +564,9 @@ describe("vendor/wallet.js helpers", () => {
             })
         }));
         expect(page.state.summary.availableBalance).toBe(40);
-        expect(elements.statusElement.textContent).toBe(vendorWalletPage.STATUS_MESSAGES.saved);
+        expect(elements.statusElement.textContent).toContain("Withdrawal request submitted for");
+        expect(elements.statusElement.textContent).toContain("reserved");
+        expect(elements.statusElement.textContent).toContain("40");
         expect(elements.inputs.amount.value).toBe("");
     });
 
@@ -563,6 +647,7 @@ describe("vendor/wallet.js helpers", () => {
         const result = await page.submitWithdrawalRequest({ preventDefault: jest.fn() });
 
         expect(result.success).toBe(true);
+        expect(firestoreFns.collection).toHaveBeenCalledWith({ name: "db" }, "payouts");
         expect(firestoreFns.setDoc).toHaveBeenCalled();
         expect(result.payout).toEqual(expect.objectContaining({
             payoutId: "fallback-payout",
@@ -634,5 +719,65 @@ describe("vendor/wallet.js helpers", () => {
             code: "permission-denied",
             message: "Missing or insufficient permissions."
         })).toBe("You don't have permission to view or update this wallet.");
+    });
+
+    test("uses fallback payout query when payoutQueries is explicitly null", async () => {
+        const firestoreFns = {
+            collection: jest.fn((db, name) => ({ db, name })),
+            where: jest.fn((field, operator, value) => ({ field, operator, value })),
+            query: jest.fn((collectionRef, ...constraints) => ({ collectionRef, constraints })),
+            getDocs: jest.fn(async () => createSnapshot([], "payoutId"))
+        };
+
+        await vendorWalletPage.fetchVendorPayouts({
+            db: { name: "db" },
+            firestoreFns,
+            vendorUid: "vendor-1",
+            payoutQueries: null
+        });
+
+        expect(firestoreFns.collection).toHaveBeenCalledWith({ name: "db" }, "payouts");
+    });
+
+    test("uses fallback payout writer when payoutService is explicitly null", async () => {
+        const elements = createWalletDom();
+        const firestoreFns = {
+            collection: jest.fn((db, name) => ({ db, name })),
+            doc: jest.fn(collectionRef => ({ id: "explicit-null-payout", collectionRef })),
+            setDoc: jest.fn(async () => undefined)
+        };
+
+        const page = vendorWalletPage.createVendorWalletPage({
+            elements,
+            platformPricing,
+            payoutModel,
+            payoutService: null,
+            db: { name: "db" },
+            firestoreFns,
+            now: "2026-05-21T10:00:00.000Z"
+        });
+
+        page.state.vendorProfile = {
+            uid: "vendor-1",
+            displayName: "Campus Bites",
+            email: "vendor@example.com",
+            vendorStatus: "approved",
+            accountStatus: "active"
+        };
+        page.state.orders = [
+            createOrder({ orderId: "order-1", vendorEarnings: 100 })
+        ];
+        page.state.summary = vendorWalletPage.calculateWalletSummary(page.state.orders, [], {
+            vendorUid: "vendor-1",
+            platformPricing
+        });
+
+        fillValidWithdrawalForm();
+
+        const result = await page.submitWithdrawalRequest({ preventDefault: jest.fn() });
+
+        expect(result.success).toBe(true);
+        expect(result.payout.payoutId).toBe("explicit-null-payout");
+        expect(firestoreFns.collection).toHaveBeenCalledWith({ name: "db" }, "payouts");
     });
 });

@@ -10,9 +10,12 @@ describe("shared/finance/platform-pricing.js", () => {
         expect(platformPricing.normalizeText(null)).toBe("");
         expect(platformPricing.normalizeLowerText(" PAID ")).toBe("paid");
         expect(platformPricing.normalizeCurrencyAmount("12.349")).toBe(12.35);
+        expect(platformPricing.normalizeCurrencyAmount("8999,98")).toBe(8999.98);
         expect(platformPricing.normalizeCurrencyAmount("-5")).toBe(0);
         expect(platformPricing.normalizeCurrencyAmount("bad", 7.239)).toBe(7.24);
         expect(platformPricing.normalizeCurrencyAmount("bad")).toBe(0);
+        expect(platformPricing.amountFromMinorUnits(399998)).toBe(3999.98);
+        expect(platformPricing.resolveCurrencyAmount(4000.02, 400000)).toBe(4000);
         expect(platformPricing.normalizePositiveInteger("3")).toBe(3);
         expect(platformPricing.normalizePositiveInteger("bad", 2)).toBe(2);
         expect(platformPricing.normalizePositiveInteger("bad")).toBe(1);
@@ -176,6 +179,51 @@ describe("shared/finance/platform-pricing.js", () => {
         expect(balance.totalEarned).toBe(200);
         expect(balance.reservedWithdrawals).toBe(70);
         expect(balance.availableBalance).toBe(130);
+    });
+
+    test("uses stored minor-unit amounts for wallet balances when available", () => {
+        const orders = [
+            {
+                vendorUid: "v-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorEarnings: 8000.02,
+                vendorEarningsInMinorUnits: 800000
+            }
+        ];
+        const payouts = [
+            {
+                vendorUid: "v-1",
+                status: "pending",
+                amount: 4000.02,
+                amountInMinorUnits: 400000
+            }
+        ];
+
+        const balance = platformPricing.calculateVendorBalance(orders, payouts, {
+            vendorUid: "v-1"
+        });
+
+        expect(balance.grossVendorEarnings).toBe(8000);
+        expect(balance.reservedWithdrawals).toBe(4000);
+        expect(balance.availableBalance).toBe(4000);
+    });
+
+    test("prefers vendor subtotal over vendor earnings when they only differ by rounding cents", () => {
+        const balance = platformPricing.calculateVendorBalance([
+            {
+                vendorUid: "v-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorSubtotal: 9000,
+                vendorEarnings: 8999.98
+            }
+        ], [], {
+            vendorUid: "v-1"
+        });
+
+        expect(balance.grossVendorEarnings).toBe(9000);
+        expect(balance.availableBalance).toBe(9000);
     });
 
     test("reduces vendor balance for completed support-refunded orders without counting cancelled orders", () => {

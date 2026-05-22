@@ -5,6 +5,7 @@
     const DEFAULT_CURRENCY = "ZAR";
     const DEFAULT_PLATFORM_FEE_RATE = 0.1;
     const MAX_PLATFORM_FEE_RATE = 1;
+    const MONEY_ROUNDING_TOLERANCE = 0.05;
     const WITHDRAWAL_STATUSES_THAT_RESERVE_BALANCE = Object.freeze([
         "pending",
         "approved",
@@ -19,9 +20,26 @@
         return normalizeText(value).toLowerCase();
     }
 
+    function parseCurrencyNumber(value) {
+        if (typeof value === "number") {
+            return value;
+        }
+
+        if (typeof value !== "string") {
+            return Number.parseFloat(value);
+        }
+
+        const normalized = value
+            .trim()
+            .replace(/\s+/g, "")
+            .replace(/,/g, ".");
+
+        return Number.parseFloat(normalized);
+    }
+
     function normalizeCurrencyAmount(value, fallbackValue) {
-        const parsed = Number.parseFloat(value);
-        const fallbackParsed = Number.parseFloat(fallbackValue);
+        const parsed = parseCurrencyNumber(value);
+        const fallbackParsed = parseCurrencyNumber(fallbackValue);
 
         if (Number.isFinite(parsed)) {
             return Math.max(0, Math.round((parsed + Number.EPSILON) * 100) / 100);
@@ -32,6 +50,37 @@
         }
 
         return 0;
+    }
+
+    function hasValue(value) {
+        return value !== undefined && value !== null && String(value).trim() !== "";
+    }
+
+    function normalizeAmountInMinorUnits(value, fallbackValue) {
+        const parsed = Number.parseInt(value, 10);
+        const fallbackParsed = Number.parseInt(fallbackValue, 10);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return Math.round(parsed);
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return Math.round(fallbackParsed);
+        }
+
+        return 0;
+    }
+
+    function amountFromMinorUnits(value, fallbackValue) {
+        return normalizeCurrencyAmount(normalizeAmountInMinorUnits(value, fallbackValue) / 100);
+    }
+
+    function resolveCurrencyAmount(amountValue, minorUnitValue, fallbackValue) {
+        if (hasValue(minorUnitValue)) {
+            return amountFromMinorUnits(minorUnitValue);
+        }
+
+        return normalizeCurrencyAmount(amountValue, fallbackValue);
     }
 
     function normalizePositiveInteger(value, fallbackValue) {
@@ -94,6 +143,17 @@
 
     function amountToMinorUnits(amount) {
         return Math.round(normalizeCurrencyAmount(amount) * 100);
+    }
+
+    function resolveNearEqualCurrencyAmount(preferredValue, fallbackValue, tolerance = MONEY_ROUNDING_TOLERANCE) {
+        const preferred = normalizeCurrencyAmount(preferredValue);
+        const fallback = normalizeCurrencyAmount(fallbackValue);
+
+        if (preferred > 0 && fallback > 0 && Math.abs(preferred - fallback) <= tolerance) {
+            return Math.max(preferred, fallback);
+        }
+
+        return preferred > 0 ? preferred : fallback;
     }
 
     function getCurrencyDisplay(currency) {
@@ -247,13 +307,28 @@
 
     function getOrderVendorEarnings(order, options) {
         const safeOrder = order && typeof order === "object" ? order : {};
+        const vendorSubtotal = safeOrder.vendorSubtotalInMinorUnits !== undefined
+            ? amountFromMinorUnits(safeOrder.vendorSubtotalInMinorUnits)
+            : safeOrder.vendorSubtotal !== undefined
+                ? resolveCurrencyAmount(safeOrder.vendorSubtotal, safeOrder.vendorSubtotalInMinorUnits)
+                : null;
 
-        if (safeOrder.vendorEarnings !== undefined) {
-            return normalizeCurrencyAmount(safeOrder.vendorEarnings);
+        if (safeOrder.vendorEarningsInMinorUnits !== undefined) {
+            return resolveNearEqualCurrencyAmount(
+                amountFromMinorUnits(safeOrder.vendorEarningsInMinorUnits),
+                vendorSubtotal
+            );
         }
 
-        if (safeOrder.vendorSubtotal !== undefined) {
-            return normalizeCurrencyAmount(safeOrder.vendorSubtotal);
+        if (safeOrder.vendorEarnings !== undefined) {
+            return resolveNearEqualCurrencyAmount(
+                resolveCurrencyAmount(safeOrder.vendorEarnings, safeOrder.vendorEarningsInMinorUnits),
+                vendorSubtotal
+            );
+        }
+
+        if (vendorSubtotal !== null) {
+            return vendorSubtotal;
         }
 
         return calculateOrderSplit(safeOrder.items || [], options).vendorEarnings;
@@ -262,12 +337,20 @@
     function getOrderPlatformEarnings(order, options) {
         const safeOrder = order && typeof order === "object" ? order : {};
 
+        if (safeOrder.platformEarningsInMinorUnits !== undefined) {
+            return amountFromMinorUnits(safeOrder.platformEarningsInMinorUnits);
+        }
+
         if (safeOrder.platformEarnings !== undefined) {
-            return normalizeCurrencyAmount(safeOrder.platformEarnings);
+            return resolveCurrencyAmount(safeOrder.platformEarnings, safeOrder.platformEarningsInMinorUnits);
+        }
+
+        if (safeOrder.platformFeeInMinorUnits !== undefined) {
+            return amountFromMinorUnits(safeOrder.platformFeeInMinorUnits);
         }
 
         if (safeOrder.platformFee !== undefined) {
-            return normalizeCurrencyAmount(safeOrder.platformFee);
+            return resolveCurrencyAmount(safeOrder.platformFee, safeOrder.platformFeeInMinorUnits);
         }
 
         return calculateOrderSplit(safeOrder.items || [], options).platformEarnings;
@@ -284,24 +367,40 @@
         const caseImpact = refundCase.impact && typeof refundCase.impact === "object"
             ? refundCase.impact
             : {};
-
-        return {
+        const impact = {
             ...caseImpact,
             ...directImpact
         };
+
+        if (hasValue(impact.vendorDeductionInMinorUnits) && !hasValue(impact.vendorDeduction)) {
+            impact.vendorDeduction = amountFromMinorUnits(impact.vendorDeductionInMinorUnits);
+        }
+
+        if (hasValue(impact.platformDeductionInMinorUnits) && !hasValue(impact.platformDeduction)) {
+            impact.platformDeduction = amountFromMinorUnits(impact.platformDeductionInMinorUnits);
+        }
+
+        return impact;
     }
 
     function getOrderVendorRefundDeduction(order) {
         const safeOrder = order && typeof order === "object" ? order : {};
         const impact = getOrderRefundImpact(safeOrder);
-        const deduction = normalizeCurrencyAmount(
+        const deduction = resolveCurrencyAmount(
             safeOrder.supportRefundVendorDeduction !== undefined
                 ? safeOrder.supportRefundVendorDeduction
                 : safeOrder.refundVendorDeduction !== undefined
                     ? safeOrder.refundVendorDeduction
                     : safeOrder.vendorRefundDeduction !== undefined
                         ? safeOrder.vendorRefundDeduction
-                        : impact.vendorDeduction
+                        : impact.vendorDeduction,
+            safeOrder.supportRefundVendorDeductionInMinorUnits !== undefined
+                ? safeOrder.supportRefundVendorDeductionInMinorUnits
+                : safeOrder.refundVendorDeductionInMinorUnits !== undefined
+                    ? safeOrder.refundVendorDeductionInMinorUnits
+                    : safeOrder.vendorRefundDeductionInMinorUnits !== undefined
+                        ? safeOrder.vendorRefundDeductionInMinorUnits
+                        : impact.vendorDeductionInMinorUnits
         );
 
         return Math.min(getOrderVendorEarnings(safeOrder), deduction);
@@ -310,14 +409,21 @@
     function getOrderPlatformRefundDeduction(order) {
         const safeOrder = order && typeof order === "object" ? order : {};
         const impact = getOrderRefundImpact(safeOrder);
-        const deduction = normalizeCurrencyAmount(
+        const deduction = resolveCurrencyAmount(
             safeOrder.supportRefundPlatformDeduction !== undefined
                 ? safeOrder.supportRefundPlatformDeduction
                 : safeOrder.refundPlatformDeduction !== undefined
                     ? safeOrder.refundPlatformDeduction
                     : safeOrder.platformRefundDeduction !== undefined
                         ? safeOrder.platformRefundDeduction
-                        : impact.platformDeduction
+                        : impact.platformDeduction,
+            safeOrder.supportRefundPlatformDeductionInMinorUnits !== undefined
+                ? safeOrder.supportRefundPlatformDeductionInMinorUnits
+                : safeOrder.refundPlatformDeductionInMinorUnits !== undefined
+                    ? safeOrder.refundPlatformDeductionInMinorUnits
+                    : safeOrder.platformRefundDeductionInMinorUnits !== undefined
+                        ? safeOrder.platformRefundDeductionInMinorUnits
+                        : impact.platformDeductionInMinorUnits
         );
 
         return Math.min(getOrderPlatformEarnings(safeOrder), deduction);
@@ -378,7 +484,8 @@
                     return (!vendorUid || payoutVendorUid === vendorUid) && payoutReservesBalance(payout);
                 })
                 .reduce(function sumPayouts(total, payout) {
-                    return total + normalizeCurrencyAmount(payout && payout.amount);
+                    const safePayout = payout && typeof payout === "object" ? payout : {};
+                    return total + resolveCurrencyAmount(safePayout.amount, safePayout.amountInMinorUnits);
                 }, 0)
         );
 
@@ -441,7 +548,12 @@
         WITHDRAWAL_STATUSES_THAT_RESERVE_BALANCE,
         normalizeText,
         normalizeLowerText,
+        parseCurrencyNumber,
         normalizeCurrencyAmount,
+        normalizeAmountInMinorUnits,
+        amountFromMinorUnits,
+        resolveCurrencyAmount,
+        resolveNearEqualCurrencyAmount,
         normalizePositiveInteger,
         parseRateCandidate,
         normalizePlatformFeeRate,
