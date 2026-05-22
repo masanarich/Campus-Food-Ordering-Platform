@@ -15,6 +15,7 @@ const path = require("path");
 
 const ticketModel = require("../../../public/shared/support/ticket-model.js");
 const ticketService = require("../../../public/shared/support/ticket-service.js");
+const recommendationQueries = require("../../../public/shared/recommendations/recommendation-queries.js");
 
 const RULES_FILE = path.resolve(__dirname, "../../../firestore.rules");
 const RULES_TEXT = fs.readFileSync(RULES_FILE, "utf8");
@@ -203,6 +204,10 @@ function extractStringList(text, functionName) {
         .filter(Boolean);
 }
 
+function stripRuleComments(text) {
+    return text.replace(/\/\/.*$/gm, "");
+}
+
 function affectedKeys(before, after) {
     // Mirror Firestore's `request.resource.data.diff(resource.data).affectedKeys()`.
     const keys = new Set();
@@ -347,6 +352,29 @@ describe("firestore.rules - checkout sessions (security shape)", () => {
         expect(block[0]).toMatch(/paymentReference\s*!=\s*""/);
         expect(block[0]).toMatch(/financeModel/);
         expect(block[0]).toMatch(/vendor-price-plus-platform-fee/);
+    });
+});
+
+describe("firestore.rules - orders (recommendation metadata contract)", () => {
+    test("order create validates the items list without blocking item-level recommendation tags", () => {
+        const block = /function isValidOrderCreate[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+
+        const ruleBody = stripRuleComments(block[0]);
+
+        expect(ruleBody).toMatch(/request\.resource\.data\.items\s+is\s+list/);
+        expect(ruleBody).toMatch(/request\.resource\.data\.items\.size\(\)\s*>\s*0/);
+        expect(ruleBody).not.toMatch(/dietary/);
+        expect(ruleBody).not.toMatch(/allergen/);
+    });
+
+    test("customer order history reads are covered by participant-scoped order list rules", () => {
+        const orderMatch = /match\s+\/orders\/\{orderId\}\s*\{[\s\S]*?\n\s*\}/.exec(RULES_TEXT);
+
+        expect(orderMatch).not.toBeNull();
+        expect(RULES_TEXT).toMatch(/function isOrderCustomer\(\)[\s\S]*customerUid\s*==\s*request\.auth\.uid/);
+        expect(RULES_TEXT).toMatch(/function isOrderParticipant\(\)[\s\S]*isOrderCustomer\(\)/);
+        expect(orderMatch[0]).toMatch(/allow\s+list:\s*if\s+isOrderParticipant\(\);/);
     });
 });
 
@@ -576,6 +604,17 @@ describe("firestore.indexes.json - tickets (queries ↔ index parity)", () => {
         });
     }
 
+    function findOrderIndex(fields) {
+        return INDEXES.indexes.find(function matches(index) {
+            if (index.collectionGroup !== "orders") return false;
+            if (!Array.isArray(index.fields) || index.fields.length !== fields.length) return false;
+            return fields.every(function eq(field, i) {
+                return index.fields[i].fieldPath === field.fieldPath &&
+                    index.fields[i].mode === field.mode;
+            });
+        });
+    }
+
     function findCheckoutIndex(fields) {
         return INDEXES.indexes.find(function matches(index) {
             if (index.collectionGroup !== "checkoutSessions") return false;
@@ -611,6 +650,50 @@ describe("firestore.indexes.json - tickets (queries ↔ index parity)", () => {
             { fieldPath: "updatedAt", mode: "DESCENDING" },
             { fieldPath: "createdAt", mode: "DESCENDING" }
         ])).toBeDefined();
+    });
+
+    test("orders index covers recommendation history query exactly", () => {
+        const firestoreFns = {
+            collection: jest.fn((db, ...segments) => ({ db, segments })),
+            where: jest.fn((field, operator, value) => ({ type: "where", field, operator, value })),
+            orderBy: jest.fn((field, direction) => ({ type: "orderBy", field, direction })),
+            limit: jest.fn(count => ({ type: "limit", count }))
+        };
+        const queryShape = recommendationQueries.buildRecentCustomerOrdersQuery({
+            db: { name: "db" },
+            firestoreFns,
+            customerUid: "student-1",
+            limitCount: 12
+        });
+
+        expect(queryShape.collectionRef.segments).toEqual(["orders"]);
+        expect(queryShape.constraints).toEqual([
+            { type: "where", field: "customerUid", operator: "==", value: "student-1" },
+            { type: "orderBy", field: "createdAt", direction: "desc" },
+            { type: "limit", count: 12 }
+        ]);
+        expect(findOrderIndex([
+            { fieldPath: "customerUid", mode: "ASCENDING" },
+            { fieldPath: "createdAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+    });
+
+    test("recommendation history does not require dietary or allergen composite indexes", () => {
+        const orderIndexes = INDEXES.indexes.filter(function onlyOrders(index) {
+            return index.collectionGroup === "orders";
+        });
+        const indexedFieldPaths = orderIndexes.flatMap(function collectFields(index) {
+            return index.fields.map(function mapField(field) {
+                return field.fieldPath;
+            });
+        });
+
+        expect(indexedFieldPaths).toContain("customerUid");
+        expect(indexedFieldPaths).toContain("createdAt");
+        expect(indexedFieldPaths).not.toContain("dietary");
+        expect(indexedFieldPaths).not.toContain("allergens");
+        expect(indexedFieldPaths).not.toContain("items.dietary");
+        expect(indexedFieldPaths).not.toContain("items.allergens");
     });
 
     test("checkout session indexes cover payment callback and admin/vendor filters", () => {

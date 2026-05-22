@@ -547,6 +547,27 @@ body.customer-portal [hidden] {
     box-shadow: none;
 }
 
+/* Closed cards: tone down the photo and metadata so open shops stand out. */
+.customer-portal .vendor-card[data-closed="true"] .vendor-image {
+    filter: grayscale(0.35) brightness(0.92);
+}
+
+.customer-portal .vendor-card[data-closed="true"] .vendor-card-body {
+    opacity: 0.85;
+}
+
+.customer-portal .vendor-card[data-closed="true"] .vendor-name::after {
+    content: " · Closed";
+    color: var(--order-error-text);
+    font-weight: 700;
+    font-size: 0.85em;
+}
+
+.customer-portal .vendor-institution .vendor-meta-value {
+    color: var(--order-text);
+    font-weight: 700;
+}
+
 .customer-portal .vendors-pagination {
     display: flex;
     flex-wrap: wrap;

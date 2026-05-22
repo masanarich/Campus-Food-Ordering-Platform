@@ -129,7 +129,7 @@
     }
 
     function isVendorOpen(vendor) {
-        return vendor && vendor.acceptingOrders !== false;
+        return !!vendor && vendor.acceptingOrders !== false;
     }
 
     function sortVendors(vendors, sortBy = "name") {

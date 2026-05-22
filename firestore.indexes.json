@@ -47,6 +47,8 @@
   //   },
   // ]
   "indexes": [
+    // Used by recommendation history:
+    // where("customerUid", "==", uid), orderBy("createdAt", "desc").
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",

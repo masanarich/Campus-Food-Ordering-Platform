@@ -72,6 +72,8 @@ function createFullDom() {
     document.body.innerHTML = `
         <input id="vendor-search" type="search">
         <select id="vendor-food-type-filter"></select>
+        <select id="vendor-institution-filter"></select>
+        <select id="vendor-campus-filter"></select>
         <select id="vendor-sort"></select>
         <select id="vendor-page-size"></select>
         <input id="vendor-accepting-only" type="checkbox">
@@ -89,6 +91,8 @@ function createFullDom() {
         statusElement: document.getElementById("browse-vendors-status"),
         searchInput: document.getElementById("vendor-search"),
         foodTypeFilter: document.getElementById("vendor-food-type-filter"),
+        institutionFilter: document.getElementById("vendor-institution-filter"),
+        campusFilter: document.getElementById("vendor-campus-filter"),
         sortControl: document.getElementById("vendor-sort"),
         pageSizeControl: document.getElementById("vendor-page-size"),
         acceptingOnlyToggle: document.getElementById("vendor-accepting-only"),
@@ -1254,7 +1258,7 @@ describe("customer/order-management/browse-vendors.js - createBrowseVendorsContr
 
         expect(onAfterRender).toHaveBeenCalledWith(expect.objectContaining({
             pageInfo: expect.objectContaining({ totalItems: 3, page: 1 }),
-            state: expect.objectContaining({ currentPage: 1, sortBy: "name" })
+            state: expect.objectContaining({ currentPage: 1, sortBy: "open" })
         }));
     });
 });
@@ -1319,7 +1323,7 @@ describe("customer/order-management/browse-vendors.js - attachControlListeners",
 
         expect(controller.state.searchQuery).toBe("");
         expect(controller.state.foodTypeFilter).toBe("all");
-        expect(controller.state.sortBy).toBe("name");
+        expect(controller.state.sortBy).toBe("open");
         expect(controller.state.acceptingOnly).toBe(false);
     });
 });
@@ -1634,5 +1638,332 @@ describe("customer/order-management/browse-vendors.js - init", () => {
         expect(result.success).toBe(false);
         expect(statusElement.getAttribute("data-state")).toBe("error");
         expect(statusElement.textContent).toContain("Please sign in to browse approved vendors");
+    });
+});
+
+// ==========================================
+// TESTS: institution / campus filtering and the "open" sort
+// ==========================================
+
+describe("customer/order-management/browse-vendors.js - institution & campus filtering", () => {
+    test("filterVendors restricts results to a single school", () => {
+        const vendors = [
+            createMockVendor({ uid: "v1", businessName: "Burger Hut", institution: "University of Pretoria" }),
+            createMockVendor({ uid: "v2", businessName: "Pizza Place", institution: "University of Cape Town" }),
+            createMockVendor({ uid: "v3", businessName: "Coffee Spot", institution: "University of Pretoria" })
+        ];
+
+        const filtered = customerBrowseVendors.filterVendors(vendors, {
+            institutionFilter: "university of pretoria"
+        });
+
+        expect(filtered.map((v) => v.uid)).toEqual(["v1", "v3"]);
+    });
+
+    test("filterVendors restricts results to a single campus within a school", () => {
+        const vendors = [
+            createMockVendor({ uid: "v1", institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            createMockVendor({ uid: "v2", institution: "University of Pretoria", campus: "Mamelodi Campus" }),
+            createMockVendor({ uid: "v3", institution: "University of Pretoria", campus: "Hatfield Campus" })
+        ];
+
+        const filtered = customerBrowseVendors.filterVendors(vendors, {
+            campusFilter: "hatfield campus"
+        });
+
+        expect(filtered.map((v) => v.uid)).toEqual(["v1", "v3"]);
+    });
+
+    test("filterVendors with 'all' falls through both institution and campus filters", () => {
+        const vendors = [createMockVendor(), createMockVendor({ uid: "v2" })];
+        const filtered = customerBrowseVendors.filterVendors(vendors, {
+            institutionFilter: "all",
+            campusFilter: "all"
+        });
+        expect(filtered).toHaveLength(2);
+    });
+
+    test("vendorMatchesSearch matches institution and campus tokens", () => {
+        const vendor = createMockVendor({ institution: "University of Pretoria", campus: "Hatfield Campus" });
+        expect(customerBrowseVendors.vendorMatchesSearch(vendor, "pretoria")).toBe(true);
+        expect(customerBrowseVendors.vendorMatchesSearch(vendor, "hatfield")).toBe(true);
+        expect(customerBrowseVendors.vendorMatchesSearch(vendor, "wits")).toBe(false);
+    });
+
+    test("getInstitutionOptions returns unique sorted institutions", () => {
+        const vendors = [
+            createMockVendor({ institution: "University of Pretoria" }),
+            createMockVendor({ institution: "Wits" }),
+            createMockVendor({ institution: "university of pretoria" }),
+            createMockVendor({ institution: "" })
+        ];
+
+        expect(customerBrowseVendors.getInstitutionOptions(vendors)).toEqual([
+            "University of Pretoria",
+            "Wits"
+        ]);
+    });
+
+    test("getCampusOptions cascades from the selected institution", () => {
+        const vendors = [
+            createMockVendor({ institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            createMockVendor({ institution: "University of Pretoria", campus: "Mamelodi Campus" }),
+            createMockVendor({ institution: "Wits", campus: "Braamfontein Campus East" })
+        ];
+
+        const upCampuses = customerBrowseVendors.getCampusOptions(vendors, "University of Pretoria");
+        expect(upCampuses).toEqual(["Hatfield Campus", "Mamelodi Campus"]);
+
+        const allCampuses = customerBrowseVendors.getCampusOptions(vendors, "all");
+        expect(allCampuses).toEqual([
+            "Braamfontein Campus East",
+            "Hatfield Campus",
+            "Mamelodi Campus"
+        ]);
+    });
+
+    test("collectUniqueValues tolerates non-array input", () => {
+        expect(customerBrowseVendors.collectUniqueValues(null, (v) => v && v.foodType)).toEqual([]);
+    });
+
+    test("renderInstitutionFilterOptions writes 'All schools' plus each option", () => {
+        document.body.innerHTML = '<select id="sel"></select>';
+        const select = document.getElementById("sel");
+
+        customerBrowseVendors.renderInstitutionFilterOptions(select, ["Wits", "UP"], "wits");
+
+        const options = Array.from(select.options);
+        expect(options[0].textContent).toBe("All schools");
+        expect(options[1].textContent).toBe("Wits");
+        expect(options[1].selected).toBe(true);
+    });
+
+    test("renderCampusFilterOptions writes 'All campuses' plus each option", () => {
+        document.body.innerHTML = '<select id="sel"></select>';
+        const select = document.getElementById("sel");
+
+        customerBrowseVendors.renderCampusFilterOptions(select, ["Hatfield Campus"], "hatfield campus");
+
+        const options = Array.from(select.options);
+        expect(options[0].textContent).toBe("All campuses");
+        expect(options[1].selected).toBe(true);
+    });
+
+    test("renderTextOptions handles null select gracefully", () => {
+        expect(() => customerBrowseVendors.renderTextOptions(null, [], "", "All")).not.toThrow();
+    });
+});
+
+describe("customer/order-management/browse-vendors.js - 'Open now first' sort", () => {
+    test("isVendorOpen reads acceptingOrders", () => {
+        expect(customerBrowseVendors.isVendorOpen({ acceptingOrders: true })).toBe(true);
+        expect(customerBrowseVendors.isVendorOpen({ acceptingOrders: false })).toBe(false);
+        expect(customerBrowseVendors.isVendorOpen(null)).toBe(false);
+    });
+
+    test("sortVendors with 'open' places open vendors first, ties broken by name", () => {
+        const vendors = [
+            { uid: "closed-z", businessName: "Z Closed", acceptingOrders: false },
+            { uid: "open-b", businessName: "B Open", acceptingOrders: true },
+            { uid: "closed-a", businessName: "A Closed", acceptingOrders: false },
+            { uid: "open-a", businessName: "A Open", acceptingOrders: true }
+        ];
+
+        const sorted = customerBrowseVendors.sortVendors(vendors, "open");
+
+        expect(sorted.map((v) => v.uid)).toEqual([
+            "open-a",
+            "open-b",
+            "closed-a",
+            "closed-z"
+        ]);
+    });
+
+    test("SORT_OPTIONS includes the 'open' option first", () => {
+        expect(customerBrowseVendors.SORT_OPTIONS[0]).toEqual({
+            value: "open",
+            label: "Open now first"
+        });
+    });
+});
+
+describe("customer/order-management/browse-vendors.js - controller institution/campus & refresh", () => {
+    let elements;
+
+    beforeEach(() => {
+        elements = createFullDom();
+    });
+
+    function vendor(uid, overrides) {
+        return Object.assign(
+            createMockVendor({
+                uid,
+                businessName: `Vendor ${uid}`,
+                acceptingOrders: true
+            }),
+            overrides
+        );
+    }
+
+    test("setVendors populates institution and campus dropdowns from vendor data", () => {
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+        controller.setVendors([
+            vendor("v1", { institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            vendor("v2", { institution: "Wits", campus: "Braamfontein Campus East" }),
+            vendor("v3", { institution: "University of Pretoria", campus: "Mamelodi Campus" })
+        ]);
+
+        const instOptions = Array.from(elements.institutionFilter.options).map((o) => o.textContent);
+        expect(instOptions).toEqual(["All schools", "University of Pretoria", "Wits"]);
+
+        const campusOptions = Array.from(elements.campusFilter.options).map((o) => o.textContent);
+        expect(campusOptions).toEqual([
+            "All campuses",
+            "Braamfontein Campus East",
+            "Hatfield Campus",
+            "Mamelodi Campus"
+        ]);
+    });
+
+    test("setInstitutionFilter restricts the campus dropdown to that school", () => {
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+        controller.setVendors([
+            vendor("v1", { institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            vendor("v2", { institution: "Wits", campus: "Braamfontein Campus East" })
+        ]);
+
+        controller.setInstitutionFilter("University of Pretoria");
+
+        const campusOptions = Array.from(elements.campusFilter.options).map((o) => o.textContent);
+        expect(campusOptions).toEqual(["All campuses", "Hatfield Campus"]);
+    });
+
+    test("setInstitutionFilter resets the campus filter to 'all'", () => {
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+        controller.setVendors([
+            vendor("v1", { institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            vendor("v2", { institution: "Wits", campus: "Braamfontein Campus East" })
+        ]);
+        controller.setCampusFilter("Hatfield Campus");
+        expect(controller.state.campusFilter).toBe("hatfield campus");
+
+        controller.setInstitutionFilter("Wits");
+        expect(controller.state.campusFilter).toBe("all");
+    });
+
+    test("setCampusFilter narrows the rendered list", () => {
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+        controller.setVendors([
+            vendor("v1", { institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            vendor("v2", { institution: "University of Pretoria", campus: "Mamelodi Campus" })
+        ]);
+
+        controller.setCampusFilter("Hatfield Campus");
+
+        const cards = elements.container.querySelectorAll(".vendor-card");
+        expect(cards).toHaveLength(1);
+        expect(cards[0].getAttribute("data-vendor-uid")).toBe("v1");
+    });
+
+    test("refreshOpenState recomputes acceptingOrders for each vendor", () => {
+        const shopSchedule = require("../../../public/shared/shop-schedule/shop-schedule.js");
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+
+        controller.setVendors([{
+            uid: "v1",
+            businessName: "Burger Hut",
+            schedule: shopSchedule.getDefaultSchedule(),
+            manualAcceptingOrders: true,
+            acceptingOrders: true
+        }]);
+
+        // Force re-evaluation at 22:00 on a weekday — out of hours
+        controller.refreshOpenState(new Date("2026-05-21T22:00:00"));
+
+        expect(controller.state.allVendors[0].acceptingOrders).toBe(false);
+        expect(controller.state.allVendors[0].openState.reason).toBe("outside-hours");
+    });
+
+    test("attachControlListeners wires up institution and campus selects", () => {
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+        controller.setVendors([
+            vendor("v1", { institution: "University of Pretoria", campus: "Hatfield Campus" }),
+            vendor("v2", { institution: "Wits", campus: "Braamfontein Campus East" })
+        ]);
+        customerBrowseVendors.attachControlListeners(controller, elements);
+
+        elements.institutionFilter.value = "university of pretoria";
+        elements.institutionFilter.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(controller.state.institutionFilter).toBe("university of pretoria");
+
+        elements.campusFilter.value = "hatfield campus";
+        elements.campusFilter.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(controller.state.campusFilter).toBe("hatfield campus");
+    });
+
+    test("clear filters resets institution + campus to 'all'", () => {
+        const controller = customerBrowseVendors.createBrowseVendorsController(elements);
+        controller.setVendors([
+            vendor("v1", { institution: "University of Pretoria", campus: "Hatfield Campus" })
+        ]);
+        customerBrowseVendors.attachControlListeners(controller, elements);
+
+        controller.setInstitutionFilter("University of Pretoria");
+        controller.setCampusFilter("Hatfield Campus");
+
+        elements.clearFiltersButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+        expect(controller.state.institutionFilter).toBe("all");
+        expect(controller.state.campusFilter).toBe("all");
+    });
+});
+
+describe("customer/order-management/browse-vendors.js - startOpenStateTicker", () => {
+    test("calls refreshOpenState on every interval tick and stops on cleanup", () => {
+        jest.useFakeTimers();
+        const controller = { refreshOpenState: jest.fn() };
+        const stop = customerBrowseVendors.startOpenStateTicker(controller, { intervalMs: 1000 });
+
+        jest.advanceTimersByTime(2500);
+        expect(controller.refreshOpenState).toHaveBeenCalledTimes(2);
+
+        stop();
+        jest.advanceTimersByTime(5000);
+        expect(controller.refreshOpenState).toHaveBeenCalledTimes(2);
+        jest.useRealTimers();
+    });
+
+    test("returns a no-op stop when no scope is available", () => {
+        const stop = customerBrowseVendors.startOpenStateTicker(
+            { refreshOpenState: jest.fn() },
+            { scope: { /* no setInterval */ } }
+        );
+        expect(typeof stop).toBe("function");
+        expect(() => stop()).not.toThrow();
+    });
+});
+
+describe("customer/order-management/browse-vendors.js - init with disableAutoRefresh", () => {
+    test("returns a stopTicker function and never registers a real interval when disabled", async () => {
+        createFullDom();
+        const db = { kind: "db" };
+        const firestoreFns = createFirestoreFns({
+            mockVendors: [createMockVendor({ uid: "v1" })]
+        });
+
+        const setIntervalSpy = jest.spyOn(global, "setInterval");
+        try {
+            const result = await customerBrowseVendors.init({
+                db,
+                firestoreFns,
+                disableAutoRefresh: true
+            });
+
+            expect(result.success).toBe(true);
+            expect(typeof result.stopTicker).toBe("function");
+            expect(setIntervalSpy).not.toHaveBeenCalled();
+        } finally {
+            setIntervalSpy.mockRestore();
+        }
     });
 });
