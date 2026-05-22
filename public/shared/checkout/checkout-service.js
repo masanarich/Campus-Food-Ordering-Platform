@@ -192,6 +192,39 @@
         return normalizeText(value).toUpperCase();
     }
 
+    function normalizeTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeText(value)
+                ? normalizeText(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeLowerText(tag);
+            })
+            .filter(Boolean)
+            .filter(function keepUnique(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
+    function normalizeFallbackCheckoutItems(items) {
+        if (!Array.isArray(items)) {
+            return items;
+        }
+
+        return items.map(function normalizeFallbackCheckoutItem(item) {
+            const safeItem = item && typeof item === "object" ? item : {};
+
+            return {
+                ...safeItem,
+                dietary: normalizeTagList(safeItem.dietary || safeItem.dietaryTags),
+                allergens: normalizeTagList(safeItem.allergens || safeItem.allergenTags)
+            };
+        });
+    }
+
     function createServiceError(code, message, details = {}) {
         const safeDetails = details && typeof details === "object" ? details : {};
 
@@ -406,6 +439,9 @@
             return {
                 ...safeValues,
                 checkoutId,
+                items: normalizeFallbackCheckoutItems(
+                    Array.isArray(safeOptions.items) ? safeOptions.items : safeValues.items
+                ),
                 status: normalizeLowerText(safeOptions.status || safeValues.status),
                 paymentProvider: normalizeLowerText(safeOptions.paymentProvider || safeValues.paymentProvider),
                 paymentReference: normalizeText(safeOptions.paymentReference || safeValues.paymentReference),
@@ -1734,6 +1770,8 @@
         normalizeText,
         normalizeLowerText,
         normalizeUpperText,
+        normalizeTagList,
+        normalizeFallbackCheckoutItems,
         createServiceError,
         createServiceResult,
         createCheckoutFailure,

@@ -87,6 +87,33 @@ function createCartItems() {
     ];
 }
 
+function createTaggedCartItems() {
+    return [
+        {
+            id: "wrap",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            name: "Chicken Wrap",
+            category: "Meals",
+            price: 65,
+            quantity: 1,
+            dietaryTags: " Halal, high protein, halal ",
+            allergenTags: [" Gluten ", "dairy", "gluten"]
+        },
+        {
+            id: "salad",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            name: "Garden Salad",
+            category: "Salads",
+            price: 40,
+            quantity: 1,
+            dietary: [" Vegan ", "gluten free", "vegan"],
+            allergens: "nuts, sesame, nuts"
+        }
+    ];
+}
+
 function createCustomer() {
     return {
         uid: "customer-1",
@@ -130,6 +157,21 @@ describe("shared/checkout/checkout-service.js", () => {
         expect(checkoutService.normalizeText(" test ")).toBe("test");
         expect(checkoutService.normalizeLowerText(" PAID ")).toBe("paid");
         expect(checkoutService.normalizeUpperText(" zar ")).toBe("ZAR");
+        expect(checkoutService.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(checkoutService.normalizeFallbackCheckoutItems([
+            { id: "meal", dietaryTags: "Halal, halal", allergenTags: [" Nuts ", "nuts"] }
+        ])).toEqual([
+            {
+                id: "meal",
+                dietaryTags: "Halal, halal",
+                allergenTags: [" Nuts ", "nuts"],
+                dietary: ["halal"],
+                allergens: ["nuts"]
+            }
+        ]);
         expect(checkoutService.resolveTimelineTimestampValue({
             timelineTimestampValue: "timeline-time"
         })).toBe("timeline-time");
@@ -328,6 +370,13 @@ describe("shared/checkout/checkout-service.js", () => {
             status: "DRAFT",
             paymentProvider: " PAYSTACK ",
             paymentCurrency: " zar ",
+            items: [
+                {
+                    id: "raw-meal",
+                    dietaryTags: " Halal, halal ",
+                    allergenTags: "Nuts, dairy, nuts"
+                }
+            ],
             timeline: [{ status: "draft" }],
             metadata: { source: "test" }
         }, {
@@ -339,6 +388,13 @@ describe("shared/checkout/checkout-service.js", () => {
             status: "payment_pending",
             paymentProvider: "paystack",
             paymentCurrency: "ZAR",
+            items: [
+                expect.objectContaining({
+                    id: "raw-meal",
+                    dietary: ["halal"],
+                    allergens: ["nuts", "dairy"]
+                })
+            ],
             timeline: [{ status: "draft" }],
             metadata: { source: "test" },
             updatedAt
@@ -432,7 +488,7 @@ describe("shared/checkout/checkout-service.js", () => {
     test("prepares checkout creation from cart and rejects invalid create inputs", () => {
         const result = checkoutService.prepareCreateCheckout({
             ...fullDeps(),
-            cartItems: createCartItems(),
+            cartItems: createTaggedCartItems(),
             customer: createCustomer(),
             checkoutId: "checkout-cart",
             timestampValue: createdAt
@@ -444,10 +500,22 @@ describe("shared/checkout/checkout-service.js", () => {
             customerUid: "customer-1",
             vendorUid: "vendor-1",
             status: "draft",
-            subtotal: 120,
-            total: 120,
+            subtotal: 105,
+            total: 105,
             createdAt
         }));
+        expect(result.checkout.items).toEqual([
+            expect.objectContaining({
+                menuItemId: "wrap",
+                dietary: ["halal", "high protein"],
+                allergens: ["gluten", "dairy"]
+            }),
+            expect.objectContaining({
+                menuItemId: "salad",
+                dietary: ["vegan", "gluten free"],
+                allergens: ["nuts", "sesame"]
+            })
+        ]);
 
         const invalid = checkoutService.prepareCreateCheckout({
             ...fullDeps(),
@@ -670,6 +738,7 @@ describe("shared/checkout/checkout-service.js", () => {
         }));
 
         const conversionPlan = checkoutService.buildCheckoutConversion(createCheckout({
+            items: createTaggedCartItems(),
             status: "paid",
             paymentReference: "ref-1",
             paymentVerifiedAt: "verified-at",
@@ -689,6 +758,14 @@ describe("shared/checkout/checkout-service.js", () => {
             orderId: "order-1",
             checkoutId: "checkout-1",
             paymentStatus: "paid"
+        }));
+        expect(conversionPlan.checkout.items[0]).toEqual(expect.objectContaining({
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"]
+        }));
+        expect(conversionPlan.order.items[1]).toEqual(expect.objectContaining({
+            dietary: ["vegan", "gluten free"],
+            allergens: ["nuts", "sesame"]
         }));
 
         expect(checkoutService.buildCheckoutStatusUpdate(createCheckout(), {
@@ -863,13 +940,17 @@ describe("shared/checkout/checkout-service.js", () => {
             ...fullDeps(),
             db,
             firestoreFns,
-            cartItems: createCartItems(),
+            cartItems: createTaggedCartItems(),
             customer: createCustomer(),
             checkoutId: "checkout-created",
             timestampValue: createdAt
         });
         expect(createResult.success).toBe(true);
         expect(firestoreFns.setDoc).toHaveBeenCalledTimes(1);
+        expect(firestoreFns.setDoc.mock.calls[0][1].items[0]).toEqual(expect.objectContaining({
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"]
+        }));
 
         const createWithoutPersist = await checkoutService.createCheckout({
             ...fullDeps(),
