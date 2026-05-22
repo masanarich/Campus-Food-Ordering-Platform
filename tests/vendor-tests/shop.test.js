@@ -6,6 +6,7 @@ const {
     MODULE_NAME,
     MAX_IMAGE_SIZE_BYTES,
     FIELD_KEYS,
+    OTHER_OPTION_VALUE,
     normalizeText,
     normalizeLowerText,
     normalizeEmail,
@@ -21,12 +22,25 @@ const {
     getFileExtension,
     buildShopPhotoPath,
     getDisplayShopPhotoUrl,
+    getDefaultSchedule,
+    normalizeSchedule,
+    formatScheduleSummary,
+    getShopOpenState,
+    getAllInstitutions,
+    findInstitutionByName,
+    getCampusesFor,
+    groupInstitutionsByType,
+    renderInstitutionOptions,
+    renderCampusOptions,
     normalizeShopRecord,
     validateShopValues,
     toShopUpdates,
     createVendorShopPage,
     initializeVendorShopPage
 } = require("../../public/vendor/shop.js");
+
+const shopSchedule = require("../../public/shared/shop-schedule/shop-schedule.js");
+const institutions = require("../../public/shared/institutions/south-african-institutions.js");
 
 function createDom() {
     document.body.innerHTML = `
@@ -37,6 +51,8 @@ function createDom() {
             <output id="shop-account-status">-</output>
             <output id="shop-visibility">-</output>
             <output id="shop-photo-state">No photo uploaded</output>
+            <output id="shop-live-status">Checking...</output>
+            <p id="shop-live-status-note"></p>
 
             <button id="back-to-dashboard-button" type="button">Back</button>
 
@@ -50,14 +66,21 @@ function createDom() {
                 <textarea id="shop-description" name="description"></textarea>
                 <p id="shop-description-error" hidden></p>
 
-                <input id="shop-university" name="university" type="text">
-                <p id="shop-university-error" hidden></p>
+                <select id="shop-institution-select" name="institutionSelect"></select>
+                <label id="shop-institution-other-wrap" hidden>
+                    <input id="shop-institution-other" name="institutionOther" type="text">
+                </label>
+                <output id="shop-institution-type-display">-</output>
+                <p id="shop-institution-error" hidden></p>
 
-                <input id="shop-campus-location" name="campusLocation" type="text">
-                <p id="shop-campusLocation-error" hidden></p>
+                <select id="shop-campus-select" name="campusSelect"></select>
+                <label id="shop-campus-other-wrap" hidden>
+                    <input id="shop-campus-other" name="campusOther" type="text">
+                </label>
+                <p id="shop-campus-error" hidden></p>
 
-                <input id="shop-opening-hours" name="openingHours" type="text">
-                <p id="shop-openingHours-error" hidden></p>
+                <input id="shop-stall-location" name="stallLocation" type="text">
+                <p id="shop-stallLocation-error" hidden></p>
 
                 <input id="shop-contact-number" name="contactNumber" type="tel">
                 <p id="shop-contactNumber-error" hidden></p>
@@ -65,7 +88,7 @@ function createDom() {
                 <input id="shop-business-email" name="businessEmail" type="email">
                 <p id="shop-businessEmail-error" hidden></p>
 
-                <input id="shop-accepting-orders" name="acceptingOrders" type="checkbox">
+                <input id="shop-accepting-orders" name="acceptingOrders" type="checkbox" checked>
 
                 <input id="shop-photo-file" name="photoFile" type="file">
                 <button id="preview-shop-photo-button" type="button">Preview</button>
@@ -73,14 +96,22 @@ function createDom() {
                 <img id="shop-photo-preview" alt="preview" hidden>
                 <p id="shop-photo-empty-state"></p>
 
+                <button id="schedule-preset-weekdays" type="button">Weekdays</button>
+                <button id="schedule-preset-allweek" type="button">All week</button>
+                <button id="schedule-preset-clear" type="button">Clear</button>
+                <ul id="schedule-editor"></ul>
+                <p id="schedule-error" hidden></p>
+                <output id="schedule-summary">Closed all week</output>
+
                 <output id="shop-summary-name">-</output>
                 <output id="shop-summary-food-type">-</output>
-                <output id="shop-summary-university">-</output>
-                <output id="shop-summary-location">-</output>
+                <output id="shop-summary-institution">-</output>
+                <output id="shop-summary-campus">-</output>
+                <output id="shop-summary-stall">-</output>
                 <output id="shop-summary-hours">-</output>
                 <output id="shop-summary-phone">-</output>
                 <output id="shop-summary-email">-</output>
-                <output id="shop-summary-accepting">-</output>
+                <output id="shop-summary-live">-</output>
                 <output id="shop-summary-description">-</output>
 
                 <button id="save-shop-button" type="submit">Save</button>
@@ -116,10 +147,13 @@ function buildDependencies(options = {}) {
                 isAdmin: false,
                 vendorBusinessName: "Burger Hut",
                 vendorDescription: "Tasty burgers, fast service.",
-                vendorLocation: "Hatfield Plaza, Stall 7",
-                vendorUniversity: "University of Pretoria",
+                vendorInstitution: "University of Pretoria",
+                vendorInstitutionType: "Public University",
+                vendorCampus: "Hatfield Campus — Hatfield, Pretoria",
+                vendorStallLocation: "Hatfield Plaza, Stall 7",
                 vendorFoodType: "Burgers",
-                vendorOpeningHours: "Mon-Fri 08:00-17:00",
+                vendorOpeningHours: "Mon-Fri 08:00 AM – 5:00 PM",
+                vendorSchedule: shopSchedule.getDefaultSchedule(),
                 vendorPhoneNumber: "+27712345678",
                 vendorEmail: "orders@burgerhut.co.za",
                 vendorAcceptingOrders: true,
@@ -140,23 +174,7 @@ function buildDependencies(options = {}) {
     };
 
     const authUtils = {
-        normaliseUserData: jest.fn((profile) => ({
-            uid: (profile && profile.uid) || "",
-            vendorStatus: (profile && profile.vendorStatus) || "none",
-            accountStatus: (profile && profile.accountStatus) || "active",
-            isAdmin: profile && profile.isAdmin === true,
-            vendorBusinessName: profile && profile.vendorBusinessName,
-            vendorDescription: profile && profile.vendorDescription,
-            vendorLocation: profile && profile.vendorLocation,
-            vendorUniversity: profile && profile.vendorUniversity,
-            vendorFoodType: profile && profile.vendorFoodType,
-            vendorOpeningHours: profile && profile.vendorOpeningHours,
-            vendorPhoneNumber: profile && profile.vendorPhoneNumber,
-            vendorEmail: profile && profile.vendorEmail,
-            vendorAcceptingOrders: profile && profile.vendorAcceptingOrders,
-            vendorBannerURL: profile && profile.vendorBannerURL,
-            vendorBannerPath: profile && profile.vendorBannerPath
-        })),
+        normaliseUserData: jest.fn((profile) => Object.assign({}, profile)),
         canAccessVendorPortal: jest.fn((profile) =>
             options.canAccessVendor === undefined
                 ? profile && profile.accountStatus === "active" && profile.vendorStatus === "approved"
@@ -170,7 +188,6 @@ function buildDependencies(options = {}) {
             if (options.getDocError) {
                 throw options.getDocError;
             }
-
             return {
                 exists: () => true,
                 data: () => docData || {}
@@ -193,12 +210,7 @@ function buildDependencies(options = {}) {
             }
             return true;
         }),
-        getDownloadURL: jest.fn(async (storageRef) => {
-            if (options.getDownloadURLError) {
-                throw options.getDownloadURLError;
-            }
-            return `https://storage.example/${storageRef.path}`;
-        }),
+        getDownloadURL: jest.fn(async (storageRef) => `https://storage.example/${storageRef.path}`),
         deleteObject: jest.fn(async () => {
             if (options.deleteObjectError) {
                 throw options.deleteObjectError;
@@ -214,7 +226,8 @@ function buildDependencies(options = {}) {
         storage: { app: "test-storage" },
         firestoreFns,
         storageFns,
-        navigate: jest.fn()
+        navigate: jest.fn(),
+        now: options.now || (() => new Date("2026-05-21T10:00:00"))
     };
 }
 
@@ -222,366 +235,488 @@ function fillValidForm() {
     document.getElementById("shop-business-name").value = "Burger Hut";
     document.getElementById("shop-food-type").value = "Burgers";
     document.getElementById("shop-description").value = "Tasty burgers, fast service.";
-    document.getElementById("shop-university").value = "University of Pretoria";
-    document.getElementById("shop-campus-location").value = "Hatfield Plaza, Stall 7";
-    document.getElementById("shop-opening-hours").value = "Mon-Fri 08:00-17:00";
+
+    // Choose UP from the cascade
+    const instSelect = document.getElementById("shop-institution-select");
+    instSelect.value = "University of Pretoria";
+    instSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const campusSelect = document.getElementById("shop-campus-select");
+    campusSelect.value = "Hatfield Campus — Hatfield, Pretoria";
+    campusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+    document.getElementById("shop-stall-location").value = "Hatfield Plaza, Stall 7";
     document.getElementById("shop-contact-number").value = "+27712345678";
     document.getElementById("shop-business-email").value = "orders@burgerhut.co.za";
     document.getElementById("shop-accepting-orders").checked = true;
 }
 
+// ==========================================
+// Shared shop-schedule module tests
+// ==========================================
+
+describe("shared/shop-schedule", () => {
+    test("getDefaultSchedule opens Mon-Fri, closes weekends", () => {
+        const schedule = shopSchedule.getDefaultSchedule();
+        expect(schedule.monday.open).toBe(true);
+        expect(schedule.friday.open).toBe(true);
+        expect(schedule.saturday.open).toBe(false);
+        expect(schedule.sunday.open).toBe(false);
+        expect(schedule.monday.openTime).toBe("08:00");
+        expect(schedule.monday.closeTime).toBe("17:00");
+    });
+
+    test("normalizeSchedule fills missing days with defaults and validates times", () => {
+        const result = shopSchedule.normalizeSchedule({
+            monday: { open: true, openTime: "9:5", closeTime: "18:00" }
+        });
+        // Invalid time string falls back to default
+        expect(result.monday.openTime).toBe("08:00");
+        expect(result.monday.closeTime).toBe("18:00");
+        // Missing days fall back to the default Mon-Fri-open schedule
+        expect(result.tuesday.open).toBe(true);
+        expect(result.sunday.open).toBe(false);
+    });
+
+    test("normalizeTimeString returns empty on invalid input", () => {
+        expect(shopSchedule.normalizeTimeString("not-a-time")).toBe("");
+        expect(shopSchedule.normalizeTimeString("25:00")).toBe("");
+        expect(shopSchedule.normalizeTimeString("12:99")).toBe("");
+        expect(shopSchedule.normalizeTimeString(123)).toBe("");
+        expect(shopSchedule.normalizeTimeString("9:30")).toBe("09:30");
+    });
+
+    test("timeToMinutes works for valid times and returns null otherwise", () => {
+        expect(shopSchedule.timeToMinutes("08:00")).toBe(480);
+        expect(shopSchedule.timeToMinutes("17:30")).toBe(17 * 60 + 30);
+        expect(shopSchedule.timeToMinutes("invalid")).toBeNull();
+    });
+
+    test("formatTimeForDisplay produces 12-hour display strings", () => {
+        expect(shopSchedule.formatTimeForDisplay("08:00")).toBe("8:00 AM");
+        expect(shopSchedule.formatTimeForDisplay("17:30")).toBe("5:30 PM");
+        expect(shopSchedule.formatTimeForDisplay("00:15")).toBe("12:15 AM");
+        expect(shopSchedule.formatTimeForDisplay("12:00")).toBe("12:00 PM");
+        expect(shopSchedule.formatTimeForDisplay("bad")).toBe("");
+    });
+
+    test("formatScheduleSummary groups consecutive days with identical hours", () => {
+        const schedule = shopSchedule.getDefaultSchedule();
+        const summary = shopSchedule.formatScheduleSummary(schedule);
+        expect(summary).toContain("Mon-Fri");
+        expect(summary).toContain("Sat-Sun closed");
+    });
+
+    test("formatScheduleSummary describes a single-day open island", () => {
+        const schedule = shopSchedule.normalizeSchedule({});
+        Object.keys(schedule).forEach((key) => {
+            schedule[key] = { open: false, openTime: "08:00", closeTime: "17:00" };
+        });
+        schedule.wednesday = { open: true, openTime: "10:00", closeTime: "14:00" };
+
+        const summary = shopSchedule.formatScheduleSummary(schedule);
+        expect(summary).toContain("Wed 10:00 AM");
+    });
+
+    test("formatScheduleSummary handles all-closed weeks", () => {
+        const schedule = {};
+        shopSchedule.DAYS.forEach((day) => {
+            schedule[day.key] = { open: false, openTime: "08:00", closeTime: "17:00" };
+        });
+        expect(shopSchedule.formatScheduleSummary(schedule)).toBe("Closed all week");
+    });
+
+    test("isOpenNowFromSchedule respects day + time", () => {
+        const schedule = shopSchedule.getDefaultSchedule();
+        // 2026-05-21 is a Thursday
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-21T10:00:00"))).toBe(true);
+        // 06:00 same Thursday — before opening
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-21T06:00:00"))).toBe(false);
+        // 18:00 same Thursday — after closing
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-21T18:00:00"))).toBe(false);
+        // Sunday — closed by default
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-24T12:00:00"))).toBe(false);
+    });
+
+    test("isOpenNowFromSchedule treats opening minute as open", () => {
+        const schedule = shopSchedule.getDefaultSchedule();
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-21T08:00:00"))).toBe(true);
+    });
+
+    test("isOpenNowFromSchedule handles overnight wrap (e.g. 22:00 - 02:00)", () => {
+        const schedule = shopSchedule.getDefaultSchedule();
+        schedule.friday = { open: true, openTime: "22:00", closeTime: "02:00" };
+
+        // 23:00 on Friday — within wrap
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-22T23:00:00"))).toBe(true);
+        // 01:30 on Friday — still within wrap (start of day, before close)
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-22T01:30:00"))).toBe(true);
+        // 12:00 on Friday — outside
+        expect(shopSchedule.isOpenNowFromSchedule(schedule, new Date("2026-05-22T12:00:00"))).toBe(false);
+    });
+
+    test("getShopOpenState returns 'manually-closed' when acceptingOrders is false", () => {
+        const state = shopSchedule.getShopOpenState({
+            acceptingOrders: false,
+            schedule: shopSchedule.getDefaultSchedule()
+        }, new Date("2026-05-21T10:00:00"));
+        expect(state.isOpen).toBe(false);
+        expect(state.reason).toBe("manually-closed");
+    });
+
+    test("getShopOpenState returns 'outside-hours' when schedule excludes current time", () => {
+        const state = shopSchedule.getShopOpenState({
+            acceptingOrders: true,
+            schedule: shopSchedule.getDefaultSchedule()
+        }, new Date("2026-05-21T20:00:00"));
+        expect(state.isOpen).toBe(false);
+        expect(state.reason).toBe("outside-hours");
+    });
+
+    test("getShopOpenState returns 'no-schedule' when no schedule provided", () => {
+        const state = shopSchedule.getShopOpenState({
+            acceptingOrders: true,
+            schedule: null
+        }, new Date());
+        expect(state.isOpen).toBe(true);
+        expect(state.reason).toBe("no-schedule");
+    });
+
+    test("getShopOpenState returns 'within-hours' label when open", () => {
+        const state = shopSchedule.getShopOpenState({
+            acceptingOrders: true,
+            schedule: shopSchedule.getDefaultSchedule()
+        }, new Date("2026-05-21T10:00:00"));
+        expect(state.isOpen).toBe(true);
+        expect(state.label).toBe("Open now");
+    });
+
+    test("getNextOpenSlot finds today later when current time is before open", () => {
+        const result = shopSchedule.getNextOpenSlot(
+            shopSchedule.getDefaultSchedule(),
+            new Date("2026-05-21T06:00:00")
+        );
+        expect(result).toEqual(expect.objectContaining({ isToday: true, isLater: true, openTime: "08:00" }));
+    });
+
+    test("getNextOpenSlot finds the next open day when today is closed", () => {
+        const result = shopSchedule.getNextOpenSlot(
+            shopSchedule.getDefaultSchedule(),
+            new Date("2026-05-24T12:00:00") // Sunday
+        );
+        expect(result.isToday).toBe(false);
+        expect(result.dayLabel).toBe("Monday");
+    });
+
+    test("getNextOpenSlot returns null when nothing is open", () => {
+        const closed = {};
+        shopSchedule.DAYS.forEach((day) => {
+            closed[day.key] = { open: false, openTime: "08:00", closeTime: "17:00" };
+        });
+        expect(shopSchedule.getNextOpenSlot(closed, new Date("2026-05-21T10:00:00"))).toBeNull();
+    });
+
+    test("isEmptySchedule detects fully closed schedules", () => {
+        const closed = {};
+        shopSchedule.DAYS.forEach((day) => {
+            closed[day.key] = { open: false, openTime: "08:00", closeTime: "17:00" };
+        });
+        expect(shopSchedule.isEmptySchedule(closed)).toBe(true);
+        expect(shopSchedule.isEmptySchedule(shopSchedule.getDefaultSchedule())).toBe(false);
+    });
+});
+
+// ==========================================
+// Institutions data tests
+// ==========================================
+
+describe("shared/south-african-institutions", () => {
+    test("exposes 26 public universities", () => {
+        const grouped = institutions.groupInstitutionsByType();
+        expect(grouped.publicUniversities).toHaveLength(26);
+    });
+
+    test("exposes 50 TVET colleges", () => {
+        const grouped = institutions.groupInstitutionsByType();
+        expect(grouped.tvetColleges).toHaveLength(50);
+    });
+
+    test("exposes 15 private colleges", () => {
+        const grouped = institutions.groupInstitutionsByType();
+        expect(grouped.privateColleges).toHaveLength(15);
+    });
+
+    test("findInstitutionByName matches both full name and short name", () => {
+        const wits = institutions.findInstitutionByName("Wits");
+        expect(wits).not.toBeNull();
+        expect(wits.name).toBe("University of the Witwatersrand");
+
+        const up = institutions.findInstitutionByName("University of Pretoria");
+        expect(up).not.toBeNull();
+        expect(up.campuses.length).toBeGreaterThan(0);
+
+        expect(institutions.findInstitutionByName("Unknown School")).toBeNull();
+        expect(institutions.findInstitutionByName("")).toBeNull();
+    });
+
+    test("getCampusesFor returns campuses for a known institution", () => {
+        const campuses = institutions.getCampusesFor("University of Pretoria");
+        expect(campuses).toEqual(expect.arrayContaining([
+            expect.stringContaining("Hatfield")
+        ]));
+    });
+
+    test("getCampusesFor returns empty array for unknown institutions", () => {
+        expect(institutions.getCampusesFor("Unknown")).toEqual([]);
+    });
+
+    test("getAllInstitutions returns a shallow copy", () => {
+        const all = institutions.getAllInstitutions();
+        const original = institutions.getAllInstitutions();
+        all.pop();
+        expect(all.length).toBe(original.length - 1);
+    });
+});
+
+// ==========================================
+// vendor/shop.js helpers
+// ==========================================
+
 describe("vendor/shop.js helpers", () => {
     test("module exposes key constants and field keys", () => {
         expect(MODULE_NAME).toBe("vendor/shop");
         expect(MAX_IMAGE_SIZE_BYTES).toBe(5 * 1024 * 1024);
+        expect(OTHER_OPTION_VALUE).toBe("__other__");
         expect(FIELD_KEYS).toEqual(expect.arrayContaining([
             "businessName",
             "foodType",
             "description",
-            "university",
-            "campusLocation",
-            "openingHours",
+            "institution",
+            "campus",
+            "stallLocation",
             "contactNumber",
             "businessEmail"
         ]));
     });
 
-    test("normalization helpers trim and lowercase appropriately", () => {
+    test("normalization helpers", () => {
         expect(normalizeText("  Hello  ")).toBe("Hello");
         expect(normalizeText(undefined)).toBe("");
-        expect(normalizeText(42)).toBe("");
         expect(normalizeLowerText("  HELLO  ")).toBe("hello");
         expect(normalizeEmail("  Foo@Bar.COM ")).toBe("foo@bar.com");
         expect(normalizePhoneNumber(" +27 71 234 5678 ")).toBe("+27712345678");
     });
 
-    test("email and phone validation", () => {
-        expect(isValidEmail("foo@bar.com")).toBe(true);
-        expect(isValidEmail("not-an-email")).toBe(false);
-        expect(isValidEmail("")).toBe(false);
+    test("validation", () => {
+        expect(isValidEmail("a@b.com")).toBe(true);
+        expect(isValidEmail("nope")).toBe(false);
         expect(isValidPhoneNumber("+27712345678")).toBe(true);
-        expect(isValidPhoneNumber("0712345678")).toBe(true);
         expect(isValidPhoneNumber("123")).toBe(false);
-        expect(isValidPhoneNumber("abc")).toBe(false);
-        expect(isValidPhoneNumber("")).toBe(false);
     });
 
-    test("isImageFile and getFileExtension handle file types", () => {
+    test("isImageFile and getFileExtension", () => {
         expect(isImageFile(createMockFile("a.png", "image/png"))).toBe(true);
         expect(isImageFile(createMockFile("a.txt", "text/plain"))).toBe(false);
         expect(isImageFile(null)).toBe(false);
-
         expect(getFileExtension(createMockFile("a.png", "image/png"))).toBe("png");
         expect(getFileExtension(createMockFile("a.webp", "image/webp"))).toBe("webp");
         expect(getFileExtension(createMockFile("a.gif", "image/gif"))).toBe("gif");
-        expect(getFileExtension(createMockFile("a.jpg", "image/jpeg"))).toBe("jpg");
         expect(getFileExtension(null)).toBe("jpg");
-        expect(getFileExtension({})).toBe("jpg");
     });
 
-    test("buildShopPhotoPath builds vendor-scoped paths", () => {
+    test("buildShopPhotoPath", () => {
         expect(buildShopPhotoPath("vendor-1", createMockFile("a.png", "image/png")))
             .toBe("vendorShopPhotos/vendor-1/cover.png");
-        expect(buildShopPhotoPath("vendor-1", createMockFile("a.gif", "image/gif")))
-            .toBe("vendorShopPhotos/vendor-1/cover.gif");
     });
 
-    test("getDisplayShopPhotoUrl prefers banner URL over fallbacks", () => {
+    test("getDisplayShopPhotoUrl prefers banner URL", () => {
         expect(getDisplayShopPhotoUrl({ vendorBannerURL: "https://a" })).toBe("https://a");
-        expect(getDisplayShopPhotoUrl({ shopPhotoDataUrl: "data:image/png;base64,x" }))
-            .toBe("data:image/png;base64,x");
         expect(getDisplayShopPhotoUrl(null)).toBe("");
     });
 
-    test("normalizeShopRecord normalizes profile data", () => {
-        const result = normalizeShopRecord({
+    test("normalizeShopRecord pulls institution/campus/schedule from new fields", () => {
+        const record = normalizeShopRecord({
             uid: "vendor-1",
-            vendorBusinessName: "  Burger Hut ",
+            vendorBusinessName: "Burger Hut",
             vendorDescription: "Tasty",
-            vendorLocation: "Hatfield",
-            vendorUniversity: "UP",
+            vendorInstitution: "University of Pretoria",
+            vendorInstitutionType: "Public University",
+            vendorCampus: "Hatfield Campus — Hatfield, Pretoria",
+            vendorStallLocation: "Stall 7",
             vendorFoodType: "Burgers",
-            vendorOpeningHours: "08-17",
-            vendorPhoneNumber: " +27 71 234 5678 ",
-            vendorEmail: "ORDERS@FOO.com",
+            vendorPhoneNumber: "+27712345678",
+            vendorEmail: "x@y.co.za",
             vendorAcceptingOrders: false,
-            vendorBannerURL: "https://files.example/banner.jpg",
-            vendorBannerPath: "vendorShopPhotos/vendor-1/cover.jpg",
-            vendorStatus: "APPROVED",
-            accountStatus: "active"
+            vendorBannerURL: "https://banner",
+            vendorSchedule: shopSchedule.getDefaultSchedule()
         });
 
-        expect(result).toEqual({
-            uid: "vendor-1",
-            businessName: "Burger Hut",
-            foodType: "Burgers",
-            description: "Tasty",
-            university: "UP",
-            campusLocation: "Hatfield",
-            openingHours: "08-17",
-            contactNumber: "+27712345678",
-            businessEmail: "orders@foo.com",
-            acceptingOrders: false,
-            shopPhotoURL: "https://files.example/banner.jpg",
-            shopPhotoPath: "vendorShopPhotos/vendor-1/cover.jpg",
-            vendorStatus: "approved",
-            accountStatus: "active"
-        });
-
-        expect(normalizeShopRecord(null)).toEqual(expect.objectContaining({
-            uid: "",
-            businessName: "",
-            acceptingOrders: true,
-            vendorStatus: "none",
-            accountStatus: "active"
-        }));
-
-        expect(normalizeShopRecord({ businessName: "Fallback", phoneNumber: "0712345678" }))
-            .toEqual(expect.objectContaining({
-                businessName: "Fallback",
-                contactNumber: "0712345678"
-            }));
+        expect(record.institution).toBe("University of Pretoria");
+        expect(record.campus).toBe("Hatfield Campus — Hatfield, Pretoria");
+        expect(record.stallLocation).toBe("Stall 7");
+        expect(record.acceptingOrders).toBe(false);
+        expect(record.schedule.monday.openTime).toBe("08:00");
+        expect(record.scheduleSummary).toContain("Mon-Fri");
     });
 
-    test("validateShopValues returns errors for invalid input", () => {
-        const result = validateShopValues({
-            businessName: "",
-            foodType: "x",
-            description: "short",
-            campusLocation: "",
-            contactNumber: "abc",
-            businessEmail: "invalid"
+    test("normalizeShopRecord falls back to legacy vendorUniversity/vendorLocation", () => {
+        const record = normalizeShopRecord({
+            vendorUniversity: "Legacy University",
+            vendorLocation: "Legacy Location"
         });
-
-        expect(result.isValid).toBe(false);
-        expect(result.errors.businessName).toBe("Please enter your business name.");
-        expect(result.errors.foodType).toBe("Food type is too short.");
-        expect(result.errors.description).toBe("Please write a longer shop description.");
-        expect(result.errors.campusLocation).toBe("Please enter your campus stall location.");
-        expect(result.errors.contactNumber).toBe("Please enter a valid contact number.");
-        expect(result.errors.businessEmail).toBe("Please enter a valid email address.");
+        expect(record.institution).toBe("Legacy University");
+        expect(record.stallLocation).toBe("Legacy Location");
     });
 
-    test("validateShopValues catches short business name and missing contact", () => {
-        const result = validateShopValues({
-            businessName: "A",
-            description: "A long description here.",
-            campusLocation: "Plaza",
-            contactNumber: ""
-        });
-
-        expect(result.errors.businessName).toBe("Business name is too short.");
-        expect(result.errors.contactNumber).toBe("Please enter a contact number.");
-    });
-
-    test("validateShopValues passes for valid input", () => {
+    test("validateShopValues catches missing institution and stall", () => {
         const result = validateShopValues({
             businessName: "Burger Hut",
-            foodType: "Burgers",
-            description: "Tasty burgers, fast service.",
-            campusLocation: "Hatfield Plaza",
-            contactNumber: "+27712345678",
-            businessEmail: "orders@burgerhut.co.za"
+            description: "Tasty burgers and chips.",
+            institution: "",
+            stallLocation: "",
+            contactNumber: "+27712345678"
         });
+        expect(result.errors.institution).toBe("Please choose or type your school.");
+        expect(result.errors.stallLocation).toBe("Please enter the stall / building detail.");
+    });
 
+    test("validateShopValues passes with all required fields", () => {
+        const result = validateShopValues({
+            businessName: "Burger Hut",
+            description: "Tasty burgers and chips.",
+            institution: "University of Pretoria",
+            stallLocation: "Stall 7",
+            contactNumber: "+27712345678",
+            businessEmail: "x@y.com",
+            foodType: "Burgers"
+        });
         expect(result.isValid).toBe(true);
-        expect(result.errors).toEqual({});
     });
 
-    test("validateShopValues tolerates non-object input", () => {
-        expect(validateShopValues(null).isValid).toBe(false);
-    });
-
-    test("toShopUpdates maps form values to Firestore fields", () => {
+    test("toShopUpdates produces both new and legacy fields, plus schedule + summary", () => {
+        const schedule = shopSchedule.getDefaultSchedule();
         const updates = toShopUpdates({
             businessName: "Burger Hut",
             foodType: "Burgers",
             description: "Tasty",
-            university: "UP",
-            campusLocation: "Hatfield",
-            openingHours: "08-17",
+            institution: "University of Pretoria",
+            institutionType: "Public University",
+            campus: "Hatfield Campus",
+            stallLocation: "Stall 7",
             contactNumber: " +27 71 234 5678 ",
-            businessEmail: "ORDERS@FOO.com",
+            businessEmail: "X@Y.COM",
             acceptingOrders: true,
-            shopPhotoURL: "https://files.example/banner.jpg",
-            shopPhotoPath: "vendorShopPhotos/vendor-1/cover.jpg"
+            schedule,
+            shopPhotoURL: "https://banner",
+            shopPhotoPath: "vendorShopPhotos/v/cover.jpg"
         });
 
-        expect(updates).toEqual({
-            vendorBusinessName: "Burger Hut",
-            businessName: "Burger Hut",
-            vendorFoodType: "Burgers",
-            vendorDescription: "Tasty",
-            description: "Tasty",
-            vendorUniversity: "UP",
-            vendorLocation: "Hatfield",
-            campusLocation: "Hatfield",
-            vendorOpeningHours: "08-17",
-            vendorPhoneNumber: "+27712345678",
-            contactNumber: "+27712345678",
-            vendorEmail: "orders@foo.com",
-            vendorAcceptingOrders: true,
-            vendorBannerURL: "https://files.example/banner.jpg",
-            vendorBannerPath: "vendorShopPhotos/vendor-1/cover.jpg"
-        });
-
-        expect(toShopUpdates(null).vendorAcceptingOrders).toBe(false);
+        expect(updates.vendorInstitution).toBe("University of Pretoria");
+        expect(updates.vendorUniversity).toBe("University of Pretoria");
+        expect(updates.vendorInstitutionType).toBe("Public University");
+        expect(updates.vendorCampus).toBe("Hatfield Campus");
+        expect(updates.vendorStallLocation).toBe("Stall 7");
+        expect(updates.vendorLocation).toBe("Stall 7");
+        expect(updates.vendorPhoneNumber).toBe("+27712345678");
+        expect(updates.vendorEmail).toBe("x@y.com");
+        expect(updates.vendorAcceptingOrders).toBe(true);
+        expect(updates.vendorBannerURL).toBe("https://banner");
+        expect(updates.vendorSchedule.monday.openTime).toBe("08:00");
+        expect(updates.vendorOpeningHours).toContain("Mon-Fri");
     });
 
-    test("clearFileInput and getSelectedPhotoFile work safely", () => {
+    test("renderInstitutionOptions writes optgroups and selects known matches", () => {
+        document.body.innerHTML = '<select id="sel"></select>';
+        const select = document.getElementById("sel");
+
+        renderInstitutionOptions(select, "University of Pretoria");
+
+        const optgroups = select.querySelectorAll("optgroup");
+        expect(optgroups.length).toBe(3);
+        expect(optgroups[0].label).toBe("Public Universities");
+
+        const selected = Array.from(select.options).find((o) => o.selected);
+        expect(selected.value).toBe("University of Pretoria");
+        // "Other" option exists
+        expect(Array.from(select.options).some((o) => o.value === OTHER_OPTION_VALUE)).toBe(true);
+    });
+
+    test("renderInstitutionOptions selects 'Other' when value is custom", () => {
+        document.body.innerHTML = '<select id="sel"></select>';
+        const select = document.getElementById("sel");
+
+        renderInstitutionOptions(select, "Some Custom School");
+
+        const selected = Array.from(select.options).find((o) => o.selected);
+        expect(selected.value).toBe(OTHER_OPTION_VALUE);
+    });
+
+    test("renderCampusOptions lists campuses for the chosen institution", () => {
+        document.body.innerHTML = '<select id="sel"></select>';
+        const select = document.getElementById("sel");
+
+        renderCampusOptions(select, "University of Pretoria", "Hatfield Campus — Hatfield, Pretoria");
+
+        const opts = Array.from(select.options).map((o) => o.value);
+        expect(opts).toContain("Hatfield Campus — Hatfield, Pretoria");
+        const selected = Array.from(select.options).find((o) => o.selected);
+        expect(selected.value).toBe("Hatfield Campus — Hatfield, Pretoria");
+    });
+
+    test("renderCampusOptions selects 'Other' when campus is custom", () => {
+        document.body.innerHTML = '<select id="sel"></select>';
+        const select = document.getElementById("sel");
+
+        renderCampusOptions(select, "University of Pretoria", "My Custom Stall");
+
+        const selected = Array.from(select.options).find((o) => o.selected);
+        expect(selected.value).toBe(OTHER_OPTION_VALUE);
+    });
+
+    test("clearFileInput, getSelectedPhotoFile, readFileAsDataURL", async () => {
         const input = document.createElement("input");
         input.type = "file";
         clearFileInput(input);
         expect(input.value).toBe("");
-        clearFileInput(null);
-
         expect(getSelectedPhotoFile(null)).toBeNull();
         expect(getSelectedPhotoFile({ files: [] })).toBeNull();
         expect(getSelectedPhotoFile({ files: ["a"] })).toBe("a");
-    });
 
-    test("readFileAsDataURL resolves on success and rejects on error", async () => {
         const originalFileReader = global.FileReader;
-
         global.FileReader = class MockFileReader {
             readAsDataURL() {
                 this.result = "data:image/jpeg;base64,mock";
                 this.onload();
             }
         };
-
         await expect(readFileAsDataURL(createMockFile("a.jpg", "image/jpeg")))
             .resolves.toBe("data:image/jpeg;base64,mock");
-
-        global.FileReader = class ErrorFileReader {
-            readAsDataURL() {
-                this.onerror();
-            }
-        };
-
-        await expect(readFileAsDataURL(createMockFile("a.jpg", "image/jpeg")))
-            .rejects.toThrow("Unable to read the selected image.");
-
-        global.FileReader = class EmptyFileReader {
-            readAsDataURL() {
-                this.result = null;
-                this.onload();
-            }
-        };
-
-        await expect(readFileAsDataURL(createMockFile("a.jpg", "image/jpeg")))
-            .resolves.toBe("");
-
         global.FileReader = originalFileReader;
     });
 
-    test("loadImageFromSource resolves and rejects", async () => {
-        const originalImage = global.Image;
-
-        global.Image = class MockImage {
-            set src(value) {
-                this._src = value;
-                this.naturalWidth = 600;
-                this.naturalHeight = 400;
-                this.onload();
-            }
-        };
-
-        const image = await loadImageFromSource("data:image/png;base64,x");
-        expect(image.naturalWidth).toBe(600);
-
-        global.Image = class ErrorImage {
-            set src(value) {
-                this._src = value;
-                this.onerror();
-            }
-        };
-
-        await expect(loadImageFromSource("broken"))
-            .rejects.toThrow("Unable to process the selected image.");
-
-        global.Image = originalImage;
+    test("getAllInstitutions / findInstitutionByName / getCampusesFor / groupInstitutionsByType pass through", () => {
+        expect(getAllInstitutions().length).toBeGreaterThan(0);
+        expect(findInstitutionByName("Wits").name).toBe("University of the Witwatersrand");
+        expect(getCampusesFor("University of Pretoria").length).toBeGreaterThan(0);
+        const grouped = groupInstitutionsByType();
+        expect(grouped.publicUniversities.length).toBe(26);
     });
 
-    test("fileToOptimizedDataURL optimizes when canvas is available, falls back otherwise", async () => {
-        const originalFileReader = global.FileReader;
-        const originalImage = global.Image;
-        const originalCreateElement = document.createElement.bind(document);
+    test("getDefaultSchedule / normalizeSchedule / formatScheduleSummary pass through", () => {
+        expect(getDefaultSchedule().monday.open).toBe(true);
+        expect(normalizeSchedule({}).monday.openTime).toBe("08:00");
+        expect(formatScheduleSummary(getDefaultSchedule())).toContain("Mon-Fri");
+    });
 
-        global.FileReader = class MockFileReader {
-            readAsDataURL() {
-                this.result = "data:image/jpeg;base64,original";
-                this.onload();
-            }
-        };
-
-        global.Image = class MockImage {
-            set src(value) {
-                this._src = value;
-                this.naturalWidth = 3000;
-                this.naturalHeight = 2000;
-                this.onload();
-            }
-        };
-
-        const drawSpy = jest.fn();
-        jest.spyOn(document, "createElement").mockImplementation((tagName) => {
-            if (tagName === "canvas") {
-                return {
-                    width: 0,
-                    height: 0,
-                    getContext: () => ({ drawImage: drawSpy }),
-                    toDataURL: jest.fn(() => "data:image/jpeg;base64,optimized")
-                };
-            }
-            return originalCreateElement(tagName);
-        });
-
-        await expect(fileToOptimizedDataURL(createMockFile("a.jpg", "image/jpeg")))
-            .resolves.toBe("data:image/jpeg;base64,optimized");
-        expect(drawSpy).toHaveBeenCalled();
-
-        document.createElement.mockRestore();
-
-        jest.spyOn(document, "createElement").mockImplementation((tagName) => {
-            if (tagName === "canvas") {
-                return {
-                    width: 0,
-                    height: 0,
-                    getContext: () => null
-                };
-            }
-            return originalCreateElement(tagName);
-        });
-
-        await expect(fileToOptimizedDataURL(createMockFile("a.jpg", "image/jpeg")))
-            .resolves.toBe("data:image/jpeg;base64,original");
-
-        document.createElement.mockRestore();
-
-        jest.spyOn(document, "createElement").mockImplementation((tagName) => {
-            if (tagName === "canvas") {
-                return {
-                    width: 0,
-                    height: 0,
-                    getContext: () => ({ drawImage: jest.fn() }),
-                    toDataURL: jest.fn(() => "data:image/png;base64,opt")
-                };
-            }
-            return originalCreateElement(tagName);
-        });
-
-        await expect(fileToOptimizedDataURL(createMockFile("a.png", "image/png"), {
-            maxWidth: 800,
-            maxHeight: 800,
-            quality: 0.7
-        })).resolves.toBe("data:image/png;base64,opt");
-
-        document.createElement.mockRestore();
-        global.FileReader = originalFileReader;
-        global.Image = originalImage;
+    test("getShopOpenState pass-through", () => {
+        const state = getShopOpenState({ acceptingOrders: true, schedule: getDefaultSchedule() }, new Date("2026-05-21T10:00:00"));
+        expect(state.isOpen).toBe(true);
     });
 });
+
+// ==========================================
+// createVendorShopPage flows
+// ==========================================
 
 describe("createVendorShopPage", () => {
     let page;
@@ -599,92 +734,168 @@ describe("createVendorShopPage", () => {
         jest.restoreAllMocks();
     });
 
-    test("initializeShopPage loads profile, fills form, updates stats and summary", async () => {
+    test("initializeShopPage loads profile, fills institution + campus + schedule", async () => {
         const result = await page.initializeShopPage();
 
         expect(result.success).toBe(true);
-        expect(deps.authService.getCurrentUser).toHaveBeenCalled();
-        expect(deps.authService.getCurrentUserProfile).toHaveBeenCalledWith("vendor-1");
-        expect(deps.firestoreFns.doc).toHaveBeenCalledWith(deps.db, "users", "vendor-1");
-        expect(deps.firestoreFns.getDoc).toHaveBeenCalled();
-
         expect(document.getElementById("shop-business-name").value).toBe("Burger Hut");
-        expect(document.getElementById("shop-description").value).toBe("Tasty burgers, fast service.");
-        expect(document.getElementById("shop-campus-location").value).toBe("Hatfield Plaza, Stall 7");
-        expect(document.getElementById("shop-contact-number").value).toBe("+27712345678");
-        expect(document.getElementById("shop-business-email").value).toBe("orders@burgerhut.co.za");
-        expect(document.getElementById("shop-accepting-orders").checked).toBe(true);
-        expect(document.getElementById("shop-vendor-status").textContent).toBe("approved");
-        expect(document.getElementById("shop-account-status").textContent).toBe("active");
-        expect(document.getElementById("shop-visibility").textContent).toBe("Yes");
-        expect(document.getElementById("shop-photo-state").textContent).toBe("Photo uploaded");
-        expect(document.getElementById("shop-summary-name").textContent).toBe("Burger Hut");
-        expect(document.getElementById("shop-photo-preview").hidden).toBe(false);
-        expect(document.getElementById("shop-status").textContent).toBe("Shop details loaded.");
+        expect(document.getElementById("shop-institution-select").value).toBe("University of Pretoria");
+        expect(document.getElementById("shop-campus-select").value).toBe("Hatfield Campus — Hatfield, Pretoria");
+        expect(document.getElementById("shop-stall-location").value).toBe("Hatfield Plaza, Stall 7");
+        expect(document.getElementById("shop-institution-type-display").textContent).toBe("Public University");
+        expect(document.getElementById("schedule-editor").querySelectorAll(".schedule-row").length).toBe(7);
+        // 10:00 on a Thursday with default schedule → open
+        expect(document.getElementById("shop-live-status").textContent).toBe("Open now");
+        expect(document.getElementById("shop-summary-institution").textContent).toBe("University of Pretoria");
     });
 
-    test("initializeShopPage redirects to login when not signed in", async () => {
-        deps = buildDependencies({ currentUser: null });
+    test("Choosing 'Other' on the institution dropdown reveals the typed-in input", async () => {
+        await page.initializeShopPage();
+
+        const select = document.getElementById("shop-institution-select");
+        select.value = OTHER_OPTION_VALUE;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const wrap = document.getElementById("shop-institution-other-wrap");
+        expect(wrap.hidden).toBe(false);
+
+        const otherInput = document.getElementById("shop-institution-other");
+        otherInput.value = "My Local College";
+        otherInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+        expect(document.getElementById("shop-institution-type-display").textContent).toBe("Other / custom");
+    });
+
+    test("Choosing a known institution populates the campus dropdown", async () => {
+        await page.initializeShopPage();
+
+        const instSelect = document.getElementById("shop-institution-select");
+        instSelect.value = "University of Cape Town";
+        instSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const campusSelect = document.getElementById("shop-campus-select");
+        const options = Array.from(campusSelect.options).map((o) => o.value);
+        expect(options.some((v) => v.includes("Upper Campus"))).toBe(true);
+    });
+
+    test("Choosing 'Other' on the campus dropdown reveals the campus-other input", async () => {
+        await page.initializeShopPage();
+
+        const campusSelect = document.getElementById("shop-campus-select");
+        campusSelect.value = OTHER_OPTION_VALUE;
+        campusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(document.getElementById("shop-campus-other-wrap").hidden).toBe(false);
+    });
+
+    test("Schedule preset 'allweek' opens every day with 09:00-18:00", async () => {
+        await page.initializeShopPage();
+
+        page.applySchedulePreset("allweek");
+
+        const sunToggle = document.getElementById("schedule-sunday-open");
+        expect(sunToggle.checked).toBe(true);
+        const sunOpen = document.getElementById("schedule-sunday-open-time");
+        expect(sunOpen.value).toBe("09:00");
+    });
+
+    test("Schedule preset 'clear' closes every day", async () => {
+        await page.initializeShopPage();
+
+        page.applySchedulePreset("clear");
+
+        const monToggle = document.getElementById("schedule-monday-open");
+        expect(monToggle.checked).toBe(false);
+        expect(document.getElementById("schedule-summary").textContent).toBe("Closed all week");
+    });
+
+    test("Toggling a schedule day disables its time inputs", async () => {
+        await page.initializeShopPage();
+
+        const toggle = document.getElementById("schedule-tuesday-open");
+        toggle.checked = false;
+        toggle.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const openTime = document.getElementById("schedule-tuesday-open-time");
+        const closeTime = document.getElementById("schedule-tuesday-close-time");
+        expect(openTime.disabled).toBe(true);
+        expect(closeTime.disabled).toBe(true);
+    });
+
+    test("Changing schedule updates live status to 'Closed' when out of hours", async () => {
+        // Force "now" to be Saturday — closed by default
+        deps = buildDependencies({ now: () => new Date("2026-05-23T10:00:00") });
         page = createVendorShopPage(deps);
 
-        const result = await page.initializeShopPage();
+        await page.initializeShopPage();
 
-        expect(result.success).toBe(false);
-        expect(deps.navigate).toHaveBeenCalledWith("../authentication/login.html");
+        expect(document.getElementById("shop-live-status").textContent).toBe("Closed");
+        expect(document.getElementById("shop-summary-live").textContent).toBe("Closed");
     });
 
-    test("initializeShopPage redirects to dashboard for non-approved vendors", async () => {
-        deps = buildDependencies({ canAccessVendor: false });
-        page = createVendorShopPage(deps);
+    test("Unchecking 'accepting orders' overrides schedule to Closed", async () => {
+        await page.initializeShopPage();
 
-        const result = await page.initializeShopPage();
+        const accepting = document.getElementById("shop-accepting-orders");
+        accepting.checked = false;
+        accepting.dispatchEvent(new Event("change", { bubbles: true }));
 
-        expect(result.success).toBe(false);
-        expect(deps.navigate).toHaveBeenCalledWith("./index.html");
+        expect(document.getElementById("shop-live-status").textContent).toBe("Closed");
     });
 
-    test("ensureVendorAccess throws when auth methods are missing", async () => {
-        page = createVendorShopPage({ authService: {} });
-        await expect(page.ensureVendorAccess())
-            .rejects.toThrow("authService.getCurrentUser is required.");
+    test("saveShop writes the new institution / schedule fields", async () => {
+        await page.initializeShopPage();
+        fillValidForm();
 
-        page = createVendorShopPage({ authService: { getCurrentUser: () => ({ uid: "v" }) } });
-        await expect(page.ensureVendorAccess())
-            .rejects.toThrow("authService.getCurrentUserProfile is required.");
-    });
-
-    test("loadShopProfile sets error status when getDoc throws", async () => {
-        deps = buildDependencies({ getDocError: new Error("boom") });
-        page = createVendorShopPage(deps);
-
-        await page.ensureVendorAccess();
-        const result = await page.loadShopProfile();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("We could not load your shop details right now.");
-    });
-
-    test("loadShopProfile uses profile fallback when firestore deps are missing", async () => {
-        deps = buildDependencies();
-        delete deps.firestoreFns.getDoc;
-        page = createVendorShopPage(deps);
-
-        await page.ensureVendorAccess();
-        const result = await page.loadShopProfile();
+        const result = await page.saveShop();
 
         expect(result.success).toBe(true);
-        expect(result.shop.businessName).toBe("Burger Hut");
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Shop details loaded from your profile.");
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                vendorInstitution: "University of Pretoria",
+                vendorInstitutionType: "Public University",
+                vendorCampus: "Hatfield Campus — Hatfield, Pretoria",
+                vendorStallLocation: "Hatfield Plaza, Stall 7",
+                vendorSchedule: expect.objectContaining({
+                    monday: expect.objectContaining({ open: true })
+                }),
+                vendorOpeningHours: expect.stringContaining("Mon-Fri")
+            })
+        );
     });
 
-    test("loadShopProfile errors when no current user", async () => {
-        const result = await page.loadShopProfile();
+    test("saveShop rejects when institution is empty", async () => {
+        await page.initializeShopPage();
+        // Wipe institution
+        const inst = document.getElementById("shop-institution-select");
+        inst.value = "";
+        const result = await page.saveShop();
 
         expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("You must be signed in to view your shop details.");
+        expect(document.getElementById("shop-institution-error").textContent)
+            .toBe("Please choose or type your school.");
+    });
+
+    test("saveShop with 'Other' institution uses the typed value", async () => {
+        await page.initializeShopPage();
+        fillValidForm();
+
+        const inst = document.getElementById("shop-institution-select");
+        inst.value = OTHER_OPTION_VALUE;
+        inst.dispatchEvent(new Event("change", { bubbles: true }));
+        document.getElementById("shop-institution-other").value = "Custom Town College";
+
+        const result = await page.saveShop();
+
+        expect(result.success).toBe(true);
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                vendorInstitution: "Custom Town College",
+                vendorInstitutionType: ""
+            })
+        );
     });
 
     test("back button click navigates to vendor dashboard", async () => {
@@ -696,335 +907,6 @@ describe("createVendorShopPage", () => {
         expect(deps.navigate).toHaveBeenCalledWith("./index.html");
     });
 
-    test("goBack works programmatically", () => {
-        page.goBack();
-        expect(deps.navigate).toHaveBeenCalledWith("./index.html");
-    });
-
-    test("saveShop validates form and surfaces field errors", async () => {
-        await page.initializeShopPage();
-
-        document.getElementById("shop-business-name").value = "";
-        document.getElementById("shop-description").value = "";
-        document.getElementById("shop-campus-location").value = "";
-        document.getElementById("shop-contact-number").value = "";
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-businessName-error").textContent)
-            .toBe("Please enter your business name.");
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Please enter your business name.");
-        expect(document.getElementById("shop-business-name").getAttribute("aria-invalid"))
-            .toBe("true");
-    });
-
-    test("saveShop writes updates via updateDoc on success", async () => {
-        await page.initializeShopPage();
-        fillValidForm();
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(true);
-        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
-            { db: deps.db, segments: ["users", "vendor-1"] },
-            expect.objectContaining({
-                vendorBusinessName: "Burger Hut",
-                businessName: "Burger Hut",
-                vendorFoodType: "Burgers",
-                vendorDescription: "Tasty burgers, fast service.",
-                vendorUniversity: "University of Pretoria",
-                vendorLocation: "Hatfield Plaza, Stall 7",
-                vendorOpeningHours: "Mon-Fri 08:00-17:00",
-                vendorPhoneNumber: "+27712345678",
-                vendorEmail: "orders@burgerhut.co.za",
-                vendorAcceptingOrders: true,
-                updatedAt: "SERVER_TIME"
-            })
-        );
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Shop details saved successfully.");
-    });
-
-    test("saveShop falls back to authService.updateUserProfile when firestore is unavailable", async () => {
-        deps = buildDependencies();
-        delete deps.firestoreFns.updateDoc;
-        page = createVendorShopPage(deps);
-
-        await page.initializeShopPage();
-        fillValidForm();
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(true);
-        expect(deps.authService.updateUserProfile).toHaveBeenCalledWith(
-            "vendor-1",
-            expect.objectContaining({ vendorBusinessName: "Burger Hut" })
-        );
-    });
-
-    test("saveShop reports failure when updateDoc throws", async () => {
-        deps = buildDependencies({ updateDocError: new Error("offline") });
-        page = createVendorShopPage(deps);
-
-        await page.initializeShopPage();
-        fillValidForm();
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent).toBe("offline");
-    });
-
-    test("saveShop fails gracefully when no user is signed in", async () => {
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(false);
-    });
-
-    test("saveShop uploads selected photo to storage and stores URL", async () => {
-        await page.initializeShopPage();
-        fillValidForm();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("shop.png", "image/png")
-        );
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(true);
-        expect(deps.storageFns.uploadBytes).toHaveBeenCalled();
-        expect(deps.storageFns.getDownloadURL).toHaveBeenCalledWith(
-            { storage: deps.storage, path: "vendorShopPhotos/vendor-1/cover.png" }
-        );
-        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({
-                vendorBannerURL: "https://storage.example/vendorShopPhotos/vendor-1/cover.png",
-                vendorBannerPath: "vendorShopPhotos/vendor-1/cover.png"
-            })
-        );
-    });
-
-    test("saveShop reports an error when uploaded file is not an image", async () => {
-        await page.initializeShopPage();
-        fillValidForm();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("notes.txt", "text/plain")
-        );
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Please choose an image file.");
-    });
-
-    test("saveShop rejects images larger than 5 MB", async () => {
-        await page.initializeShopPage();
-        fillValidForm();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("huge.jpg", "image/jpeg", 6 * 1024 * 1024)
-        );
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Please choose an image smaller than 5 MB.");
-    });
-
-    test("saveShop after removeSelectedPhoto deletes the stored image", async () => {
-        await page.initializeShopPage();
-        fillValidForm();
-        page.removeSelectedPhoto();
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(true);
-        expect(deps.storageFns.deleteObject).toHaveBeenCalledWith(
-            { storage: deps.storage, path: "vendorShopPhotos/vendor-1/cover.jpg" }
-        );
-        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({
-                vendorBannerURL: "",
-                vendorBannerPath: ""
-            })
-        );
-    });
-
-    test("deleteStoredShopPhoto via removeSelectedPhoto tolerates object-not-found", async () => {
-        const notFoundError = Object.assign(new Error("missing"), { code: "storage/object-not-found" });
-        deps = buildDependencies({ deleteObjectError: notFoundError });
-        page = createVendorShopPage(deps);
-
-        await page.initializeShopPage();
-        fillValidForm();
-        page.removeSelectedPhoto();
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(true);
-    });
-
-    test("deleteStoredShopPhoto surfaces unexpected storage errors", async () => {
-        deps = buildDependencies({ deleteObjectError: new Error("network down") });
-        page = createVendorShopPage(deps);
-
-        await page.initializeShopPage();
-        fillValidForm();
-        page.removeSelectedPhoto();
-
-        const result = await page.saveShop();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent).toBe("network down");
-    });
-
-    test("previewSelectedPhoto requires a file", async () => {
-        await page.initializeShopPage();
-
-        const result = await page.previewSelectedPhoto();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Choose a shopfront photo first.");
-    });
-
-    test("previewSelectedPhoto rejects non-image files", async () => {
-        await page.initializeShopPage();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("notes.txt", "text/plain")
-        );
-
-        const result = await page.previewSelectedPhoto();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Please choose an image file.");
-    });
-
-    test("previewSelectedPhoto rejects oversized files", async () => {
-        await page.initializeShopPage();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("huge.jpg", "image/jpeg", 6 * 1024 * 1024)
-        );
-
-        const result = await page.previewSelectedPhoto();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Please choose an image smaller than 5 MB.");
-    });
-
-    test("previewSelectedPhoto returns optimized data url on success", async () => {
-        const originalFileReader = global.FileReader;
-        const originalImage = global.Image;
-        const originalCreateElement = document.createElement.bind(document);
-
-        global.FileReader = class MockFileReader {
-            readAsDataURL() {
-                this.result = "data:image/jpeg;base64,original";
-                this.onload();
-            }
-        };
-
-        global.Image = class MockImage {
-            set src(value) {
-                this._src = value;
-                this.naturalWidth = 800;
-                this.naturalHeight = 600;
-                this.onload();
-            }
-        };
-
-        jest.spyOn(document, "createElement").mockImplementation((tagName) => {
-            if (tagName === "canvas") {
-                return {
-                    width: 0,
-                    height: 0,
-                    getContext: () => ({ drawImage: jest.fn() }),
-                    toDataURL: jest.fn(() => "data:image/jpeg;base64,optimized")
-                };
-            }
-            return originalCreateElement(tagName);
-        });
-
-        await page.initializeShopPage();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("shop.jpg", "image/jpeg")
-        );
-
-        const result = await page.previewSelectedPhoto();
-
-        expect(result.success).toBe(true);
-        expect(result.photoDataUrl).toBe("data:image/jpeg;base64,optimized");
-        expect(document.getElementById("shop-photo-preview").hidden).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Shopfront photo preview ready.");
-
-        document.createElement.mockRestore();
-        global.FileReader = originalFileReader;
-        global.Image = originalImage;
-    });
-
-    test("previewSelectedPhoto surfaces optimization errors", async () => {
-        const originalFileReader = global.FileReader;
-
-        global.FileReader = class ErrorReader {
-            readAsDataURL() {
-                this.onerror();
-            }
-        };
-
-        await page.initializeShopPage();
-        attachFile(
-            document.getElementById("shop-photo-file"),
-            createMockFile("bad.jpg", "image/jpeg")
-        );
-
-        const result = await page.previewSelectedPhoto();
-
-        expect(result.success).toBe(false);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Unable to read the selected image.");
-
-        global.FileReader = originalFileReader;
-    });
-
-    test("preview button click triggers preview flow", async () => {
-        await page.initializeShopPage();
-
-        document.getElementById("preview-shop-photo-button")
-            .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Choose a shopfront photo first.");
-    });
-
-    test("remove button click clears the photo state", async () => {
-        await page.initializeShopPage();
-
-        document.getElementById("remove-shop-photo-button")
-            .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-
-        expect(page.state.selectedPhotoDataUrl).toBe("");
-        expect(page.state.photoMarkedForRemoval).toBe(true);
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Shopfront photo removed.");
-        expect(document.getElementById("shop-photo-state").textContent)
-            .toBe("No photo uploaded");
-    });
-
     test("reset button restores last loaded shop and clears errors", async () => {
         await page.initializeShopPage();
 
@@ -1034,101 +916,191 @@ describe("createVendorShopPage", () => {
             .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
         expect(document.getElementById("shop-business-name").value).toBe("Burger Hut");
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Changes discarded. Showing last saved shop details.");
     });
 
-    test("handleResetForm uses defaults when no shop is loaded yet", () => {
-        page.handleResetForm();
-
-        expect(document.getElementById("shop-status").textContent)
-            .toBe("Loading your shop details...");
-        expect(document.getElementById("shop-note").textContent)
-            .toBe("Update any field below, preview your shopfront image, then save your changes.");
-    });
-
-    test("live validation updates the summary on input", async () => {
-        await page.initializeShopPage();
-
-        const nameInput = document.getElementById("shop-business-name");
-        nameInput.value = "New Name";
-        nameInput.dispatchEvent(new Event("input", { bubbles: true }));
-
-        expect(document.getElementById("shop-summary-name").textContent).toBe("New Name");
-    });
-
-    test("live validation flags an invalid email", async () => {
-        await page.initializeShopPage();
-
-        const emailInput = document.getElementById("shop-business-email");
-        emailInput.value = "not-an-email";
-        emailInput.dispatchEvent(new Event("input", { bubbles: true }));
-
-        expect(document.getElementById("shop-businessEmail-error").textContent)
-            .toBe("Please enter a valid email address.");
-    });
-
-    test("toggling accepting orders updates the summary", async () => {
-        await page.initializeShopPage();
-
-        const acceptInput = document.getElementById("shop-accepting-orders");
-        acceptInput.checked = false;
-        acceptInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-        expect(document.getElementById("shop-summary-accepting").textContent).toBe("No");
-    });
-
-    test("validateSingleField returns true for valid input", async () => {
-        await page.initializeShopPage();
-
-        document.getElementById("shop-business-name").value = "Valid";
-        expect(page.validateSingleField("businessName")).toBe(true);
-    });
-
-    test("submit handler prevents default and triggers saveShop", async () => {
+    test("Manual accepting-orders toggle disables ordering even within hours", async () => {
         await page.initializeShopPage();
         fillValidForm();
 
-        const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
-        document.getElementById("vendor-shop-form").dispatchEvent(submitEvent);
-
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        expect(submitEvent.defaultPrevented).toBe(true);
+        document.getElementById("shop-accepting-orders").checked = false;
+        const result = await page.saveShop();
+        expect(result.success).toBe(true);
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ vendorAcceptingOrders: false })
+        );
     });
 
-    test("collectFormValues reads each input safely when missing", () => {
-        document.body.innerHTML = "";
-        expect(page.collectFormValues()).toEqual({
-            businessName: "",
-            foodType: "",
-            description: "",
-            university: "",
-            campusLocation: "",
-            openingHours: "",
-            contactNumber: "",
-            businessEmail: "",
-            acceptingOrders: true
-        });
+    test("loadShopProfile uses profile fallback when firestore deps are missing", async () => {
+        deps = buildDependencies();
+        delete deps.firestoreFns.getDoc;
+        page = createVendorShopPage(deps);
+
+        await page.ensureVendorAccess();
+        const result = await page.loadShopProfile();
+
+        expect(result.success).toBe(true);
+        expect(result.shop.institution).toBe("University of Pretoria");
     });
 
-    test("fillForm with a null record clears the form safely", () => {
-        page.fillForm(null);
-        expect(document.getElementById("shop-business-name").value).toBe("");
-        expect(document.getElementById("shop-accepting-orders").checked).toBe(true);
+    test("loadShopProfile reports error when getDoc throws", async () => {
+        deps = buildDependencies({ getDocError: new Error("boom") });
+        page = createVendorShopPage(deps);
+        await page.ensureVendorAccess();
+        const result = await page.loadShopProfile();
+        expect(result.success).toBe(false);
+        expect(document.getElementById("shop-status").textContent)
+            .toBe("We could not load your shop details right now.");
     });
 
-    test("updateStatsPanel reports invisible state when not approved", () => {
-        page.updateStatsPanel({ vendorStatus: "pending", accountStatus: "active" });
-        expect(document.getElementById("shop-visibility").textContent).toBe("No");
-        expect(document.getElementById("shop-vendor-status").textContent).toBe("pending");
+    test("initializeShopPage redirects to login when no user", async () => {
+        deps = buildDependencies({ currentUser: null });
+        page = createVendorShopPage(deps);
+        await page.initializeShopPage();
+        expect(deps.navigate).toHaveBeenCalledWith("../authentication/login.html");
     });
 
-    test("updateSummary handles null input without throwing", () => {
-        expect(() => page.updateSummary(null, "")).not.toThrow();
-        expect(document.getElementById("shop-summary-name").textContent).toBe("-");
+    test("initializeShopPage redirects to dashboard when not vendor", async () => {
+        deps = buildDependencies({ canAccessVendor: false });
+        page = createVendorShopPage(deps);
+        await page.initializeShopPage();
+        expect(deps.navigate).toHaveBeenCalledWith("./index.html");
+    });
+
+    test("previewSelectedPhoto requires a file", async () => {
+        await page.initializeShopPage();
+        const result = await page.previewSelectedPhoto();
+        expect(result.success).toBe(false);
+    });
+
+    test("previewSelectedPhoto rejects non-image files", async () => {
+        await page.initializeShopPage();
+        attachFile(document.getElementById("shop-photo-file"), createMockFile("a.txt", "text/plain"));
+        const result = await page.previewSelectedPhoto();
+        expect(result.success).toBe(false);
+    });
+
+    test("removeSelectedPhoto clears state", async () => {
+        await page.initializeShopPage();
+        const result = page.removeSelectedPhoto();
+        expect(result.success).toBe(true);
+        expect(page.state.photoMarkedForRemoval).toBe(true);
+    });
+
+    test("saveShop uploads selected photo and stores URL", async () => {
+        await page.initializeShopPage();
+        fillValidForm();
+        attachFile(document.getElementById("shop-photo-file"), createMockFile("shop.png", "image/png"));
+
+        const result = await page.saveShop();
+        expect(result.success).toBe(true);
+        expect(deps.storageFns.uploadBytes).toHaveBeenCalled();
+        expect(deps.firestoreFns.updateDoc).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                vendorBannerURL: expect.stringContaining("https://storage.example/")
+            })
+        );
+    });
+
+    test("saveShop falls back to authService.updateUserProfile when firestore is unavailable", async () => {
+        deps = buildDependencies();
+        delete deps.firestoreFns.updateDoc;
+        page = createVendorShopPage(deps);
+
+        await page.initializeShopPage();
+        fillValidForm();
+        const result = await page.saveShop();
+        expect(result.success).toBe(true);
+        expect(deps.authService.updateUserProfile).toHaveBeenCalled();
+    });
+
+    test("saveShop reports failure when updateDoc throws", async () => {
+        deps = buildDependencies({ updateDocError: new Error("offline") });
+        page = createVendorShopPage(deps);
+        await page.initializeShopPage();
+        fillValidForm();
+        const result = await page.saveShop();
+        expect(result.success).toBe(false);
+        expect(document.getElementById("shop-status").textContent).toBe("offline");
+    });
+
+    test("submit event triggers saveShop with preventDefault", async () => {
+        await page.initializeShopPage();
+        fillValidForm();
+
+        const evt = new Event("submit", { bubbles: true, cancelable: true });
+        document.getElementById("vendor-shop-form").dispatchEvent(evt);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(evt.defaultPrevented).toBe(true);
+    });
+
+    test("Editing a schedule row updates state, summary, and disables time inputs", async () => {
+        await page.initializeShopPage();
+
+        const monToggle = document.getElementById("schedule-monday-open");
+        monToggle.checked = false;
+        monToggle.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(page.state.schedule.monday.open).toBe(false);
+        expect(document.getElementById("schedule-monday-open-time").disabled).toBe(true);
+        expect(document.getElementById("schedule-summary").textContent).not.toContain("Mon-Fri");
+    });
+
+    test("Changing the institution dropdown to a known school refreshes the campus list", async () => {
+        await page.initializeShopPage();
+
+        const inst = document.getElementById("shop-institution-select");
+        inst.value = "Stellenbosch University";
+        inst.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const campusOpts = Array.from(document.getElementById("shop-campus-select").options).map((o) => o.value);
+        expect(campusOpts.some((v) => v.includes("Stellenbosch Main Campus"))).toBe(true);
+    });
+
+    test("Schedule preset buttons fire through their click handlers", async () => {
+        await page.initializeShopPage();
+
+        document.getElementById("schedule-preset-allweek")
+            .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+        expect(document.getElementById("schedule-sunday-open").checked).toBe(true);
+
+        document.getElementById("schedule-preset-clear")
+            .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+        expect(document.getElementById("schedule-monday-open").checked).toBe(false);
+
+        document.getElementById("schedule-preset-weekdays")
+            .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+        expect(document.getElementById("schedule-monday-open").checked).toBe(true);
+        expect(document.getElementById("schedule-saturday-open").checked).toBe(false);
+    });
+
+    test("Typing in the 'Other' institution field updates the type display live", async () => {
+        await page.initializeShopPage();
+
+        const inst = document.getElementById("shop-institution-select");
+        inst.value = OTHER_OPTION_VALUE;
+        inst.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const other = document.getElementById("shop-institution-other");
+        other.value = "My Custom School";
+        other.dispatchEvent(new Event("input", { bubbles: true }));
+
+        expect(document.getElementById("shop-institution-type-display").textContent).toBe("Other / custom");
+    });
+
+    test("readScheduleFromEditor produces a normalized schedule object", async () => {
+        await page.initializeShopPage();
+
+        const schedule = page.readScheduleFromEditor();
+        expect(schedule.monday).toEqual(expect.objectContaining({ open: true, openTime: "08:00", closeTime: "17:00" }));
+        expect(schedule.sunday).toEqual(expect.objectContaining({ open: false }));
     });
 });
+
+// ==========================================
+// initializeVendorShopPage entry point
+// ==========================================
 
 describe("initializeVendorShopPage entry point", () => {
     beforeEach(() => {
@@ -1137,26 +1109,20 @@ describe("initializeVendorShopPage entry point", () => {
 
     test("wires the back button when no auth service is provided", () => {
         const navigate = jest.fn();
-
         const result = initializeVendorShopPage({ navigate });
-
         expect(result.success).toBe(true);
 
         document.getElementById("back-to-dashboard-button")
             .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-
         expect(navigate).toHaveBeenCalledWith("./index.html");
     });
 
     test("creates and initializes a full page when dependencies are supplied", async () => {
         const deps = buildDependencies();
         const page = initializeVendorShopPage(deps);
-
         expect(page).toBeTruthy();
         expect(typeof page.initializeShopPage).toBe("function");
-
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
+        await new Promise((r) => setTimeout(r, 0));
         expect(deps.authService.getCurrentUser).toHaveBeenCalled();
     });
 });

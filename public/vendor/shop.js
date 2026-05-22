@@ -5,17 +5,53 @@
     const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
     const DEFAULT_STATUS_MESSAGE = "Loading your shop details...";
     const DEFAULT_NOTE_MESSAGE = "Update any field below, preview your shopfront image, then save your changes.";
+    const OTHER_OPTION_VALUE = "__other__";
 
     const FIELD_KEYS = [
         "businessName",
         "foodType",
         "description",
-        "university",
-        "campusLocation",
-        "openingHours",
+        "institution",
+        "campus",
+        "stallLocation",
         "contactNumber",
         "businessEmail"
     ];
+
+    function resolveShopSchedule() {
+        if (typeof globalScope !== "undefined" && globalScope.shopSchedule) {
+            return globalScope.shopSchedule;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../shared/shop-schedule/shop-schedule.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveInstitutions() {
+        if (typeof globalScope !== "undefined" && globalScope.southAfricanInstitutions) {
+            return globalScope.southAfricanInstitutions;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../shared/institutions/south-african-institutions.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    const scheduleModule = resolveShopSchedule();
+    const institutionsModule = resolveInstitutions();
 
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
@@ -176,6 +212,34 @@
         );
     }
 
+    function getDefaultSchedule() {
+        if (scheduleModule && typeof scheduleModule.getDefaultSchedule === "function") {
+            return scheduleModule.getDefaultSchedule();
+        }
+        return {};
+    }
+
+    function normalizeSchedule(value) {
+        if (scheduleModule && typeof scheduleModule.normalizeSchedule === "function") {
+            return scheduleModule.normalizeSchedule(value);
+        }
+        return value || {};
+    }
+
+    function formatScheduleSummary(value) {
+        if (scheduleModule && typeof scheduleModule.formatScheduleSummary === "function") {
+            return scheduleModule.formatScheduleSummary(value);
+        }
+        return "";
+    }
+
+    function getShopOpenState(record, date) {
+        if (scheduleModule && typeof scheduleModule.getShopOpenState === "function") {
+            return scheduleModule.getShopOpenState(record, date);
+        }
+        return { isOpen: true, label: "Open", summary: "", reason: "no-schedule" };
+    }
+
     function normalizeShopRecord(profile) {
         const safe = profile && typeof profile === "object" ? profile : {};
         const businessName = normalizeText(
@@ -185,21 +249,38 @@
             ""
         );
 
+        const institution = normalizeText(
+            safe.vendorInstitution || safe.vendorUniversity || safe.university
+        );
+        const institutionType = normalizeText(safe.vendorInstitutionType);
+        const campus = normalizeText(safe.vendorCampus);
+        const stallLocation = normalizeText(
+            safe.vendorStallLocation ||
+            safe.vendorLocation ||
+            safe.campusLocation ||
+            safe.location
+        );
+
+        const schedule = normalizeSchedule(
+            safe.vendorSchedule || safe.shopSchedule || null
+        );
+
         return {
             uid: normalizeText(safe.uid),
             businessName: businessName,
             foodType: normalizeText(safe.vendorFoodType || safe.foodType),
             description: normalizeText(safe.vendorDescription || safe.description),
-            university: normalizeText(safe.vendorUniversity || safe.university),
-            campusLocation: normalizeText(
-                safe.vendorLocation || safe.campusLocation || safe.location
-            ),
-            openingHours: normalizeText(safe.vendorOpeningHours || safe.openingHours),
+            institution,
+            institutionType,
+            campus,
+            stallLocation,
             contactNumber: normalizePhoneNumber(
                 safe.vendorPhoneNumber || safe.contactNumber || safe.phoneNumber
             ),
             businessEmail: normalizeEmail(safe.vendorEmail || safe.businessEmail),
             acceptingOrders: safe.vendorAcceptingOrders === false ? false : true,
+            schedule,
+            scheduleSummary: formatScheduleSummary(schedule),
             shopPhotoURL: getDisplayShopPhotoUrl(safe),
             shopPhotoPath: normalizeText(safe.vendorBannerPath || safe.shopPhotoPath),
             vendorStatus: normalizeLowerText(safe.vendorStatus) || "none",
@@ -223,8 +304,12 @@
             errors.description = "Please write a longer shop description.";
         }
 
-        if (!normalizeText(safe.campusLocation)) {
-            errors.campusLocation = "Please enter your campus stall location.";
+        if (!normalizeText(safe.institution)) {
+            errors.institution = "Please choose or type your school.";
+        }
+
+        if (!normalizeText(safe.stallLocation)) {
+            errors.stallLocation = "Please enter the stall / building detail.";
         }
 
         if (!normalizeText(safe.contactNumber)) {
@@ -241,6 +326,11 @@
             errors.foodType = "Food type is too short.";
         }
 
+        if (safe.schedule && scheduleModule && typeof scheduleModule.isEmptySchedule === "function") {
+            // Schedule with no open days is allowed (acts as "always manually closed")
+            // but we surface it as a warning in the UI rather than blocking save.
+        }
+
         return {
             isValid: Object.keys(errors).length === 0,
             errors
@@ -249,6 +339,8 @@
 
     function toShopUpdates(values) {
         const safe = values && typeof values === "object" ? values : {};
+        const schedule = normalizeSchedule(safe.schedule);
+        const summary = formatScheduleSummary(schedule);
 
         return {
             vendorBusinessName: normalizeText(safe.businessName),
@@ -256,10 +348,15 @@
             vendorFoodType: normalizeText(safe.foodType),
             vendorDescription: normalizeText(safe.description),
             description: normalizeText(safe.description),
-            vendorUniversity: normalizeText(safe.university),
-            vendorLocation: normalizeText(safe.campusLocation),
-            campusLocation: normalizeText(safe.campusLocation),
-            vendorOpeningHours: normalizeText(safe.openingHours),
+            vendorInstitution: normalizeText(safe.institution),
+            vendorUniversity: normalizeText(safe.institution),
+            vendorInstitutionType: normalizeText(safe.institutionType),
+            vendorCampus: normalizeText(safe.campus),
+            vendorStallLocation: normalizeText(safe.stallLocation),
+            vendorLocation: normalizeText(safe.stallLocation),
+            campusLocation: normalizeText(safe.stallLocation),
+            vendorOpeningHours: summary,
+            vendorSchedule: schedule,
             vendorPhoneNumber: normalizePhoneNumber(safe.contactNumber),
             contactNumber: normalizePhoneNumber(safe.contactNumber),
             vendorEmail: normalizeEmail(safe.businessEmail),
@@ -269,6 +366,123 @@
         };
     }
 
+    function getAllInstitutions() {
+        if (institutionsModule && typeof institutionsModule.getAllInstitutions === "function") {
+            return institutionsModule.getAllInstitutions();
+        }
+        return [];
+    }
+
+    function findInstitutionByName(name) {
+        if (institutionsModule && typeof institutionsModule.findInstitutionByName === "function") {
+            return institutionsModule.findInstitutionByName(name);
+        }
+        return null;
+    }
+
+    function getCampusesFor(name) {
+        if (institutionsModule && typeof institutionsModule.getCampusesFor === "function") {
+            return institutionsModule.getCampusesFor(name);
+        }
+        return [];
+    }
+
+    function groupInstitutionsByType() {
+        if (institutionsModule && typeof institutionsModule.groupInstitutionsByType === "function") {
+            return institutionsModule.groupInstitutionsByType();
+        }
+        return { publicUniversities: [], tvetColleges: [], privateColleges: [] };
+    }
+
+    function renderInstitutionOptions(selectElement, selectedInstitutionName) {
+        if (!selectElement || typeof document === "undefined") {
+            return;
+        }
+
+        selectElement.innerHTML = "";
+
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "-- Select a school --";
+        selectElement.appendChild(placeholder);
+
+        const groups = groupInstitutionsByType();
+        const groupConfig = [
+            { label: "Public Universities", list: groups.publicUniversities },
+            { label: "TVET Colleges", list: groups.tvetColleges },
+            { label: "Private Colleges", list: groups.privateColleges }
+        ];
+
+        const selectedNeedle = normalizeLowerText(selectedInstitutionName);
+        let matchedKnown = false;
+
+        groupConfig.forEach(function appendGroup(config) {
+            if (!config.list || config.list.length === 0) {
+                return;
+            }
+
+            const optgroup = document.createElement("optgroup");
+            optgroup.label = config.label;
+
+            config.list.forEach(function appendOption(entry) {
+                const option = document.createElement("option");
+                option.value = entry.name;
+                option.textContent = entry.shortName ? `${entry.name} (${entry.shortName})` : entry.name;
+                if (normalizeLowerText(entry.name) === selectedNeedle) {
+                    option.selected = true;
+                    matchedKnown = true;
+                }
+                optgroup.appendChild(option);
+            });
+
+            selectElement.appendChild(optgroup);
+        });
+
+        const otherOption = document.createElement("option");
+        otherOption.value = OTHER_OPTION_VALUE;
+        otherOption.textContent = "Other (type it in)";
+        if (selectedNeedle && !matchedKnown) {
+            otherOption.selected = true;
+        }
+        selectElement.appendChild(otherOption);
+    }
+
+    function renderCampusOptions(selectElement, institutionName, selectedCampusName) {
+        if (!selectElement || typeof document === "undefined") {
+            return;
+        }
+
+        selectElement.innerHTML = "";
+
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "-- Select a campus --";
+        selectElement.appendChild(placeholder);
+
+        const campuses = getCampusesFor(institutionName);
+        const selectedNeedle = normalizeLowerText(selectedCampusName);
+        let matchedKnown = false;
+
+        campuses.forEach(function appendCampus(campus) {
+            const option = document.createElement("option");
+            option.value = campus;
+            option.textContent = campus;
+            if (normalizeLowerText(campus) === selectedNeedle) {
+                option.selected = true;
+                matchedKnown = true;
+            }
+            selectElement.appendChild(option);
+        });
+
+        const otherOption = document.createElement("option");
+        otherOption.value = OTHER_OPTION_VALUE;
+        otherOption.textContent = "Other (type it in)";
+        if (selectedNeedle && !matchedKnown) {
+            otherOption.selected = true;
+        }
+        selectElement.appendChild(otherOption);
+    }
+
     function createVendorShopPage(dependencies = {}) {
         const authService = dependencies.authService || null;
         const authUtils = dependencies.authUtils || null;
@@ -276,6 +490,7 @@
         const storage = dependencies.storage || null;
         const firestoreFns = dependencies.firestoreFns || {};
         const storageFns = dependencies.storageFns || {};
+        const now = typeof dependencies.now === "function" ? dependencies.now : function defaultNow() { return new Date(); };
         const navigate =
             typeof dependencies.navigate === "function"
                 ? dependencies.navigate
@@ -290,7 +505,11 @@
             currentProfile: null,
             currentShop: null,
             selectedPhotoDataUrl: "",
-            photoMarkedForRemoval: false
+            photoMarkedForRemoval: false,
+            schedule: getDefaultSchedule(),
+            institutionInUseList: false,
+            campusInUseList: false,
+            liveTimer: null
         };
 
         function getElement(id) {
@@ -332,9 +551,14 @@
                 businessNameInput: getElement("shop-business-name"),
                 foodTypeInput: getElement("shop-food-type"),
                 descriptionInput: getElement("shop-description"),
-                universityInput: getElement("shop-university"),
-                campusLocationInput: getElement("shop-campus-location"),
-                openingHoursInput: getElement("shop-opening-hours"),
+                institutionSelect: getElement("shop-institution-select"),
+                institutionOtherInput: getElement("shop-institution-other"),
+                institutionOtherWrap: getElement("shop-institution-other-wrap"),
+                institutionTypeDisplay: getElement("shop-institution-type-display"),
+                campusSelect: getElement("shop-campus-select"),
+                campusOtherInput: getElement("shop-campus-other"),
+                campusOtherWrap: getElement("shop-campus-other-wrap"),
+                stallLocationInput: getElement("shop-stall-location"),
                 contactNumberInput: getElement("shop-contact-number"),
                 businessEmailInput: getElement("shop-business-email"),
                 acceptingOrdersInput: getElement("shop-accepting-orders"),
@@ -342,7 +566,15 @@
                 previewPhotoButton: getElement("preview-shop-photo-button"),
                 removePhotoButton: getElement("remove-shop-photo-button"),
                 photoPreview: getElement("shop-photo-preview"),
-                photoEmptyState: getElement("shop-photo-empty-state")
+                photoEmptyState: getElement("shop-photo-empty-state"),
+                scheduleEditor: getElement("schedule-editor"),
+                scheduleSummary: getElement("schedule-summary"),
+                schedulePresetWeekdays: getElement("schedule-preset-weekdays"),
+                schedulePresetAllWeek: getElement("schedule-preset-allweek"),
+                schedulePresetClear: getElement("schedule-preset-clear"),
+                liveStatus: getElement("shop-live-status"),
+                liveStatusNote: getElement("shop-live-status-note"),
+                summaryLive: getElement("shop-summary-live")
             };
         }
 
@@ -377,9 +609,9 @@
                 businessName: elements.businessNameInput,
                 foodType: elements.foodTypeInput,
                 description: elements.descriptionInput,
-                university: elements.universityInput,
-                campusLocation: elements.campusLocationInput,
-                openingHours: elements.openingHoursInput,
+                institution: elements.institutionSelect,
+                campus: elements.campusSelect,
+                stallLocation: elements.stallLocationInput,
                 contactNumber: elements.contactNumberInput,
                 businessEmail: elements.businessEmailInput
             };
@@ -413,6 +645,235 @@
             Object.keys(errors).forEach(function applyOne(key) {
                 setFieldError(key, errors[key]);
             });
+        }
+
+        function buildScheduleEditor(schedule) {
+            const elements = getFormElements();
+            const container = elements.scheduleEditor;
+
+            if (!container || !scheduleModule) {
+                return;
+            }
+
+            container.innerHTML = "";
+
+            const safeSchedule = normalizeSchedule(schedule);
+
+            scheduleModule.DAYS.forEach(function appendRow(day) {
+                const slot = safeSchedule[day.key];
+
+                const row = document.createElement("li");
+                row.className = "schedule-row";
+                row.dataset.dayKey = day.key;
+
+                const toggleLabel = document.createElement("label");
+                toggleLabel.className = "schedule-toggle";
+                toggleLabel.setAttribute("for", `schedule-${day.key}-open`);
+
+                const toggleInput = document.createElement("input");
+                toggleInput.type = "checkbox";
+                toggleInput.id = `schedule-${day.key}-open`;
+                toggleInput.dataset.dayKey = day.key;
+                toggleInput.dataset.role = "open-toggle";
+                toggleInput.checked = slot.open === true;
+
+                const dayName = document.createElement("strong");
+                dayName.className = "schedule-day-name";
+                dayName.textContent = day.label;
+
+                toggleLabel.appendChild(toggleInput);
+                toggleLabel.appendChild(dayName);
+
+                const timesWrap = document.createElement("section");
+                timesWrap.className = "schedule-times";
+
+                const openLabel = document.createElement("label");
+                openLabel.className = "schedule-time-field";
+                openLabel.setAttribute("for", `schedule-${day.key}-open-time`);
+                const openLabelText = document.createElement("small");
+                openLabelText.textContent = "Opens";
+                const openInput = document.createElement("input");
+                openInput.type = "time";
+                openInput.id = `schedule-${day.key}-open-time`;
+                openInput.value = slot.openTime;
+                openInput.dataset.dayKey = day.key;
+                openInput.dataset.role = "open-time";
+                openInput.disabled = !slot.open;
+                openLabel.appendChild(openLabelText);
+                openLabel.appendChild(openInput);
+
+                const closeLabel = document.createElement("label");
+                closeLabel.className = "schedule-time-field";
+                closeLabel.setAttribute("for", `schedule-${day.key}-close-time`);
+                const closeLabelText = document.createElement("small");
+                closeLabelText.textContent = "Closes";
+                const closeInput = document.createElement("input");
+                closeInput.type = "time";
+                closeInput.id = `schedule-${day.key}-close-time`;
+                closeInput.value = slot.closeTime;
+                closeInput.dataset.dayKey = day.key;
+                closeInput.dataset.role = "close-time";
+                closeInput.disabled = !slot.open;
+                closeLabel.appendChild(closeLabelText);
+                closeLabel.appendChild(closeInput);
+
+                const closedNote = document.createElement("p");
+                closedNote.className = "schedule-closed-note";
+                closedNote.textContent = "Closed all day";
+                closedNote.hidden = slot.open === true;
+
+                timesWrap.appendChild(openLabel);
+                timesWrap.appendChild(closeLabel);
+                timesWrap.appendChild(closedNote);
+
+                row.appendChild(toggleLabel);
+                row.appendChild(timesWrap);
+                container.appendChild(row);
+            });
+        }
+
+        function readScheduleFromEditor() {
+            const elements = getFormElements();
+            const container = elements.scheduleEditor;
+
+            if (!container || !scheduleModule) {
+                return state.schedule;
+            }
+
+            const result = {};
+
+            scheduleModule.DAYS.forEach(function readRow(day) {
+                const toggle = container.querySelector(`input[data-day-key="${day.key}"][data-role="open-toggle"]`);
+                const openTime = container.querySelector(`input[data-day-key="${day.key}"][data-role="open-time"]`);
+                const closeTime = container.querySelector(`input[data-day-key="${day.key}"][data-role="close-time"]`);
+
+                result[day.key] = {
+                    open: toggle ? toggle.checked === true : false,
+                    openTime: openTime && openTime.value ? openTime.value : "08:00",
+                    closeTime: closeTime && closeTime.value ? closeTime.value : "17:00"
+                };
+            });
+
+            return normalizeSchedule(result);
+        }
+
+        function applyScheduleRowDisabledStates() {
+            const elements = getFormElements();
+            const container = elements.scheduleEditor;
+
+            if (!container) {
+                return;
+            }
+
+            Array.from(container.querySelectorAll(".schedule-row")).forEach(function updateRow(row) {
+                const toggle = row.querySelector('input[data-role="open-toggle"]');
+                const openTime = row.querySelector('input[data-role="open-time"]');
+                const closeTime = row.querySelector('input[data-role="close-time"]');
+                const closedNote = row.querySelector(".schedule-closed-note");
+                const isOpen = toggle && toggle.checked === true;
+
+                if (openTime) {
+                    openTime.disabled = !isOpen;
+                }
+                if (closeTime) {
+                    closeTime.disabled = !isOpen;
+                }
+                if (closedNote) {
+                    closedNote.hidden = isOpen;
+                }
+            });
+        }
+
+        function setScheduleAndRender(schedule) {
+            state.schedule = normalizeSchedule(schedule);
+            buildScheduleEditor(state.schedule);
+            updateScheduleSummary();
+            updateLiveStatus();
+            updateSummaryFromForm();
+        }
+
+        function applySchedulePreset(presetName) {
+            if (!scheduleModule) {
+                return;
+            }
+
+            let preset;
+            if (presetName === "weekdays") {
+                preset = scheduleModule.getDefaultSchedule();
+            } else if (presetName === "allweek") {
+                preset = scheduleModule.getDefaultSchedule();
+                scheduleModule.DAYS.forEach(function setOpen(day) {
+                    preset[day.key] = { open: true, openTime: "09:00", closeTime: "18:00" };
+                });
+            } else if (presetName === "clear") {
+                preset = scheduleModule.getDefaultSchedule();
+                scheduleModule.DAYS.forEach(function setClosed(day) {
+                    preset[day.key] = { open: false, openTime: "08:00", closeTime: "17:00" };
+                });
+            } else {
+                return;
+            }
+
+            setScheduleAndRender(preset);
+        }
+
+        function updateScheduleSummary() {
+            const elements = getFormElements();
+            const summaryEl = elements.scheduleSummary;
+            const summary = formatScheduleSummary(state.schedule);
+
+            if (summaryEl) {
+                summaryEl.textContent = summary;
+            }
+
+            const hoursOutput = getElement("shop-summary-hours");
+            if (hoursOutput) {
+                hoursOutput.textContent = summary;
+            }
+        }
+
+        function updateLiveStatus() {
+            const elements = getFormElements();
+            const values = collectFormValues();
+            const openState = getShopOpenState({
+                acceptingOrders: values.acceptingOrders,
+                schedule: state.schedule
+            }, now());
+
+            if (elements.liveStatus) {
+                elements.liveStatus.textContent = openState.label;
+                elements.liveStatus.classList.remove(
+                    "shop-live-status-open",
+                    "shop-live-status-closed",
+                    "shop-live-status-unknown"
+                );
+                elements.liveStatus.classList.add(
+                    openState.isOpen ? "shop-live-status-open" : "shop-live-status-closed"
+                );
+            }
+
+            if (elements.liveStatusNote) {
+                if (openState.reason === "manually-closed") {
+                    elements.liveStatusNote.textContent = "You've ticked off 'accepting orders'. Customers see your shop as closed.";
+                } else if (openState.reason === "outside-hours") {
+                    const next = openState.nextOpen;
+                    if (next && next.isToday) {
+                        elements.liveStatusNote.textContent = `Outside your opening hours. You're set to reopen today at ${next.openTime}.`;
+                    } else if (next && next.dayLabel) {
+                        elements.liveStatusNote.textContent = `Outside your opening hours. Next open: ${next.dayLabel} at ${next.openTime}.`;
+                    } else {
+                        elements.liveStatusNote.textContent = "Outside your opening hours.";
+                    }
+                } else if (openState.reason === "no-schedule") {
+                    elements.liveStatusNote.textContent = "No schedule saved yet — set your weekly hours below.";
+                } else {
+                    elements.liveStatusNote.textContent = "You're open for orders right now.";
+                }
+            }
+
+            if (elements.summaryLive) {
+                elements.summaryLive.textContent = openState.label;
+            }
         }
 
         function updatePhotoPreview(photoUrl) {
@@ -459,17 +920,21 @@
             }
         }
 
+        function updateSummaryFromForm() {
+            const values = collectFormValues();
+            updateSummary(values, state.selectedPhotoDataUrl);
+        }
+
         function updateSummary(values, photoUrl) {
             const safe = values && typeof values === "object" ? values : {};
 
             const nameOutput = getElement("shop-summary-name");
             const foodOutput = getElement("shop-summary-food-type");
-            const universityOutput = getElement("shop-summary-university");
-            const locationOutput = getElement("shop-summary-location");
-            const hoursOutput = getElement("shop-summary-hours");
+            const institutionOutput = getElement("shop-summary-institution");
+            const campusOutput = getElement("shop-summary-campus");
+            const stallOutput = getElement("shop-summary-stall");
             const phoneOutput = getElement("shop-summary-phone");
             const emailOutput = getElement("shop-summary-email");
-            const acceptingOutput = getElement("shop-summary-accepting");
             const descriptionOutput = getElement("shop-summary-description");
 
             if (nameOutput) {
@@ -480,16 +945,16 @@
                 foodOutput.textContent = normalizeText(safe.foodType) || "-";
             }
 
-            if (universityOutput) {
-                universityOutput.textContent = normalizeText(safe.university) || "-";
+            if (institutionOutput) {
+                institutionOutput.textContent = normalizeText(safe.institution) || "-";
             }
 
-            if (locationOutput) {
-                locationOutput.textContent = normalizeText(safe.campusLocation) || "-";
+            if (campusOutput) {
+                campusOutput.textContent = normalizeText(safe.campus) || "-";
             }
 
-            if (hoursOutput) {
-                hoursOutput.textContent = normalizeText(safe.openingHours) || "-";
+            if (stallOutput) {
+                stallOutput.textContent = normalizeText(safe.stallLocation) || "-";
             }
 
             if (phoneOutput) {
@@ -500,10 +965,6 @@
                 emailOutput.textContent = normalizeEmail(safe.businessEmail) || "-";
             }
 
-            if (acceptingOutput) {
-                acceptingOutput.textContent = safe.acceptingOrders === false ? "No" : "Yes";
-            }
-
             if (descriptionOutput) {
                 descriptionOutput.textContent = normalizeText(safe.description) || "-";
             }
@@ -511,22 +972,116 @@
             updatePhotoPreview(photoUrl);
         }
 
+        function getInstitutionSelectionValues() {
+            const elements = getFormElements();
+            const selectValue = elements.institutionSelect ? elements.institutionSelect.value : "";
+
+            if (selectValue === OTHER_OPTION_VALUE) {
+                return {
+                    institution: elements.institutionOtherInput ? elements.institutionOtherInput.value : "",
+                    matchedKnown: false
+                };
+            }
+
+            return {
+                institution: selectValue || "",
+                matchedKnown: !!selectValue
+            };
+        }
+
+        function getCampusSelectionValues() {
+            const elements = getFormElements();
+            const selectValue = elements.campusSelect ? elements.campusSelect.value : "";
+
+            if (selectValue === OTHER_OPTION_VALUE) {
+                return {
+                    campus: elements.campusOtherInput ? elements.campusOtherInput.value : "",
+                    matchedKnown: false
+                };
+            }
+
+            return {
+                campus: selectValue || "",
+                matchedKnown: !!selectValue
+            };
+        }
+
         function collectFormValues() {
             const elements = getFormElements();
+            const institutionInfo = getInstitutionSelectionValues();
+            const campusInfo = getCampusSelectionValues();
+            const found = findInstitutionByName(institutionInfo.institution);
 
             return {
                 businessName: elements.businessNameInput ? elements.businessNameInput.value : "",
                 foodType: elements.foodTypeInput ? elements.foodTypeInput.value : "",
                 description: elements.descriptionInput ? elements.descriptionInput.value : "",
-                university: elements.universityInput ? elements.universityInput.value : "",
-                campusLocation: elements.campusLocationInput ? elements.campusLocationInput.value : "",
-                openingHours: elements.openingHoursInput ? elements.openingHoursInput.value : "",
+                institution: institutionInfo.institution,
+                institutionType: found ? found.type : "",
+                campus: campusInfo.campus,
+                stallLocation: elements.stallLocationInput ? elements.stallLocationInput.value : "",
                 contactNumber: elements.contactNumberInput ? elements.contactNumberInput.value : "",
                 businessEmail: elements.businessEmailInput ? elements.businessEmailInput.value : "",
                 acceptingOrders: elements.acceptingOrdersInput
                     ? elements.acceptingOrdersInput.checked === true
-                    : true
+                    : true,
+                schedule: state.schedule
             };
+        }
+
+        function updateInstitutionTypeDisplay(institutionName) {
+            const elements = getFormElements();
+            if (!elements.institutionTypeDisplay) {
+                return;
+            }
+
+            const found = findInstitutionByName(institutionName);
+            elements.institutionTypeDisplay.textContent = found ? found.type : (normalizeText(institutionName) ? "Other / custom" : "-");
+        }
+
+        function setInstitutionFromShop(institutionName) {
+            const elements = getFormElements();
+
+            renderInstitutionOptions(elements.institutionSelect, institutionName);
+
+            const found = findInstitutionByName(institutionName);
+            const useList = !!found;
+
+            if (elements.institutionOtherWrap) {
+                elements.institutionOtherWrap.hidden = useList;
+            }
+
+            if (elements.institutionOtherInput) {
+                elements.institutionOtherInput.value = useList ? "" : normalizeText(institutionName);
+            }
+
+            updateInstitutionTypeDisplay(institutionName);
+            state.institutionInUseList = useList;
+        }
+
+        function setCampusFromShop(institutionName, campusName) {
+            const elements = getFormElements();
+
+            renderCampusOptions(elements.campusSelect, institutionName, campusName);
+
+            const knownCampuses = getCampusesFor(institutionName);
+            const knownMatch = knownCampuses.some(function matchesCampus(name) {
+                return normalizeLowerText(name) === normalizeLowerText(campusName);
+            });
+            const useList = knownMatch;
+
+            if (elements.campusOtherWrap) {
+                elements.campusOtherWrap.hidden = useList || !campusName;
+                if (!campusName) {
+                    elements.campusOtherWrap.hidden = true;
+                }
+            }
+
+            if (elements.campusOtherInput) {
+                elements.campusOtherInput.value = useList ? "" : normalizeText(campusName);
+            }
+
+            state.campusInUseList = useList;
         }
 
         function fillForm(shop) {
@@ -545,16 +1100,11 @@
                 elements.descriptionInput.value = normalizeText(safe.description);
             }
 
-            if (elements.universityInput) {
-                elements.universityInput.value = normalizeText(safe.university);
-            }
+            setInstitutionFromShop(safe.institution);
+            setCampusFromShop(safe.institution, safe.campus);
 
-            if (elements.campusLocationInput) {
-                elements.campusLocationInput.value = normalizeText(safe.campusLocation);
-            }
-
-            if (elements.openingHoursInput) {
-                elements.openingHoursInput.value = normalizeText(safe.openingHours);
+            if (elements.stallLocationInput) {
+                elements.stallLocationInput.value = normalizeText(safe.stallLocation);
             }
 
             if (elements.contactNumberInput) {
@@ -569,22 +1119,14 @@
                 elements.acceptingOrdersInput.checked = safe.acceptingOrders !== false;
             }
 
+            setScheduleAndRender(safe.schedule);
+
             state.selectedPhotoDataUrl = normalizeText(safe.shopPhotoURL);
             state.photoMarkedForRemoval = false;
             clearFileInput(elements.photoFileInput);
             clearFieldErrors();
             updateStatsPanel(safe);
-            updateSummary({
-                businessName: safe.businessName,
-                foodType: safe.foodType,
-                description: safe.description,
-                university: safe.university,
-                campusLocation: safe.campusLocation,
-                openingHours: safe.openingHours,
-                contactNumber: safe.contactNumber,
-                businessEmail: safe.businessEmail,
-                acceptingOrders: safe.acceptingOrders
-            }, state.selectedPhotoDataUrl);
+            updateSummaryFromForm();
         }
 
         async function loadShopProfile() {
@@ -756,6 +1298,7 @@
         }
 
         async function saveShop() {
+            state.schedule = readScheduleFromEditor();
             const values = collectFormValues();
             const validation = validateShopValues(values);
 
@@ -836,7 +1379,8 @@
                 validateSingleField(fieldName);
             }
 
-            updateSummary(collectFormValues(), state.selectedPhotoDataUrl);
+            updateSummaryFromForm();
+            updateLiveStatus();
         }
 
         function bindLiveValidation() {
@@ -845,9 +1389,7 @@
                 businessName: elements.businessNameInput,
                 foodType: elements.foodTypeInput,
                 description: elements.descriptionInput,
-                university: elements.universityInput,
-                campusLocation: elements.campusLocationInput,
-                openingHours: elements.openingHoursInput,
+                stallLocation: elements.stallLocationInput,
                 contactNumber: elements.contactNumberInput,
                 businessEmail: elements.businessEmailInput
             };
@@ -867,6 +1409,120 @@
             if (elements.acceptingOrdersInput) {
                 elements.acceptingOrdersInput.addEventListener("change", function onToggle() {
                     handleLiveUpdate("");
+                });
+            }
+
+            if (elements.institutionOtherInput) {
+                elements.institutionOtherInput.addEventListener("input", function onOtherInst() {
+                    updateInstitutionTypeDisplay(elements.institutionOtherInput.value);
+                    handleLiveUpdate("institution");
+                });
+            }
+
+            if (elements.campusOtherInput) {
+                elements.campusOtherInput.addEventListener("input", function onOtherCampus() {
+                    handleLiveUpdate("campus");
+                });
+            }
+        }
+
+        function bindInstitutionCascade() {
+            const elements = getFormElements();
+
+            if (elements.institutionSelect) {
+                elements.institutionSelect.addEventListener("change", function onInstitutionChange() {
+                    const value = elements.institutionSelect.value;
+                    const isOther = value === OTHER_OPTION_VALUE;
+
+                    if (elements.institutionOtherWrap) {
+                        elements.institutionOtherWrap.hidden = !isOther;
+                    }
+
+                    if (elements.institutionOtherInput) {
+                        if (isOther) {
+                            elements.institutionOtherInput.focus();
+                        } else {
+                            elements.institutionOtherInput.value = "";
+                        }
+                    }
+
+                    const institutionName = isOther
+                        ? (elements.institutionOtherInput ? elements.institutionOtherInput.value : "")
+                        : value;
+
+                    updateInstitutionTypeDisplay(institutionName);
+                    renderCampusOptions(elements.campusSelect, institutionName, "");
+
+                    if (elements.campusOtherWrap) {
+                        elements.campusOtherWrap.hidden = true;
+                    }
+
+                    if (elements.campusOtherInput) {
+                        elements.campusOtherInput.value = "";
+                    }
+
+                    handleLiveUpdate("institution");
+                });
+            }
+
+            if (elements.campusSelect) {
+                elements.campusSelect.addEventListener("change", function onCampusChange() {
+                    const value = elements.campusSelect.value;
+                    const isOther = value === OTHER_OPTION_VALUE;
+
+                    if (elements.campusOtherWrap) {
+                        elements.campusOtherWrap.hidden = !isOther;
+                    }
+
+                    if (elements.campusOtherInput) {
+                        if (isOther) {
+                            elements.campusOtherInput.focus();
+                        } else {
+                            elements.campusOtherInput.value = "";
+                        }
+                    }
+
+                    handleLiveUpdate("campus");
+                });
+            }
+        }
+
+        function bindScheduleEditor() {
+            const elements = getFormElements();
+            const container = elements.scheduleEditor;
+
+            if (!container) {
+                return;
+            }
+
+            container.addEventListener("change", function onChange(event) {
+                const target = event.target;
+                if (!target || !target.dataset || !target.dataset.dayKey) {
+                    return;
+                }
+
+                state.schedule = readScheduleFromEditor();
+                applyScheduleRowDisabledStates();
+                updateScheduleSummary();
+                updateLiveStatus();
+            });
+
+            if (elements.schedulePresetWeekdays) {
+                elements.schedulePresetWeekdays.addEventListener("click", function onPreset(event) {
+                    if (event && typeof event.preventDefault === "function") event.preventDefault();
+                    applySchedulePreset("weekdays");
+                });
+            }
+            if (elements.schedulePresetAllWeek) {
+                elements.schedulePresetAllWeek.addEventListener("click", function onPreset(event) {
+                    if (event && typeof event.preventDefault === "function") event.preventDefault();
+                    applySchedulePreset("allweek");
+                });
+            }
+            if (elements.schedulePresetClear) {
+                elements.schedulePresetClear.addEventListener("click", function onPreset(event) {
+                    if (event && typeof event.preventDefault === "function") event.preventDefault();
+                    applySchedulePreset("clear");
                 });
             }
         }
@@ -924,6 +1580,20 @@
             return true;
         }
 
+        function startLiveStatusTimer() {
+            if (typeof window === "undefined" || typeof window.setInterval !== "function") {
+                return;
+            }
+
+            if (state.liveTimer) {
+                window.clearInterval(state.liveTimer);
+            }
+
+            state.liveTimer = window.setInterval(function tick() {
+                updateLiveStatus();
+            }, 60 * 1000);
+        }
+
         function bindEvents() {
             const elements = getFormElements();
 
@@ -978,12 +1648,22 @@
             }
 
             bindLiveValidation();
+            bindInstitutionCascade();
+            bindScheduleEditor();
         }
 
         async function initializeShopPage() {
             setStatus(DEFAULT_STATUS_MESSAGE, "info");
             setNote(DEFAULT_NOTE_MESSAGE);
+
+            const elements = getFormElements();
+            renderInstitutionOptions(elements.institutionSelect, "");
+            renderCampusOptions(elements.campusSelect, "", "");
+            buildScheduleEditor(state.schedule);
+            updateScheduleSummary();
+            updateLiveStatus();
             bindEvents();
+            startLiveStatusTimer();
 
             const allowed = await ensureVendorAccess();
 
@@ -1013,6 +1693,11 @@
             fillForm,
             updateSummary,
             updateStatsPanel,
+            updateLiveStatus,
+            updateScheduleSummary,
+            setScheduleAndRender,
+            applySchedulePreset,
+            readScheduleFromEditor,
             validateSingleField,
             state
         };
@@ -1062,6 +1747,7 @@
         MODULE_NAME,
         MAX_IMAGE_SIZE_BYTES,
         FIELD_KEYS,
+        OTHER_OPTION_VALUE,
         normalizeText,
         normalizeLowerText,
         normalizeEmail,
@@ -1077,6 +1763,16 @@
         getFileExtension,
         buildShopPhotoPath,
         getDisplayShopPhotoUrl,
+        getDefaultSchedule,
+        normalizeSchedule,
+        formatScheduleSummary,
+        getShopOpenState,
+        getAllInstitutions,
+        findInstitutionByName,
+        getCampusesFor,
+        groupInstitutionsByType,
+        renderInstitutionOptions,
+        renderCampusOptions,
         normalizeShopRecord,
         validateShopValues,
         toShopUpdates,

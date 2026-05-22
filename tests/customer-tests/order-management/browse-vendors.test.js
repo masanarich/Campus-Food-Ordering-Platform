@@ -1325,6 +1325,133 @@ describe("customer/order-management/browse-vendors.js - attachControlListeners",
 });
 
 // ==========================================
+// TESTS: schedule-aware open/closed (computeVendorOpenState, normalizeVendorRecord)
+// ==========================================
+
+const shopSchedule = require("../../../public/shared/shop-schedule/shop-schedule.js");
+
+describe("customer/order-management/browse-vendors.js - schedule-aware open/closed", () => {
+    test("normalizeVendorRecord uses vendorSchedule to compute acceptingOrders", () => {
+        const docSnapshot = {
+            id: "vendor-1",
+            data: () => ({
+                vendorBusinessName: "Burger Hut",
+                vendorAcceptingOrders: true,
+                vendorSchedule: shopSchedule.getDefaultSchedule()
+            })
+        };
+
+        // Thursday 10:00 — default schedule has Mon-Fri 08:00-17:00 → open
+        const openVendor = customerBrowseVendors.normalizeVendorRecord(docSnapshot, {
+            now: new Date("2026-05-21T10:00:00")
+        });
+        expect(openVendor.acceptingOrders).toBe(true);
+        expect(openVendor.openState.reason).toBe("within-hours");
+        expect(openVendor.manualAcceptingOrders).toBe(true);
+
+        // Sunday — default schedule is closed
+        const closedVendor = customerBrowseVendors.normalizeVendorRecord(docSnapshot, {
+            now: new Date("2026-05-24T10:00:00")
+        });
+        expect(closedVendor.acceptingOrders).toBe(false);
+        expect(closedVendor.openState.reason).toBe("outside-hours");
+    });
+
+    test("manual override (acceptingOrders=false) forces closed regardless of schedule", () => {
+        const docSnapshot = {
+            id: "vendor-1",
+            data: () => ({
+                vendorAcceptingOrders: false,
+                vendorSchedule: shopSchedule.getDefaultSchedule()
+            })
+        };
+
+        const vendor = customerBrowseVendors.normalizeVendorRecord(docSnapshot, {
+            now: new Date("2026-05-21T10:00:00")
+        });
+        expect(vendor.acceptingOrders).toBe(false);
+        expect(vendor.openState.reason).toBe("manually-closed");
+    });
+
+    test("vendor without schedule defers to manual accepting flag", () => {
+        const docSnapshot = {
+            id: "vendor-1",
+            data: () => ({ vendorAcceptingOrders: true })
+        };
+        const vendor = customerBrowseVendors.normalizeVendorRecord(docSnapshot);
+        expect(vendor.acceptingOrders).toBe(true);
+        expect(vendor.openState.reason).toBe("no-schedule");
+    });
+
+    test("normalizeVendorRecord populates institution and campus from new shop fields", () => {
+        const docSnapshot = {
+            id: "vendor-1",
+            data: () => ({
+                vendorInstitution: "University of Pretoria",
+                vendorInstitutionType: "Public University",
+                vendorCampus: "Hatfield Campus",
+                vendorStallLocation: "Stall 7"
+            })
+        };
+
+        const vendor = customerBrowseVendors.normalizeVendorRecord(docSnapshot);
+        expect(vendor.institution).toBe("University of Pretoria");
+        expect(vendor.institutionType).toBe("Public University");
+        expect(vendor.campus).toBe("Hatfield Campus");
+        expect(vendor.stallLocation).toBe("Stall 7");
+        expect(vendor.location).toBe("Hatfield Campus — Stall 7");
+    });
+
+    test("createVendorCard reflects open/closed from openState", () => {
+        const docSnapshot = {
+            id: "vendor-1",
+            data: () => ({
+                vendorBusinessName: "Burger Hut",
+                vendorAcceptingOrders: true,
+                vendorSchedule: shopSchedule.getDefaultSchedule()
+            })
+        };
+
+        const closed = customerBrowseVendors.normalizeVendorRecord(docSnapshot, {
+            now: new Date("2026-05-21T20:00:00") // after close
+        });
+        const card = customerBrowseVendors.createVendorCard(closed);
+
+        expect(card.getAttribute("data-closed")).toBe("true");
+        expect(card.querySelector(".vendor-status-badge").textContent).toBe("Closed");
+        expect(card.querySelector(".vendor-browse-button").textContent).toBe("View Menu (closed)");
+    });
+
+    test("createVendorCard surfaces institution metadata", () => {
+        const docSnapshot = {
+            id: "vendor-1",
+            data: () => ({
+                vendorBusinessName: "Burger Hut",
+                vendorInstitution: "University of Pretoria"
+            })
+        };
+        const vendor = customerBrowseVendors.normalizeVendorRecord(docSnapshot);
+        const card = customerBrowseVendors.createVendorCard(vendor);
+
+        const schoolItem = card.querySelector(".vendor-institution .vendor-meta-value");
+        expect(schoolItem).not.toBeNull();
+        expect(schoolItem.textContent).toBe("University of Pretoria");
+    });
+
+    test("buildVendorMenuUrl appends closed flag when card is marked closed", () => {
+        const url = customerBrowseVendors.buildVendorMenuUrl("vendor-1", "Burger Hut", { closed: true });
+        expect(url).toContain("closed=true");
+    });
+
+    test("computeVendorOpenState falls back when schedule helper is absent", () => {
+        const state = customerBrowseVendors.computeVendorOpenState({
+            manualAcceptingOrders: false
+        });
+        expect(state.isOpen).toBe(false);
+    });
+});
+
+// ==========================================
 // TESTS: init
 // ==========================================
 

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>Shop Details | Campus Food Ordering Platform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Manage your campus food shop details, location, contact info, and shopfront image.">
+    <meta name="description" content="Manage your campus food shop details, location, schedule, and shopfront image.">
     <link rel="stylesheet" href="./index.css">
     <link rel="stylesheet" href="./shop.css">
 </head>
@@ -45,6 +45,12 @@
             <p id="shop-note" aria-live="polite">Update any field below, preview your shopfront image, then save your changes.</p>
 
             <section class="shop-stats-grid" aria-label="Shop status summary">
+                <article class="stats-card shop-live-status-card">
+                    <strong class="stats-label">Right now</strong>
+                    <output id="shop-live-status" class="shop-live-status shop-live-status-unknown">Checking...</output>
+                    <p id="shop-live-status-note" class="shop-live-status-note">Save your schedule to see your live open/closed status here.</p>
+                </article>
+
                 <article class="stats-card">
                     <strong class="stats-label">Vendor status</strong>
                     <output id="shop-vendor-status">-</output>
@@ -72,8 +78,8 @@
                 <article>
                     <h3 id="shop-editor-heading">Shop Information</h3>
                     <p>
-                        These fields appear on your public vendor card. Use the shopfront photo and
-                        description to help students recognise your stall when they browse vendors.
+                        These fields appear on your public vendor card. Use the shopfront photo, description,
+                        and campus location to help students recognise your stall when they browse vendors.
                     </p>
                 </article>
             </header>
@@ -99,23 +105,53 @@
                     </label>
                     <p id="shop-description-error" class="form-error" aria-live="polite"></p>
 
-                    <label class="field-block" for="shop-university">
-                        <strong>University</strong>
-                        <input id="shop-university" name="university" type="text" maxlength="120" placeholder="e.g. University of Pretoria" aria-describedby="shop-university-error">
-                    </label>
-                    <p id="shop-university-error" class="form-error" aria-live="polite"></p>
+                    <fieldset class="field-block field-block-wide shop-institution-fieldset" aria-describedby="shop-institution-help">
+                        <legend><strong>Where is your shop?</strong></legend>
+                        <p id="shop-institution-help" class="field-hint">
+                            Pick the school you trade at. If it isn't listed, choose "Other" and type
+                            it in yourself.
+                        </p>
 
-                    <label class="field-block" for="shop-campus-location">
-                        <strong>Campus stall location</strong>
-                        <input id="shop-campus-location" name="campusLocation" type="text" maxlength="200" placeholder="e.g. Hatfield Plaza, Stall 7" required aria-describedby="shop-campusLocation-error">
-                    </label>
-                    <p id="shop-campusLocation-error" class="form-error" aria-live="polite"></p>
+                        <section class="institution-grid">
+                            <label class="field-block" for="shop-institution-select">
+                                <strong>School / Institution</strong>
+                                <select id="shop-institution-select" name="institutionSelect" aria-describedby="shop-institution-error">
+                                    <option value="">-- Select a school --</option>
+                                    <option value="__other__">Other (type it in)</option>
+                                </select>
+                            </label>
 
-                    <label class="field-block" for="shop-opening-hours">
-                        <strong>Opening hours</strong>
-                        <input id="shop-opening-hours" name="openingHours" type="text" maxlength="120" placeholder="e.g. Mon-Fri 08:00 - 17:00" aria-describedby="shop-openingHours-error">
-                    </label>
-                    <p id="shop-openingHours-error" class="form-error" aria-live="polite"></p>
+                            <label class="field-block" for="shop-institution-other" id="shop-institution-other-wrap" hidden>
+                                <strong>School name</strong>
+                                <input id="shop-institution-other" name="institutionOther" type="text" maxlength="160" placeholder="e.g. My Local College">
+                            </label>
+
+                            <p class="field-meta">
+                                <strong>Institution type:</strong> <output id="shop-institution-type-display">-</output>
+                            </p>
+                            <p id="shop-institution-error" class="form-error" aria-live="polite"></p>
+
+                            <label class="field-block" for="shop-campus-select">
+                                <strong>Campus</strong>
+                                <select id="shop-campus-select" name="campusSelect" aria-describedby="shop-campus-error">
+                                    <option value="">-- Select a campus --</option>
+                                    <option value="__other__">Other (type it in)</option>
+                                </select>
+                            </label>
+
+                            <label class="field-block" for="shop-campus-other" id="shop-campus-other-wrap" hidden>
+                                <strong>Campus name</strong>
+                                <input id="shop-campus-other" name="campusOther" type="text" maxlength="160" placeholder="e.g. East Campus">
+                            </label>
+                            <p id="shop-campus-error" class="form-error" aria-live="polite"></p>
+
+                            <label class="field-block field-block-wide" for="shop-stall-location">
+                                <strong>Stall / building detail</strong>
+                                <input id="shop-stall-location" name="stallLocation" type="text" maxlength="200" placeholder="e.g. Hatfield Plaza, Stall 7 — next to the library" required aria-describedby="shop-stallLocation-error">
+                            </label>
+                            <p id="shop-stallLocation-error" class="form-error" aria-live="polite"></p>
+                        </section>
+                    </fieldset>
 
                     <label class="field-block" for="shop-contact-number">
                         <strong>Contact number</strong>
@@ -129,11 +165,40 @@
                     </label>
                     <p id="shop-businessEmail-error" class="form-error" aria-live="polite"></p>
 
-                    <label class="field-block field-block-wide checkbox-row" for="shop-accepting-orders">
-                        <input id="shop-accepting-orders" name="acceptingOrders" type="checkbox">
-                        <strong>Currently accepting new orders</strong>
-                    </label>
+                </section>
 
+                <fieldset class="schedule-fieldset" aria-describedby="schedule-help">
+                    <legend><strong>Opening hours</strong></legend>
+                    <p id="schedule-help" class="field-hint">
+                        Tick each day you're open and pick the hours. When the current time is outside
+                        these hours, customers will see your shop as closed and won't be able to order.
+                    </p>
+
+                    <menu class="action-menu schedule-presets" aria-label="Schedule presets">
+                        <li><button id="schedule-preset-weekdays" class="button-secondary" type="button">Weekdays 08:00 - 17:00</button></li>
+                        <li><button id="schedule-preset-allweek" class="button-secondary" type="button">All week 09:00 - 18:00</button></li>
+                        <li><button id="schedule-preset-clear" class="button-secondary" type="button">Mark all as closed</button></li>
+                    </menu>
+
+                    <ul id="schedule-editor" class="schedule-editor" aria-label="Weekly opening hours">
+                        <!-- Populated by shop.js -->
+                    </ul>
+                    <p id="schedule-error" class="form-error" aria-live="polite"></p>
+
+                    <p class="schedule-summary-line">
+                        <strong>Summary:</strong> <output id="schedule-summary">Closed all week</output>
+                    </p>
+                </fieldset>
+
+                <section class="shop-toggle-row" aria-label="Manual override">
+                    <label class="field-block checkbox-row" for="shop-accepting-orders">
+                        <input id="shop-accepting-orders" name="acceptingOrders" type="checkbox" checked>
+                        <strong>Currently accepting orders</strong>
+                    </label>
+                    <p class="field-hint">
+                        Uncheck this to immediately mark your shop as closed, even during your opening
+                        hours (for example if you've sold out or stepped away).
+                    </p>
                 </section>
 
                 <section class="shop-photo-editor" aria-label="Shopfront photo tools">
@@ -171,12 +236,13 @@
                     <section class="shop-summary-grid" aria-label="Live shop preview">
                         <p><strong>Shop name:</strong> <output id="shop-summary-name">-</output></p>
                         <p><strong>Food type:</strong> <output id="shop-summary-food-type">-</output></p>
-                        <p><strong>University:</strong> <output id="shop-summary-university">-</output></p>
-                        <p><strong>Location:</strong> <output id="shop-summary-location">-</output></p>
-                        <p><strong>Opening hours:</strong> <output id="shop-summary-hours">-</output></p>
+                        <p><strong>School:</strong> <output id="shop-summary-institution">-</output></p>
+                        <p><strong>Campus:</strong> <output id="shop-summary-campus">-</output></p>
+                        <p><strong>Stall:</strong> <output id="shop-summary-stall">-</output></p>
+                        <p><strong>Opening hours:</strong> <output id="shop-summary-hours">Closed all week</output></p>
                         <p><strong>Contact number:</strong> <output id="shop-summary-phone">-</output></p>
                         <p><strong>Email:</strong> <output id="shop-summary-email">-</output></p>
-                        <p><strong>Accepting orders:</strong> <output id="shop-summary-accepting">Yes</output></p>
+                        <p><strong>Right now:</strong> <output id="shop-summary-live">-</output></p>
                     </section>
 
                     <p class="summary-description">
@@ -198,6 +264,8 @@
 
     <script src="../authentication/auth-utils.js"></script>
     <script src="../authentication/auth-core.js"></script>
+    <script src="../shared/shop-schedule/shop-schedule.js"></script>
+    <script src="../shared/institutions/south-african-institutions.js"></script>
     <script src="./shop.js"></script>
 
     <script type="module">

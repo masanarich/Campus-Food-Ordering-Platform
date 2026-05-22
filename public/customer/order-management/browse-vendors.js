@@ -14,6 +14,43 @@
 
     let initInFlight = null;
 
+    function resolveShopSchedule() {
+        if (typeof globalScope !== "undefined" && globalScope.shopSchedule) {
+            return globalScope.shopSchedule;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/shop-schedule/shop-schedule.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    const scheduleModule = resolveShopSchedule();
+
+    function computeVendorOpenState(vendor, nowDate) {
+        const safeVendor = vendor && typeof vendor === "object" ? vendor : {};
+        const defaultState = {
+            isOpen: safeVendor.manualAcceptingOrders !== false,
+            label: safeVendor.manualAcceptingOrders === false ? "Closed" : "Open",
+            summary: typeof safeVendor.openingHours === "string" ? safeVendor.openingHours : "",
+            reason: safeVendor.manualAcceptingOrders === false ? "manually-closed" : "no-schedule"
+        };
+
+        if (!scheduleModule || typeof scheduleModule.getShopOpenState !== "function") {
+            return defaultState;
+        }
+
+        return scheduleModule.getShopOpenState({
+            acceptingOrders: safeVendor.manualAcceptingOrders !== false,
+            schedule: safeVendor.schedule || null
+        }, nowDate || new Date());
+    }
+
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
     }
@@ -129,7 +166,7 @@
         }
     }
 
-    function normalizeVendorRecord(docSnapshot) {
+    function normalizeVendorRecord(docSnapshot, options = {}) {
         const safeData = docSnapshot && typeof docSnapshot.data === "function"
             ? (docSnapshot.data() || {})
             : {};
@@ -138,16 +175,36 @@
         const vendorBusinessName = normalizeText(safeData.vendorBusinessName);
         const businessName = normalizeText(safeData.businessName);
         const vendorDescription = normalizeText(safeData.vendorDescription || safeData.description);
-        const vendorLocation = normalizeText(safeData.vendorLocation || safeData.campusLocation || safeData.location);
+        const vendorStallLocation = normalizeText(
+            safeData.vendorStallLocation || safeData.vendorLocation || safeData.campusLocation || safeData.location
+        );
+        const vendorCampus = normalizeText(safeData.vendorCampus);
         const vendorEmail = normalizeText(safeData.vendorEmail || safeData.email);
         const vendorPhoneNumber = normalizeText(safeData.vendorPhoneNumber || safeData.contactNumber);
         const vendorFoodType = normalizeText(safeData.vendorFoodType || safeData.foodType);
-        const vendorUniversity = normalizeText(safeData.vendorUniversity || safeData.university);
+        const vendorInstitution = normalizeText(
+            safeData.vendorInstitution || safeData.vendorUniversity || safeData.university
+        );
+        const vendorInstitutionType = normalizeText(safeData.vendorInstitutionType);
         const vendorOpeningHours = normalizeText(safeData.vendorOpeningHours || safeData.openingHours);
+        const vendorSchedule = safeData.vendorSchedule || null;
         const accountStatus = normalizeLowerText(safeData.accountStatus) || "active";
-        const acceptingOrders = safeData.vendorAcceptingOrders === false ? false : true;
+        const manualAcceptingOrders = safeData.vendorAcceptingOrders === false ? false : true;
 
-        return {
+        // Compose a "display location" by joining campus + stall when available.
+        const locationParts = [];
+        if (vendorCampus) {
+            locationParts.push(vendorCampus);
+        }
+        if (vendorStallLocation && normalizeLowerText(vendorStallLocation) !== normalizeLowerText(vendorCampus)) {
+            locationParts.push(vendorStallLocation);
+        }
+        if (locationParts.length === 0 && vendorInstitution) {
+            locationParts.push(vendorInstitution);
+        }
+        const composedLocation = locationParts.join(" — ") || "Campus";
+
+        const vendor = {
             uid: normalizeText(docSnapshot && docSnapshot.id) || normalizeText(safeData.uid),
             displayName: displayName || "Unknown Vendor",
             email: normalizeText(safeData.email),
@@ -161,19 +218,35 @@
             accountStatus,
             businessName: vendorBusinessName || businessName || displayName || "Unknown Vendor",
             description: vendorDescription,
-            location: vendorLocation || vendorUniversity || "Campus",
+            location: composedLocation,
+            stallLocation: vendorStallLocation,
+            campus: vendorCampus,
             vendorEmail: vendorEmail,
             vendorPhoneNumber,
             foodType: vendorFoodType,
-            university: vendorUniversity,
+            institution: vendorInstitution,
+            institutionType: vendorInstitutionType,
+            university: vendorInstitution,
             openingHours: vendorOpeningHours,
-            acceptingOrders,
+            schedule: vendorSchedule,
+            manualAcceptingOrders,
             rating: Number.isFinite(Number(safeData.rating)) ? Number(safeData.rating) : 0,
             totalOrders: Number.isFinite(Number(safeData.totalOrders)) ? Number(safeData.totalOrders) : 0,
             isAdmin: safeData.isAdmin === true,
             updatedAt: safeData.updatedAt || null,
             createdAt: safeData.createdAt || null
         };
+
+        const openState = computeVendorOpenState(vendor, options.now);
+        vendor.openState = openState;
+        vendor.acceptingOrders = openState.isOpen === true;
+
+        // Surface the schedule summary if no opening hours string was already saved.
+        if (!vendor.openingHours && openState.summary) {
+            vendor.openingHours = openState.summary;
+        }
+
+        return vendor;
     }
 
     function vendorMatchesSearch(vendor, needle) {
@@ -472,17 +545,22 @@
         const businessName = normalizeText(safeVendor.businessName) || "Unknown Vendor";
         const foodType = normalizeText(safeVendor.foodType);
         const location = normalizeText(safeVendor.location) || "Campus";
+        const institution = normalizeText(safeVendor.institution);
         const description = normalizeText(safeVendor.description) ||
             "Browse this vendor to view available meals and items.";
         const ownerName = normalizeText(safeVendor.displayName);
         const openingHours = normalizeText(safeVendor.openingHours);
         const acceptingOrders = safeVendor.acceptingOrders !== false;
+        const openState = safeVendor.openState && typeof safeVendor.openState === "object" ? safeVendor.openState : null;
         const photoURL = normalizeText(safeVendor.photoURL) || "../assets/default-avatar.png";
 
         const article = globalScope.document.createElement("article");
         article.className = "vendor-card";
         article.setAttribute("data-vendor-uid", normalizeText(safeVendor.uid));
         article.setAttribute("data-food-type", foodType.toLowerCase());
+        if (!acceptingOrders) {
+            article.setAttribute("data-closed", "true");
+        }
 
         const mediaWrapper = globalScope.document.createElement("figure");
         mediaWrapper.className = "vendor-image-wrap";
@@ -498,7 +576,9 @@
         statusBadge.className = acceptingOrders
             ? "vendor-status-badge vendor-status-badge-open"
             : "vendor-status-badge vendor-status-badge-closed";
-        statusBadge.textContent = acceptingOrders ? "Accepting orders" : "Not accepting orders";
+        statusBadge.textContent = openState && openState.label
+            ? (acceptingOrders ? "Open now" : "Closed")
+            : (acceptingOrders ? "Accepting orders" : "Not accepting orders");
         mediaWrapper.appendChild(statusBadge);
 
         const body = globalScope.document.createElement("section");
@@ -551,6 +631,7 @@
             metaList.appendChild(chipsItem);
         }
 
+        appendMetaItem("vendor-institution", "School", institution);
         appendMetaItem("vendor-location", "Location", location);
         appendMetaItem("vendor-opening-hours", "Hours", openingHours);
 
@@ -837,7 +918,7 @@
         container.hidden = false;
     }
 
-    function buildVendorMenuUrl(vendorUid, vendorName) {
+    function buildVendorMenuUrl(vendorUid, vendorName, options = {}) {
         const routes = getFallbackRoutes();
         const url = new URL(routes.vendorMenu, globalScope.location.href);
 
@@ -845,6 +926,10 @@
 
         if (normalizeText(vendorName)) {
             url.searchParams.set("vendorName", normalizeText(vendorName));
+        }
+
+        if (options && options.closed === true) {
+            url.searchParams.set("closed", "true");
         }
 
         return url.toString();
@@ -866,7 +951,13 @@
             return null;
         }
 
-        const nextUrl = buildVendorMenuUrl(vendorUid, vendorName);
+        // If the vendor card is flagged as closed, route through the menu page
+        // anyway (so the customer can still browse what they sell) but append a
+        // query flag so the menu page can disable ordering with a clear message.
+        const card = typeof button.closest === "function" ? button.closest(".vendor-card") : null;
+        const isClosed = card && card.getAttribute("data-closed") === "true";
+
+        const nextUrl = buildVendorMenuUrl(vendorUid, vendorName, { closed: isClosed });
         globalScope.location.href = nextUrl;
 
         return nextUrl;
@@ -1249,6 +1340,8 @@
         resolveAuth,
         resolveAuthFns,
         resolveFirestoreFns,
+        resolveShopSchedule,
+        computeVendorOpenState,
         getFallbackRoutes,
         sortVendors,
         filterVendors,
