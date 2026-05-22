@@ -52,6 +52,10 @@ function createDOM() {
             <button type="reset">Clear</button>
         </form>
         <p id="admin-inbox-summary"></p>
+        <section class="admin-inbox-next-step">
+            <output id="admin-inbox-next-step"></output>
+            <p id="admin-inbox-next-step-detail"></p>
+        </section>
         <section id="admin-inbox-container"></section>
         <nav id="admin-inbox-pagination" hidden>
             <p id="admin-inbox-pagination-status"></p>
@@ -65,6 +69,8 @@ function createDOM() {
         statusElement: document.getElementById("admin-inbox-status"),
         form: document.getElementById("admin-inbox-filter-form"),
         summary: document.getElementById("admin-inbox-summary"),
+        nextStepLabel: document.getElementById("admin-inbox-next-step"),
+        nextStepDetail: document.getElementById("admin-inbox-next-step-detail"),
         container: document.getElementById("admin-inbox-container"),
         pagination: document.getElementById("admin-inbox-pagination"),
         paginationStatus: document.getElementById("admin-inbox-pagination-status")
@@ -115,7 +121,8 @@ describe("admin/disputes.js - module surface", () => {
         expect(adminDisputesPage.MODULE_NAME).toBe("admin/disputes");
         ["init", "initializeAdminDisputesPage", "mapTicketRecord", "fetchAdminTickets",
             "renderTickets", "createTicketCard", "sortTickets", "filterTickets", "paginateTickets",
-            "buildTicketDetailUrl", "buildResultSummary", "readFiltersFromForm"
+            "buildTicketDetailUrl", "buildResultSummary", "hasActiveInboxFilters",
+            "getAdminInboxNextStep", "renderAdminInboxNextStep", "readFiltersFromForm"
         ].forEach((name) => expect(typeof adminDisputesPage[name]).toBe("function"));
     });
 });
@@ -142,6 +149,65 @@ describe("admin/disputes.js - helpers", () => {
         window.history.pushState({}, "", "/admin/disputes.html");
         const url = adminDisputesPage.buildTicketDetailUrl("ticket-abc");
         expect(url).toMatch(/ticket-detail\.html\?ticketId=ticket-abc$/);
+    });
+
+    test("hasActiveInboxFilters ignores sort-only changes", () => {
+        expect(adminDisputesPage.hasActiveInboxFilters({
+            search: "",
+            status: "all",
+            category: "all",
+            reporterRole: "all",
+            sort: "priority"
+        })).toBe(false);
+
+        expect(adminDisputesPage.hasActiveInboxFilters({
+            search: "refund",
+            status: "all",
+            category: "all",
+            reporterRole: "all"
+        })).toBe(true);
+
+        expect(adminDisputesPage.hasActiveInboxFilters({
+            status: "open",
+            category: "all",
+            reporterRole: "all"
+        })).toBe(true);
+
+        expect(adminDisputesPage.hasActiveInboxFilters({
+            status: "all",
+            category: "all",
+            reporterRole: "vendor"
+        })).toBe(true);
+    });
+
+    test("getAdminInboxNextStep describes the next admin action", () => {
+        expect(adminDisputesPage.getAdminInboxNextStep([], {
+            isSignedIn: false
+        }).label).toBe("Next: sign in");
+
+        expect(adminDisputesPage.getAdminInboxNextStep([]).label)
+            .toBe("Next: monitor the queue");
+
+        expect(adminDisputesPage.getAdminInboxNextStep(
+            [makeTicket()],
+            {
+                filteredTickets: [],
+                filters: { search: "missing", status: "all", category: "all", reporterRole: "all" }
+            }
+        ).label).toBe("Next: clear filters");
+
+        expect(adminDisputesPage.getAdminInboxNextStep([
+            makeTicket({ priority: "high", subject: "Urgent payout" })
+        ]).label).toBe("Next: handle high priority");
+
+        expect(adminDisputesPage.getAdminInboxNextStep([
+            makeTicket({ status: "in_progress", subject: "Need investigation" })
+        ]).label).toBe("Next: continue investigation");
+
+        expect(adminDisputesPage.getAdminInboxNextStep([
+            makeTicket({ status: "resolved" }),
+            makeTicket({ ticketId: "ticket-2", status: "closed" })
+        ]).label).toBe("Next: review resolved tickets");
     });
 });
 
@@ -206,6 +272,22 @@ describe("admin/disputes.js - rendering and init", () => {
         expect(cards[1].getAttribute("data-reporter-role")).toBe("vendor");
     });
 
+    test("renderAdminInboxNextStep updates the admin inbox next-step block", () => {
+        const dom = createDOM();
+        const ticket = makeTicket({ priority: "high", subject: "Urgent refund" });
+
+        const nextStep = adminDisputesPage.renderAdminInboxNextStep(dom, {
+            tickets: [ticket],
+            filteredTickets: [ticket],
+            filters: { status: "all", category: "all", reporterRole: "all", search: "" },
+            isSignedIn: true
+        });
+
+        expect(nextStep.label).toBe("Next: handle high priority");
+        expect(dom.nextStepLabel.textContent).toBe("Next: handle high priority");
+        expect(dom.nextStepDetail.textContent).toMatch(/Urgent refund/);
+    });
+
     test("init renders tickets via the service", async () => {
         const dom = createDOM();
         const tickets = [makeTicket(), makeTicket({ ticketId: "ticket-2", reporterRole: "vendor" })];
@@ -222,16 +304,18 @@ describe("admin/disputes.js - rendering and init", () => {
         expect(r.success).toBe(true);
         expect(dom.container.querySelectorAll(".admin-inbox-ticket-card")).toHaveLength(2);
         expect(dom.statusElement.textContent).toMatch(/2 tickets/);
+        expect(dom.nextStepLabel.textContent).toBe("Next: triage an open ticket");
     });
 
     test("init flags missing user", async () => {
-        createDOM();
+        const dom = createDOM();
         const r = await adminDisputesPage.init({
             ticketService: { getAdminTickets: jest.fn() },
             auth: { currentUser: null },
             authFns: makeAuthFns(null)
         });
         expect(r.success).toBe(false);
+        expect(dom.nextStepLabel.textContent).toBe("Next: sign in");
     });
 
     test("init returns no-container error when DOM is missing", async () => {
@@ -253,6 +337,7 @@ describe("admin/disputes.js - rendering and init", () => {
         });
         expect(r.success).toBe(false);
         expect(dom.statusElement.textContent).toMatch(/boom|Failed/);
+        expect(dom.nextStepLabel.textContent).toBe("Next: monitor the queue");
     });
 
     test("attachToolbarHandlers re-renders on filter change", async () => {
@@ -281,6 +366,7 @@ describe("admin/disputes.js - rendering and init", () => {
         filteredCards.forEach((card) => {
             expect(card.getAttribute("data-reporter-role")).toBe("vendor");
         });
+        expect(dom.nextStepLabel.textContent).toBe("Next: review resolved tickets");
     });
 });
 

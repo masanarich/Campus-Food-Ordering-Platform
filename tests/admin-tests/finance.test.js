@@ -21,6 +21,8 @@ function createFinanceDom() {
             <output id="approved-payout-count"></output>
             <output id="paid-payout-total"></output>
             <output id="reserved-payout-total"></output>
+            <output id="finance-next-action"></output>
+            <small id="finance-next-action-detail"></small>
 
             <p id="payout-admin-summary"></p>
             <select id="payout-status-filter">
@@ -190,11 +192,45 @@ describe("admin/finance.js helpers", () => {
         expect(elements.completedOrdersElement.textContent).toBe("1");
         expect(elements.pendingPayoutCountElement.textContent).toBe("1");
         expect(elements.paidPayoutTotalElement.textContent).toContain("10");
+        expect(elements.nextActionElement.textContent).toBe("Next: review payout");
+        expect(elements.nextActionDetailElement.textContent).toContain("new-pending");
         expect(elements.payoutSummaryElement.textContent).toBe("2 payout requests.");
         expect(elements.payoutListElement.querySelectorAll(".admin-payout-card")).toHaveLength(2);
         expect(elements.payoutListElement.querySelector(".admin-payout-title").textContent).toBe("Campus Bites");
         expect(elements.payoutListElement.querySelector("[data-payout-action='approved']")).toBeTruthy();
         expect(elements.payoutListElement.textContent).toContain("****7890");
+    });
+
+    test("chooses the next finance action from payout queue or platform balance", () => {
+        const approvedAction = adminFinancePage.getNextFinanceAction(
+            { platformBalance: 15 },
+            [
+                createPayout({ payoutId: "pending-new", status: "pending", requestedAt: "2026-05-20T10:00:00.000Z" }),
+                createPayout({ payoutId: "approved-old", status: "approved", amount: 45, requestedAt: "2026-05-19T10:00:00.000Z" })
+            ]
+        );
+
+        expect(approvedAction.label).toBe("Next: mark payout paid");
+        expect(approvedAction.detail).toContain("approved-old");
+        expect(approvedAction.detail).toContain("Campus Bites");
+        expect(approvedAction.detail).toContain("45");
+
+        const monitorAction = adminFinancePage.getNextFinanceAction(
+            { platformBalance: 20 },
+            []
+        );
+
+        expect(monitorAction.label).toBe("Next: monitor earnings");
+        expect(monitorAction.detail).toContain("20");
+        expect(monitorAction.detail).toContain("simulated platform earnings");
+
+        expect(adminFinancePage.getNextFinanceAction(
+            { platformBalance: 0 },
+            []
+        )).toEqual({
+            label: "Next: wait for sales",
+            detail: "Completed paid orders will add platform earnings and vendor payout activity."
+        });
     });
 
     test("filters payout cards by status", () => {

@@ -17,6 +17,8 @@ function createDOM() {
             <output id="ticket-summary-order">—</output>
             <output id="ticket-summary-opened">—</output>
             <output id="ticket-summary-replies">—</output>
+            <output id="ticket-summary-next-action">Loading</output>
+            <p id="ticket-summary-next-action-detail">Checking ticket activity.</p>
             <p id="ticket-summary-resolution" hidden></p>
             <p id="ticket-description-body">—</p>
         </section>
@@ -51,6 +53,8 @@ function createDOM() {
         order: document.getElementById("ticket-summary-order"),
         opened: document.getElementById("ticket-summary-opened"),
         replies: document.getElementById("ticket-summary-replies"),
+        nextAction: document.getElementById("ticket-summary-next-action"),
+        nextActionDetail: document.getElementById("ticket-summary-next-action-detail"),
         resolution: document.getElementById("ticket-summary-resolution"),
         description: document.getElementById("ticket-description-body"),
         timelineContainer: document.getElementById("ticket-progress-steps"),
@@ -144,7 +148,8 @@ describe("vendor/support/ticket-detail.js - module surface", () => {
         ["init", "initializeVendorSupportTicketDetailPage", "loadTicketAndReplies", "renderTicket",
             "renderTicketSummary", "renderTimeline", "renderReplies", "applyTicketStatusToActions",
             "submitReply", "changeTicketStatus", "attachReplyHandler", "attachActionHandlers",
-            "collectElements", "getTicketIdFromQuery", "isTicketServiceShape"
+            "collectElements", "getTicketIdFromQuery", "isTicketServiceShape",
+            "hasSupportReply", "getNextVendorTicketAction"
         ].forEach((name) => expect(typeof vendorSupportTicketDetailPage[name]).toBe("function"));
     });
 });
@@ -166,6 +171,32 @@ describe("vendor/support/ticket-detail.js - helpers and rendering", () => {
         expect(dom.subject.textContent).toBe("Payouts question");
         expect(dom.reporter.textContent).toBe("Shop X (Vendor)");
         expect(dom.status.textContent).toBe("Open");
+        expect(dom.nextAction.textContent).toBe("Next: wait for first response");
+        expect(dom.nextActionDetail.textContent).toMatch(/Support will reply/i);
+    });
+
+    test("getNextVendorTicketAction chooses the vendor-facing step", () => {
+        expect(vendorSupportTicketDetailPage.getNextVendorTicketAction(makeTicket({
+            status: "awaiting_user",
+            replyCount: 1
+        }), [{ authorRole: "admin", body: "Please send the payout ref." }])).toEqual({
+            label: "Next: reply to support",
+            detail: "The support team is waiting for your response before they can continue."
+        });
+
+        expect(vendorSupportTicketDetailPage.getNextVendorTicketAction(makeTicket({
+            status: "in_progress"
+        }), [{ authorRole: "admin", body: "Checking this." }])).toEqual({
+            label: "Next: wait for support update",
+            detail: "Support is working on this vendor issue. Add a reply if you have new order or shop details."
+        });
+
+        expect(vendorSupportTicketDetailPage.getNextVendorTicketAction(makeTicket({
+            status: "closed"
+        }))).toEqual({
+            label: "Next: reopen if needed",
+            detail: "This vendor ticket is closed. Reopen it if the same issue comes back."
+        });
     });
 
     test("applyTicketStatusToActions toggles buttons per status", () => {
@@ -215,6 +246,49 @@ describe("vendor/support/ticket-detail.js - data flow", () => {
             ticketId: "missing",
             ticketService: { getTicketById: jest.fn(async () => null) }
         });
+        expect(r.error.code).toBe("not-found");
+    });
+
+    test("loadTicketAndReplies refuses to surface a ticket raised from the customer side", async () => {
+        // Regression: a user who is both a vendor and a customer could navigate to
+        // /vendor/support/ticket-detail.html?ticketId=<their-customer-ticket>.
+        // The vendor portal must not leak that ticket even though the UID matches.
+        const customerTicket = makeTicket({
+            reporterUid: "vendor-1",
+            reporterRole: "customer"
+        });
+        const ticketService = {
+            getTicketById: jest.fn(async () => customerTicket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const r = await vendorSupportTicketDetailPage.loadTicketAndReplies({
+            ticketId: "ticket-v-abc",
+            ticketService,
+            expectedReporterRole: "vendor",
+            expectedReporterUid: "vendor-1"
+        });
+
+        expect(r.success).toBe(false);
+        expect(r.error.code).toBe("not-found");
+        expect(ticketService.getTicketReplies).not.toHaveBeenCalled();
+    });
+
+    test("loadTicketAndReplies refuses a ticket that belongs to a different user", async () => {
+        const otherTicket = makeTicket({ reporterUid: "someone-else" });
+        const ticketService = {
+            getTicketById: jest.fn(async () => otherTicket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const r = await vendorSupportTicketDetailPage.loadTicketAndReplies({
+            ticketId: "ticket-v-abc",
+            ticketService,
+            expectedReporterRole: "vendor",
+            expectedReporterUid: "vendor-1"
+        });
+
+        expect(r.success).toBe(false);
         expect(r.error.code).toBe("not-found");
     });
 
@@ -295,6 +369,39 @@ describe("vendor/support/ticket-detail.js - init wiring", () => {
         expect(r.error).toMatch(/No ticket/);
     });
 
+    test("init refuses to show a ticket raised from the customer side", async () => {
+        // Regression: a user with the same UID in both portals can navigate to
+        // /vendor/support/ticket-detail.html?ticketId=<their-customer-ticket>.
+        // The page must treat it as not-found and never reveal subject/description.
+        const dom = createDOM();
+        window.history.pushState({}, "", "/vendor/support/ticket-detail.html?ticketId=ticket-v-abc");
+
+        const customerTicket = makeTicket({
+            reporterUid: "vendor-1",
+            reporterRole: "customer",
+            subject: "Order never arrived",
+            description: "Driver did not show up."
+        });
+        const ticketService = {
+            getTicketById: jest.fn(async () => customerTicket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const r = await vendorSupportTicketDetailPage.init({
+            ticketService,
+            ticketFormatters: makeFormatters(),
+            auth: { currentUser: { uid: "vendor-1" } },
+            authFns: makeAuthFns({ uid: "vendor-1" })
+        });
+
+        expect(r.success).toBe(false);
+        expect(r.error.code).toBe("not-found");
+        expect(dom.summarySection.hasAttribute("hidden")).toBe(true);
+        expect(dom.subject.textContent).not.toMatch(/Order never arrived/);
+        expect(dom.description.textContent).not.toMatch(/Driver did not show/);
+        expect(dom.statusElement.textContent).toMatch(/could not be found/i);
+    });
+
     test("init renders the ticket and replies on success", async () => {
         const dom = createDOM();
         window.history.pushState({}, "", "/vendor/support/ticket-detail.html?ticketId=ticket-v-abc");
@@ -318,6 +425,7 @@ describe("vendor/support/ticket-detail.js - init wiring", () => {
         expect(r.success).toBe(true);
         expect(dom.summarySection.hasAttribute("hidden")).toBe(false);
         expect(dom.repliesContainer.querySelectorAll(".ticket-reply-entry")).toHaveLength(1);
+        expect(dom.nextAction.textContent).toBe("Next: add business details if needed");
         expect(dom.closeButton.hasAttribute("hidden")).toBe(false);
     });
 });

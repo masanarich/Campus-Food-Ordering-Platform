@@ -173,9 +173,12 @@ footer {
 }
 
 .profile-panel,
-.workspace-panel,
 .portal-panel {
     grid-column: span 4;
+}
+
+.workspace-panel {
+    grid-column: span 8;
 }
 
 .users-toolbar {
@@ -259,21 +262,37 @@ footer {
     border-color: rgba(139, 47, 36, 0.14);
 }
 
-.hero-summary,
+.hero-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-top: 1.35rem;
+}
+
 .workspace-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1rem;
     margin-top: 1.35rem;
 }
 
 .summary-card,
 .workspace-card {
-    padding: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.25rem;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border);
     background: rgba(255, 253, 249, 0.86);
     box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.workspace-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
 }
 
 .summary-label {
@@ -625,7 +644,7 @@ footer p {
     .profile-panel,
     .workspace-panel,
     .portal-panel {
-        grid-column: span 6;
+        grid-column: 1 / -1;
     }
 
     .users-toolbar {

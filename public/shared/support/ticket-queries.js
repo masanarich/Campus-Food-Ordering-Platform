@@ -273,12 +273,17 @@
     function buildReporterTicketsQuery(options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const reporterUid = normalizeText(safeOptions.reporterUid);
+        const roleConstraints = buildReporterRoleConstraints(
+            safeOptions.reporterRole,
+            safeOptions.firestoreFns
+        );
         const constraints = [
             createFirestoreConstraint(
                 "where",
                 ["reporterUid", "==", reporterUid],
                 safeOptions.firestoreFns
             ),
+            ...roleConstraints,
             ...buildStatusConstraints(
                 safeOptions.statuses,
                 safeOptions.firestoreFns,

@@ -10,6 +10,57 @@
         return typeof value === "string" ? value.trim() : "";
     }
 
+    function normalizeLowerText(value) {
+        return normalizeText(value).toLowerCase();
+    }
+
+    function normalizeTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeText(value)
+                ? normalizeText(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeLowerText(tag);
+            })
+            .filter(Boolean)
+            .filter(function keepUnique(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
+    function formatTag(value) {
+        const text = normalizeText(value);
+
+        if (!text) {
+            return "";
+        }
+
+        if (text === "gluten free") {
+            return "Gluten-free";
+        }
+
+        return text
+            .split(/[\s_-]+/)
+            .filter(Boolean)
+            .map(function capitalize(part) {
+                return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+            })
+            .join(" ");
+    }
+
+    function formatTagList(value, fallbackValue = "None listed") {
+        const tags = normalizeTagList(value);
+
+        if (tags.length === 0) {
+            return fallbackValue;
+        }
+
+        return tags.map(formatTag).join(", ");
+    }
+
     function normalizePrice(value) {
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -462,6 +513,8 @@
         const menuItemId = normalizeText(safeItem.menuItemId || safeItem.id || `item-${fallbackIndex + 1}`);
         const vendorUid = normalizeText(safeItem.vendorUid);
         const pricing = calculateCheckoutItemPricing(safeItem);
+        const dietary = normalizeTagList(safeItem.dietary || safeItem.dietaryTags);
+        const allergens = normalizeTagList(safeItem.allergens || safeItem.allergenTags);
 
         return {
             menuItemId,
@@ -476,6 +529,8 @@
             customerPrice: pricing.customerPrice,
             price: pricing.customerPrice,
             quantity: normalizePositiveQuantity(safeItem.quantity, 1),
+            dietary,
+            allergens,
             photoURL: normalizeText(safeItem.photoURL),
             notes: normalizeText(safeItem.notes),
             itemKey: `${vendorUid || "vendor"}::${menuItemId}`
@@ -616,6 +671,31 @@
         return button;
     }
 
+    function createCheckoutTagLine(labelText, values, className) {
+        const tags = normalizeTagList(values);
+
+        if (tags.length === 0) {
+            return null;
+        }
+
+        const line = globalScope.document.createElement("p");
+        line.className = className;
+
+        const label = globalScope.document.createElement("strong");
+        label.className = "checkout-item-label";
+        label.textContent = labelText;
+
+        const value = globalScope.document.createElement("output");
+        value.className = "checkout-item-value";
+        value.textContent = formatTagList(tags);
+
+        line.appendChild(label);
+        line.appendChild(globalScope.document.createTextNode(" "));
+        line.appendChild(value);
+
+        return line;
+    }
+
     function createCheckoutItemArticle(item) {
         const safeItem = normalizeCartItem(item);
         const article = globalScope.document.createElement("article");
@@ -642,6 +722,17 @@
         priceBreakdownLine.className = "checkout-item-price-breakdown";
         priceBreakdownLine.textContent = `Vendor ${formatCurrency(safeItem.vendorPrice)} + platform fee ${formatCurrency(safeItem.platformFee)}`;
 
+        const dietaryLine = createCheckoutTagLine(
+            "Dietary info:",
+            safeItem.dietary,
+            "checkout-item-dietary"
+        );
+        const allergenLine = createCheckoutTagLine(
+            "Allergen info:",
+            safeItem.allergens,
+            "checkout-item-allergens"
+        );
+
         const totalLine = globalScope.document.createElement("p");
         totalLine.className = "checkout-item-total";
         totalLine.textContent = `Line Total: ${formatCurrency(safeItem.price * safeItem.quantity)}`;
@@ -651,6 +742,12 @@
         article.appendChild(quantityLine);
         article.appendChild(unitPriceLine);
         article.appendChild(priceBreakdownLine);
+        if (dietaryLine) {
+            article.appendChild(dietaryLine);
+        }
+        if (allergenLine) {
+            article.appendChild(allergenLine);
+        }
         article.appendChild(totalLine);
 
         return article;
@@ -915,6 +1012,8 @@
                 customerPrice: safeItem.customerPrice,
                 price: safeItem.price,
                 quantity: safeItem.quantity,
+                dietary: safeItem.dietary,
+                allergens: safeItem.allergens,
                 vendorSubtotal: roundMoney(safeItem.vendorPrice * safeItem.quantity),
                 platformFeeTotal: roundMoney(safeItem.platformFee * safeItem.quantity),
                 lineTotal: roundMoney(safeItem.price * safeItem.quantity),
@@ -2072,6 +2171,10 @@
         MODULE_NAME,
         CART_STORAGE_KEY,
         normalizeText,
+        normalizeLowerText,
+        normalizeTagList,
+        formatTag,
+        formatTagList,
         normalizePrice,
         roundMoney,
         resolvePlatformPricing,
@@ -2107,6 +2210,7 @@
         removeVendorItemsFromCart,
         setStatusMessage,
         createBackButton,
+        createCheckoutTagLine,
         createCheckoutItemArticle,
         renderCheckoutItems,
         renderCheckoutSummary,

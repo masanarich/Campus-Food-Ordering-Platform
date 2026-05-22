@@ -59,6 +59,121 @@ function createAuthService(dependencies = {}) {
         return typeof value === "string" ? value.trim() : "";
     }
 
+    function normalizePreferenceTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeUrlLikeValue(value)
+                ? normalizeUrlLikeValue(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeUrlLikeValue(tag).toLowerCase();
+            })
+            .filter(Boolean)
+            .filter(function keepUnique(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
+    function normalizeRecommendationOptIn(value, fallbackValue = true) {
+        if (value === true || value === false) {
+            return value;
+        }
+
+        if (value === "true" || value === "1" || value === 1) {
+            return true;
+        }
+
+        if (value === "false" || value === "0" || value === 0) {
+            return false;
+        }
+
+        return fallbackValue;
+    }
+
+    function getOwnOrFallback(source, fieldName, fallbackValue) {
+        const safeSource = source && typeof source === "object" ? source : {};
+
+        if (Object.prototype.hasOwnProperty.call(safeSource, fieldName)) {
+            return safeSource[fieldName];
+        }
+
+        return fallbackValue;
+    }
+
+    function getPreferenceSourceValue(rawProfile, safeProfile, fieldName, aliases, fallbackValue) {
+        const safeAliases = Array.isArray(aliases) ? aliases : [];
+        const sources = [rawProfile];
+
+        for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex += 1) {
+            const source = sources[sourceIndex] && typeof sources[sourceIndex] === "object"
+                ? sources[sourceIndex]
+                : {};
+            const fieldValue = getOwnOrFallback(source, fieldName, undefined);
+
+            if (fieldValue !== undefined) {
+                return fieldValue;
+            }
+
+            for (let aliasIndex = 0; aliasIndex < safeAliases.length; aliasIndex += 1) {
+                const aliasValue = getOwnOrFallback(source, safeAliases[aliasIndex], undefined);
+
+                if (aliasValue !== undefined) {
+                    return aliasValue;
+                }
+            }
+        }
+
+        return fallbackValue;
+    }
+
+    function getRecommendationPreferenceFields(profile, fallbackProfile = {}) {
+        const rawProfile = profile && typeof profile === "object" ? profile : {};
+        const safeProfile = normaliseProfile(rawProfile);
+        const fallback = fallbackProfile && typeof fallbackProfile === "object" ? fallbackProfile : {};
+
+        return {
+            dietaryPreferences: normalizePreferenceTagList(
+                getPreferenceSourceValue(
+                    rawProfile,
+                    safeProfile,
+                    "dietaryPreferences",
+                    ["preferredDietaryTags", "dietary"],
+                    fallback.dietaryPreferences || []
+                )
+            ),
+            dietaryRestrictions: normalizePreferenceTagList(
+                getPreferenceSourceValue(
+                    rawProfile,
+                    safeProfile,
+                    "dietaryRestrictions",
+                    ["requiredDietaryTags", "restrictedDietary"],
+                    fallback.dietaryRestrictions || []
+                )
+            ),
+            allergenRestrictions: normalizePreferenceTagList(
+                getPreferenceSourceValue(
+                    rawProfile,
+                    safeProfile,
+                    "allergenRestrictions",
+                    ["allergensToAvoid", "restrictedAllergens"],
+                    fallback.allergenRestrictions || []
+                )
+            ),
+            recommendationOptIn: normalizeRecommendationOptIn(
+                getPreferenceSourceValue(
+                    rawProfile,
+                    safeProfile,
+                    "recommendationOptIn",
+                    [],
+                    fallback.recommendationOptIn
+                ),
+                fallback.recommendationOptIn !== undefined ? fallback.recommendationOptIn : true
+            )
+        };
+    }
+
     function isHttpPhotoUrl(value) {
         return /^https?:\/\//i.test(normalizeUrlLikeValue(value));
     }
@@ -218,6 +333,7 @@ function createAuthService(dependencies = {}) {
         const rawProfile = profile && typeof profile === "object" ? profile : {};
         const safeProfile = normaliseProfile(rawProfile);
         const isAdmin = safeProfile.isAdmin === true;
+        const recommendationPreferences = getRecommendationPreferenceFields(rawProfile);
 
         return {
             uid: safeProfile.uid || "",
@@ -247,6 +363,10 @@ function createAuthService(dependencies = {}) {
             adminDepartment: normalizeUrlLikeValue(rawProfile.adminDepartment),
             adminMotivation: normalizeUrlLikeValue(rawProfile.adminMotivation),
             accountStatus: getCanonicalAccountStatus(safeProfile.accountStatus),
+            dietaryPreferences: recommendationPreferences.dietaryPreferences,
+            dietaryRestrictions: recommendationPreferences.dietaryRestrictions,
+            allergenRestrictions: recommendationPreferences.allergenRestrictions,
+            recommendationOptIn: recommendationPreferences.recommendationOptIn,
             createdAt: safeProfile.createdAt || null,
             updatedAt: safeProfile.updatedAt || null,
             lastLoginAt: safeProfile.lastLoginAt || null
@@ -292,6 +412,10 @@ function createAuthService(dependencies = {}) {
             adminDepartment: persistedProfile.adminDepartment,
             adminMotivation: persistedProfile.adminMotivation,
             accountStatus: persistedProfile.accountStatus,
+            dietaryPreferences: persistedProfile.dietaryPreferences,
+            dietaryRestrictions: persistedProfile.dietaryRestrictions,
+            allergenRestrictions: persistedProfile.allergenRestrictions,
+            recommendationOptIn: persistedProfile.recommendationOptIn,
             updatedAt: getSafeServerTimestamp(),
             lastLoginAt: getSafeServerTimestamp()
         };
@@ -346,6 +470,22 @@ function createAuthService(dependencies = {}) {
 
         if (Object.prototype.hasOwnProperty.call(safeUpdates, "accountStatus")) {
             payload.accountStatus = getCanonicalAccountStatus(safeUpdates.accountStatus);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "dietaryPreferences")) {
+            payload.dietaryPreferences = normalizePreferenceTagList(safeUpdates.dietaryPreferences);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "dietaryRestrictions")) {
+            payload.dietaryRestrictions = normalizePreferenceTagList(safeUpdates.dietaryRestrictions);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "allergenRestrictions")) {
+            payload.allergenRestrictions = normalizePreferenceTagList(safeUpdates.allergenRestrictions);
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "recommendationOptIn")) {
+            payload.recommendationOptIn = normalizeRecommendationOptIn(safeUpdates.recommendationOptIn, true);
         }
 
         payload.updatedAt = getSafeServerTimestamp();
@@ -606,6 +746,22 @@ function createAuthService(dependencies = {}) {
             firestoreUpdates.accountStatus = safeUpdates.accountStatus;
         }
 
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "dietaryPreferences")) {
+            firestoreUpdates.dietaryPreferences = safeUpdates.dietaryPreferences;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "dietaryRestrictions")) {
+            firestoreUpdates.dietaryRestrictions = safeUpdates.dietaryRestrictions;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "allergenRestrictions")) {
+            firestoreUpdates.allergenRestrictions = safeUpdates.allergenRestrictions;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(safeUpdates, "recommendationOptIn")) {
+            firestoreUpdates.recommendationOptIn = safeUpdates.recommendationOptIn;
+        }
+
         const updatedProfile = await updateUserProfile(user.uid, firestoreUpdates);
         const existingProfile = await getCurrentUserProfile(user.uid);
 
@@ -786,7 +942,8 @@ function createAuthService(dependencies = {}) {
                         extendedExistingProfile.uploadedPhotoURL ||
                         extendedExistingProfile.photoURL ||
                         providerPhotoURL ||
-                        ""
+                        "",
+                    ...getRecommendationPreferenceFields(safeOptions, existingProfile)
                 }
                 : {
                     ...existingProfile,
@@ -822,7 +979,8 @@ function createAuthService(dependencies = {}) {
                         existingProfile.isAdmin === true
                     ),
                     adminApplicationReason: existingProfile.adminApplicationReason || "",
-                    accountStatus: getCanonicalAccountStatus(existingProfile.accountStatus)
+                    accountStatus: getCanonicalAccountStatus(existingProfile.accountStatus),
+                    ...getRecommendationPreferenceFields(safeOptions, existingProfile)
                 };
 
         return saveUserProfile(mergedProfile, { merge: true });
@@ -877,7 +1035,8 @@ function createAuthService(dependencies = {}) {
             photoURL: providerPhotoURL,
             providerPhotoURL,
             uploadedPhotoURL: "",
-            uploadedPhotoPath: ""
+            uploadedPhotoPath: "",
+            ...getRecommendationPreferenceFields(safeOptions)
         };
 
         if (
@@ -897,7 +1056,8 @@ function createAuthService(dependencies = {}) {
                 providerPhotoURL,
                 uploadedPhotoURL: "",
                 uploadedPhotoPath: "",
-                photoURL: providerPhotoURL
+                photoURL: providerPhotoURL,
+                ...getRecommendationPreferenceFields(safeOptions)
             };
         }
 
@@ -912,7 +1072,8 @@ function createAuthService(dependencies = {}) {
                 providerPhotoURL,
                 uploadedPhotoURL: "",
                 uploadedPhotoPath: "",
-                photoURL: providerPhotoURL
+                photoURL: providerPhotoURL,
+                ...getRecommendationPreferenceFields(safeOptions)
             };
         }
 

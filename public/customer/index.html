@@ -50,6 +50,20 @@
       </menu>
     </section>
 
+
+    <section id="campus-recommendations-section" aria-labelledby="campus-recommendations-heading">
+      <h3 id="campus-recommendations-heading">Recommended Across Campus</h3>
+      <p>
+        Meal suggestions across approved vendors use your saved dietary preferences, restrictions, and recent orders.
+      </p>
+      <p id="campus-recommendations-status" aria-live="polite" aria-atomic="true">
+        Loading campus recommendations...
+      </p>
+      <section id="campus-recommendations-container" aria-live="polite">
+        <p class="loading-message">Preparing campus-wide meal recommendations...</p>
+      </section>
+    </section>
+
     <section aria-labelledby="profile-overview-heading">
       <h3 id="profile-overview-heading">Profile Snapshot</h3>
 
@@ -73,6 +87,8 @@
         <li><button id="go-admin-portal-button" type="button">Admin Portal</button></li>
       </menu>
     </section>
+
+
 
     <section aria-labelledby="application-status-heading">
       <h3 id="application-status-heading">Role Applications</h3>
@@ -103,16 +119,43 @@
 
   <script src="../authentication/auth-utils.js"></script>
   <script src="../authentication/auth-core.js"></script>
+  <script src="../shared/recommendations/recommendation-model.js"></script>
+  <script src="../shared/recommendations/recommendation-queries.js"></script>
+  <script src="../shared/recommendations/campus-recommendation-queries.js"></script>
   <script src="./index.js"></script>
 
   <script type="module">
     import { authService } from "../authentication/auth.js";
+    import { db } from "../authentication/config.js";
+    import {
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      limit,
+      orderBy,
+      query,
+      where
+    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
     window.authService = authService;
+    window.db = db;
+    window.firestoreFns = {
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      limit,
+      orderBy,
+      query,
+      where
+    };
 
     window.customerHomePage.initializeCustomerHomePage({
       authService,
-      authUtils: window.authUtils
+      authUtils: window.authUtils,
+      db,
+      firestoreFns: window.firestoreFns
     });
   </script>
 </body>

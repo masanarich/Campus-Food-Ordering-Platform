@@ -59,6 +59,23 @@
         return normalizeText(value).toUpperCase();
     }
 
+    function normalizeTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeText(value)
+                ? normalizeText(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeLowerText(tag);
+            })
+            .filter(Boolean)
+            .filter(function keepUnique(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
     function normalizeCurrencyAmount(value, fallbackValue) {
         const parsed = Number.parseFloat(value);
         const fallbackParsed = Number.parseFloat(fallbackValue);
@@ -325,6 +342,8 @@
         const vendorSubtotal = normalizeCurrencyAmount(pricing.vendorPrice * quantity);
         const platformFeeTotal = normalizeCurrencyAmount(pricing.platformFee * quantity);
         const lineTotal = normalizeCurrencyAmount(pricing.price * quantity);
+        const dietary = normalizeTagList(safeItem.dietary || safeItem.dietaryTags);
+        const allergens = normalizeTagList(safeItem.allergens || safeItem.allergenTags);
 
         return {
             menuItemId,
@@ -332,6 +351,8 @@
             vendorName: normalizeText(safeItem.vendorName) || "Unknown Vendor",
             name: normalizeText(safeItem.name || safeItem.itemName) || "Unknown Item",
             category: normalizeText(safeItem.category) || "Other",
+            dietary,
+            allergens,
             vendorPrice: pricing.vendorPrice,
             basePrice: pricing.basePrice,
             platformFeeRate: pricing.platformFeeRate,
@@ -674,6 +695,7 @@
         normalizeText,
         normalizeLowerText,
         normalizeUpperText,
+        normalizeTagList,
         normalizeCurrencyAmount,
         normalizePositiveInteger,
         normalizeAmountInMinorUnits,

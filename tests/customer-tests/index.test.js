@@ -9,6 +9,9 @@ const {
     normalizeAdminApplicationStatus,
     normalizeAccountStatus,
     resolveAuthUtils,
+    resolveRecommendationModel,
+    resolveRecommendationQueries,
+    resolveCampusRecommendationQueries,
     getFallbackRoutes,
     getPortalRoute,
     hasAuthenticatedIdentity,
@@ -32,6 +35,11 @@ const {
     setHidden,
     setStatusMessage,
     setImage,
+    getRecommendationConfidenceLabel,
+    getRecommendationItemUrl,
+    createCampusRecommendationCard,
+    renderCampusRecommendations,
+    loadCampusRecommendations,
     renderCustomerHomePage,
     attachNavigationHandler,
     attachSignOutHandler,
@@ -75,6 +83,9 @@ function createCustomerHomeDom() {
             <button id="go-customer-portal-button" type="button">Customer</button>
             <button id="go-vendor-portal-button" type="button">Vendor Portal</button>
             <button id="go-admin-portal-button" type="button">Admin Portal</button>
+
+            <p id="campus-recommendations-status"></p>
+            <section id="campus-recommendations-container"></section>
         </main>
     `;
 
@@ -106,7 +117,9 @@ function createCustomerHomeDom() {
         signOutButton: document.querySelector("#sign-out-button"),
         customerPortalButton: document.querySelector("#go-customer-portal-button"),
         vendorPortalButton: document.querySelector("#go-vendor-portal-button"),
-        adminPortalButton: document.querySelector("#go-admin-portal-button")
+        adminPortalButton: document.querySelector("#go-admin-portal-button"),
+        campusRecommendationsStatus: document.querySelector("#campus-recommendations-status"),
+        campusRecommendationsContainer: document.querySelector("#campus-recommendations-container")
     };
 }
 
@@ -144,6 +157,28 @@ describe("customer/index.js helpers", () => {
         expect(resolveAuthUtils()).toBeNull();
     });
 
+    test("recommendation resolvers prefer explicit dependencies then window modules", () => {
+        const model = { recommendMenuItems: jest.fn() };
+        const recommendationQueries = { loadRecommendationContext: jest.fn() };
+        const campusRecommendationQueries = { fetchCampusMenuItems: jest.fn() };
+
+        window.recommendationModel = { recommendMenuItems: jest.fn() };
+        window.recommendationQueries = { loadRecommendationContext: jest.fn() };
+        window.campusRecommendationQueries = { fetchCampusMenuItems: jest.fn() };
+
+        expect(resolveRecommendationModel(model)).toBe(model);
+        expect(resolveRecommendationQueries(recommendationQueries)).toBe(recommendationQueries);
+        expect(resolveCampusRecommendationQueries(campusRecommendationQueries)).toBe(campusRecommendationQueries);
+
+        expect(resolveRecommendationModel()).toBe(window.recommendationModel);
+        expect(resolveRecommendationQueries()).toBe(window.recommendationQueries);
+        expect(resolveCampusRecommendationQueries()).toBe(window.campusRecommendationQueries);
+
+        delete window.recommendationModel;
+        delete window.recommendationQueries;
+        delete window.campusRecommendationQueries;
+    });
+
     test("getFallbackRoutes and getPortalRoute return expected routes", () => {
         expect(getFallbackRoutes()).toEqual({
             customer: "./index.html",
@@ -154,6 +189,7 @@ describe("customer/index.js helpers", () => {
             vendorapplication: "./vendor-application.html",
             adminapplication: "./admin-application.html",
             browsevendors: "./order-management/browse-vendors.html",
+            vendormenu: "./order-management/browse-menu.html",
             cart: "./order-management/cart.html",
             checkout: "./order-management/checkout.html",
             orders: "./order-tracking/index.html",
@@ -171,6 +207,7 @@ describe("customer/index.js helpers", () => {
         expect(getPortalRoute("vendorApplication")).toBe("./vendor-application.html");
         expect(getPortalRoute("adminApplication")).toBe("./admin-application.html");
         expect(getPortalRoute("browseVendors")).toBe("./order-management/browse-vendors.html");
+        expect(getPortalRoute("vendorMenu")).toBe("./order-management/browse-menu.html");
         expect(getPortalRoute("cart")).toBe("./order-management/cart.html");
         expect(getPortalRoute("checkout")).toBe("./order-management/checkout.html");
         expect(getPortalRoute("orders")).toBe("./order-tracking/index.html");
@@ -442,6 +479,56 @@ describe("customer/index.js DOM helpers", () => {
         expect(image.alt).toBe("User profile picture");
     });
 
+    test("campus recommendation helpers render cards and empty states", () => {
+        const container = document.createElement("section");
+        const statusElement = document.createElement("p");
+        const recommendation = {
+            rank: 1,
+            confidence: 0.82,
+            reasons: ["Matches your Halal preference.", "You often order from the Meals category."],
+            item: {
+                menuItemId: "meal-1",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                name: "Chicken Bowl",
+                category: "Meals",
+                price: 55,
+                vendorMenuUrl: "./order-management/browse-menu.html?vendorUid=vendor-1&vendorName=Campus+Bites&recommendedItemId=meal-1"
+            }
+        };
+
+        expect(getRecommendationConfidenceLabel(0.8)).toBe("High");
+        expect(getRecommendationConfidenceLabel(0.5)).toBe("Medium");
+        expect(getRecommendationConfidenceLabel(0.2)).toBe("Emerging");
+        expect(getRecommendationItemUrl(recommendation, "./order-management/browse-menu.html"))
+            .toContain("recommendedItemId=meal-1");
+
+        const card = createCampusRecommendationCard(recommendation);
+        expect(card.tagName).toBe("ARTICLE");
+        expect(card.querySelector(".campus-recommendation-name").textContent).toBe("Chicken Bowl");
+        expect(card.querySelector(".campus-recommendation-link").getAttribute("href"))
+            .toContain("vendorUid=vendor-1");
+
+        renderCampusRecommendations(
+            { status: "personalized", recommendations: [recommendation] },
+            container,
+            statusElement
+        );
+
+        expect(container.querySelectorAll(".campus-recommendation-card")).toHaveLength(1);
+        expect(statusElement.textContent).toBe("1 personalized campus recommendation ready.");
+        expect(statusElement.dataset.state).toBe("success");
+
+        renderCampusRecommendations(
+            { status: "opted-out", recommendations: [] },
+            container,
+            statusElement
+        );
+
+        expect(container.textContent).toContain("disabled");
+        expect(statusElement.dataset.state).toBe("info");
+    });
+
     test("renderCustomerHomePage renders the new dashboard state", () => {
         const elements = createCustomerHomeDom();
 
@@ -677,6 +764,124 @@ describe("customer/index.js loading and initialization", () => {
         expect(fallbackResult.state.displayName).toBe("Fallback User");
     });
 
+    test("loadCampusRecommendations ranks campus-wide menu items with student context", async () => {
+        const recommendationModel = {
+            recommendMenuItems: jest.fn(() => ({
+                model: "test-model",
+                status: "personalized",
+                recommendations: [
+                    {
+                        rank: 1,
+                        confidence: 0.9,
+                        reasons: ["Matches your Halal preference."],
+                        item: {
+                            menuItemId: "meal-1",
+                            vendorUid: "vendor-1",
+                            vendorName: "Campus Bites",
+                            name: "Chicken Bowl"
+                        }
+                    }
+                ],
+                excluded: []
+            }))
+        };
+        const recommendationQueries = {
+            loadRecommendationContext: jest.fn(async () => ({
+                success: true,
+                profile: {
+                    uid: "user-1",
+                    dietaryPreferences: ["halal"],
+                    dietaryRestrictions: [],
+                    allergenRestrictions: [],
+                    recommendationOptIn: true
+                },
+                orders: [{ orderId: "order-1" }],
+                orderCount: 1
+            }))
+        };
+        const campusRecommendationQueries = {
+            fetchCampusMenuItems: jest.fn(async () => ({
+                success: true,
+                vendors: [{ uid: "vendor-1" }],
+                vendorCount: 1,
+                menuItems: [
+                    {
+                        menuItemId: "meal-1",
+                        vendorUid: "vendor-1",
+                        vendorName: "Campus Bites",
+                        name: "Chicken Bowl"
+                    }
+                ],
+                menuItemCount: 1,
+                failures: [],
+                partial: false
+            }))
+        };
+
+        const result = await loadCampusRecommendations({
+            db: { name: "db" },
+            firestoreFns: {},
+            currentUser: { uid: "user-1" },
+            recommendationModel,
+            recommendationQueries,
+            campusRecommendationQueries,
+            maxRecommendations: 3
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.status).toBe("personalized");
+        expect(result.recommendations).toHaveLength(1);
+        expect(result.contextLoaded).toBe(true);
+        expect(campusRecommendationQueries.fetchCampusMenuItems).toHaveBeenCalledWith(
+            expect.objectContaining({
+                menuBasePath: "./order-management/browse-menu.html"
+            })
+        );
+        expect(recommendationModel.recommendMenuItems).toHaveBeenCalledWith(
+            [
+                {
+                    menuItemId: "meal-1",
+                    vendorUid: "vendor-1",
+                    vendorName: "Campus Bites",
+                    name: "Chicken Bowl"
+                }
+            ],
+            [{ orderId: "order-1" }],
+            expect.objectContaining({ dietaryPreferences: ["halal"] }),
+            { maxRecommendations: 3 }
+        );
+    });
+
+    test("loadCampusRecommendations reports unavailable dependency and menu failures", async () => {
+        await expect(loadCampusRecommendations({})).resolves.toEqual(
+            expect.objectContaining({
+                success: false,
+                status: "unavailable",
+                error: expect.objectContaining({
+                    code: "recommendations/no-db"
+                })
+            })
+        );
+
+        const failed = await loadCampusRecommendations({
+            recommendationModel: {
+                recommendMenuItems: jest.fn()
+            },
+            campusRecommendationQueries: {
+                fetchCampusMenuItems: jest.fn(async () => ({
+                    success: false,
+                    error: {
+                        code: "recommendations/vendors-fetch-failed",
+                        message: "vendors offline"
+                    }
+                }))
+            }
+        });
+
+        expect(failed.success).toBe(false);
+        expect(failed.error.code).toBe("recommendations/vendors-fetch-failed");
+    });
+
     test("initializeCustomerHomePage requires auth service and redirects signed-out users", async () => {
         createCustomerHomeDom();
 
@@ -688,10 +893,66 @@ describe("customer/index.js loading and initialization", () => {
             signOutUser: jest.fn()
         };
         const navigate = jest.fn();
+        const recommendationModel = {
+            recommendMenuItems: jest.fn(() => ({
+                status: "personalized",
+                recommendations: [
+                    {
+                        rank: 1,
+                        confidence: 0.84,
+                        reasons: ["Matches your Halal preference."],
+                        item: {
+                            menuItemId: "meal-1",
+                            vendorUid: "vendor-1",
+                            vendorName: "Campus Bites",
+                            name: "Chicken Bowl",
+                            category: "Meals",
+                            price: 55,
+                            vendorMenuUrl: "./order-management/browse-menu.html?vendorUid=vendor-1&vendorName=Campus+Bites&recommendedItemId=meal-1"
+                        }
+                    }
+                ],
+                excluded: []
+            }))
+        };
+        const recommendationQueries = {
+            loadRecommendationContext: jest.fn(async () => ({
+                success: true,
+                profile: { uid: "user-3", recommendationOptIn: true },
+                orders: [],
+                orderCount: 0
+            }))
+        };
+        const campusRecommendationQueries = {
+            fetchCampusMenuItems: jest.fn(async () => ({
+                success: true,
+                vendors: [{ uid: "vendor-1" }],
+                vendorCount: 1,
+                menuItems: [
+                    {
+                        menuItemId: "meal-1",
+                        vendorUid: "vendor-1",
+                        vendorName: "Campus Bites",
+                        name: "Chicken Bowl",
+                        category: "Meals",
+                        price: 55,
+                        vendorMenuUrl: "./order-management/browse-menu.html?vendorUid=vendor-1&vendorName=Campus+Bites&recommendedItemId=meal-1"
+                    }
+                ],
+                menuItemCount: 1,
+                failures: [],
+                partial: false
+            }))
+        };
 
         const result = await initializeCustomerHomePage({
             authService,
-            navigate
+            navigate,
+            db: { name: "db" },
+            firestoreFns: {},
+            recommendationModel,
+            recommendationQueries,
+            campusRecommendationQueries
         });
 
         expect(result.redirected).toBe(true);
@@ -718,10 +979,66 @@ describe("customer/index.js loading and initialization", () => {
         };
 
         const navigate = jest.fn();
+        const recommendationModel = {
+            recommendMenuItems: jest.fn(() => ({
+                status: "personalized",
+                recommendations: [
+                    {
+                        rank: 1,
+                        confidence: 0.84,
+                        reasons: ["Matches your Halal preference."],
+                        item: {
+                            menuItemId: "meal-1",
+                            vendorUid: "vendor-1",
+                            vendorName: "Campus Bites",
+                            name: "Chicken Bowl",
+                            category: "Meals",
+                            price: 55,
+                            vendorMenuUrl: "./order-management/browse-menu.html?vendorUid=vendor-1&vendorName=Campus+Bites&recommendedItemId=meal-1"
+                        }
+                    }
+                ],
+                excluded: []
+            }))
+        };
+        const recommendationQueries = {
+            loadRecommendationContext: jest.fn(async () => ({
+                success: true,
+                profile: { uid: "user-3", recommendationOptIn: true },
+                orders: [],
+                orderCount: 0
+            }))
+        };
+        const campusRecommendationQueries = {
+            fetchCampusMenuItems: jest.fn(async () => ({
+                success: true,
+                vendors: [{ uid: "vendor-1" }],
+                vendorCount: 1,
+                menuItems: [
+                    {
+                        menuItemId: "meal-1",
+                        vendorUid: "vendor-1",
+                        vendorName: "Campus Bites",
+                        name: "Chicken Bowl",
+                        category: "Meals",
+                        price: 55,
+                        vendorMenuUrl: "./order-management/browse-menu.html?vendorUid=vendor-1&vendorName=Campus+Bites&recommendedItemId=meal-1"
+                    }
+                ],
+                menuItemCount: 1,
+                failures: [],
+                partial: false
+            }))
+        };
 
         const result = await initializeCustomerHomePage({
             authService,
-            navigate
+            navigate,
+            db: { name: "db" },
+            firestoreFns: {},
+            recommendationModel,
+            recommendationQueries,
+            campusRecommendationQueries
         });
 
         expect(result.redirected).toBe(false);
@@ -741,6 +1058,12 @@ describe("customer/index.js loading and initialization", () => {
         expect(result.supportController).toBeTruthy();
         expect(result.analyticsController).toBeTruthy();
         expect(result.signOutController).toBeTruthy();
+        expect(result.campusRecommendations).toHaveLength(1);
+        expect(result.campusRecommendationStatus).toBe("personalized");
+        expect(elements.campusRecommendationsContainer.querySelectorAll(".campus-recommendation-card"))
+            .toHaveLength(1);
+        expect(elements.campusRecommendationsContainer.textContent).toContain("Chicken Bowl");
+        expect(elements.campusRecommendationsStatus.dataset.state).toBe("success");
 
         elements.profileButton.click();
         elements.browseVendorsButton.click();

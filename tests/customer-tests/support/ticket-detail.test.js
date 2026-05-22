@@ -18,6 +18,8 @@ function createDOM() {
             <output id="ticket-summary-order">—</output>
             <output id="ticket-summary-opened">—</output>
             <output id="ticket-summary-replies">—</output>
+            <output id="ticket-summary-next-action">Loading</output>
+            <p id="ticket-summary-next-action-detail">Checking ticket activity.</p>
             <p id="ticket-summary-resolution" hidden></p>
             <p id="ticket-description-body">—</p>
         </section>
@@ -57,6 +59,8 @@ function createDOM() {
         order: document.getElementById("ticket-summary-order"),
         opened: document.getElementById("ticket-summary-opened"),
         replies: document.getElementById("ticket-summary-replies"),
+        nextAction: document.getElementById("ticket-summary-next-action"),
+        nextActionDetail: document.getElementById("ticket-summary-next-action-detail"),
         resolution: document.getElementById("ticket-summary-resolution"),
         description: document.getElementById("ticket-description-body"),
         progressSection: document.getElementById("ticket-progress-section"),
@@ -207,7 +211,9 @@ describe("customer/support/ticket-detail.js - module surface", () => {
             "attachReplyHandler",
             "attachActionHandlers",
             "collectElements",
-            "getTicketIdFromQuery"
+            "getTicketIdFromQuery",
+            "hasSupportReply",
+            "getNextCustomerTicketAction"
         ].forEach((name) => {
             expect(typeof customerSupportTicketDetailPage[name]).toBe("function");
         });
@@ -300,6 +306,8 @@ describe("customer/support/ticket-detail.js - rendering", () => {
         expect(dom.order.textContent).toBe("order-7");
         expect(dom.opened.textContent).toMatch(/formatted:/);
         expect(dom.replies.textContent).toBe("2 replies");
+        expect(dom.nextAction.textContent).toBe("Next: add details if needed");
+        expect(dom.nextActionDetail.textContent).toMatch(/Review the conversation/i);
         expect(dom.description.textContent).toBe("Driver did not show up.");
         // Resolution only shows for resolved tickets.
         expect(dom.resolution.hasAttribute("hidden")).toBe(true);
@@ -317,6 +325,29 @@ describe("customer/support/ticket-detail.js - rendering", () => {
 
         expect(dom.resolution.hasAttribute("hidden")).toBe(false);
         expect(dom.resolution.textContent).toMatch(/Resolved by Admin/);
+        expect(dom.nextAction.textContent).toBe("Next: close when satisfied");
+    });
+
+    test("getNextCustomerTicketAction chooses the customer-facing step", () => {
+        expect(customerSupportTicketDetailPage.getNextCustomerTicketAction(makeTicket())).toEqual({
+            label: "Next: wait for first response",
+            detail: "Your ticket is open. The support team will reply here when they pick it up."
+        });
+
+        expect(customerSupportTicketDetailPage.getNextCustomerTicketAction(
+            makeTicket({ status: "awaiting_user", replyCount: 1 }),
+            [{ authorRole: "admin", body: "Can you send a photo?" }]
+        )).toEqual({
+            label: "Next: reply to support",
+            detail: "The support team is waiting for your response before they can continue."
+        });
+
+        expect(customerSupportTicketDetailPage.getNextCustomerTicketAction(
+            makeTicket({ status: "closed" })
+        )).toEqual({
+            label: "Next: reopen if needed",
+            detail: "This ticket is closed. Reopen it if the same problem comes back."
+        });
     });
 
     test("renderTimeline renders one entry per timeline item, with note when present", () => {
@@ -481,6 +512,69 @@ describe("customer/support/ticket-detail.js - loadTicketAndReplies", () => {
 
         expect(result.success).toBe(false);
         expect(result.error.message).toBe("network");
+    });
+
+    test("returns not-found when the ticket was raised from the vendor side", async () => {
+        // A user who is both a customer and a vendor could land on
+        // /customer/support/ticket-detail.html?ticketId=<their-vendor-ticket>.
+        // The page must refuse to surface it even though the UID matches.
+        const vendorTicket = makeTicket({
+            reporterUid: "customer-1",
+            reporterRole: "vendor"
+        });
+        const ticketService = {
+            getTicketById: jest.fn(async () => vendorTicket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const result = await customerSupportTicketDetailPage.loadTicketAndReplies({
+            ticketId: "ticket-abcdef",
+            ticketService,
+            expectedReporterRole: "customer",
+            expectedReporterUid: "customer-1"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error.code).toBe("not-found");
+        // Replies must not even be fetched once the role check fails.
+        expect(ticketService.getTicketReplies).not.toHaveBeenCalled();
+    });
+
+    test("returns not-found when the ticket belongs to a different user", async () => {
+        const otherUsersTicket = makeTicket({ reporterUid: "someone-else" });
+        const ticketService = {
+            getTicketById: jest.fn(async () => otherUsersTicket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const result = await customerSupportTicketDetailPage.loadTicketAndReplies({
+            ticketId: "ticket-abcdef",
+            ticketService,
+            expectedReporterRole: "customer",
+            expectedReporterUid: "customer-1"
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error.code).toBe("not-found");
+        expect(ticketService.getTicketReplies).not.toHaveBeenCalled();
+    });
+
+    test("allows the ticket through when role and uid both match", async () => {
+        const ticket = makeTicket();
+        const ticketService = {
+            getTicketById: jest.fn(async () => ticket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const result = await customerSupportTicketDetailPage.loadTicketAndReplies({
+            ticketId: "ticket-abcdef",
+            ticketService,
+            expectedReporterRole: "customer",
+            expectedReporterUid: "customer-1"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.ticket).toBe(ticket);
     });
 });
 
@@ -665,6 +759,42 @@ describe("customer/support/ticket-detail.js - init and handlers", () => {
         expect(result.success).toBe(false);
     });
 
+    test("init refuses to show a ticket raised from the vendor side", async () => {
+        // Regression: a user with the same UID in both portals can navigate to
+        // /customer/support/ticket-detail.html?ticketId=<their-vendor-ticket>.
+        // The page must treat it as not-found and never reveal subject/description.
+        const dom = createDOM();
+        window.history.pushState({}, "", "/customer/support/ticket-detail.html?ticketId=ticket-abcdef");
+
+        const vendorTicket = makeTicket({
+            reporterUid: "customer-1",
+            reporterRole: "vendor",
+            subject: "Payouts question",
+            description: "Where is my money?"
+        });
+        const ticketService = {
+            getTicketById: jest.fn(async () => vendorTicket),
+            getTicketReplies: jest.fn(async () => [])
+        };
+
+        const result = await customerSupportTicketDetailPage.init({
+            ticketService,
+            ticketFormatters: makeFormattersStub(),
+            auth: { currentUser: { uid: "customer-1" } },
+            authFns: makeAuthFns({ uid: "customer-1" }),
+            db: { kind: "db" },
+            firestoreFns: {}
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error.code).toBe("not-found");
+        // Summary section stays hidden so subject/description never leak.
+        expect(dom.summarySection.hasAttribute("hidden")).toBe(true);
+        expect(dom.subject.textContent).not.toMatch(/Payouts question/);
+        expect(dom.description.textContent).not.toMatch(/Where is my money/);
+        expect(dom.statusElement.textContent).toMatch(/could not be found/i);
+    });
+
     test("init renders ticket, replies, and timeline on success", async () => {
         const dom = createDOM();
         window.history.pushState({}, "", "/customer/support/ticket-detail.html?ticketId=ticket-abcdef");
@@ -695,6 +825,7 @@ describe("customer/support/ticket-detail.js - init and handlers", () => {
         expect(dom.summarySection.hasAttribute("hidden")).toBe(false);
         expect(dom.timelineContainer.querySelectorAll(".ticket-timeline-entry")).toHaveLength(1);
         expect(dom.repliesContainer.querySelectorAll(".ticket-reply-entry")).toHaveLength(1);
+        expect(dom.nextAction.textContent).toBe("Next: add details if needed");
         expect(dom.closeButton.hasAttribute("hidden")).toBe(false);
         expect(dom.replyFormSection.hasAttribute("hidden")).toBe(false);
     });

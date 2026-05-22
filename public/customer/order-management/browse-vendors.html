@@ -31,8 +31,9 @@
             <h2 id="browse-vendors-heading">Browse Vendors</h2>
 
             <p>
-                Discover approved campus vendors, open a vendor menu, add items to your cart,
-                and continue to checkout when you are ready.
+                Discover approved campus vendors, see what they sell, where to find them on campus,
+                and open a menu to start ordering. Live open/closed status is based on each vendor's
+                opening hours.
             </p>
 
             <p id="browse-vendors-status" aria-live="polite" aria-atomic="true"></p>
@@ -46,12 +47,93 @@
             </menu>
         </section>
 
+        <section class="vendors-filter-section shared-section" aria-labelledby="vendor-filters-heading">
+            <header class="vendors-filter-head">
+                <h3 id="vendor-filters-heading">Find a vendor</h3>
+                <p>
+                    Search by name, food type, school, or location. Use the filters to narrow down
+                    the list — pick a school first to see only campuses on that school.
+                </p>
+            </header>
+
+            <form id="vendors-filter-form" class="vendors-filter-form" novalidate>
+                <label class="vendor-filter-field vendor-filter-field-wide" for="vendor-search">
+                    <strong>Search vendors</strong>
+                    <input id="vendor-search" name="vendorSearch" type="search"
+                        placeholder="Search by shop name, food type, school, location...">
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-institution-filter">
+                    <strong>School</strong>
+                    <select id="vendor-institution-filter" name="institutionFilter">
+                        <option value="all">All schools</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-campus-filter">
+                    <strong>Campus</strong>
+                    <select id="vendor-campus-filter" name="campusFilter">
+                        <option value="all">All campuses</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-food-type-filter">
+                    <strong>Food type</strong>
+                    <select id="vendor-food-type-filter" name="foodTypeFilter">
+                        <option value="all">All food types</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-sort">
+                    <strong>Sort by</strong>
+                    <select id="vendor-sort" name="vendorSort">
+                        <option value="open" selected>Open now first</option>
+                        <option value="name">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="rating">Highest rated</option>
+                        <option value="orders">Most popular</option>
+                        <option value="newest">Newest first</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-page-size">
+                    <strong>Per page</strong>
+                    <select id="vendor-page-size" name="vendorPageSize">
+                        <option value="5">5 per page</option>
+                        <option value="10" selected>10 per page</option>
+                        <option value="20">20 per page</option>
+                        <option value="50">50 per page</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field vendor-filter-toggle" for="vendor-accepting-only">
+                    <input id="vendor-accepting-only" name="acceptingOnly" type="checkbox">
+                    <strong>Show only vendors that are open right now</strong>
+                </label>
+
+                <menu class="action-menu vendor-filter-actions" aria-label="Filter actions">
+                    <li><button id="clear-vendor-filters" class="button-secondary" type="button">Reset filters</button>
+                    </li>
+                </menu>
+            </form>
+
+            <p id="vendors-results-meta" class="vendors-results-meta" aria-live="polite">Showing 0 vendors</p>
+        </section>
+
         <section class="vendors-section shared-section" aria-labelledby="available-vendors-heading">
-            <h3 id="available-vendors-heading">Available Vendors</h3>
+            <header class="vendors-section-head">
+                <h3 id="available-vendors-heading">Available Vendors</h3>
+                <p>
+                    Tap <strong>View Menu</strong> on any vendor to see what they have today.
+                    Closed shops are visible for browsing but can't accept orders right now.
+                </p>
+            </header>
 
             <section id="vendors-container" class="vendors-grid" aria-live="polite">
                 <p class="loading-message">Loading vendors...</p>
             </section>
+
+            <nav id="vendors-pagination" class="vendors-pagination" aria-label="Vendor list pagination" hidden></nav>
         </section>
 
         <section class="help-section shared-section" aria-labelledby="help-heading">
@@ -74,6 +156,10 @@
         <p>Campus Food Ordering Platform &copy; 2026</p>
     </footer>
 
+    <script src="../../shared/shop-schedule/shop-schedule.js"></script>
+    <script src="../../shared/institutions/south-african-institutions.js"></script>
+    <script src="../../shared/ratings/ratings-model.js"></script>
+    <script src="../../shared/ratings/ratings-service.js"></script>
     <script src="./browse-vendors.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
@@ -81,6 +167,8 @@
         import {
             collection,
             getDocs,
+            doc,
+            getDoc,
             query,
             where
         } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
@@ -93,6 +181,8 @@
         window.firestoreFns = {
             collection,
             getDocs,
+            doc,
+            getDoc,
             query,
             where
         };

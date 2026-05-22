@@ -58,6 +58,15 @@ describe("shared/checkout/checkout-validation.js", () => {
         expect(checkoutValidation.normalizeText("  Hello  ")).toBe("Hello");
         expect(checkoutValidation.normalizeLowerText(" PAYSTACK ")).toBe("paystack");
         expect(checkoutValidation.normalizeUpperText(" zar ")).toBe("ZAR");
+        expect(checkoutValidation.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(checkoutValidation.normalizeTagList([" Nuts ", "dairy", "nuts"])).toEqual([
+            "nuts",
+            "dairy"
+        ]);
+        expect(checkoutValidation.normalizeTagList(null)).toEqual([]);
         expect(checkoutValidation.normalizeCurrencyAmount("10.235")).toBe(10.24);
         expect(checkoutValidation.normalizeCurrencyAmount(null, "3.2")).toBe(3.2);
         expect(checkoutValidation.normalizeCurrencyAmount()).toBe(0);
@@ -175,7 +184,9 @@ describe("shared/checkout/checkout-validation.js", () => {
             itemName: "Wrap",
             unitPrice: "25.50",
             quantity: "2",
-            vendorUid: "vendor-1"
+            vendorUid: "vendor-1",
+            dietaryTags: " Halal, high protein, halal ",
+            allergenTags: [" Gluten ", "dairy", "gluten"]
         }, { requireVendorDetails: true });
 
         expect(result.isValid).toBe(true);
@@ -186,9 +197,27 @@ describe("shared/checkout/checkout-validation.js", () => {
             platformFee: 2.32,
             price: 25.5,
             quantity: 2,
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"],
             vendorSubtotal: 46.36,
             platformFeeTotal: 4.64,
             lineTotal: 51
+        });
+
+        const fallbackTags = checkoutValidation.validateCheckoutItem({
+            id: "fallback-tags",
+            name: "Fruit Cup",
+            price: "18",
+            dietary: [" Vegan ", "gluten free", "vegan"],
+            allergens: "nuts, sesame, nuts"
+        }, {
+            checkoutModel: null
+        });
+
+        expect(fallbackTags.isValid).toBe(true);
+        expect(fallbackTags.value).toMatchObject({
+            dietary: ["vegan", "gluten free"],
+            allergens: ["nuts", "sesame"]
         });
 
         const vendorPriced = checkoutValidation.validateCheckoutItem({
@@ -231,6 +260,8 @@ describe("shared/checkout/checkout-validation.js", () => {
         const validItems = checkoutValidation.validateCheckoutItems(createValidCheckout().items);
         expect(validItems.isValid).toBe(true);
         expect(validItems.value).toHaveLength(1);
+        expect(validItems.value[0].dietary).toEqual([]);
+        expect(validItems.value[0].allergens).toEqual([]);
 
         const invalidItems = checkoutValidation.validateCheckoutItems([{ quantity: -1 }], {
             checkoutModel: null
@@ -417,7 +448,13 @@ describe("shared/checkout/checkout-validation.js", () => {
             vendorUid: "vendor-001",
             status: "draft",
             subtotal: 90,
-            total: 90
+            total: 90,
+            items: [
+                expect.objectContaining({
+                    dietary: [],
+                    allergens: []
+                })
+            ]
         });
     });
 

@@ -584,6 +584,63 @@
         });
     }
 
+    function sortPayoutsOldestFirst(payouts) {
+        return (Array.isArray(payouts) ? payouts.slice() : []).sort(function comparePayouts(left, right) {
+            const leftDate = getTimestampDate(left.requestedAt || left.createdAt || left.updatedAt);
+            const rightDate = getTimestampDate(right.requestedAt || right.createdAt || right.updatedAt);
+            const leftTime = leftDate ? leftDate.getTime() : Number.MAX_SAFE_INTEGER;
+            const rightTime = rightDate ? rightDate.getTime() : Number.MAX_SAFE_INTEGER;
+
+            return leftTime - rightTime;
+        });
+    }
+
+    function getNextFinanceAction(summary, payouts, options = {}) {
+        const safeSummary = summary && typeof summary === "object"
+            ? summary
+            : calculateFinanceSummary([], [], options);
+        const payoutList = Array.isArray(payouts) ? payouts : [];
+        const approvedPayout = sortPayoutsOldestFirst(payoutList).find(function findApproved(payout) {
+            return normalizeLowerText(payout && payout.status) === "approved";
+        });
+        const pendingPayout = sortPayoutsOldestFirst(payoutList).find(function findPending(payout) {
+            const status = normalizeLowerText(payout && payout.status) || "pending";
+            return status === "pending";
+        });
+
+        if (approvedPayout) {
+            const payoutId = normalizeText(approvedPayout.payoutId || approvedPayout.id) || "this payout";
+            const vendorName = normalizeText(approvedPayout.vendorName) || "Unknown Vendor";
+
+            return {
+                label: "Next: mark payout paid",
+                detail: `${payoutId} for ${vendorName} is approved for ${formatCurrency(approvedPayout.amount)}.`
+            };
+        }
+
+        if (pendingPayout) {
+            const payoutId = normalizeText(pendingPayout.payoutId || pendingPayout.id) || "this payout";
+            const requestedAt = formatDateTime(pendingPayout.requestedAt || pendingPayout.createdAt);
+
+            return {
+                label: "Next: review payout",
+                detail: `${payoutId} has been waiting since ${requestedAt}.`
+            };
+        }
+
+        if (normalizeCurrencyAmount(safeSummary.platformBalance) > 0) {
+            return {
+                label: "Next: monitor earnings",
+                detail: `${formatCurrency(safeSummary.platformBalance)} is available in simulated platform earnings.`
+            };
+        }
+
+        return {
+            label: "Next: wait for sales",
+            detail: "Completed paid orders will add platform earnings and vendor payout activity."
+        };
+    }
+
     function filterPayouts(payouts, statusFilter) {
         const normalizedFilter = normalizeLowerText(statusFilter) || "all";
 
@@ -635,16 +692,19 @@
             approvedPayoutCountElement: doc.getElementById("approved-payout-count"),
             paidPayoutTotalElement: doc.getElementById("paid-payout-total"),
             reservedPayoutTotalElement: doc.getElementById("reserved-payout-total"),
+            nextActionElement: doc.getElementById("finance-next-action"),
+            nextActionDetailElement: doc.getElementById("finance-next-action-detail"),
             payoutSummaryElement: doc.getElementById("payout-admin-summary"),
             payoutListElement: doc.getElementById("payout-admin-list")
         };
     }
 
-    function renderFinanceSummary(summary, elements) {
+    function renderFinanceSummary(summary, elements, options = {}) {
         const safeSummary = summary && typeof summary === "object"
             ? summary
-            : calculateFinanceSummary([], []);
+            : calculateFinanceSummary([], [], options);
         const safeElements = elements && typeof elements === "object" ? elements : {};
+        const nextAction = getNextFinanceAction(safeSummary, options.payouts, options);
 
         setText(safeElements.platformBalanceElement, formatCurrency(safeSummary.platformBalance));
         setText(safeElements.customerRevenueElement, formatCurrency(safeSummary.customerRevenue));
@@ -654,6 +714,8 @@
         setText(safeElements.approvedPayoutCountElement, String(safeSummary.approvedPayoutCount || 0));
         setText(safeElements.paidPayoutTotalElement, formatCurrency(safeSummary.paidPayoutTotal));
         setText(safeElements.reservedPayoutTotalElement, formatCurrency(safeSummary.reservedPayoutTotal));
+        setText(safeElements.nextActionElement, nextAction.label);
+        setText(safeElements.nextActionDetailElement, nextAction.detail);
     }
 
     function getPayoutStatusLabel(status, payoutModel) {
@@ -781,7 +843,10 @@
     }
 
     function renderFinancePage(summary, payouts, elements, options = {}) {
-        renderFinanceSummary(summary, elements);
+        renderFinanceSummary(summary, elements, {
+            ...options,
+            payouts
+        });
         renderPayoutList(payouts, elements, options);
     }
 
@@ -1100,6 +1165,8 @@
         getTimestampDate,
         formatDateTime,
         sortPayoutsNewestFirst,
+        sortPayoutsOldestFirst,
+        getNextFinanceAction,
         filterPayouts,
         setText,
         setStatusMessage,

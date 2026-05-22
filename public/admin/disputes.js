@@ -464,6 +464,127 @@
         return `Showing ${filteredCount} of ${totalCount} ticket${totalCount === 1 ? "" : "s"}.`;
     }
 
+    function hasActiveInboxFilters(filters = {}) {
+        const search = normalizeText(filters.search);
+        const status = normalizeLowerText(filters.status) || "all";
+        const category = normalizeLowerText(filters.category) || "all";
+        const reporterRole = normalizeLowerText(filters.reporterRole) || "all";
+
+        return Boolean(search) || status !== "all" || category !== "all" || reporterRole !== "all";
+    }
+
+    function getTicketSubjectForNextStep(ticket) {
+        const mappedTicket = mapTicketRecord(ticket);
+        return mappedTicket.subject || "this ticket";
+    }
+
+    function isResolvedOrClosed(ticket) {
+        const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+        return status === "resolved" || status === "closed";
+    }
+
+    function getAdminInboxNextStep(tickets, options = {}) {
+        const allTickets = Array.isArray(tickets) ? tickets : [];
+        const filteredTickets = Array.isArray(options.filteredTickets)
+            ? options.filteredTickets
+            : allTickets;
+        const hasActiveFilters = hasActiveInboxFilters(options.filters);
+
+        if (options.isSignedIn === false) {
+            return {
+                label: "Next: sign in",
+                detail: "Sign in as an admin to review and triage the support inbox."
+            };
+        }
+
+        if (allTickets.length === 0) {
+            return {
+                label: "Next: monitor the queue",
+                detail: "There are no support tickets to review right now. Keep an eye on this inbox for new disputes."
+            };
+        }
+
+        if (filteredTickets.length === 0 && hasActiveFilters) {
+            return {
+                label: "Next: clear filters",
+                detail: "No tickets match the current view. Clear filters to return to the full support inbox."
+            };
+        }
+
+        const highPriorityTicket = filteredTickets.find(function findHighPriority(ticket) {
+            const priority = normalizeLowerText(ticket && ticket.priority);
+            return priority === "high" && !isResolvedOrClosed(ticket);
+        });
+
+        if (highPriorityTicket) {
+            return {
+                label: "Next: handle high priority",
+                detail: `Open ${getTicketSubjectForNextStep(highPriorityTicket)} and triage it before lower-priority tickets.`
+            };
+        }
+
+        const openTicket = filteredTickets.find(function findOpen(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "open";
+        });
+
+        if (openTicket) {
+            return {
+                label: "Next: triage an open ticket",
+                detail: `Open ${getTicketSubjectForNextStep(openTicket)} to reply, update status, or route the dispute.`
+            };
+        }
+
+        const inProgressTicket = filteredTickets.find(function findInProgress(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "in_progress";
+        });
+
+        if (inProgressTicket) {
+            return {
+                label: "Next: continue investigation",
+                detail: `Review ${getTicketSubjectForNextStep(inProgressTicket)} and add the next admin update.`
+            };
+        }
+
+        const awaitingUserTicket = filteredTickets.find(function findAwaitingUser(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "awaiting_user";
+        });
+
+        if (awaitingUserTicket) {
+            return {
+                label: "Next: review waiting tickets",
+                detail: `Check ${getTicketSubjectForNextStep(awaitingUserTicket)} and follow up if the reporter is overdue.`
+            };
+        }
+
+        return {
+            label: "Next: review resolved tickets",
+            detail: "The visible queue is resolved or closed. Scan recent tickets for quality checks or reopen needs."
+        };
+    }
+
+    function renderAdminInboxNextStep(elements, state = {}) {
+        if (!elements || !elements.nextStepLabel) {
+            return null;
+        }
+
+        const nextStep = getAdminInboxNextStep(state.tickets, {
+            filteredTickets: state.filteredTickets,
+            filters: state.filters,
+            isSignedIn: state.isSignedIn
+        });
+
+        elements.nextStepLabel.textContent = nextStep.label;
+
+        if (elements.nextStepDetail) {
+            elements.nextStepDetail.textContent = nextStep.detail;
+        }
+
+        return nextStep;
+    }
+
     function renderCurrentPage(elements, options = {}) {
         const container = elements && elements.container;
         if (!container) return null;
@@ -484,6 +605,12 @@
             elements.summary.textContent = buildResultSummary(sorted.length, pageState.allTickets.length);
         }
         updatePaginationControls(elements.pagination, elements.paginationStatus, paginated);
+        renderAdminInboxNextStep(elements, {
+            tickets: pageState.allTickets,
+            filteredTickets: sorted,
+            filters: pageState.filters,
+            isSignedIn: options.isSignedIn
+        });
         return paginated;
     }
 
@@ -575,13 +702,17 @@
             const paginationElement = globalScope.document.querySelector(options.paginationSelector || "#admin-inbox-pagination");
             const paginationStatusElement = globalScope.document.querySelector(options.paginationStatusSelector || "#admin-inbox-pagination-status");
             const pageSizeSelect = globalScope.document.querySelector(options.pageSizeSelector || "#admin-inbox-page-size");
+            const nextStepLabelElement = globalScope.document.querySelector(options.nextStepSelector || "#admin-inbox-next-step");
+            const nextStepDetailElement = globalScope.document.querySelector(options.nextStepDetailSelector || "#admin-inbox-next-step-detail");
 
             if (!container) return { success: false, error: "Inbox container not found." };
 
             const elements = {
                 container, summary: summaryElement, form: formElement,
                 pagination: paginationElement, paginationStatus: paginationStatusElement,
-                pageSizeSelect
+                pageSizeSelect,
+                nextStepLabel: nextStepLabelElement,
+                nextStepDetail: nextStepDetailElement
             };
 
             const initialFilters = readFiltersFromForm(formElement);
@@ -603,6 +734,12 @@
             if (!currentUser || !normalizeText(currentUser.uid)) {
                 pageState.allTickets = [];
                 renderTickets([], container, options);
+                renderAdminInboxNextStep(elements, {
+                    tickets: [],
+                    filteredTickets: [],
+                    filters: pageState.filters,
+                    isSignedIn: false
+                });
                 if (summaryElement) summaryElement.textContent = "";
                 if (paginationElement) paginationElement.setAttribute("hidden", "");
                 setStatusMessage(statusElement, "Please sign in to view the support inbox.", "error");
@@ -614,6 +751,12 @@
             if (!result.success) {
                 pageState.allTickets = [];
                 renderTickets([], container, options);
+                renderAdminInboxNextStep(elements, {
+                    tickets: [],
+                    filteredTickets: [],
+                    filters: pageState.filters,
+                    isSignedIn: true
+                });
                 if (summaryElement) summaryElement.textContent = "";
                 if (paginationElement) paginationElement.setAttribute("hidden", "");
                 setStatusMessage(
@@ -628,8 +771,10 @@
             }
 
             pageState.allTickets = Array.isArray(result.tickets) ? result.tickets : [];
-            attachToolbarHandlers(elements, options);
-            renderCurrentPage(elements, options);
+            const renderOptions = { ...options, isSignedIn: true };
+
+            attachToolbarHandlers(elements, renderOptions);
+            renderCurrentPage(elements, renderOptions);
 
             if (pageState.allTickets.length === 0) {
                 setStatusMessage(statusElement, "No support tickets to review.", "info");
@@ -661,7 +806,9 @@
         getCreatedAtTimestamp, getLastReplyTimestamp,
         sortTickets, filterTickets, paginateTickets,
         computePageNumbers, renderNumberedPages, updatePaginationControls,
-        buildResultSummary, renderCurrentPage, readFiltersFromForm, attachToolbarHandlers,
+        buildResultSummary, hasActiveInboxFilters,
+        getAdminInboxNextStep, renderAdminInboxNextStep,
+        renderCurrentPage, readFiltersFromForm, attachToolbarHandlers,
         init, initializeAdminDisputesPage
     };
 

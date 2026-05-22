@@ -52,3 +52,7 @@ build/Release/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Mirrored at deploy time by functions/scripts/sync-shared-support.js — source of
+# truth lives in public/shared/support/.
+functions/shared/

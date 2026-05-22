@@ -55,6 +55,37 @@
     font-style: italic;
 }
 
+.customer-portal.customer-support .support-inbox-next-step {
+    margin: 0 0 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(91, 58, 139, 0.16);
+    border-radius: 0.8rem;
+    background: rgba(239, 235, 250, 0.72);
+    color: #3f286a;
+}
+
+.customer-portal.customer-support .support-inbox-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.customer-portal.customer-support .support-inbox-next-step output {
+    display: block;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: #2f1b12;
+}
+
+.customer-portal.customer-support .support-inbox-next-step p {
+    margin: 0.4rem 0 0;
+    color: #3f286a;
+    font-weight: 600;
+}
+
 .customer-portal.customer-support .tickets-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -235,6 +266,37 @@
     content: "⚠ ";
 }
 
+.customer-portal.customer-support .new-ticket-next-step {
+    margin: 0.85rem 0 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(91, 58, 139, 0.16);
+    border-radius: 0.8rem;
+    background: rgba(239, 235, 250, 0.72);
+    color: #3f286a;
+}
+
+.customer-portal.customer-support .new-ticket-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.customer-portal.customer-support .new-ticket-next-step output {
+    display: block;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: #2f1b12;
+}
+
+.customer-portal.customer-support .new-ticket-next-step p {
+    margin: 0.4rem 0 0;
+    color: #3f286a;
+    font-weight: 600;
+}
+
 .customer-portal.customer-support .new-ticket-form-actions {
     margin-top: 0.75rem;
     padding: 0;
@@ -271,6 +333,37 @@
     border-radius: 0.7rem;
     background: rgba(121, 160, 117, 0.18);
     color: #2f5d2a;
+    font-weight: 600;
+}
+
+.customer-portal.customer-support .ticket-next-step {
+    margin: 0.9rem 0 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(91, 58, 139, 0.16);
+    border-radius: 0.8rem;
+    background: rgba(239, 235, 250, 0.72);
+    color: #3f286a;
+}
+
+.customer-portal.customer-support .ticket-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.customer-portal.customer-support .ticket-next-step output {
+    display: block;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: #2f1b12;
+}
+
+.customer-portal.customer-support .ticket-next-step p {
+    margin: 0.4rem 0 0;
+    color: #3f286a;
     font-weight: 600;
 }
 

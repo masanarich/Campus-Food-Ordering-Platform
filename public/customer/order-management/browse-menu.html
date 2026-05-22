@@ -38,6 +38,18 @@
             </p>
 
             <p id="browse-menu-status" aria-live="polite" aria-atomic="true"></p>
+            <p id="campus-recommendation-notice" class="campus-recommendation-notice" aria-live="polite" hidden></p>
+        </section>
+
+        <section class="recommendation-section shared-section" aria-labelledby="recommendation-heading">
+            <h3 id="recommendation-heading">Recommended for You</h3>
+            <p>
+                Personalized suggestions use your saved dietary preferences, restrictions, and recent order history.
+            </p>
+            <p id="recommendation-status" aria-live="polite" aria-atomic="true">Loading recommendations...</p>
+            <section id="recommendation-container" class="recommendation-grid" aria-live="polite">
+                <p class="loading-message">Preparing recommendations...</p>
+            </section>
         </section>
 
         <section class="menu-section shared-section" aria-label="Menu items">
@@ -64,12 +76,19 @@
         <p>Campus Food Ordering Platform &copy; 2026 | <a href="../support/index.html">Support</a></p>
     </footer>
 
+    <script src="../../shared/ratings/ratings-model.js"></script>
+    <script src="../../shared/ratings/ratings-service.js"></script>
     <script src="./browse-menu.js"></script>
+    <script src="../../shared/recommendations/recommendation-model.js"></script>
+    <script src="../../shared/recommendations/recommendation-queries.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
         import {
             collection,
+            doc,
+            getDoc,
             getDocs,
+            limit,
             query,
             where,
             orderBy
@@ -78,7 +97,10 @@
         // Expose Firestore functions and services globally
         window.firestoreFns = {
             collection,
+            doc,
+            getDoc,
             getDocs,
+            limit,
             query,
             where,
             orderBy

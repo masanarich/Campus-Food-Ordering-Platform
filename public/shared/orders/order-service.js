@@ -199,6 +199,39 @@
         return normalizeText(value).toLowerCase();
     }
 
+    function normalizeTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeText(value)
+                ? normalizeText(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeLowerText(tag);
+            })
+            .filter(Boolean)
+            .filter(function keepUnique(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
+    function normalizeFallbackOrderItems(items) {
+        if (!Array.isArray(items)) {
+            return items;
+        }
+
+        return items.map(function normalizeFallbackOrderItem(item) {
+            const safeItem = item && typeof item === "object" ? item : {};
+
+            return {
+                ...safeItem,
+                dietary: normalizeTagList(safeItem.dietary || safeItem.dietaryTags),
+                allergens: normalizeTagList(safeItem.allergens || safeItem.allergenTags)
+            };
+        });
+    }
+
     function createServiceError(code, message, details = {}) {
         const safeDetails = details && typeof details === "object" ? details : {};
 
@@ -319,6 +352,9 @@
             return {
                 ...normalizedRecord,
                 orderId: normalizeText(safeOptions.orderId || normalizedRecord.orderId),
+                items: normalizeFallbackOrderItems(
+                    Array.isArray(safeOptions.items) ? safeOptions.items : normalizedRecord.items
+                ),
                 status: normalizeLowerText(safeOptions.status || normalizedRecord.status),
                 paymentStatus: normalizedPaymentStatus ||
                     (
@@ -1493,6 +1529,8 @@
         resolveOrderQueries,
         normalizeText,
         normalizeLowerText,
+        normalizeTagList,
+        normalizeFallbackOrderItems,
         createServiceError,
         createServiceResult,
         resolveTimestampValue,

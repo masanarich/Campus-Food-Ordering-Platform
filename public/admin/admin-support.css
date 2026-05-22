@@ -85,6 +85,37 @@
     font-style: italic;
 }
 
+.admin-shell.admin-support .admin-inbox-next-step {
+    margin: 0 0 1rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.16);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+}
+
+.admin-shell.admin-support .admin-inbox-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.admin-shell.admin-support .admin-inbox-next-step output {
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .admin-inbox-next-step p {
+    margin: 0.45rem 0 0;
+    color: var(--info-text);
+    font-weight: 600;
+}
+
 .admin-shell.admin-support .admin-inbox-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -292,6 +323,37 @@
 .admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="loading"] { color: var(--info-text); font-weight: 700; }
 .admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="muted"] { color: var(--text-muted); font-weight: 700; }
 .admin-shell.admin-support .admin-ticket-summary-grid output[data-tone="warning"] { color: #8a5b15; font-weight: 700; }
+
+.admin-shell.admin-support .admin-ticket-next-step {
+    margin: 1rem 0 0;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.16);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+}
+
+.admin-shell.admin-support .admin-ticket-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.admin-shell.admin-support .admin-ticket-next-step output {
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.admin-shell.admin-support .admin-ticket-next-step p {
+    margin: 0.45rem 0 0;
+    color: var(--info-text);
+    font-weight: 600;
+}
 
 .admin-shell.admin-support .admin-ticket-resolution {
     margin: 1rem 0 0;

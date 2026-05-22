@@ -43,6 +43,10 @@ function createDOM() {
             <button type="reset">Clear</button>
         </form>
         <p id="vendor-tickets-summary"></p>
+        <section class="vendor-support-inbox-next-step">
+            <output id="vendor-support-inbox-next-step"></output>
+            <p id="vendor-support-inbox-next-step-detail"></p>
+        </section>
         <section id="vendor-tickets-container"></section>
         <nav id="vendor-tickets-pagination" hidden>
             <p id="vendor-tickets-pagination-status"></p>
@@ -57,6 +61,8 @@ function createDOM() {
         statusElement: document.getElementById("vendor-support-status"),
         form: document.getElementById("vendor-tickets-filter-form"),
         summary: document.getElementById("vendor-tickets-summary"),
+        nextStepLabel: document.getElementById("vendor-support-inbox-next-step"),
+        nextStepDetail: document.getElementById("vendor-support-inbox-next-step-detail"),
         container: document.getElementById("vendor-tickets-container"),
         pagination: document.getElementById("vendor-tickets-pagination"),
         paginationStatus: document.getElementById("vendor-tickets-pagination-status")
@@ -101,7 +107,9 @@ describe("vendor/support/index.js - module surface", () => {
         expect(vendorSupportListPage.MODULE_NAME).toBe("vendor/support/index");
         ["init", "initializeVendorSupportListPage", "mapTicketRecord", "fetchReporterTickets",
             "renderTickets", "createTicketCard", "sortTickets", "filterTickets", "paginateTickets",
-            "buildTicketDetailUrl", "buildResultSummary", "readFiltersFromForm"
+            "buildTicketDetailUrl", "buildResultSummary", "hasActiveInboxFilters",
+            "getVendorSupportInboxNextStep", "renderVendorSupportInboxNextStep",
+            "readFiltersFromForm"
         ].forEach((name) => {
             expect(typeof vendorSupportListPage[name]).toBe("function");
         });
@@ -140,6 +148,52 @@ describe("vendor/support/index.js - helpers", () => {
         window.history.pushState({}, "", "/vendor/support/index.html");
         const url = vendorSupportListPage.buildTicketDetailUrl("t-abc");
         expect(url).toMatch(/ticket-detail\.html\?ticketId=t-abc$/);
+    });
+
+    test("hasActiveInboxFilters ignores sort-only changes", () => {
+        expect(vendorSupportListPage.hasActiveInboxFilters({
+            search: "",
+            status: "all",
+            category: "all",
+            sort: "oldest"
+        })).toBe(false);
+
+        expect(vendorSupportListPage.hasActiveInboxFilters({
+            search: "payout",
+            status: "all",
+            category: "all"
+        })).toBe(true);
+
+        expect(vendorSupportListPage.hasActiveInboxFilters({
+            status: "open",
+            category: "all"
+        })).toBe(true);
+    });
+
+    test("getVendorSupportInboxNextStep describes the next inbox action", () => {
+        expect(vendorSupportListPage.getVendorSupportInboxNextStep([], {
+            isSignedIn: false
+        }).label).toBe("Next: sign in");
+
+        expect(vendorSupportListPage.getVendorSupportInboxNextStep([]).label)
+            .toBe("Next: open your first ticket");
+
+        expect(vendorSupportListPage.getVendorSupportInboxNextStep(
+            [createTicket()],
+            {
+                filteredTickets: [],
+                filters: { search: "missing", status: "all", category: "all" }
+            }
+        ).label).toBe("Next: clear filters");
+
+        expect(vendorSupportListPage.getVendorSupportInboxNextStep([
+            createTicket({ status: "awaiting_user", subject: "Payout proof" })
+        ]).label).toBe("Next: reply to support");
+
+        expect(vendorSupportListPage.getVendorSupportInboxNextStep([
+            createTicket({ status: "resolved" }),
+            createTicket({ ticketId: "ticket-v2", status: "closed" })
+        ]).label).toBe("Next: open a new ticket if needed");
     });
 });
 
@@ -198,6 +252,22 @@ describe("vendor/support/index.js - rendering and init", () => {
         expect(dom.container.querySelectorAll(".vendor-support-ticket-card")).toHaveLength(2);
     });
 
+    test("renderVendorSupportInboxNextStep updates the inbox next-step block", () => {
+        const dom = createDOM();
+        const ticket = createTicket({ status: "awaiting_user", subject: "Payout proof" });
+
+        const nextStep = vendorSupportListPage.renderVendorSupportInboxNextStep(dom, {
+            tickets: [ticket],
+            filteredTickets: [ticket],
+            filters: { status: "all", category: "all", search: "" },
+            isSignedIn: true
+        });
+
+        expect(nextStep.label).toBe("Next: reply to support");
+        expect(dom.nextStepLabel.textContent).toBe("Next: reply to support");
+        expect(dom.nextStepDetail.textContent).toMatch(/Payout proof/);
+    });
+
     test("init renders tickets when service returns data", async () => {
         const dom = createDOM();
         const tickets = [createTicket(), createTicket({ ticketId: "ticket-v2", subject: "Refund" })];
@@ -213,12 +283,19 @@ describe("vendor/support/index.js - rendering and init", () => {
         });
 
         expect(result.success).toBe(true);
+        // The vendor inbox must scope by reporterRole so a user who is both a vendor
+        // and a customer (same UID) does not see their customer-side tickets here.
+        expect(ticketService.getReporterTickets).toHaveBeenCalledWith(expect.objectContaining({
+            reporterUid: "vendor-1",
+            reporterRole: "vendor"
+        }));
         expect(dom.container.querySelectorAll(".vendor-support-ticket-card")).toHaveLength(2);
         expect(dom.statusElement.textContent).toMatch(/2 tickets/);
+        expect(dom.nextStepLabel.textContent).toBe("Next: open an active ticket");
     });
 
     test("init flags missing user", async () => {
-        createDOM();
+        const dom = createDOM();
         const result = await vendorSupportListPage.init({
             db: { kind: "db" },
             auth: { currentUser: null },
@@ -226,6 +303,7 @@ describe("vendor/support/index.js - rendering and init", () => {
             ticketService: { getReporterTickets: jest.fn() }
         });
         expect(result.success).toBe(false);
+        expect(dom.nextStepLabel.textContent).toBe("Next: sign in");
     });
 
     test("init returns no-container error when DOM is missing", async () => {
@@ -247,6 +325,7 @@ describe("vendor/support/index.js - rendering and init", () => {
         });
         expect(result.success).toBe(false);
         expect(dom.statusElement.textContent).toMatch(/boom|Failed/);
+        expect(dom.nextStepLabel.textContent).toBe("Next: open your first ticket");
     });
 });
 

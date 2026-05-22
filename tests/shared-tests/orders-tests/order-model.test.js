@@ -37,6 +37,15 @@ describe("shared/orders/order-model.js", () => {
         expect(orderModel.normalizeText(null)).toBe("");
         expect(orderModel.normalizeLowerText("  HeLLo  ")).toBe("hello");
         expect(orderModel.normalizeUpperText("  zar  ")).toBe("ZAR");
+        expect(orderModel.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(orderModel.normalizeTagList([" Nuts ", "dairy", "nuts"])).toEqual([
+            "nuts",
+            "dairy"
+        ]);
+        expect(orderModel.normalizeTagList(null)).toEqual([]);
 
         expect(orderModel.normalizeCurrencyAmount("45.678")).toBe(45.68);
         expect(orderModel.normalizeCurrencyAmount(-50)).toBe(0);
@@ -107,6 +116,8 @@ describe("shared/orders/order-model.js", () => {
                 vendorUid: "vendor-1",
                 vendorName: "Campus Bites",
                 itemName: "Chicken Wrap",
+                dietaryTags: " Halal, High Protein, halal ",
+                allergenTags: [" Gluten ", "Dairy", "gluten"],
                 price: "55.5",
                 qty: "2",
                 photoUrl: "https://example.com/a.jpg",
@@ -118,6 +129,8 @@ describe("shared/orders/order-model.js", () => {
             vendorName: "Campus Bites",
             name: "Chicken Wrap",
             category: "",
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"],
             vendorPrice: 50.45,
             basePrice: 50.45,
             platformFeeRate: 0.1,
@@ -167,6 +180,8 @@ describe("shared/orders/order-model.js", () => {
                 vendorName: "",
                 name: "Burger",
                 category: "",
+                dietary: [],
+                allergens: [],
                 vendorPrice: 45.45,
                 basePrice: 45.45,
                 platformFeeRate: 0.1,
@@ -190,6 +205,8 @@ describe("shared/orders/order-model.js", () => {
                 vendorName: "",
                 name: "Water",
                 category: "",
+                dietary: [],
+                allergens: [],
                 vendorPrice: 9.09,
                 basePrice: 9.09,
                 platformFeeRate: 0.1,
@@ -233,6 +250,8 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "Campus Bites",
                         name: "Burger",
                         category: "",
+                        dietary: [],
+                        allergens: [],
                         vendorPrice: 45.45,
                         basePrice: 45.45,
                         platformFeeRate: 0.1,
@@ -256,6 +275,8 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "",
                         name: "Chips",
                         category: "",
+                        dietary: [],
+                        allergens: [],
                         vendorPrice: 27.27,
                         basePrice: 27.27,
                         platformFeeRate: 0.1,
@@ -293,6 +314,8 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "Fresh Corner",
                         name: "Juice",
                         category: "",
+                        dietary: [],
+                        allergens: [],
                         vendorPrice: 16.82,
                         basePrice: 16.82,
                         platformFeeRate: 0.1,
@@ -338,6 +361,8 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "",
                         name: "Tea",
                         category: "",
+                        dietary: [],
+                        allergens: [],
                         vendorPrice: 10.91,
                         basePrice: 10.91,
                         platformFeeRate: 0.1,
@@ -361,6 +386,8 @@ describe("shared/orders/order-model.js", () => {
                         vendorName: "Bakery Bar",
                         name: "Cake",
                         category: "",
+                        dietary: [],
+                        allergens: [],
                         vendorPrice: 22.73,
                         basePrice: 22.73,
                         platformFeeRate: 0.1,
@@ -475,6 +502,8 @@ describe("shared/orders/order-model.js", () => {
                     vendorName: "Campus Bites",
                     name: "Burger",
                     category: "",
+                    dietary: [],
+                    allergens: [],
                     vendorPrice: 45.45,
                     basePrice: 45.45,
                     platformFeeRate: 0.1,
@@ -498,6 +527,8 @@ describe("shared/orders/order-model.js", () => {
                     vendorName: "Campus Bites",
                     name: "Chips",
                     category: "",
+                    dietary: [],
+                    allergens: [],
                     vendorPrice: 27.27,
                     basePrice: 27.27,
                     platformFeeRate: 0.1,
@@ -679,8 +710,26 @@ describe("shared/orders/order-model.js", () => {
     test("creates one order record per vendor from a mixed cart", () => {
         const orders = orderModel.createOrderRecordsFromCart(
             [
-                { id: "burger", vendorUid: "vendor-1", vendorName: "Campus Bites", name: "Burger", price: 50, quantity: 2 },
-                { id: "coffee", vendorUid: "vendor-2", vendorName: "Coffee Hub", name: "Coffee", price: 25, quantity: 1 },
+                {
+                    id: "burger",
+                    vendorUid: "vendor-1",
+                    vendorName: "Campus Bites",
+                    name: "Burger",
+                    price: 50,
+                    quantity: 2,
+                    dietary: [" Halal ", "high protein"],
+                    allergens: "gluten, dairy, gluten"
+                },
+                {
+                    id: "coffee",
+                    vendorUid: "vendor-2",
+                    vendorName: "Coffee Hub",
+                    name: "Coffee",
+                    price: 25,
+                    quantity: 1,
+                    dietaryTags: " vegetarian ",
+                    allergenTags: [" dairy "]
+                },
                 { id: "ignore", name: "No Vendor", price: 10, quantity: 1 }
             ],
             {
@@ -709,11 +758,19 @@ describe("shared/orders/order-model.js", () => {
         expect(orders[0].paymentAmountInMinorUnits).toBe(10000);
         expect(orders[0].timeline[0].actorRole).toBe("customer");
         expect(orders[0].notes).toBe("Mixed vendor checkout");
+        expect(orders[0].items[0]).toEqual(expect.objectContaining({
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"]
+        }));
 
         expect(orders[1].vendorUid).toBe("vendor-2");
         expect(orders[1].total).toBe(25);
         expect(orders[1].paymentStatus).toBe("pending");
         expect(orders[1].paymentAmount).toBe(25);
         expect(orders[1].paymentAmountInMinorUnits).toBe(2500);
+        expect(orders[1].items[0]).toEqual(expect.objectContaining({
+            dietary: ["vegetarian"],
+            allergens: ["dairy"]
+        }));
     });
 });

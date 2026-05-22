@@ -864,3 +864,252 @@ describe("customer/order-tracking/index.js - filter, sort, paginate", () => {
         expect(customerOrderTrackingPage.buildResultSummary(1, 1)).toBe("Showing all 1 order.");
     });
 });
+
+/**
+ * @jest-environment jsdom
+ */
+describe("customer/order-tracking/index.js - rating helpers", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("canRateOrder returns true only for completed orders", () => {
+        expect(customerOrderTrackingPage.canRateOrder({ status: "completed" })).toBe(true);
+        expect(customerOrderTrackingPage.canRateOrder({ status: "ready" })).toBe(false);
+        expect(customerOrderTrackingPage.canRateOrder(null)).toBe(false);
+    });
+
+    test("getStarDisplay produces ★/☆ glyphs for any rating", () => {
+        expect(customerOrderTrackingPage.getStarDisplay(0)).toBe("☆☆☆☆☆");
+        expect(customerOrderTrackingPage.getStarDisplay(3)).toBe("★★★☆☆");
+        expect(customerOrderTrackingPage.getStarDisplay(5)).toBe("★★★★★");
+        // Out-of-range clamps to bounds rather than overflowing.
+        expect(customerOrderTrackingPage.getStarDisplay(7)).toBe("★★★★★");
+    });
+
+    test("buildRatingButton attaches order id and the open-rate-modal data-action", () => {
+        const btn = customerOrderTrackingPage.buildRatingButton({ orderId: "abc" });
+        expect(btn.tagName).toBe("BUTTON");
+        expect(btn.getAttribute("data-action")).toBe("open-rate-modal");
+        expect(btn.getAttribute("data-order-id")).toBe("abc");
+        expect(btn.textContent).toBe("Rate Order");
+    });
+
+    test("buildRatingModal returns the same dialog on repeated calls (idempotent)", () => {
+        const first = customerOrderTrackingPage.buildRatingModal();
+        const second = customerOrderTrackingPage.buildRatingModal();
+        expect(first).toBe(second);
+        expect(document.querySelectorAll("#rating-modal").length).toBe(1);
+    });
+
+    test("renderStarPicker draws 5 radio inputs and pre-selects the current value", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        customerOrderTrackingPage.renderStarPicker(host, 3, "vendorRating");
+        const inputs = host.querySelectorAll("input[type='radio']");
+        expect(inputs.length).toBe(5);
+        const checked = host.querySelector("input[type='radio']:checked");
+        expect(checked.value).toBe("3");
+    });
+
+    test("renderStarPicker renders stars 1→5 with the is-filled class on 1..N when a value is preset", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        customerOrderTrackingPage.renderStarPicker(host, 3, "vendorRating");
+
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"));
+        // Reading-order DOM: 1, 2, 3, 4, 5
+        expect(labels.map(function getValue(l) { return l.getAttribute("data-rating-value"); }))
+            .toEqual(["1", "2", "3", "4", "5"]);
+
+        // Stars 1..3 should be filled; 4 and 5 should not.
+        expect(labels[0].classList.contains("is-filled")).toBe(true);
+        expect(labels[1].classList.contains("is-filled")).toBe(true);
+        expect(labels[2].classList.contains("is-filled")).toBe(true);
+        expect(labels[3].classList.contains("is-filled")).toBe(false);
+        expect(labels[4].classList.contains("is-filled")).toBe(false);
+    });
+
+    test("clicking a star repaints the is-filled class to 1..N for that star only", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        customerOrderTrackingPage.renderStarPicker(host, null, "vendorRating");
+
+        const star4Input = host.querySelector('input[value="4"]');
+        star4Input.checked = true;
+        star4Input.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"));
+        // Filled state must match the chosen rating — never a higher star.
+        expect(labels[0].classList.contains("is-filled")).toBe(true);
+        expect(labels[1].classList.contains("is-filled")).toBe(true);
+        expect(labels[2].classList.contains("is-filled")).toBe(true);
+        expect(labels[3].classList.contains("is-filled")).toBe(true);
+        expect(labels[4].classList.contains("is-filled")).toBe(false);
+    });
+
+    test("clicking a 1-star resets the fill so only star 1 is filled", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        // Start from a high preset to make sure the fill goes DOWN.
+        customerOrderTrackingPage.renderStarPicker(host, 5, "vendorRating");
+
+        const star1Input = host.querySelector('input[value="1"]');
+        star1Input.checked = true;
+        star1Input.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"));
+        expect(labels[0].classList.contains("is-filled")).toBe(true);
+        expect(labels.slice(1).some(function any(l) { return l.classList.contains("is-filled"); }))
+            .toBe(false);
+    });
+
+    test("each picker carries its own selection (vendor + per-item don't interfere)", () => {
+        // Regression guard: the bug report was "can't select both How was
+        // the shop overall? and Rate the items you ordered". Each picker
+        // gets its own radio `name`, so the two selections are independent.
+        const vendorHost = document.createElement("section");
+        const itemHost = document.createElement("section");
+        document.body.appendChild(vendorHost);
+        document.body.appendChild(itemHost);
+
+        customerOrderTrackingPage.renderStarPicker(vendorHost, null, "vendorRating");
+        customerOrderTrackingPage.renderStarPicker(itemHost, null, "itemRating-0");
+
+        const vendor5 = vendorHost.querySelector('input[value="5"]');
+        vendor5.checked = true;
+        vendor5.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const item3 = itemHost.querySelector('input[value="3"]');
+        item3.checked = true;
+        item3.dispatchEvent(new Event("change", { bubbles: true }));
+
+        // Vendor pick is still 5 (the item pick didn't clobber it).
+        expect(vendorHost.querySelector("input:checked").value).toBe("5");
+        expect(itemHost.querySelector("input:checked").value).toBe("3");
+
+        // Each picker has the correct fill count.
+        const vendorFilled = vendorHost.querySelectorAll(".rating-star-button.is-filled").length;
+        const itemFilled = itemHost.querySelectorAll(".rating-star-button.is-filled").length;
+        expect(vendorFilled).toBe(5);
+        expect(itemFilled).toBe(3);
+    });
+
+    test("fillRatingModal renders the order items in the per-item rating list", () => {
+        const dialog = customerOrderTrackingPage.fillRatingModal({
+            orderId: "abc-12345678",
+            vendorName: "Burger Hut",
+            items: [
+                { menuItemId: "m1", name: "Burger" },
+                { menuItemId: "m2", name: "Shake" }
+            ]
+        }, null);
+
+        const rows = dialog.querySelectorAll(".rating-item-row");
+        expect(rows.length).toBe(2);
+        expect(rows[0].dataset.menuItemId).toBe("m1");
+        expect(rows[1].dataset.menuItemName).toBe("Shake");
+    });
+
+    test("fillRatingModal pre-fills the form when editing an existing review", () => {
+        const dialog = customerOrderTrackingPage.fillRatingModal({
+            orderId: "abc-12345678",
+            vendorName: "Burger Hut",
+            items: [{ menuItemId: "m1", name: "Burger" }]
+        }, {
+            vendorRating: 4,
+            vendorComment: "Tasty",
+            isAnonymous: true,
+            itemRatings: [{ menuItemId: "m1", rating: 5, comment: "Loved it" }]
+        });
+
+        expect(dialog.querySelector("#rating-vendor-comment").value).toBe("Tasty");
+        expect(dialog.querySelector("#rating-anonymous").checked).toBe(true);
+        expect(dialog.querySelector("#rating-modal-heading").textContent).toBe("Update your rating");
+        expect(dialog.querySelector('input[name="vendorRating"]:checked').value).toBe("4");
+    });
+
+    test("readRatingFormValues reads the chosen vendor rating + per-item ratings + comments", () => {
+        const order = {
+            orderId: "abc",
+            vendorName: "Burger Hut",
+            items: [{ menuItemId: "m1", name: "Burger" }]
+        };
+        const dialog = customerOrderTrackingPage.fillRatingModal(order, null);
+        // Manually select 5 stars and fill comment fields.
+        dialog.querySelector('input[name="vendorRating"][value="5"]').checked = true;
+        dialog.querySelector("#rating-vendor-comment").value = "Excellent";
+        dialog.querySelector('input[name="itemRating-0"][value="4"]').checked = true;
+        dialog.querySelector('input[name="itemComment-0"]').value = "Juicy";
+        dialog.querySelector("#rating-anonymous").checked = true;
+
+        const values = customerOrderTrackingPage.readRatingFormValues(dialog, order);
+        expect(values).toEqual({
+            vendorRating: 5,
+            vendorComment: "Excellent",
+            isAnonymous: true,
+            itemRatings: [{
+                menuItemId: "m1",
+                name: "Burger",
+                rating: 4,
+                comment: "Juicy"
+            }]
+        });
+    });
+});
+
+describe("customer/order-tracking/index.js - createOrderCard with existing review", () => {
+    test("a completed order with an existing review shows the rating summary + Edit button", () => {
+        const order = {
+            orderId: "abc-12345678",
+            vendorName: "Burger Hut",
+            status: "completed",
+            paymentStatus: "paid",
+            total: 100,
+            items: []
+        };
+
+        const card = customerOrderTrackingPage.createOrderCard(order, {
+            existingReviews: {
+                "abc-12345678": { vendorRating: 5, vendorComment: "Great" }
+            }
+        });
+
+        expect(card.querySelector(".tracking-order-rating-summary")).not.toBeNull();
+        const rateButton = card.querySelector('button[data-action="open-rate-modal"]');
+        expect(rateButton).not.toBeNull();
+        expect(rateButton.textContent).toBe("Edit your rating");
+        expect(rateButton.getAttribute("data-has-review")).toBe("true");
+    });
+
+    test("a completed order without a review shows the Rate Order button only", () => {
+        const order = {
+            orderId: "abc-22222222",
+            vendorName: "Burger Hut",
+            status: "completed",
+            paymentStatus: "paid",
+            total: 100,
+            items: []
+        };
+
+        const card = customerOrderTrackingPage.createOrderCard(order, {});
+        expect(card.querySelector(".tracking-order-rating-summary")).toBeNull();
+        const rateButton = card.querySelector('button[data-action="open-rate-modal"]');
+        expect(rateButton).not.toBeNull();
+        expect(rateButton.textContent).toBe("Rate Order");
+    });
+
+    test("non-completed orders do not get a Rate button", () => {
+        const order = {
+            orderId: "abc",
+            vendorName: "Burger Hut",
+            status: "ready",
+            paymentStatus: "paid",
+            total: 100,
+            items: []
+        };
+
+        const card = customerOrderTrackingPage.createOrderCard(order, {});
+        expect(card.querySelector('button[data-action="open-rate-modal"]')).toBeNull();
+    });
+});

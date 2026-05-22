@@ -21,6 +21,10 @@ function createDOM() {
             <p id="new-ticket-description-error"></p>
             <input id="new-ticket-order-id" name="orderId" type="text">
             <p id="new-ticket-order-id-error"></p>
+            <section>
+                <output id="new-ticket-next-step">Loading</output>
+                <p id="new-ticket-next-step-detail">Checking ticket details.</p>
+            </section>
             <button id="new-ticket-submit" type="submit">Submit</button>
         </form>
     `;
@@ -35,7 +39,9 @@ function createDOM() {
         subjectError: document.getElementById("new-ticket-subject-error"),
         categoryError: document.getElementById("new-ticket-category-error"),
         descriptionError: document.getElementById("new-ticket-description-error"),
-        orderIdError: document.getElementById("new-ticket-order-id-error")
+        orderIdError: document.getElementById("new-ticket-order-id-error"),
+        nextStepLabel: document.getElementById("new-ticket-next-step"),
+        nextStepDetail: document.getElementById("new-ticket-next-step-detail")
     };
 }
 
@@ -62,7 +68,8 @@ describe("vendor/support/new.js - module surface", () => {
         expect(vendorSupportNewPage.MODULE_NAME).toBe("vendor/support/new");
         ["init", "initializeVendorSupportNewPage", "readFormValues", "validateFormValues",
             "buildReporterSnapshot", "submitTicket", "attachSubmitHandler",
-            "buildTicketDetailUrl", "prefillFormFromQuery"
+            "buildTicketDetailUrl", "prefillFormFromQuery", "getNewTicketNextStep",
+            "renderNextStep"
         ].forEach((name) => expect(typeof vendorSupportNewPage[name]).toBe("function"));
     });
 });
@@ -134,6 +141,56 @@ describe("vendor/support/new.js - helpers", () => {
         expect(dom.orderIdInput.value).toBe("order-9");
         expect(dom.categorySelect.value).toBe("order_issue");
     });
+
+    test("getNewTicketNextStep guides vendors through required fields", () => {
+        expect(vendorSupportNewPage.getNewTicketNextStep({})).toEqual({
+            label: "Next: pick a category",
+            detail: "Choose the support area so your vendor ticket reaches the right team."
+        });
+
+        expect(vendorSupportNewPage.getNewTicketNextStep({
+            category: "payment",
+            subject: "Payouts question",
+            description: "I have not received my payouts."
+        })).toEqual({
+            label: "Next: add the order ID",
+            detail: "Order, payment, and refund tickets need the related order so support can investigate faster."
+        });
+
+        expect(vendorSupportNewPage.getNewTicketNextStep({
+            category: "general",
+            subject: "Hi",
+            description: "Long enough description."
+        })).toEqual({
+            label: "Next: add a short subject",
+            detail: "Use at least 3 characters to summarize the vendor issue."
+        });
+
+        expect(vendorSupportNewPage.getNewTicketNextStep({
+            category: "general",
+            subject: "Shop settings",
+            description: "Long enough description."
+        })).toEqual({
+            label: "Next: submit ticket",
+            detail: "Everything required is filled in. Submit when you are ready."
+        });
+    });
+
+    test("renderNextStep writes the next support step to the DOM", () => {
+        const dom = createDOM();
+        const step = vendorSupportNewPage.renderNextStep({
+            nextStepLabel: dom.nextStepLabel,
+            nextStepDetail: dom.nextStepDetail
+        }, {
+            category: "general",
+            subject: "Shop settings",
+            description: "Long enough description."
+        });
+
+        expect(step.label).toBe("Next: submit ticket");
+        expect(dom.nextStepLabel.textContent).toBe("Next: submit ticket");
+        expect(dom.nextStepDetail.textContent).toMatch(/Everything required/);
+    });
 });
 
 describe("vendor/support/new.js - submit flow", () => {
@@ -168,6 +225,7 @@ describe("vendor/support/new.js - submit flow", () => {
 
     test("init renders status when no user is signed in", async () => {
         const dom = createDOM();
+        window.history.pushState({}, "", "/vendor/support/new.html");
         const r = await vendorSupportNewPage.init({
             auth: { currentUser: null },
             authFns: makeAuthFns(null)
@@ -175,6 +233,7 @@ describe("vendor/support/new.js - submit flow", () => {
         expect(r.success).toBe(false);
         expect(dom.submitButton.disabled).toBe(true);
         expect(dom.statusElement.textContent).toMatch(/sign in/i);
+        expect(dom.nextStepLabel.textContent).toBe("Next: pick a category");
     });
 
     test("attachSubmitHandler short-circuits invalid forms", async () => {
@@ -187,6 +246,8 @@ describe("vendor/support/new.js - submit flow", () => {
             form: dom.form,
             statusElement: dom.statusElement,
             submitButton: dom.submitButton,
+            nextStepLabel: dom.nextStepLabel,
+            nextStepDetail: dom.nextStepDetail,
             fieldErrors: {
                 subject: dom.subjectError,
                 category: dom.categoryError,
@@ -199,9 +260,37 @@ describe("vendor/support/new.js - submit flow", () => {
             navigate
         });
 
+        expect(dom.nextStepLabel.textContent).toBe("Next: pick a category");
+
         await controller.handleSubmit({ preventDefault() {} });
         expect(ticketService.createTicket).not.toHaveBeenCalled();
         expect(dom.subjectError.textContent).toMatch(/at least/);
+    });
+
+    test("attachSubmitHandler keeps the next step in sync as the form changes", () => {
+        const dom = createDOM();
+
+        vendorSupportNewPage.attachSubmitHandler({
+            form: dom.form,
+            statusElement: dom.statusElement,
+            submitButton: dom.submitButton,
+            nextStepLabel: dom.nextStepLabel,
+            nextStepDetail: dom.nextStepDetail,
+            fieldErrors: {}
+        }, {
+            ticketService: { createTicket: jest.fn() },
+            currentUser: { uid: "v-1" }
+        });
+
+        expect(dom.nextStepLabel.textContent).toBe("Next: pick a category");
+
+        dom.categorySelect.value = "payment";
+        dom.categorySelect.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(dom.nextStepLabel.textContent).toBe("Next: add the order ID");
+
+        fillValidForm(dom, { category: "general", orderId: "" });
+        dom.descriptionInput.dispatchEvent(new Event("input", { bubbles: true }));
+        expect(dom.nextStepLabel.textContent).toBe("Next: submit ticket");
     });
 
     test("attachSubmitHandler navigates to detail on success", async () => {
@@ -220,6 +309,8 @@ describe("vendor/support/new.js - submit flow", () => {
             form: dom.form,
             statusElement: dom.statusElement,
             submitButton: dom.submitButton,
+            nextStepLabel: dom.nextStepLabel,
+            nextStepDetail: dom.nextStepDetail,
             fieldErrors: {
                 subject: dom.subjectError,
                 category: dom.categoryError,
@@ -240,6 +331,7 @@ describe("vendor/support/new.js - submit flow", () => {
         expect(navigate).toHaveBeenCalledWith(
             expect.stringMatching(/ticket-detail\.html\?ticketId=ticket-new$/)
         );
+        expect(dom.nextStepLabel.textContent).toBe("Next: pick a category");
     });
 
     test("attachSubmitHandler refuses to double-bind", () => {

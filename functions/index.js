@@ -3,6 +3,7 @@
 const initializePaymentService = require("./payments/initialize-payment.js");
 const verifyPaymentService = require("./payments/verify-payment.js");
 const refundPaymentService = require("./payments/refund-payment.js");
+const supportRefundService = require("./support/resolve-support-refund.js");
 
 const DEFAULT_REGION = "africa-south1";
 const CHECKOUTS_COLLECTION = "checkoutSessions";
@@ -940,6 +941,13 @@ function createPaymentFunctions(options = {}) {
             triggerOptions,
             createRefundPaymentHandler(safeOptions.dependencies)
         ),
+        executeSupportRefund: onCall(
+            triggerOptions,
+            supportRefundService.createExecuteSupportRefundHandler({
+                ...(safeOptions.dependencies || {}),
+                createCallableError
+            })
+        ),
         convertCheckoutToOrder: onCall(
             triggerOptions,
             createConvertCheckoutToOrderHandler(safeOptions.dependencies)
@@ -973,6 +981,13 @@ module.exports = {
     resolveCheckoutId,
     createOrderIdFromCheckout,
     resolveAdminFirestore,
+    createAdminFirestoreFns: supportRefundService.createAdminFirestoreFns,
+    snapshotToRecord: supportRefundService.snapshotToRecord,
+    fetchAdminDocument: supportRefundService.fetchAdminDocument,
+    fetchUserRecord: supportRefundService.fetchUserRecord,
+    isCallableAdmin: supportRefundService.isCallableAdmin,
+    fetchSupportTicket: supportRefundService.fetchSupportTicket,
+    fetchOrderRecord: supportRefundService.fetchOrderRecord,
     buildCheckoutConversionPatch,
     getCheckoutCustomerPrice,
     calculateCheckoutItemPricing,
@@ -995,6 +1010,18 @@ module.exports = {
     createInitializePaymentHandler,
     createVerifyPaymentHandler,
     createRefundPaymentHandler,
+    getRefundCaseFromTicket: supportRefundService.getRefundCaseFromTicket,
+    buildSupportRefundPaymentOptions: supportRefundService.buildSupportRefundPaymentOptions,
+    buildSupportRefundOrderPatch: supportRefundService.buildSupportRefundOrderPatch,
+    createSupportRefundFailure: supportRefundService.createSupportRefundFailure,
+    executeApprovedSupportRefund: supportRefundService.executeApprovedSupportRefund,
+    assertSuccessfulSupportRefundResult: supportRefundService.assertSuccessfulSupportRefundResult,
+    createExecuteSupportRefundHandler: function createExecuteSupportRefundHandler(dependencies = {}) {
+        return supportRefundService.createExecuteSupportRefundHandler({
+            ...(dependencies || {}),
+            createCallableError
+        });
+    },
     createConvertCheckoutToOrderHandler,
     createPaymentFunctions,
     ...paymentFunctions

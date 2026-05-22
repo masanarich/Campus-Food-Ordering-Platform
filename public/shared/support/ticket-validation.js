@@ -121,6 +121,74 @@
         return null;
     }
 
+    function resolveRefundCaseModel(explicitRefundCaseModel) {
+        if (
+            explicitRefundCaseModel &&
+            typeof explicitRefundCaseModel.createRefundCaseRecord === "function"
+        ) {
+            return explicitRefundCaseModel;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.refundCaseModel &&
+            typeof globalScope.refundCaseModel.createRefundCaseRecord === "function"
+        ) {
+            return globalScope.refundCaseModel;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredRefundCaseModel = require("./refund-case-model.js");
+
+                if (
+                    requiredRefundCaseModel &&
+                    typeof requiredRefundCaseModel.createRefundCaseRecord === "function"
+                ) {
+                    return requiredRefundCaseModel;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveRefundCaseValidation(explicitRefundCaseValidation) {
+        if (
+            explicitRefundCaseValidation &&
+            typeof explicitRefundCaseValidation.validateRefundCaseRecord === "function"
+        ) {
+            return explicitRefundCaseValidation;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.refundCaseValidation &&
+            typeof globalScope.refundCaseValidation.validateRefundCaseRecord === "function"
+        ) {
+            return globalScope.refundCaseValidation;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredRefundCaseValidation = require("./refund-case-validation.js");
+
+                if (
+                    requiredRefundCaseValidation &&
+                    typeof requiredRefundCaseValidation.validateRefundCaseRecord === "function"
+                ) {
+                    return requiredRefundCaseValidation;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
     }
@@ -276,7 +344,14 @@
                 "resolved",
                 "reopened",
                 "closed",
-                "escalated"
+                "escalated",
+                "refund_proposed",
+                "refund_decision_approved",
+                "refund_decision_declined",
+                "refund_processing",
+                "refund_completed",
+                "refund_failed",
+                "refund_cancelled"
             ];
             const rawEventType = normalizeLowerText(safeEntry.eventType);
             const rawStatus = normalizeLowerText(safeEntry.status);
@@ -336,8 +411,16 @@
         const ticketStatus = resolveTicketStatus(safeOptions.ticketStatus);
         const ticketCategories = resolveTicketCategories(safeOptions.ticketCategories);
         const ticketModel = resolveTicketModel(safeOptions.ticketModel);
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
+        const refundCaseValidation = resolveRefundCaseValidation(safeOptions.refundCaseValidation);
         const value = ticketModel
-            ? ticketModel.normalizeTicketRecord(safeRecord, { ticketStatus, ticketCategories })
+            ? ticketModel.normalizeTicketRecord(safeRecord, {
+                ticketStatus,
+                ticketCategories,
+                refundCaseModel,
+                order: safeOptions.order,
+                payment: safeOptions.payment
+            })
             : safeRecord;
         const errors = {};
 
@@ -436,6 +519,32 @@
                 ticketStatus
             });
             mergeErrors(errors, timelineValidation.errors);
+        }
+
+        if (safeRecord.refundCase !== undefined && safeRecord.refundCase !== null) {
+            if (!refundCaseValidation) {
+                setError(errors, "refundCase", "Refund case validation helpers are unavailable.");
+            } else {
+                const refundCaseValidationResult = refundCaseValidation.validateRefundCaseRecord(
+                    safeRecord.refundCase,
+                    {
+                        refundCaseModel,
+                        order: safeOptions.order || safeOptions.payment || {
+                            orderId: normalizeText(safeRecord.orderId),
+                            customerUid: value.customerUid,
+                            vendorUid: value.vendorUid,
+                            paymentStatus: safeOptions.paymentStatus,
+                            paymentReference: safeOptions.paymentReference,
+                            paymentAmount: safeOptions.paymentAmount,
+                            paymentAmountInMinorUnits: safeOptions.paymentAmountInMinorUnits
+                        },
+                        requirePaid: safeOptions.requireRefundPaidOrder !== false,
+                        requireOrderId: safeOptions.requireOrderId !== false
+                    }
+                );
+
+                mergeErrors(errors, refundCaseValidationResult.errors, "refundCase");
+            }
         }
 
         return createValidationResult(errors, { value });
@@ -549,6 +658,8 @@
         resolveTicketStatus,
         resolveTicketCategories,
         resolveTicketModel,
+        resolveRefundCaseModel,
+        resolveRefundCaseValidation,
         normalizeText,
         normalizeLowerText,
         createValidationResult,

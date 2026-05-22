@@ -202,6 +202,7 @@
         try {
             const tickets = await ticketService.getReporterTickets({
                 db, firestoreFns, reporterUid,
+                reporterRole: "vendor",
                 ticketQueries: options.ticketQueries
             });
             return { success: true, tickets: Array.isArray(tickets) ? tickets : [] };
@@ -469,6 +470,109 @@
         return `Showing ${filteredCount} of ${totalCount} ticket${totalCount === 1 ? "" : "s"}.`;
     }
 
+    function hasActiveInboxFilters(filters = {}) {
+        const search = normalizeText(filters.search);
+        const status = normalizeLowerText(filters.status) || "all";
+        const category = normalizeLowerText(filters.category) || "all";
+
+        return Boolean(search) || status !== "all" || category !== "all";
+    }
+
+    function getTicketSubjectForNextStep(ticket) {
+        const mappedTicket = mapTicketRecord(ticket);
+        return mappedTicket.subject || "this ticket";
+    }
+
+    function getVendorSupportInboxNextStep(tickets, options = {}) {
+        const allTickets = Array.isArray(tickets) ? tickets : [];
+        const filteredTickets = Array.isArray(options.filteredTickets)
+            ? options.filteredTickets
+            : allTickets;
+        const hasActiveFilters = hasActiveInboxFilters(options.filters);
+
+        if (options.isSignedIn === false) {
+            return {
+                label: "Next: sign in",
+                detail: "Sign in to load your vendor support inbox and check ticket updates."
+            };
+        }
+
+        if (allTickets.length === 0) {
+            return {
+                label: "Next: open your first ticket",
+                detail: "Start a ticket when you need help with an order, payout, payment, refund, account, or safety issue."
+            };
+        }
+
+        if (filteredTickets.length === 0 && hasActiveFilters) {
+            return {
+                label: "Next: clear filters",
+                detail: "No tickets match the current view. Clear the filters to see your full vendor support history."
+            };
+        }
+
+        const awaitingVendorTicket = filteredTickets.find(function findAwaitingVendor(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "awaiting_user";
+        });
+
+        if (awaitingVendorTicket) {
+            return {
+                label: "Next: reply to support",
+                detail: `Support is waiting on your response for ${getTicketSubjectForNextStep(awaitingVendorTicket)}.`
+            };
+        }
+
+        const activeTicket = filteredTickets.find(function findActive(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "open" || status === "in_progress";
+        });
+
+        if (activeTicket) {
+            return {
+                label: "Next: open an active ticket",
+                detail: `Review the latest activity for ${getTicketSubjectForNextStep(activeTicket)}.`
+            };
+        }
+
+        const allClosed = allTickets.every(function isClosed(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "resolved" || status === "closed";
+        });
+
+        if (allClosed) {
+            return {
+                label: "Next: open a new ticket if needed",
+                detail: "Your visible tickets are resolved or closed. Create a new ticket if another vendor issue comes up."
+            };
+        }
+
+        return {
+            label: "Next: review ticket activity",
+            detail: "Open a ticket to check replies, status changes, and the current support timeline."
+        };
+    }
+
+    function renderVendorSupportInboxNextStep(elements, state = {}) {
+        if (!elements || !elements.nextStepLabel) {
+            return null;
+        }
+
+        const nextStep = getVendorSupportInboxNextStep(state.tickets, {
+            filteredTickets: state.filteredTickets,
+            filters: state.filters,
+            isSignedIn: state.isSignedIn
+        });
+
+        elements.nextStepLabel.textContent = nextStep.label;
+
+        if (elements.nextStepDetail) {
+            elements.nextStepDetail.textContent = nextStep.detail;
+        }
+
+        return nextStep;
+    }
+
     function renderCurrentPage(elements, options = {}) {
         const container = elements && elements.container;
         if (!container) return null;
@@ -489,6 +593,12 @@
             elements.summary.textContent = buildResultSummary(sorted.length, pageState.allTickets.length);
         }
         updatePaginationControls(elements.pagination, elements.paginationStatus, paginated);
+        renderVendorSupportInboxNextStep(elements, {
+            tickets: pageState.allTickets,
+            filteredTickets: sorted,
+            filters: pageState.filters,
+            isSignedIn: options.isSignedIn
+        });
         return paginated;
     }
 
@@ -584,13 +694,17 @@
             const paginationElement = globalScope.document.querySelector(options.paginationSelector || "#vendor-tickets-pagination");
             const paginationStatusElement = globalScope.document.querySelector(options.paginationStatusSelector || "#vendor-tickets-pagination-status");
             const pageSizeSelect = globalScope.document.querySelector(options.pageSizeSelector || "#vendor-tickets-page-size");
+            const nextStepLabelElement = globalScope.document.querySelector(options.nextStepSelector || "#vendor-support-inbox-next-step");
+            const nextStepDetailElement = globalScope.document.querySelector(options.nextStepDetailSelector || "#vendor-support-inbox-next-step-detail");
 
             if (!container) return { success: false, error: "Tickets container not found." };
 
             const elements = {
                 container, summary: summaryElement, form: formElement,
                 pagination: paginationElement, paginationStatus: paginationStatusElement,
-                pageSizeSelect
+                pageSizeSelect,
+                nextStepLabel: nextStepLabelElement,
+                nextStepDetail: nextStepDetailElement
             };
 
             const initialFilters = readFiltersFromForm(formElement);
@@ -611,6 +725,12 @@
             if (!currentUser || !normalizeText(currentUser.uid)) {
                 pageState.allTickets = [];
                 renderTickets([], container, options);
+                renderVendorSupportInboxNextStep(elements, {
+                    tickets: [],
+                    filteredTickets: [],
+                    filters: pageState.filters,
+                    isSignedIn: false
+                });
                 if (summaryElement) summaryElement.textContent = "";
                 if (paginationElement) paginationElement.setAttribute("hidden", "");
                 setStatusMessage(statusElement, "Please sign in to view your support tickets.", "error");
@@ -622,6 +742,12 @@
             if (!result.success) {
                 pageState.allTickets = [];
                 renderTickets([], container, options);
+                renderVendorSupportInboxNextStep(elements, {
+                    tickets: [],
+                    filteredTickets: [],
+                    filters: pageState.filters,
+                    isSignedIn: true
+                });
                 if (summaryElement) summaryElement.textContent = "";
                 if (paginationElement) paginationElement.setAttribute("hidden", "");
                 setStatusMessage(
@@ -637,8 +763,10 @@
 
             pageState.allTickets = Array.isArray(result.tickets) ? result.tickets : [];
 
-            attachToolbarHandlers(elements, options);
-            renderCurrentPage(elements, options);
+            const renderOptions = { ...options, isSignedIn: true };
+
+            attachToolbarHandlers(elements, renderOptions);
+            renderCurrentPage(elements, renderOptions);
 
             if (pageState.allTickets.length === 0) {
                 setStatusMessage(statusElement, "You have not opened any support tickets yet.", "info");
@@ -671,7 +799,9 @@
         getLastReplyTimestamp, getCreatedAtTimestamp,
         sortTickets, filterTickets, paginateTickets,
         computePageNumbers, renderNumberedPages, updatePaginationControls,
-        buildResultSummary, renderCurrentPage, readFiltersFromForm, attachToolbarHandlers,
+        buildResultSummary, hasActiveInboxFilters,
+        getVendorSupportInboxNextStep, renderVendorSupportInboxNextStep,
+        renderCurrentPage, readFiltersFromForm, attachToolbarHandlers,
         init, initializeVendorSupportListPage
     };
 

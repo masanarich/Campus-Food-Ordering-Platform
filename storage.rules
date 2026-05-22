@@ -83,6 +83,22 @@ service firebase.storage {
     }
 
     // ----------------------------------------------------------------
+    // Vendor shopfront photos: vendor uploads under /vendorShopPhotos/{vendorUid}/...
+    // Shown on the public Browse Vendors card alongside shop details.
+    // ----------------------------------------------------------------
+
+    match /vendorShopPhotos/{vendorUid}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update: if (
+        canManageOwnMenu(vendorUid) ||
+        isAdmin()
+      ) && isAcceptableImageUpload();
+
+      allow delete: if canManageOwnMenu(vendorUid) || isAdmin();
+    }
+
+    // ----------------------------------------------------------------
     // Catch-all: deny everything else by default
     // ----------------------------------------------------------------
 

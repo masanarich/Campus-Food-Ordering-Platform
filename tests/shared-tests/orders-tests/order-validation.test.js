@@ -12,6 +12,15 @@ describe("shared/orders/order-validation.js", () => {
         expect(orderValidation.normalizeText("  Hello  ")).toBe("Hello");
         expect(orderValidation.normalizeLowerText("  HeLLo  ")).toBe("hello");
         expect(orderValidation.normalizeUpperText("  zar  ")).toBe("ZAR");
+        expect(orderValidation.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(orderValidation.normalizeTagList([" Nuts ", "dairy", "nuts"])).toEqual([
+            "nuts",
+            "dairy"
+        ]);
+        expect(orderValidation.normalizeTagList(null)).toEqual([]);
         expect(orderValidation.isValidEmail("user@example.com")).toBe(true);
         expect(orderValidation.isValidEmail("bad-email")).toBe(false);
         expect(orderValidation.getRawItemPrice({ customerPrice: "55" })).toBe("55");
@@ -176,7 +185,9 @@ describe("shared/orders/order-validation.js", () => {
                 vendorName: "Campus Bites",
                 name: "Burger",
                 price: 50,
-                quantity: 2
+                quantity: 2,
+                dietaryTags: " Halal, high protein, halal ",
+                allergenTags: [" Gluten ", "dairy", "gluten"]
             }, { orderModel, requireVendorDetails: true })
         ).toEqual({
             isValid: true,
@@ -187,6 +198,8 @@ describe("shared/orders/order-validation.js", () => {
                 vendorName: "Campus Bites",
                 name: "Burger",
                 category: "",
+                dietary: ["halal", "high protein"],
+                allergens: ["gluten", "dairy"],
                 vendorPrice: 45.45,
                 basePrice: 45.45,
                 platformFeeRate: 0.1,
@@ -204,6 +217,22 @@ describe("shared/orders/order-validation.js", () => {
                 photoURL: "",
                 notes: ""
             }
+        });
+
+        const fallbackTags = orderValidation.validateOrderItem({
+            id: "fruit-cup",
+            name: "Fruit Cup",
+            price: "18",
+            dietary: [" Vegan ", "gluten free", "vegan"],
+            allergens: "nuts, sesame, nuts"
+        }, {
+            orderModel: null
+        });
+
+        expect(fallbackTags.isValid).toBe(true);
+        expect(fallbackTags.value).toMatchObject({
+            dietary: ["vegan", "gluten free"],
+            allergens: ["nuts", "sesame"]
         });
 
         expect(
@@ -246,6 +275,8 @@ describe("shared/orders/order-validation.js", () => {
                 vendorName: "",
                 name: "",
                 category: "",
+                dietary: [],
+                allergens: [],
                 vendorPrice: 0,
                 basePrice: 0,
                 platformFeeRate: 0.1,

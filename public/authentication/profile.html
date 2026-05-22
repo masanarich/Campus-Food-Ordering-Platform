@@ -55,6 +55,125 @@
           </p>
           <p id="profile-phone-error" class="form-error" aria-live="polite"></p>
 
+          <fieldset class="preference-fieldset">
+            <legend>Dietary preferences for recommendations</legend>
+            <p>Choose the tags you like. These help the recommendation model rank safer, more relevant meals first.</p>
+            <ul class="preference-option-list">
+              <li>
+                <label for="profile-dietary-preference-halal">
+                  <input id="profile-dietary-preference-halal" name="dietaryPreferences" type="checkbox" value="halal">
+                  Halal
+                </label>
+              </li>
+              <li>
+                <label for="profile-dietary-preference-vegan">
+                  <input id="profile-dietary-preference-vegan" name="dietaryPreferences" type="checkbox" value="vegan">
+                  Vegan
+                </label>
+              </li>
+              <li>
+                <label for="profile-dietary-preference-vegetarian">
+                  <input id="profile-dietary-preference-vegetarian" name="dietaryPreferences" type="checkbox"
+                    value="vegetarian">
+                  Vegetarian
+                </label>
+              </li>
+              <li>
+                <label for="profile-dietary-preference-gluten-free">
+                  <input id="profile-dietary-preference-gluten-free" name="dietaryPreferences" type="checkbox"
+                    value="gluten free">
+                  Gluten-free
+                </label>
+              </li>
+            </ul>
+          </fieldset>
+
+          <fieldset class="preference-fieldset">
+            <legend>Dietary restrictions the model must respect</legend>
+            <p>Restrictions are treated as stronger safety rules when recommendations are ranked.</p>
+            <ul class="preference-option-list">
+              <li>
+                <label for="profile-dietary-restriction-halal">
+                  <input id="profile-dietary-restriction-halal" name="dietaryRestrictions" type="checkbox"
+                    value="halal">
+                  Must be Halal
+                </label>
+              </li>
+              <li>
+                <label for="profile-dietary-restriction-vegan">
+                  <input id="profile-dietary-restriction-vegan" name="dietaryRestrictions" type="checkbox"
+                    value="vegan">
+                  Must be Vegan
+                </label>
+              </li>
+              <li>
+                <label for="profile-dietary-restriction-vegetarian">
+                  <input id="profile-dietary-restriction-vegetarian" name="dietaryRestrictions" type="checkbox"
+                    value="vegetarian">
+                  Must be Vegetarian
+                </label>
+              </li>
+              <li>
+                <label for="profile-dietary-restriction-gluten-free">
+                  <input id="profile-dietary-restriction-gluten-free" name="dietaryRestrictions" type="checkbox"
+                    value="gluten free">
+                  Must be Gluten-free
+                </label>
+              </li>
+            </ul>
+          </fieldset>
+
+          <fieldset class="preference-fieldset">
+            <legend>Allergens to avoid</legend>
+            <p>Meals matching these allergens are blocked from personalized recommendations.</p>
+            <ul class="preference-option-list">
+              <li>
+                <label for="profile-allergen-restriction-nuts">
+                  <input id="profile-allergen-restriction-nuts" name="allergenRestrictions" type="checkbox"
+                    value="nuts">
+                  Nuts
+                </label>
+              </li>
+              <li>
+                <label for="profile-allergen-restriction-dairy">
+                  <input id="profile-allergen-restriction-dairy" name="allergenRestrictions" type="checkbox"
+                    value="dairy">
+                  Dairy
+                </label>
+              </li>
+              <li>
+                <label for="profile-allergen-restriction-eggs">
+                  <input id="profile-allergen-restriction-eggs" name="allergenRestrictions" type="checkbox"
+                    value="eggs">
+                  Eggs
+                </label>
+              </li>
+              <li>
+                <label for="profile-allergen-restriction-shellfish">
+                  <input id="profile-allergen-restriction-shellfish" name="allergenRestrictions" type="checkbox"
+                    value="shellfish">
+                  Shellfish
+                </label>
+              </li>
+              <li>
+                <label for="profile-allergen-restriction-soy">
+                  <input id="profile-allergen-restriction-soy" name="allergenRestrictions" type="checkbox" value="soy">
+                  Soy
+                </label>
+              </li>
+            </ul>
+          </fieldset>
+
+          <fieldset class="preference-fieldset">
+            <legend>Recommendation learning</legend>
+            <p>
+              <label for="profile-recommendation-opt-in-input">
+                <input id="profile-recommendation-opt-in-input" type="checkbox" checked>
+                Use my order history and saved preferences to personalize meal recommendations.
+              </label>
+            </p>
+          </fieldset>
+
           <menu>
             <li><button id="save-profile-button" type="submit">Save Profile Details</button></li>
           </menu>
@@ -75,6 +194,10 @@
         <p><strong>Main role:</strong> <output id="profile-role">-</output></p>
         <p><strong>Portal access:</strong> <output id="profile-access">-</output></p>
         <p><strong>Account status:</strong> <output id="profile-account-status">-</output></p>
+        <p><strong>Dietary preferences:</strong> <output id="profile-dietary-preferences">None selected</output></p>
+        <p><strong>Dietary restrictions:</strong> <output id="profile-dietary-restrictions">None selected</output></p>
+        <p><strong>Allergens avoided:</strong> <output id="profile-allergen-restrictions">None selected</output></p>
+        <p><strong>Recommendation learning:</strong> <output id="profile-recommendation-opt-in">Enabled</output></p>
       </article>
 
       <article>

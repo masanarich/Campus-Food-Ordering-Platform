@@ -205,6 +205,9 @@ service cloud.firestore {
         request.resource.data.vendorUid is string &&
         request.resource.data.vendorUid != "" &&
         request.resource.data.status == "pending" &&
+        // Recommendation metadata such as dietary/allergens is stored inside
+        // each item. The rule validates the item collection shape here, while
+        // the app model validates and normalises the item fields themselves.
         request.resource.data.items is list &&
         request.resource.data.items.size() > 0 &&
         request.resource.data.get("vendorSubtotal", 0) >= 0 &&
@@ -547,6 +550,14 @@ service cloud.firestore {
       );
     }
 
+    function isTicketCustomerParty() {
+      return signedIn() && resource.data.get("customerUid", "") == request.auth.uid;
+    }
+
+    function isTicketVendorParty() {
+      return signedIn() && resource.data.get("vendorUid", "") == request.auth.uid;
+    }
+
     function isTicketParticipant() {
       return isTicketReporter() || isTicketLinkedParty() || isAdmin();
     }
@@ -579,6 +590,10 @@ service cloud.firestore {
         request.resource.data.status == "open" &&
         request.resource.data.get("replyCount", 0) == 0 &&
         request.resource.data.get("resolvedAt", null) == null &&
+        // Refund cases are created by admins after a support ticket is opened.
+        // Reporters can ask for a refund via category/order context, but they
+        // cannot seed proposed, approved, processing, or completed refund state.
+        request.resource.data.get("refundCase", null) == null &&
         (
           !("orderId" in request.resource.data) ||
           request.resource.data.orderId == "" ||
@@ -610,6 +625,7 @@ service cloud.firestore {
         "resolvedByUid",
         "resolvedByName",
         "resolutionNote",
+        "refundCase",
         "timeline",
         "updatedAt",
         "categoryLabel"
@@ -622,6 +638,7 @@ service cloud.firestore {
         "statusLabel",
         "replyCount",
         "lastReplyAt",
+        "refundCase",
         "timeline",
         "updatedAt"
       ]);
@@ -637,6 +654,76 @@ service cloud.firestore {
         );
     }
 
+    function refundCaseCoreFieldsPreserved() {
+      return request.resource.data.refundCase.get("ticketId", "") == resource.data.refundCase.get("ticketId", "") &&
+        request.resource.data.refundCase.get("orderId", "") == resource.data.refundCase.get("orderId", "") &&
+        request.resource.data.refundCase.get("customerUid", "") == resource.data.refundCase.get("customerUid", "") &&
+        request.resource.data.refundCase.get("vendorUid", "") == resource.data.refundCase.get("vendorUid", "") &&
+        request.resource.data.refundCase.get("type", "") == resource.data.refundCase.get("type", "") &&
+        request.resource.data.refundCase.get("amount", 0) == resource.data.refundCase.get("amount", 0) &&
+        request.resource.data.refundCase.get("amountInMinorUnits", 0) == resource.data.refundCase.get("amountInMinorUnits", 0) &&
+        request.resource.data.refundCase.get("currency", "") == resource.data.refundCase.get("currency", "") &&
+        request.resource.data.refundCase.get("reason", "") == resource.data.refundCase.get("reason", "") &&
+        request.resource.data.refundCase.get("proposedByUid", "") == resource.data.refundCase.get("proposedByUid", "") &&
+        request.resource.data.refundCase.get("proposedAt", null) == resource.data.refundCase.get("proposedAt", null) &&
+        request.resource.data.refundCase.get("createdAt", null) == resource.data.refundCase.get("createdAt", null);
+    }
+
+    function refundCaseParticipantDecisionStatusIsAllowed() {
+      return request.resource.data.refundCase.get("status", "") == "customer_approved" ||
+        request.resource.data.refundCase.get("status", "") == "vendor_approved" ||
+        request.resource.data.refundCase.get("status", "") == "approved" ||
+        request.resource.data.refundCase.get("status", "") == "declined";
+    }
+
+    function customerRefundCaseDecisionKeysAreAllowed() {
+      return request.resource.data.refundCase.diff(resource.data.refundCase).affectedKeys().hasOnly([
+        "status",
+        "statusLabel",
+        "customerDecision",
+        "customerDecidedAt",
+        "customerNote",
+        "timeline",
+        "updatedAt"
+      ]);
+    }
+
+    function vendorRefundCaseDecisionKeysAreAllowed() {
+      return request.resource.data.refundCase.diff(resource.data.refundCase).affectedKeys().hasOnly([
+        "status",
+        "statusLabel",
+        "vendorDecision",
+        "vendorDecidedAt",
+        "vendorNote",
+        "timeline",
+        "updatedAt"
+      ]);
+    }
+
+    function participantRefundCaseUpdateIsAllowed() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["refundCase"]) ||
+        (
+          resource.data.refundCase is map &&
+          request.resource.data.refundCase is map &&
+          refundCaseCoreFieldsPreserved() &&
+          refundCaseParticipantDecisionStatusIsAllowed() &&
+          (
+            (
+              isTicketCustomerParty() &&
+              customerRefundCaseDecisionKeysAreAllowed() &&
+              request.resource.data.refundCase.get("customerDecision", "") in ["approved", "declined"] &&
+              request.resource.data.refundCase.get("vendorDecision", "") == resource.data.refundCase.get("vendorDecision", "pending")
+            ) ||
+            (
+              isTicketVendorParty() &&
+              vendorRefundCaseDecisionKeysAreAllowed() &&
+              request.resource.data.refundCase.get("vendorDecision", "") in ["approved", "declined"] &&
+              request.resource.data.refundCase.get("customerDecision", "") == resource.data.refundCase.get("customerDecision", "pending")
+            )
+          )
+        );
+    }
+
     function isValidTicketUpdate() {
       return signedIn() &&
         ticketUpdateAffectsOnlyAllowedKeys() &&
@@ -646,7 +733,8 @@ service cloud.firestore {
           (
             isTicketParticipant() &&
             participantTicketUpdateAffectsOnlyParticipantKeys() &&
-            participantStatusChangeIsAllowed()
+            participantStatusChangeIsAllowed() &&
+            participantRefundCaseUpdateIsAllowed()
           )
         );
     }
@@ -884,6 +972,69 @@ service cloud.firestore {
         allow read:   if isReplyVisible();
         allow update, delete: if isAdmin();
       }
+    }
+
+    // -----------------------------------------------------------------
+    // /vendorReviews
+    //
+    // Customers leave one review per completed order via a composite ID
+    // (`{orderId}_{customerUid}`). Anyone signed in can read reviews so that
+    // averages can be shown on browse-vendors / browse-menu / shop pages.
+    // -----------------------------------------------------------------
+
+    function isReviewedOrderCustomer(orderId) {
+      // Tightly couple a review to an actual order the customer placed.
+      return signedIn() &&
+        exists(/databases/$(database)/documents/orders/$(orderId)) &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.customerUid == request.auth.uid &&
+        get(/databases/$(database)/documents/orders/$(orderId)).data.status == "completed";
+    }
+
+    function isValidReviewSubmission() {
+      return signedIn() &&
+        isActiveAccount() &&
+        request.resource.data.customerUid == request.auth.uid &&
+        request.resource.data.orderId is string &&
+        request.resource.data.orderId.size() > 0 &&
+        request.resource.data.vendorUid is string &&
+        request.resource.data.vendorUid.size() > 0 &&
+        request.resource.data.vendorRating is int &&
+        request.resource.data.vendorRating >= 1 &&
+        request.resource.data.vendorRating <= 5 &&
+        (
+          !("vendorComment" in request.resource.data) ||
+          (request.resource.data.vendorComment is string && request.resource.data.vendorComment.size() <= 500)
+        ) &&
+        (
+          !("itemRatings" in request.resource.data) ||
+          request.resource.data.itemRatings is list
+        ) &&
+        (
+          !("isAnonymous" in request.resource.data) ||
+          request.resource.data.isAnonymous is bool
+        );
+    }
+
+    function reviewImmutableFieldsPreserved() {
+      return request.resource.data.customerUid == resource.data.customerUid &&
+        request.resource.data.orderId == resource.data.orderId &&
+        request.resource.data.vendorUid == resource.data.vendorUid;
+    }
+
+    match /vendorReviews/{reviewId} {
+      allow get, list: if signedIn();
+
+      allow create: if isValidReviewSubmission() &&
+        isReviewedOrderCustomer(request.resource.data.orderId);
+
+      allow update: if signedIn() &&
+        isActiveAccount() &&
+        resource.data.customerUid == request.auth.uid &&
+        isValidReviewSubmission() &&
+        reviewImmutableFieldsPreserved();
+
+      allow delete: if isAdmin() ||
+        (signedIn() && resource.data.customerUid == request.auth.uid);
     }
 
     // -----------------------------------------------------------------

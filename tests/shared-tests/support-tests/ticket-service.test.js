@@ -2,6 +2,8 @@ const ticketService = require("../../../public/shared/support/ticket-service.js"
 const ticketModel = require("../../../public/shared/support/ticket-model.js");
 const ticketStatus = require("../../../public/shared/support/ticket-status.js");
 const ticketCategories = require("../../../public/shared/support/ticket-categories.js");
+const refundCaseModel = require("../../../public/shared/support/refund-case-model.js");
+const refundCaseValidation = require("../../../public/shared/support/refund-case-validation.js");
 
 let autoIdCounter = 0;
 
@@ -54,6 +56,95 @@ function makeBaseInput() {
     };
 }
 
+function makePaidOrder(overrides = {}) {
+    return {
+        orderId: "order-7",
+        checkoutId: "checkout-7",
+        customerUid: "customer-1",
+        vendorUid: "vendor-1",
+        status: "completed",
+        paymentStatus: "paid",
+        paymentReference: "paystack-ref-7",
+        paymentAmount: 110,
+        paymentAmountInMinorUnits: 11000,
+        paymentCurrency: "ZAR",
+        vendorEarnings: 100,
+        platformEarnings: 10,
+        ...overrides
+    };
+}
+
+function makeRefundTicket(overrides = {}) {
+    return ticketModel.createTicketRecord({
+        ticketId: "ticket-refund-1",
+        reporter: {
+            uid: "customer-1",
+            displayName: "Naledi",
+            role: "customer"
+        },
+        vendor: {
+            uid: "vendor-1",
+            shopName: "Campus Bites"
+        },
+        subject: "Food quality complaint",
+        description: "The meal was not safe to eat.",
+        category: "refund",
+        orderId: "order-7",
+        createdAt: "T0",
+        ...overrides
+    }, {
+        order: makePaidOrder()
+    });
+}
+
+function makeProposedRefundTicket(overrides = {}) {
+    const ticket = makeRefundTicket();
+    const refundCase = refundCaseModel.createRefundCaseFromProposal({
+        ticketId: ticket.ticketId,
+        orderId: ticket.orderId,
+        customerUid: ticket.customerUid,
+        vendorUid: ticket.vendorUid,
+        type: "partial",
+        amount: 55,
+        reason: "Food quality issue"
+    }, {
+        order: makePaidOrder(),
+        actorUid: "admin-1",
+        actorName: "Admin",
+        now: "T1"
+    });
+
+    return {
+        ...ticket,
+        refundCase,
+        ...overrides
+    };
+}
+
+function makeApprovedRefundTicket(overrides = {}) {
+    const proposed = makeProposedRefundTicket();
+    const customerApproved = refundCaseModel.applyRefundDecision(proposed.refundCase, {
+        actorRole: "customer",
+        actorUid: "customer-1",
+        actorName: "Naledi",
+        decision: "approved",
+        decidedAt: "T2"
+    });
+    const vendorApproved = refundCaseModel.applyRefundDecision(customerApproved, {
+        actorRole: "vendor",
+        actorUid: "vendor-1",
+        actorName: "Campus Bites",
+        decision: "approved",
+        decidedAt: "T3"
+    });
+
+    return {
+        ...proposed,
+        refundCase: vendorApproved,
+        ...overrides
+    };
+}
+
 describe("shared/support/ticket-service.js", () => {
     afterEach(() => {
         if (typeof global !== "undefined") {
@@ -62,6 +153,8 @@ describe("shared/support/ticket-service.js", () => {
             delete global.ticketModel;
             delete global.ticketQueries;
             delete global.ticketValidation;
+            delete global.refundCaseModel;
+            delete global.refundCaseValidation;
         }
     });
 
@@ -76,8 +169,15 @@ describe("shared/support/ticket-service.js", () => {
             "resolveTicketModel",
             "resolveTicketQueries",
             "resolveTicketValidation",
+            "resolveRefundCaseModel",
+            "resolveRefundCaseValidation",
             "createTicket",
             "updateTicketStatus",
+            "proposeRefundForTicket",
+            "recordRefundDecision",
+            "markRefundProcessing",
+            "markRefundCompleted",
+            "markRefundFailed",
             "addReply",
             "getTicketById",
             "getReporterTickets",
@@ -149,6 +249,32 @@ describe("shared/support/ticket-service.js", () => {
         // so require() returns it as the last-resort fallback.
         const realTicketValidation = require("../../../public/shared/support/ticket-validation.js");
         expect(ticketService.resolveTicketValidation()).toBe(realTicketValidation);
+    });
+
+    test("refund resolver helpers use explicit, global, and require fallbacks", () => {
+        const fakeRefundCaseModel = {
+            createRefundCaseFromProposal: jest.fn(),
+            applyRefundDecision: jest.fn(),
+            applyRefundExecution: jest.fn()
+        };
+
+        expect(ticketService.resolveRefundCaseModel(fakeRefundCaseModel)).toBe(fakeRefundCaseModel);
+        global.refundCaseModel = fakeRefundCaseModel;
+        expect(ticketService.resolveRefundCaseModel()).toBe(fakeRefundCaseModel);
+        delete global.refundCaseModel;
+        expect(ticketService.resolveRefundCaseModel()).toBe(refundCaseModel);
+
+        const fakeRefundCaseValidation = {
+            validateRefundProposalInput: jest.fn(),
+            validateRefundDecisionInput: jest.fn(),
+            validateRefundExecutionInput: jest.fn()
+        };
+
+        expect(ticketService.resolveRefundCaseValidation(fakeRefundCaseValidation)).toBe(fakeRefundCaseValidation);
+        global.refundCaseValidation = fakeRefundCaseValidation;
+        expect(ticketService.resolveRefundCaseValidation()).toBe(fakeRefundCaseValidation);
+        delete global.refundCaseValidation;
+        expect(ticketService.resolveRefundCaseValidation()).toBe(refundCaseValidation);
     });
 
     test("primitive helpers behave defensively", () => {
@@ -781,6 +907,273 @@ describe("shared/support/ticket-service.js", () => {
         expect(failed.success).toBe(false);
         expect(failed.error.code).toBe("tickets/status-update-failed");
         expect(failed.error.message).toBe("write boom");
+    });
+
+    test("buildRefundProposalUpdate validates and attaches a refund case to the ticket", () => {
+        const ticket = makeRefundTicket();
+        const result = ticketService.buildRefundProposalUpdate(ticket, {
+            type: "partial",
+            amount: 55,
+            reason: "Food quality issue"
+        }, {
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            actorName: "Admin",
+            now: "T1"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.refundCase).toEqual(expect.objectContaining({
+            ticketId: "ticket-refund-1",
+            orderId: "order-7",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            status: "proposed",
+            amount: 55,
+            amountInMinorUnits: 5500,
+            reason: "Food quality issue"
+        }));
+        expect(result.ticket.refundCase).toEqual(result.refundCase);
+        expect(result.timelineEntry.eventType).toBe("refund_proposed");
+        expect(result.timelineEntry.status).toBe("open");
+        expect(result.refundStatusChanged).toBe(true);
+
+        const invalid = ticketService.buildRefundProposalUpdate(ticket, {
+            type: "partial",
+            amount: 111,
+            reason: "Bad"
+        }, {
+            order: makePaidOrder(),
+            actorUid: "customer-1",
+            actorRole: "customer"
+        });
+
+        expect(invalid.success).toBe(false);
+        expect(invalid.error.code).toBe("tickets/refund-proposal-invalid");
+        expect(invalid.error.errors).toEqual(expect.objectContaining({
+            actorRole: expect.any(String),
+            amount: expect.any(String),
+            reason: expect.any(String)
+        }));
+    });
+
+    test("proposeRefundForTicket persists a refund proposal patch", async () => {
+        const firestoreFns = makeFirestoreFns();
+        const result = await ticketService.proposeRefundForTicket({
+            db: { kind: "db" },
+            firestoreFns,
+            ticket: makeRefundTicket(),
+            order: makePaidOrder(),
+            refundCase: {
+                type: "partial",
+                amount: 55,
+                reason: "Food quality issue"
+            },
+            actorUid: "admin-1",
+            actorRole: "admin",
+            actorName: "Admin",
+            now: "T1"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.refundCase.status).toBe("proposed");
+        expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(1);
+        const [, patch] = firestoreFns.updateDoc.mock.calls[0];
+        expect(patch.refundCase).toEqual(expect.objectContaining({
+            status: "proposed",
+            amount: 55
+        }));
+        expect(patch.timeline[1].eventType).toBe("refund_proposed");
+    });
+
+    test("buildRefundDecisionUpdate records linked customer and vendor decisions", () => {
+        const proposed = makeProposedRefundTicket();
+        const customerResult = ticketService.buildRefundDecisionUpdate(proposed, {
+            actorRole: "customer",
+            actorUid: "customer-1",
+            actorName: "Naledi",
+            decision: "approved",
+            note: "I agree.",
+            decidedAt: "T2"
+        }, {
+            now: "T2"
+        });
+
+        expect(customerResult.success).toBe(true);
+        expect(customerResult.refundCase.status).toBe("customer_approved");
+        expect(customerResult.refundCase.customerDecision).toBe("approved");
+        expect(customerResult.timelineEntry.eventType).toBe("refund_decision_approved");
+        expect(customerResult.refundStatusChanged).toBe(true);
+
+        const vendorResult = ticketService.buildRefundDecisionUpdate(customerResult.ticket, {
+            actorRole: "vendor",
+            actorUid: "vendor-1",
+            actorName: "Campus Bites",
+            decision: "approved",
+            note: "Agreed.",
+            decidedAt: "T3"
+        }, {
+            now: "T3"
+        });
+
+        expect(vendorResult.success).toBe(true);
+        expect(vendorResult.refundCase.status).toBe("approved");
+        expect(vendorResult.refundCase.vendorDecision).toBe("approved");
+
+        const wrongParty = ticketService.buildRefundDecisionUpdate(proposed, {
+            actorRole: "customer",
+            actorUid: "customer-2",
+            decision: "approved"
+        });
+
+        expect(wrongParty.success).toBe(false);
+        expect(wrongParty.error.code).toBe("tickets/refund-decision-invalid");
+        expect(wrongParty.error.errors.actorUid).toMatch(/linked party/i);
+
+        const noCase = ticketService.buildRefundDecisionUpdate(makeRefundTicket(), {
+            actorRole: "customer",
+            actorUid: "customer-1",
+            decision: "approved"
+        });
+        expect(noCase.success).toBe(false);
+        expect(noCase.error.code).toBe("tickets/refund-case-missing");
+    });
+
+    test("recordRefundDecision persists a party decision", async () => {
+        const firestoreFns = makeFirestoreFns();
+        const result = await ticketService.recordRefundDecision({
+            db: { kind: "db" },
+            firestoreFns,
+            ticket: makeProposedRefundTicket(),
+            decision: {
+                actorRole: "customer",
+                actorUid: "customer-1",
+                actorName: "Naledi",
+                decision: "approved",
+                note: "I agree."
+            },
+            now: "T2"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.refundCase.status).toBe("customer_approved");
+        expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(1);
+    });
+
+    test("buildRefundExecutionUpdate handles processing, completed, and failed states", () => {
+        const approved = makeApprovedRefundTicket();
+        const processing = ticketService.buildRefundExecutionUpdate(approved, {
+            status: "processing",
+            refundProvider: "paystack",
+            refundReference: "refund-ref-1"
+        }, {
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            actorName: "Admin",
+            now: "T4"
+        });
+
+        expect(processing.success).toBe(true);
+        expect(processing.refundCase.status).toBe("processing");
+        expect(processing.timelineEntry.eventType).toBe("refund_processing");
+
+        const completed = ticketService.buildRefundExecutionUpdate(processing.ticket, {
+            success: true,
+            refundId: "refund-1",
+            refundReference: "refund-ref-1",
+            refundPaymentReference: "paystack-ref-7"
+        }, {
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            actorName: "Admin",
+            now: "T5"
+        });
+
+        expect(completed.success).toBe(true);
+        expect(completed.refundCase.status).toBe("refunded");
+        expect(completed.refundCase.refundId).toBe("refund-1");
+        expect(completed.timelineEntry.eventType).toBe("refund_completed");
+
+        const failed = ticketService.buildRefundExecutionUpdate(approved, {
+            status: "failed",
+            refundFailureReason: "Paystack timeout"
+        }, {
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            actorName: "Admin",
+            now: "T6"
+        });
+
+        expect(failed.success).toBe(true);
+        expect(failed.refundCase.status).toBe("failed");
+        expect(failed.refundCase.refundFailureReason).toBe("Paystack timeout");
+        expect(failed.timelineEntry.eventType).toBe("refund_failed");
+
+        const notApproved = ticketService.buildRefundExecutionUpdate(makeProposedRefundTicket(), {
+            status: "processing"
+        }, {
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin"
+        });
+
+        expect(notApproved.success).toBe(false);
+        expect(notApproved.error.code).toBe("tickets/refund-execution-invalid");
+        expect(notApproved.error.errors.approval).toMatch(/Both customer and vendor/i);
+    });
+
+    test("refund execution wrappers persist processing, completed, and failed updates", async () => {
+        const firestoreFns = makeFirestoreFns();
+        const approved = makeApprovedRefundTicket();
+
+        const processing = await ticketService.markRefundProcessing({
+            db: { kind: "db" },
+            firestoreFns,
+            ticket: approved,
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            now: "T4"
+        });
+
+        expect(processing.success).toBe(true);
+        expect(processing.refundCase.status).toBe("processing");
+
+        const completed = await ticketService.markRefundCompleted({
+            db: { kind: "db" },
+            firestoreFns,
+            ticket: processing.ticket,
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            execution: {
+                refundId: "refund-1",
+                refundReference: "refund-ref-1"
+            },
+            now: "T5"
+        });
+
+        expect(completed.success).toBe(true);
+        expect(completed.refundCase.status).toBe("refunded");
+
+        const failed = await ticketService.markRefundFailed({
+            db: { kind: "db" },
+            firestoreFns,
+            ticket: approved,
+            order: makePaidOrder(),
+            actorUid: "admin-1",
+            actorRole: "admin",
+            refundFailureReason: "Paystack timeout",
+            now: "T6"
+        });
+
+        expect(failed.success).toBe(true);
+        expect(failed.refundCase.status).toBe("failed");
+        expect(firestoreFns.updateDoc).toHaveBeenCalledTimes(3);
     });
 
     test("buildAddReplyUpdate refuses empty body or missing ticket id and applies autoStatusForReply", () => {

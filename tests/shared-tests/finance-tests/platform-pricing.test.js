@@ -17,6 +17,15 @@ describe("shared/finance/platform-pricing.js", () => {
         expect(platformPricing.normalizePositiveInteger("bad", 2)).toBe(2);
         expect(platformPricing.normalizePositiveInteger("bad")).toBe(1);
         expect(platformPricing.amountToMinorUnits(110)).toBe(11000);
+
+        [
+            "getOrderRefundImpact",
+            "getOrderVendorRefundDeduction",
+            "getOrderPlatformRefundDeduction",
+            "getOrderTotalRefundDeduction",
+            "getOrderNetVendorEarnings",
+            "getOrderNetPlatformEarnings"
+        ].forEach((name) => expect(typeof platformPricing[name]).toBe("function"));
     });
 
     test("formats currency consistently across local and GitHub environments", () => {
@@ -161,9 +170,69 @@ describe("shared/finance/platform-pricing.js", () => {
         });
 
         expect(balance.completedOrders).toBe(2);
+        expect(balance.grossVendorEarnings).toBe(200);
+        expect(balance.refundDeductions).toBe(0);
+        expect(balance.netVendorEarnings).toBe(200);
         expect(balance.totalEarned).toBe(200);
         expect(balance.reservedWithdrawals).toBe(70);
         expect(balance.availableBalance).toBe(130);
+    });
+
+    test("reduces vendor balance for completed support-refunded orders without counting cancelled orders", () => {
+        const orders = [
+            {
+                vendorUid: "v-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorEarnings: 100,
+                platformEarnings: 10,
+                supportRefundVendorDeduction: 40,
+                supportRefundPlatformDeduction: 4
+            },
+            {
+                vendorUid: "v-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorEarnings: 80,
+                refundCase: {
+                    impact: {
+                        vendorDeduction: 20,
+                        platformDeduction: 2
+                    }
+                }
+            },
+            {
+                vendorUid: "v-1",
+                status: "cancelled",
+                paymentStatus: "paid",
+                vendorEarnings: 999,
+                supportRefundVendorDeduction: 999
+            },
+            {
+                vendorUid: "v-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorEarnings: 30,
+                supportRefundVendorDeduction: 100
+            }
+        ];
+
+        expect(platformPricing.getOrderVendorRefundDeduction(orders[0])).toBe(40);
+        expect(platformPricing.getOrderPlatformRefundDeduction(orders[0])).toBe(4);
+        expect(platformPricing.getOrderTotalRefundDeduction(orders[0])).toBe(44);
+        expect(platformPricing.getOrderNetVendorEarnings(orders[0])).toBe(60);
+        expect(platformPricing.getOrderNetVendorEarnings(orders[3])).toBe(0);
+
+        const balance = platformPricing.calculateVendorBalance(orders, [], {
+            vendorUid: "v-1"
+        });
+
+        expect(balance.completedOrders).toBe(3);
+        expect(balance.grossVendorEarnings).toBe(210);
+        expect(balance.refundDeductions).toBe(90);
+        expect(balance.netVendorEarnings).toBe(120);
+        expect(balance.totalEarned).toBe(120);
+        expect(balance.availableBalance).toBe(120);
     });
 
     test("calculates platform earnings from completed paid orders only", () => {
@@ -198,8 +267,63 @@ describe("shared/finance/platform-pricing.js", () => {
 
         expect(balance.completedOrders).toBe(3);
         expect(balance.customerRevenue).toBe(275);
+        expect(balance.grossPlatformEarnings).toBe(25);
+        expect(balance.refundDeductions).toBe(0);
+        expect(balance.netPlatformEarnings).toBe(25);
         expect(balance.platformEarnings).toBe(25);
         expect(balance.platformBalance).toBe(25);
+    });
+
+    test("reduces platform balance for completed support-refunded orders", () => {
+        const orders = [
+            {
+                status: "completed",
+                paymentStatus: "paid",
+                paymentAmount: 110,
+                platformEarnings: 10,
+                supportRefundVendorDeduction: 50,
+                supportRefundPlatformDeduction: 5
+            },
+            {
+                status: "completed",
+                paymentStatus: "paid",
+                paymentAmount: 220,
+                platformEarnings: 20,
+                refundCase: {
+                    impact: {
+                        vendorDeduction: 100,
+                        platformDeduction: 10
+                    }
+                }
+            },
+            {
+                status: "pending",
+                paymentStatus: "paid",
+                paymentAmount: 110,
+                platformEarnings: 10,
+                supportRefundPlatformDeduction: 10
+            },
+            {
+                status: "completed",
+                paymentStatus: "paid",
+                paymentAmount: 55,
+                platformEarnings: 5,
+                supportRefundPlatformDeduction: 100
+            }
+        ];
+
+        expect(platformPricing.getOrderNetPlatformEarnings(orders[0])).toBe(5);
+        expect(platformPricing.getOrderNetPlatformEarnings(orders[3])).toBe(0);
+
+        const balance = platformPricing.calculatePlatformBalance(orders);
+
+        expect(balance.completedOrders).toBe(3);
+        expect(balance.customerRevenue).toBe(385);
+        expect(balance.grossPlatformEarnings).toBe(35);
+        expect(balance.refundDeductions).toBe(20);
+        expect(balance.netPlatformEarnings).toBe(15);
+        expect(balance.platformEarnings).toBe(15);
+        expect(balance.platformBalance).toBe(15);
     });
 
     test("exposes browser global when loaded outside CommonJS", () => {

@@ -237,6 +237,47 @@
         }
     }
 
+    function getNewTicketNextStep(values, options = {}) {
+        const safeValues = values && typeof values === "object" ? values : {};
+        const category = normalizeLowerText(safeValues.category);
+        const subject = normalizeText(safeValues.subject);
+        const description = normalizeText(safeValues.description);
+        const orderId = normalizeText(safeValues.orderId);
+
+        if (!category) {
+            return {
+                label: "Next: pick a category",
+                detail: "Choose the support area so we can route your ticket correctly."
+            };
+        }
+
+        if (categoryRequiresOrderId(category, options) && !orderId) {
+            return {
+                label: "Next: add the order ID",
+                detail: "Order, payment, and refund tickets need the related order so support can investigate faster."
+            };
+        }
+
+        if (!subject || subject.length < SUBJECT_MIN_LENGTH) {
+            return {
+                label: "Next: add a short subject",
+                detail: `Use at least ${SUBJECT_MIN_LENGTH} characters to summarize the issue.`
+            };
+        }
+
+        if (!description || description.length < DESCRIPTION_MIN_LENGTH) {
+            return {
+                label: "Next: describe what happened",
+                detail: `Share at least ${DESCRIPTION_MIN_LENGTH} characters with times, amounts, or order details.`
+            };
+        }
+
+        return {
+            label: "Next: submit ticket",
+            detail: "Everything required is filled in. Submit when you are ready."
+        };
+    }
+
     function setStatusMessage(element, message, state = "info") {
         if (!element) {
             return;
@@ -285,6 +326,21 @@
             button.disabled = false;
             button.removeAttribute("data-busy");
         }
+    }
+
+    function renderNextStep(elements, values, options = {}) {
+        const safeElements = elements && typeof elements === "object" ? elements : {};
+        const nextStep = getNewTicketNextStep(values, options);
+
+        if (safeElements.nextStepLabel) {
+            safeElements.nextStepLabel.textContent = nextStep.label;
+        }
+
+        if (safeElements.nextStepDetail) {
+            safeElements.nextStepDetail.textContent = nextStep.detail;
+        }
+
+        return nextStep;
     }
 
     async function submitTicket(options = {}) {
@@ -360,6 +416,17 @@
                 globalScope.location.href = href;
             };
 
+        function updateNextStep() {
+            return renderNextStep(elements, readFormValues(form), options);
+        }
+
+        if (elements.nextStepLabel && form.dataset.newTicketNextStepBound !== "true") {
+            form.dataset.newTicketNextStepBound = "true";
+            form.addEventListener("input", updateNextStep);
+            form.addEventListener("change", updateNextStep);
+            updateNextStep();
+        }
+
         async function handleSubmit(event) {
             if (event && typeof event.preventDefault === "function") {
                 event.preventDefault();
@@ -370,6 +437,7 @@
 
             const values = readFormValues(form);
             const validation = validateFormValues(values, options);
+            renderNextStep(elements, validation.value, options);
 
             if (!validation.isValid) {
                 showFieldErrors(elements.fieldErrors, validation.errors);
@@ -429,6 +497,7 @@
 
             if (form && typeof form.reset === "function") {
                 form.reset();
+                updateNextStep();
             }
 
             const ticketId = result.ticket && result.ticket.ticketId;
@@ -460,6 +529,12 @@
             const submitButton = globalScope.document.querySelector(
                 options.submitButtonSelector || "#new-ticket-submit"
             );
+            const nextStepLabel = globalScope.document.querySelector(
+                options.nextStepLabelSelector || "#new-ticket-next-step"
+            );
+            const nextStepDetail = globalScope.document.querySelector(
+                options.nextStepDetailSelector || "#new-ticket-next-step-detail"
+            );
 
             if (!form) {
                 return {
@@ -487,10 +562,13 @@
                 form,
                 statusElement,
                 submitButton,
-                fieldErrors
+                fieldErrors,
+                nextStepLabel,
+                nextStepDetail
             };
 
             prefillFormFromQuery(form, options);
+            renderNextStep(elements, readFormValues(form), options);
 
             const auth = options.auth || resolveAuth();
             const authFns = resolveAuthFns(options.authFns);
@@ -568,6 +646,8 @@
         clearFieldErrors,
         showFieldErrors,
         setSubmitButtonState,
+        getNewTicketNextStep,
+        renderNextStep,
         submitTicket,
         buildTicketDetailUrl,
         attachSubmitHandler,

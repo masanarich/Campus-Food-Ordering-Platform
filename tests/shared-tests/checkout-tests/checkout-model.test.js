@@ -13,6 +13,15 @@ describe("shared/checkout/checkout-model.js", () => {
         expect(checkoutModel.normalizeText(null)).toBe("");
         expect(checkoutModel.normalizeLowerText(" PAYSTACK ")).toBe("paystack");
         expect(checkoutModel.normalizeUpperText(" zar ")).toBe("ZAR");
+        expect(checkoutModel.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(checkoutModel.normalizeTagList([" Nuts ", "dairy", "nuts"])).toEqual([
+            "nuts",
+            "dairy"
+        ]);
+        expect(checkoutModel.normalizeTagList(null)).toEqual([]);
         expect(checkoutModel.normalizeProvider(" PayStack ")).toBe("paystack");
         expect(checkoutModel.normalizeProvider("", "custom")).toBe("custom");
         expect(checkoutModel.normalizeCurrency(" usd ")).toBe("USD");
@@ -131,6 +140,8 @@ describe("shared/checkout/checkout-model.js", () => {
             vendorName: " Campus Bites ",
             itemName: " Burger ",
             category: " Meals ",
+            dietaryTags: " Halal, Gluten Free, halal ",
+            allergenTags: [" Gluten ", "Dairy", "gluten"],
             price: "49.995",
             quantity: "2",
             imageUrl: " https://example.test/burger.jpg ",
@@ -143,6 +154,8 @@ describe("shared/checkout/checkout-model.js", () => {
             vendorName: "Campus Bites",
             name: "Burger",
             category: "Meals",
+            dietary: ["halal", "gluten free"],
+            allergens: ["gluten", "dairy"],
             vendorPrice: 45.45,
             basePrice: 45.45,
             platformFeeRate: 0.1,
@@ -167,6 +180,8 @@ describe("shared/checkout/checkout-model.js", () => {
             vendorName: "Unknown Vendor",
             name: "Unknown Item",
             category: "Other",
+            dietary: [],
+            allergens: [],
             vendorPrice: 0,
             basePrice: 0,
             platformFeeRate: 0.1,
@@ -412,6 +427,54 @@ describe("shared/checkout/checkout-model.js", () => {
         expect(record.total).toBe(160.24);
         expect(record.paymentAmount).toBe(160.24);
         expect(record.paymentAmountInMinorUnits).toBe(16024);
+    });
+
+    test("preserves dietary and allergen tags from cart items into sessions and order drafts", () => {
+        const session = checkoutModel.createCheckoutSessionFromCart([
+            {
+                id: "wrap",
+                vendorUid: "vendor-1",
+                vendorName: "Campus Bites",
+                name: "Chicken Wrap",
+                price: 65,
+                quantity: 1,
+                dietaryTags: " Halal, High Protein, halal ",
+                allergenTags: [" Gluten ", "Dairy", "gluten"]
+            },
+            {
+                id: "salad",
+                vendorUid: "vendor-2",
+                vendorName: "Green Bowl",
+                name: "Garden Salad",
+                price: 40,
+                quantity: 1,
+                dietary: [" Vegan ", "gluten free"],
+                allergens: "nuts"
+            }
+        ], {
+            uid: "customer-1",
+            displayName: "Naledi"
+        }, {
+            checkoutStatus,
+            vendorUid: "vendor-1"
+        });
+
+        expect(session.items).toHaveLength(1);
+        expect(session.items[0]).toEqual(expect.objectContaining({
+            menuItemId: "wrap",
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"]
+        }));
+
+        const orderDraft = checkoutModel.createOrderDraftFromCheckout(session, {
+            orderId: "order-1"
+        });
+
+        expect(orderDraft.items[0]).toEqual(expect.objectContaining({
+            menuItemId: "wrap",
+            dietary: ["halal", "high protein"],
+            allergens: ["gluten", "dairy"]
+        }));
     });
 
     test("accepts alternate field names and nested customer/vendor values", () => {
@@ -668,6 +731,8 @@ describe("shared/checkout/checkout-model.js", () => {
                     basePrice: 50,
                     category: "Other",
                     customerPrice: 55,
+                    dietary: [],
+                    allergens: [],
                     itemKey: "vendor-1::burger",
                     lineCustomerTotal: 55,
                     linePlatformFee: 5,

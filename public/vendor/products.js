@@ -416,7 +416,7 @@
             const item = document.createElement("li");
             const label = document.createElement("label");
             const checkbox = document.createElement("input");
-            const labelText = document.createElement("span");
+            const labelText = document.createElement("strong");
 
             checkbox.type = "checkbox";
             checkbox.name = inputName;
@@ -1088,7 +1088,7 @@
             price.className = "product-card-price";
             price.textContent = formatPrice(product.customerPrice);
 
-            const priceMeta = document.createElement("span");
+            const priceMeta = document.createElement("small");
             priceMeta.className = "product-card-price-meta";
             priceMeta.textContent = `Vendor ${formatPrice(product.vendorPrice)} + fee ${formatPrice(product.platformFee)}`;
             price.appendChild(priceMeta);

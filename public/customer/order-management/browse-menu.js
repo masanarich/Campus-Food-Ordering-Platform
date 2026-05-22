@@ -9,6 +9,11 @@
     const MAX_VISIBLE_PAGE_BUTTONS = 5;
     const DEFAULT_PLATFORM_FEE_RATE = 0.1;
     let initInFlight = null;
+    // Module-level rating cache — populated once per vendor load in init() and
+    // consumed by createMenuItemCard without having to thread a parameter
+    // through every render entry point.
+    let menuItemReviewSummaries = {};
+    let menuItemReviewComments = {};
 
     // ==========================================
     // DEPENDENCY RESOLUTION
@@ -47,6 +52,124 @@
         return null;
     }
 
+    function resolveRatingsModel(explicit) {
+        if (explicit && typeof explicit.summarizeMenuItemReviews === "function") {
+            return explicit;
+        }
+        if (globalScope.ratingsModel && typeof globalScope.ratingsModel.summarizeMenuItemReviews === "function") {
+            return globalScope.ratingsModel;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function resolveRatingsService(explicit) {
+        if (explicit && typeof explicit.getReviewsForVendor === "function") {
+            return explicit;
+        }
+        if (globalScope.ratingsService && typeof globalScope.ratingsService.getReviewsForVendor === "function") {
+            return globalScope.ratingsService;
+        }
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/ratings/ratings-service.js");
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    async function loadMenuItemReviewSummaries(vendorUid, menuItems, deps = {}) {
+        // Cleared at the start so previous vendor's data never leaks across.
+        menuItemReviewSummaries = {};
+        menuItemReviewComments = {};
+
+        const ratingsModel = resolveRatingsModel(deps.ratingsModel);
+        const ratingsService = resolveRatingsService(deps.ratingsService);
+
+        if (!ratingsModel || !ratingsService || !vendorUid) {
+            return { summaries: menuItemReviewSummaries, comments: menuItemReviewComments };
+        }
+
+        let reviews = [];
+        try {
+            reviews = await ratingsService.getReviewsForVendor({
+                db: deps.db,
+                firestoreFns: deps.firestoreFns
+            }, vendorUid);
+        } catch (error) {
+            if (typeof console !== "undefined" && console.warn) {
+                console.warn("Failed to load menu reviews:", error);
+            }
+            return { summaries: menuItemReviewSummaries, comments: menuItemReviewComments };
+        }
+
+        const safeItems = Array.isArray(menuItems) ? menuItems : [];
+        safeItems.forEach(function summarize(item) {
+            const itemId = (item && (item.menuItemId || item.id)) || "";
+            if (!itemId) return;
+            menuItemReviewSummaries[itemId] = ratingsModel.summarizeMenuItemReviews(reviews, itemId);
+            menuItemReviewComments[itemId] = ratingsModel.collectMenuItemReviewComments(reviews, itemId, { limit: 25 });
+        });
+
+        return { summaries: menuItemReviewSummaries, comments: menuItemReviewComments, reviews };
+    }
+
+    function getMenuItemReviewSummary(menuItemId) {
+        return menuItemReviewSummaries[menuItemId] || null;
+    }
+
+    function getMenuItemReviewComments(menuItemId) {
+        return menuItemReviewComments[menuItemId] || [];
+    }
+
+    function resolveRecommendationModel(explicit) {
+        if (explicit && typeof explicit.recommendMenuItems === "function") {
+            return explicit;
+        }
+
+        if (globalScope.recommendationModel && typeof globalScope.recommendationModel.recommendMenuItems === "function") {
+            return globalScope.recommendationModel;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/recommendations/recommendation-model.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveRecommendationQueries(explicit) {
+        if (explicit && typeof explicit.loadRecommendationContext === "function") {
+            return explicit;
+        }
+
+        if (globalScope.recommendationQueries && typeof globalScope.recommendationQueries.loadRecommendationContext === "function") {
+            return globalScope.recommendationQueries;
+        }
+
+        if (typeof require === "function") {
+            try {
+                return require("../../shared/recommendations/recommendation-queries.js");
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function getStorageArea() {
         if (globalScope.__campusFoodTestLocalStorage) {
             return globalScope.__campusFoodTestLocalStorage;
@@ -73,6 +196,38 @@
 
     function normalizeLowerText(value) {
         return normalizeText(value).toLowerCase();
+    }
+
+    function normalizeTagList(value) {
+        const rawValues = Array.isArray(value)
+            ? value
+            : normalizeText(value)
+                ? normalizeText(value).split(",")
+                : [];
+
+        return rawValues
+            .map(function normalizeTag(tag) {
+                return normalizeLowerText(tag);
+            })
+            .filter(Boolean)
+            .filter(function uniqueTag(tag, index, list) {
+                return list.indexOf(tag) === index;
+            });
+    }
+
+    function parseStoredTagList(value) {
+        const normalized = normalizeText(value);
+
+        if (!normalized) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(normalized);
+            return normalizeTagList(parsed);
+        } catch (error) {
+            return normalizeTagList(normalized);
+        }
     }
 
     function normalizePrice(value) {
@@ -210,6 +365,95 @@
         return globalScope.location?.search || "";
     }
 
+    function normalizeItemLookupKey(value) {
+        return normalizeLowerText(value).replace(/[^a-z0-9]+/g, "");
+    }
+
+    function getMenuItemLookupKeys(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
+
+        return [
+            safeItem.menuItemId,
+            safeItem.id,
+            safeItem.itemId,
+            safeItem.productId,
+            safeItem.name
+        ]
+            .map(normalizeItemLookupKey)
+            .filter(Boolean)
+            .filter(function uniqueKey(key, index, list) {
+                return list.indexOf(key) === index;
+            });
+    }
+
+    function menuItemMatchesRecommendedId(item, recommendedItemId) {
+        const recommendedKey = normalizeItemLookupKey(recommendedItemId);
+
+        if (!recommendedKey) {
+            return false;
+        }
+
+        return getMenuItemLookupKeys(item).indexOf(recommendedKey) >= 0;
+    }
+
+    function applyRecommendedItemFocus(menuItems, recommendedItemId) {
+        const safeItems = Array.isArray(menuItems) ? menuItems : [];
+        const focusedItems = [];
+        const normalItems = [];
+
+        safeItems.forEach(function mapMenuItem(item) {
+            const safeItem = item && typeof item === "object" ? item : {};
+            const isCampusRecommended = menuItemMatchesRecommendedId(safeItem, recommendedItemId);
+            const nextItem = {
+                ...safeItem,
+                isCampusRecommended,
+                recommendationSource: isCampusRecommended ? "campus" : safeItem.recommendationSource || ""
+            };
+
+            if (isCampusRecommended) {
+                focusedItems.push(nextItem);
+            } else {
+                normalItems.push(nextItem);
+            }
+        });
+
+        return {
+            recommendedItemId: normalizeText(recommendedItemId),
+            found: focusedItems.length > 0,
+            focusedItems,
+            menuItems: focusedItems.concat(normalItems)
+        };
+    }
+
+    function renderCampusRecommendationNotice(element, focusResult, vendorName) {
+        if (!element) {
+            return;
+        }
+
+        const safeResult = focusResult && typeof focusResult === "object" ? focusResult : {};
+
+        if (!normalizeText(safeResult.recommendedItemId)) {
+            element.hidden = true;
+            element.textContent = "";
+            element.removeAttribute("data-state");
+            return;
+        }
+
+        element.hidden = false;
+        element.setAttribute("data-state", safeResult.found ? "success" : "info");
+
+        if (safeResult.found) {
+            const itemName = normalizeText(safeResult.focusedItems && safeResult.focusedItems[0] && safeResult.focusedItems[0].name) ||
+                "your recommended meal";
+            const safeVendorName = normalizeText(vendorName) ? ` from ${decodeText(vendorName)}` : "";
+
+            element.textContent = `You opened this menu from a campus-wide recommendation. ${itemName}${safeVendorName} is pinned below.`;
+            return;
+        }
+
+        element.textContent = "You opened this vendor from a campus-wide recommendation, but that item is not available on this menu right now.";
+    }
+
     function normalizeMenuItemData(data, fallbackItemId, vendorUid, vendorName) {
         const safeData = data && typeof data === "object" ? data : {};
         const itemId = normalizeText(fallbackItemId) || normalizeText(safeData.menuItemId || safeData.id);
@@ -237,12 +481,16 @@
             photoURL: normalizeText(safeData.photoURL || safeData.photoDataUrl || safeData.photoUrl),
             available: availableFlag,
             soldOut: safeData.soldOut === true,
-            allergens: Array.isArray(safeData.allergens)
-                ? safeData.allergens
-                : (Array.isArray(safeData.allergenTags) ? safeData.allergenTags : []),
-            dietary: Array.isArray(safeData.dietary)
-                ? safeData.dietary
-                : (Array.isArray(safeData.dietaryTags) ? safeData.dietaryTags : [])
+            allergens: normalizeTagList(
+                Array.isArray(safeData.allergens)
+                    ? safeData.allergens
+                    : (Array.isArray(safeData.allergenTags) ? safeData.allergenTags : [])
+            ),
+            dietary: normalizeTagList(
+                Array.isArray(safeData.dietary)
+                    ? safeData.dietary
+                    : (Array.isArray(safeData.dietaryTags) ? safeData.dietaryTags : [])
+            )
         };
     }
 
@@ -327,6 +575,8 @@
             cart[existingIndex].platformFee = pricing.platformFee;
             cart[existingIndex].customerPrice = pricing.customerPrice;
             cart[existingIndex].price = pricing.customerPrice;
+            cart[existingIndex].dietary = normalizeTagList(safeItem.dietary || safeItem.dietaryTags);
+            cart[existingIndex].allergens = normalizeTagList(safeItem.allergens || safeItem.allergenTags);
         } else {
             // Add new item
             cart.push({
@@ -342,6 +592,8 @@
                 customerPrice: pricing.customerPrice,
                 price: pricing.customerPrice,
                 quantity: safeQuantity,
+                dietary: normalizeTagList(safeItem.dietary || safeItem.dietaryTags),
+                allergens: normalizeTagList(safeItem.allergens || safeItem.allergenTags),
                 photoURL: normalizeText(safeItem.photoURL),
                 notes: ""
             });
@@ -554,11 +806,11 @@
         const detail = globalScope.document.createElement("p");
         detail.className = className;
 
-        const label = globalScope.document.createElement("span");
+        const label = globalScope.document.createElement("strong");
         label.className = "menu-item-label";
         label.textContent = labelText;
 
-        const value = globalScope.document.createElement("span");
+        const value = globalScope.document.createElement("output");
         value.className = "menu-item-value";
         value.textContent = valueText;
 
@@ -578,11 +830,17 @@
         const pricing = calculateMenuItemPricing(safeItem);
         const article = globalScope.document.createElement("article");
         article.className = safeItem.available ? "menu-item-card" : "menu-item-card unavailable";
+        if (safeItem.isCampusRecommended === true) {
+            article.classList.add("campus-recommended-menu-item-card");
+            article.setAttribute("aria-label", "Campus-wide recommended menu item");
+        }
         article.setAttribute("data-menu-item-id", safeItem.menuItemId || safeItem.id);
         article.setAttribute("data-vendor-price", pricing.vendorPrice.toFixed(2));
         article.setAttribute("data-platform-fee", pricing.platformFee.toFixed(2));
         article.setAttribute("data-platform-fee-rate", pricing.platformFeeRate.toString());
         article.setAttribute("data-customer-price", pricing.customerPrice.toFixed(2));
+        article.setAttribute("data-dietary", JSON.stringify(normalizeTagList(safeItem.dietary || safeItem.dietaryTags)));
+        article.setAttribute("data-allergens", JSON.stringify(normalizeTagList(safeItem.allergens || safeItem.allergenTags)));
 
         // Item image
         const figure = globalScope.document.createElement("figure");
@@ -606,16 +864,24 @@
 
         const category = globalScope.document.createElement("p");
         category.className = "menu-item-category";
-        const categoryLabel = globalScope.document.createElement("span");
+        const categoryLabel = globalScope.document.createElement("strong");
         categoryLabel.className = "menu-item-label";
         categoryLabel.textContent = "Category:";
-        const categoryValue = globalScope.document.createElement("span");
+        const categoryValue = globalScope.document.createElement("output");
         categoryValue.className = "menu-item-value";
         categoryValue.textContent = normalizeText(safeItem.category) || "Other";
         category.appendChild(categoryLabel);
         category.appendChild(categoryValue);
 
         section.appendChild(heading);
+
+        if (safeItem.isCampusRecommended === true) {
+            const campusBadge = globalScope.document.createElement("p");
+            campusBadge.className = "campus-recommendation-badge";
+            campusBadge.textContent = "Campus-wide recommendation";
+            section.appendChild(campusBadge);
+        }
+
         section.appendChild(category);
 
         if (normalizeText(safeItem.description)) {
@@ -647,18 +913,74 @@
             section.appendChild(allergens);
         }
 
+        // Rating summary + comments for this menu item
+        const menuItemId = safeItem.menuItemId || safeItem.id || "";
+        const reviewSummary = menuItemId ? getMenuItemReviewSummary(menuItemId) : null;
+        const reviewComments = menuItemId ? getMenuItemReviewComments(menuItemId) : [];
+
+        if (reviewSummary) {
+            const ratingP = globalScope.document.createElement("p");
+            ratingP.className = "menu-item-rating";
+            if (reviewSummary.count > 0) {
+                const stars = "★".repeat(Math.round(reviewSummary.average)) +
+                    "☆".repeat(Math.max(0, 5 - Math.round(reviewSummary.average)));
+                ratingP.innerHTML = `<output class="menu-item-rating-stars" aria-hidden="true">${stars}</output> <strong>${reviewSummary.average.toFixed(1)}</strong> / 5 <small>(${reviewSummary.count} review${reviewSummary.count === 1 ? "" : "s"})</small>`;
+                ratingP.setAttribute("aria-label", `Rated ${reviewSummary.average.toFixed(1)} out of 5 across ${reviewSummary.count} reviews`);
+            } else {
+                ratingP.className += " menu-item-rating-empty";
+                ratingP.textContent = "No reviews yet";
+            }
+            section.appendChild(ratingP);
+
+            if (reviewComments.length > 0) {
+                const details = globalScope.document.createElement("details");
+                details.className = "menu-item-reviews";
+
+                const summary = globalScope.document.createElement("summary");
+                summary.textContent = `Read ${reviewComments.length} review${reviewComments.length === 1 ? "" : "s"}`;
+                details.appendChild(summary);
+
+                const list = globalScope.document.createElement("ul");
+                list.className = "menu-item-reviews-list";
+
+                reviewComments.forEach(function appendComment(entry) {
+                    const li = globalScope.document.createElement("li");
+                    li.className = "menu-item-review-entry";
+                    const head = globalScope.document.createElement("p");
+                    head.className = "menu-item-review-head";
+                    const ratingValue = Number(entry.rating);
+                    const headStars = Number.isFinite(ratingValue) && ratingValue > 0
+                        ? "★".repeat(ratingValue) + "☆".repeat(Math.max(0, 5 - ratingValue))
+                        : "";
+                    head.innerHTML = `<strong>${entry.customerDisplayName}</strong> <output class="menu-item-review-stars" aria-hidden="true">${headStars}</output>`;
+                    li.appendChild(head);
+                    if (entry.comment) {
+                        const body = globalScope.document.createElement("p");
+                        body.className = "menu-item-review-body";
+                        body.textContent = `"${entry.comment}"`;
+                        li.appendChild(body);
+                    }
+                    list.appendChild(li);
+                });
+
+                details.appendChild(list);
+                section.appendChild(details);
+            }
+        }
+
         // Price and actions
         const footer = globalScope.document.createElement("footer");
         footer.className = "menu-item-footer";
 
         const price = globalScope.document.createElement("p");
         price.className = "menu-item-price";
-        const priceLabel = globalScope.document.createElement("span");
+        const priceLabel = globalScope.document.createElement("strong");
         priceLabel.className = "menu-item-label";
         priceLabel.textContent = "Price:";
         const priceStrong = globalScope.document.createElement("strong");
+        priceStrong.className = "menu-item-price-amount";
         priceStrong.textContent = `R${pricing.customerPrice.toFixed(2)}`;
-        const priceNote = globalScope.document.createElement("span");
+        const priceNote = globalScope.document.createElement("small");
         priceNote.className = "menu-item-price-note";
         priceNote.textContent = "Includes 10% platform fee";
         price.appendChild(priceLabel);
@@ -734,7 +1056,41 @@
 
         // Group by category
         const categorized = {};
-        menuItems.forEach((item) => {
+        const focusedItems = menuItems.filter(function isFocused(item) {
+            return item && item.isCampusRecommended === true;
+        });
+        const regularItems = menuItems.filter(function isRegular(item) {
+            return !item || item.isCampusRecommended !== true;
+        });
+
+        if (focusedItems.length > 0) {
+            const focusSection = globalScope.document.createElement("section");
+            focusSection.className = "campus-recommendation-focus";
+            focusSection.setAttribute("aria-labelledby", "campus-recommendation-focus-heading");
+
+            const focusHeading = globalScope.document.createElement("h3");
+            focusHeading.id = "campus-recommendation-focus-heading";
+            focusHeading.className = "category-heading";
+            focusHeading.textContent = "Your Campus Recommendation";
+
+            const focusIntro = globalScope.document.createElement("p");
+            focusIntro.className = "campus-recommendation-focus-note";
+            focusIntro.textContent = "This item matched your dashboard recommendation. You can add it here or browse the rest of this vendor's menu below.";
+
+            const focusGrid = globalScope.document.createElement("section");
+            focusGrid.className = "menu-items-grid";
+
+            focusedItems.forEach(function appendFocusedItem(item) {
+                focusGrid.appendChild(createMenuItemCard(item));
+            });
+
+            focusSection.appendChild(focusHeading);
+            focusSection.appendChild(focusIntro);
+            focusSection.appendChild(focusGrid);
+            container.appendChild(focusSection);
+        }
+
+        regularItems.forEach((item) => {
             const cat = item.category || "Other";
             if (!categorized[cat]) {
                 categorized[cat] = [];
@@ -763,6 +1119,199 @@
             categorySection.appendChild(itemsContainer);
             container.appendChild(categorySection);
         });
+    }
+
+    function getRecommendationConfidenceLabel(confidence) {
+        const parsed = Number(confidence);
+
+        if (!Number.isFinite(parsed)) {
+            return "Emerging";
+        }
+
+        if (parsed >= 0.75) {
+            return "High";
+        }
+
+        if (parsed >= 0.45) {
+            return "Medium";
+        }
+
+        return "Emerging";
+    }
+
+    function createRecommendationCard(recommendation) {
+        const safeRecommendation = recommendation && typeof recommendation === "object" ? recommendation : {};
+        const card = createMenuItemCard(safeRecommendation.item || safeRecommendation);
+        card.classList.add("recommended-menu-item-card");
+
+        const explanation = globalScope.document.createElement("section");
+        explanation.className = "recommendation-explanation";
+        explanation.setAttribute("aria-label", "Recommendation explanation");
+
+        const heading = globalScope.document.createElement("h4");
+        heading.textContent = `Recommendation #${safeRecommendation.rank || "?"}`;
+
+        const confidence = globalScope.document.createElement("p");
+        const confidenceLabel = globalScope.document.createElement("strong");
+        confidenceLabel.textContent = "Confidence:";
+        const confidenceValue = globalScope.document.createElement("output");
+        confidenceValue.className = "recommendation-confidence";
+        confidenceValue.textContent = getRecommendationConfidenceLabel(safeRecommendation.confidence);
+        confidence.appendChild(confidenceLabel);
+        confidence.appendChild(globalScope.document.createTextNode(" "));
+        confidence.appendChild(confidenceValue);
+
+        const reasons = Array.isArray(safeRecommendation.reasons)
+            ? safeRecommendation.reasons.slice(0, 3)
+            : [];
+        const reasonList = globalScope.document.createElement("ul");
+        reasonList.className = "recommendation-reasons";
+
+        if (reasons.length === 0) {
+            const reason = globalScope.document.createElement("li");
+            reason.textContent = "This item is currently a strong match for your profile.";
+            reasonList.appendChild(reason);
+        } else {
+            reasons.forEach(function renderReason(reasonText) {
+                const reason = globalScope.document.createElement("li");
+                reason.textContent = normalizeText(reasonText);
+                reasonList.appendChild(reason);
+            });
+        }
+
+        explanation.appendChild(heading);
+        explanation.appendChild(confidence);
+        explanation.appendChild(reasonList);
+
+        const footer = card.querySelector(".menu-item-footer");
+        if (footer) {
+            card.insertBefore(explanation, footer);
+        } else {
+            card.appendChild(explanation);
+        }
+
+        return card;
+    }
+
+    function renderRecommendations(recommendationResult, container, statusElement) {
+        if (!container) {
+            return;
+        }
+
+        const safeResult = recommendationResult && typeof recommendationResult === "object"
+            ? recommendationResult
+            : {};
+        const recommendations = Array.isArray(safeResult.recommendations)
+            ? safeResult.recommendations
+            : [];
+
+        container.innerHTML = "";
+
+        if (safeResult.status === "opted-out") {
+            const message = globalScope.document.createElement("p");
+            message.className = "empty-state-message";
+            message.textContent = "Personalized recommendations are disabled in your profile.";
+            container.appendChild(message);
+            setStatusMessage(statusElement, "Recommendation learning is disabled.", "info");
+            return;
+        }
+
+        if (recommendations.length === 0) {
+            const message = globalScope.document.createElement("p");
+            message.className = "empty-state-message";
+            message.textContent = "No safe personalized recommendations are available yet. Browse the full menu below.";
+            container.appendChild(message);
+            setStatusMessage(statusElement, "No recommendations available yet.", "info");
+            return;
+        }
+
+        const grid = globalScope.document.createElement("section");
+        grid.className = "recommendation-items-grid";
+
+        recommendations.forEach(function renderRecommendation(recommendation) {
+            grid.appendChild(createRecommendationCard(recommendation));
+        });
+
+        container.appendChild(grid);
+
+        const statusMessage = safeResult.status === "personalized"
+            ? `${recommendations.length} personalized recommendation${recommendations.length === 1 ? "" : "s"} ready.`
+            : `${recommendations.length} recommendation${recommendations.length === 1 ? "" : "s"} based on your saved preferences.`;
+        setStatusMessage(statusElement, statusMessage, "success");
+    }
+
+    async function loadMenuRecommendations(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const menuItems = Array.isArray(safeOptions.menuItems) ? safeOptions.menuItems : [];
+        const recommendationModel = resolveRecommendationModel(safeOptions.recommendationModel);
+        const recommendationQueries = resolveRecommendationQueries(safeOptions.recommendationQueries);
+
+        if (!recommendationModel || typeof recommendationModel.recommendMenuItems !== "function") {
+            return {
+                success: false,
+                recommendations: [],
+                error: {
+                    code: "recommendations/no-model",
+                    message: "Recommendation model is unavailable."
+                }
+            };
+        }
+
+        if (!recommendationQueries || typeof recommendationQueries.loadRecommendationContext !== "function") {
+            const recommendationResult = recommendationModel.recommendMenuItems(
+                menuItems,
+                [],
+                {},
+                safeOptions.modelOptions || {}
+            );
+
+            return {
+                success: true,
+                contextLoaded: false,
+                ...recommendationResult
+            };
+        }
+
+        const context = await recommendationQueries.loadRecommendationContext({
+            db: safeOptions.db,
+            auth: safeOptions.auth,
+            currentUser: safeOptions.currentUser,
+            firestoreFns: safeOptions.firestoreFns,
+            recommendationModel,
+            limitCount: safeOptions.historyLimit
+        });
+
+        if (!context.success) {
+            const fallbackResult = recommendationModel.recommendMenuItems(
+                menuItems,
+                [],
+                context.profile || {},
+                safeOptions.modelOptions || {}
+            );
+
+            return {
+                success: true,
+                contextLoaded: false,
+                contextError: context.error,
+                ...fallbackResult
+            };
+        }
+
+        const recommendationResult = recommendationModel.recommendMenuItems(
+            menuItems,
+            context.orders,
+            context.profile,
+            safeOptions.modelOptions || {}
+        );
+
+        return {
+            success: true,
+            contextLoaded: true,
+            profile: context.profile,
+            orders: context.orders,
+            orderCount: context.orderCount,
+            ...recommendationResult
+        };
     }
 
     /**
@@ -999,7 +1548,8 @@
 
         // Find the item data (we need to get it from the rendered card)
         const nameEl = card.querySelector(".menu-item-name");
-        const priceEl = card.querySelector(".menu-item-price strong");
+        const priceEl = card.querySelector(".menu-item-price-amount")
+            || card.querySelector(".menu-item-price strong");
         const categoryEl = card.querySelector(".menu-item-category .menu-item-value")
             || card.querySelector(".menu-item-category");
 
@@ -1016,6 +1566,8 @@
         const platformFee = card.getAttribute("data-platform-fee");
         const platformFeeRate = card.getAttribute("data-platform-fee-rate");
         const customerPrice = card.getAttribute("data-customer-price");
+        const dietary = parseStoredTagList(card.getAttribute("data-dietary"));
+        const allergens = parseStoredTagList(card.getAttribute("data-allergens"));
 
         // Get vendor info from URL params
         const urlParams = new URLSearchParams(globalScope.location.search);
@@ -1033,7 +1585,9 @@
             platformFeeRate,
             platformFee,
             customerPrice: customerPrice || price,
-            price: customerPrice || price
+            price: customerPrice || price,
+            dietary,
+            allergens
         };
 
         const result = addToCart(item, quantity);
@@ -1089,12 +1643,16 @@
         const cartBadgeSelector = options.cartBadgeSelector || "#cart-badge";
         const vendorNameSelector = options.vendorNameSelector || "#vendor-name-heading";
         const paginationSelector = options.paginationSelector || "#menu-pagination";
+        const recommendationContainerSelector = options.recommendationContainerSelector || "#recommendation-container";
+        const recommendationStatusSelector = options.recommendationStatusSelector || "#recommendation-status";
+        const campusRecommendationNoticeSelector = options.campusRecommendationNoticeSelector || "#campus-recommendation-notice";
         const pageSize = clampPageSize(options.pageSize);
 
         // Get vendor info from URL
         const urlParams = new URLSearchParams(getLocationSearch(options));
         const vendorUid = normalizeText(options.vendorUid || urlParams.get("vendorUid"));
         const vendorName = options.vendorName || urlParams.get("vendorName");
+        const recommendedItemId = normalizeText(options.recommendedItemId || urlParams.get("recommendedItemId"));
 
         if (!vendorUid) {
             console.error(`${MODULE_NAME}: No vendor UID provided`);
@@ -1106,6 +1664,9 @@
         const cartBadge = globalScope.document.querySelector(cartBadgeSelector);
         const vendorNameElement = globalScope.document.querySelector(vendorNameSelector);
         const paginationContainer = globalScope.document.querySelector(paginationSelector);
+        const recommendationContainer = globalScope.document.querySelector(recommendationContainerSelector);
+        const recommendationStatusElement = globalScope.document.querySelector(recommendationStatusSelector);
+        const campusRecommendationNotice = globalScope.document.querySelector(campusRecommendationNoticeSelector);
 
         if (!container) {
             console.error(`${MODULE_NAME}: Container not found: ${containerSelector}`);
@@ -1125,9 +1686,20 @@
         if (paginationContainer) {
             paginationContainer.innerHTML = "";
         }
+        if (recommendationContainer) {
+            recommendationContainer.innerHTML = "<p class=\"loading-message\">Preparing recommendations...</p>";
+        }
+        if (recommendationStatusElement) {
+            setStatusMessage(recommendationStatusElement, "Preparing recommendations...", "loading");
+        }
         if (statusElement) {
             setStatusMessage(statusElement, "Loading menu...", "loading");
         }
+        renderCampusRecommendationNotice(
+            campusRecommendationNotice,
+            { recommendedItemId, found: false, focusedItems: [] },
+            vendorName
+        );
 
         // Fetch menu
         const result = await fetchVendorMenu({
@@ -1149,17 +1721,69 @@
             if (paginationContainer) {
                 paginationContainer.innerHTML = "";
             }
+            renderRecommendations(
+                { recommendations: [], status: "empty" },
+                recommendationContainer,
+                recommendationStatusElement
+            );
             return { success: false, error: errorMessage };
         }
 
+        const focusResult = applyRecommendedItemFocus(result.menuItems, recommendedItemId);
+        renderCampusRecommendationNotice(campusRecommendationNotice, focusResult, vendorName);
+
+        // Fetch this vendor's reviews so each menu-item card can show its star
+        // average and let customers expand the review comments.
+        await loadMenuItemReviewSummaries(vendorUid, focusResult.menuItems, {
+            db: options.db,
+            firestoreFns: options.firestoreFns,
+            ratingsModel: options.ratingsModel,
+            ratingsService: options.ratingsService
+        });
+
         // Render the first page; pagination controls update state and re-render.
         const pageState = {
-            allItems: result.menuItems,
-            page: clampPageNumber(options.initialPage, getTotalPages(result.menuItems.length, pageSize)),
+            allItems: focusResult.menuItems,
+            page: clampPageNumber(options.initialPage, getTotalPages(focusResult.menuItems.length, pageSize)),
             pageSize
         };
 
         renderMenuPage(pageState, container, paginationContainer);
+
+        let recommendationResult = null;
+        if (recommendationContainer) {
+            try {
+                recommendationResult = await loadMenuRecommendations({
+                    menuItems: focusResult.menuItems,
+                    db: options.db,
+                    auth: options.auth,
+                    currentUser: options.currentUser,
+                    firestoreFns: options.firestoreFns,
+                    recommendationModel: options.recommendationModel,
+                    recommendationQueries: options.recommendationQueries,
+                    historyLimit: options.historyLimit,
+                    modelOptions: {
+                        maxRecommendations: options.maxRecommendations || 3
+                    }
+                });
+                renderRecommendations(
+                    recommendationResult,
+                    recommendationContainer,
+                    recommendationStatusElement
+                );
+            } catch (error) {
+                recommendationResult = {
+                    success: false,
+                    recommendations: [],
+                    error
+                };
+                renderRecommendations(
+                    { recommendations: [], status: "empty" },
+                    recommendationContainer,
+                    recommendationStatusElement
+                );
+            }
+        }
 
         if (statusElement) {
             const totalPages = getTotalPages(result.menuItems.length, pageSize);
@@ -1181,14 +1805,31 @@
                 );
             }
         });
+        setupEventListeners(recommendationContainer, (cartResult) => {
+            updateCartBadge(cartBadge);
+            if (recommendationStatusElement) {
+                setStatusMessage(
+                    recommendationStatusElement,
+                    `Recommended item added to cart! (${cartResult.cart.length} items)`,
+                    "success"
+                );
+            }
+        });
 
         return {
             success: true,
             menuItemCount: result.count,
-            menuItems: result.menuItems,
+            menuItems: focusResult.menuItems,
+            recommendedItemId,
+            recommendedItemFound: focusResult.found,
+            focusedRecommendationItems: focusResult.focusedItems,
             page: pageState.page,
             pageSize: pageState.pageSize,
-            totalPages: getTotalPages(result.menuItems.length, pageSize),
+            totalPages: getTotalPages(focusResult.menuItems.length, pageSize),
+            recommendations: recommendationResult && Array.isArray(recommendationResult.recommendations)
+                ? recommendationResult.recommendations
+                : [],
+            recommendationStatus: recommendationResult ? recommendationResult.status : "skipped",
             vendorUid,
             vendorName: decodeText(vendorName)
         };
@@ -1208,11 +1849,23 @@
     const customerBrowseMenu = {
         init,
         fetchVendorMenu,
+        resolveRecommendationModel,
+        resolveRecommendationQueries,
         calculateMenuItemPricing,
         normalizeMenuItemData,
         normalizeMenuItemRecord,
+        normalizeTagList,
+        parseStoredTagList,
         getLocationSearch,
+        normalizeItemLookupKey,
+        getMenuItemLookupKeys,
+        menuItemMatchesRecommendedId,
+        applyRecommendedItemFocus,
+        renderCampusRecommendationNotice,
         renderMenuItems,
+        createRecommendationCard,
+        renderRecommendations,
+        loadMenuRecommendations,
         createMenuItemCard,
         setStatusMessage,
         setLoadingState,

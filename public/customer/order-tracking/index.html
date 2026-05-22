@@ -132,6 +132,8 @@
     <script src="../../shared/checkout/checkout-status.js"></script>
     <script src="../../shared/checkout/checkout-model.js"></script>
     <script src="../../shared/checkout/checkout-queries.js"></script>
+    <script src="../../shared/ratings/ratings-model.js"></script>
+    <script src="../../shared/ratings/ratings-service.js"></script>
     <script src="./index.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";
@@ -139,6 +141,10 @@
         import {
             collection,
             getDocs,
+            getDoc,
+            doc,
+            setDoc,
+            serverTimestamp,
             query,
             where,
             orderBy,
@@ -153,6 +159,10 @@
         window.firestoreFns = {
             collection,
             getDocs,
+            getDoc,
+            doc,
+            setDoc,
+            serverTimestamp,
             query,
             where,
             orderBy,
@@ -171,7 +181,9 @@
                 paymentStatus: window.paymentStatus,
                 paymentFormatters: window.paymentFormatters,
                 checkoutStatus: window.checkoutStatus,
-                checkoutQueries: window.checkoutQueries
+                checkoutQueries: window.checkoutQueries,
+                ratingsModel: window.ratingsModel,
+                ratingsService: window.ratingsService
             });
         }
     </script>

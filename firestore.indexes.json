@@ -47,6 +47,8 @@
   //   },
   // ]
   "indexes": [
+    // Used by recommendation history:
+    // where("customerUid", "==", uid), orderBy("createdAt", "desc").
     {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
@@ -237,6 +239,16 @@
       "collectionGroup": "supportTickets",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "category", "mode": "ASCENDING" },
+        { "fieldPath": "refundCase.status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "vendorUid", "mode": "ASCENDING" },
         { "fieldPath": "updatedAt", "mode": "DESCENDING" },
         { "fieldPath": "createdAt", "mode": "DESCENDING" }
@@ -246,7 +258,27 @@
       "collectionGroup": "supportTickets",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "vendorUid", "mode": "ASCENDING" },
+        { "fieldPath": "refundCase.status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "customerUid", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerUid", "mode": "ASCENDING" },
+        { "fieldPath": "refundCase.status", "mode": "ASCENDING" },
         { "fieldPath": "updatedAt", "mode": "DESCENDING" },
         { "fieldPath": "createdAt", "mode": "DESCENDING" }
       ]

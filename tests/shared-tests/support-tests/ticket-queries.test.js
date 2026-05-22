@@ -299,6 +299,40 @@ describe("shared/support/ticket-queries.js", () => {
         expect(limitConstraint).toEqual({ kind: "limit", count: 25 });
     });
 
+    test("buildReporterTicketsQuery scopes results by reporterRole when provided", () => {
+        // Without this filter a user who is both a customer and a vendor would see the
+        // tickets they raised from the other portal under the same UID — see the regression
+        // tracked in the customer/vendor support inbox tests.
+        const firestoreFns = makeFirestoreFns();
+        const query = ticketQueries.buildReporterTicketsQuery({
+            db: { kind: "db" },
+            firestoreFns,
+            reporterUid: "user-1",
+            reporterRole: "customer"
+        });
+
+        const wheres = query.constraints.filter((c) => c.kind === "where");
+        expect(wheres).toEqual([
+            { kind: "where", field: "reporterUid", op: "==", value: "user-1" },
+            { kind: "where", field: "reporterRole", op: "==", value: "customer" }
+        ]);
+    });
+
+    test("buildReporterTicketsQuery ignores unknown reporterRole values", () => {
+        const firestoreFns = makeFirestoreFns();
+        const query = ticketQueries.buildReporterTicketsQuery({
+            db: { kind: "db" },
+            firestoreFns,
+            reporterUid: "user-1",
+            reporterRole: "ghost"
+        });
+
+        const wheres = query.constraints.filter((c) => c.kind === "where");
+        expect(wheres).toEqual([
+            { kind: "where", field: "reporterUid", op: "==", value: "user-1" }
+        ]);
+    });
+
     test("buildAdminTicketsQuery layers status, category, role, vendor, customer, and order filters", () => {
         const firestoreFns = makeFirestoreFns();
         const query = ticketQueries.buildAdminTicketsQuery({

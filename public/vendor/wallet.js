@@ -542,6 +542,63 @@
         });
     }
 
+    function sortPayoutsOldestFirst(payouts) {
+        return (Array.isArray(payouts) ? payouts.slice() : []).sort(function comparePayouts(left, right) {
+            const leftDate = getTimestampDate(left.requestedAt || left.createdAt || left.updatedAt);
+            const rightDate = getTimestampDate(right.requestedAt || right.createdAt || right.updatedAt);
+            const leftTime = leftDate ? leftDate.getTime() : Number.MAX_SAFE_INTEGER;
+            const rightTime = rightDate ? rightDate.getTime() : Number.MAX_SAFE_INTEGER;
+
+            return leftTime - rightTime;
+        });
+    }
+
+    function getNextWalletAction(summary, payouts, options = {}) {
+        const safeSummary = summary && typeof summary === "object"
+            ? summary
+            : calculateWalletSummary([], [], options);
+        const payoutList = Array.isArray(payouts) ? payouts : [];
+        const approvedPayout = sortPayoutsOldestFirst(payoutList).find(function findApproved(payout) {
+            return normalizeLowerText(payout && payout.status) === "approved";
+        });
+        const pendingPayout = sortPayoutsOldestFirst(payoutList).find(function findPending(payout) {
+            const status = normalizeLowerText(payout && payout.status) || "pending";
+            return status === "pending";
+        });
+        const activePayout = approvedPayout || pendingPayout;
+
+        if (activePayout) {
+            const status = normalizeLowerText(activePayout.status) || "pending";
+            const amount = formatCurrency(activePayout.amount);
+            const payoutId = normalizeText(activePayout.payoutId) || "this request";
+            const requestedAt = formatDateTime(activePayout.requestedAt || activePayout.createdAt);
+
+            if (status === "approved") {
+                return {
+                    label: "Next: payout processing",
+                    detail: `${payoutId} for ${amount} is approved and waiting to be marked paid.`
+                };
+            }
+
+            return {
+                label: "Next: admin review",
+                detail: `${payoutId} for ${amount} has been waiting since ${requestedAt}.`
+            };
+        }
+
+        if (normalizeCurrencyAmount(safeSummary.availableBalance) > 0) {
+            return {
+                label: "Next: request withdrawal",
+                detail: `${formatCurrency(safeSummary.availableBalance)} is available for a simulated payout request.`
+            };
+        }
+
+        return {
+            label: "Next: keep earning",
+            detail: "Completed paid orders will increase the available balance."
+        };
+    }
+
     function setText(element, value) {
         if (element) {
             element.textContent = value === undefined || value === null ? "" : String(value);
@@ -609,6 +666,8 @@
             totalEarnedElement: doc.getElementById("wallet-total-earned"),
             reservedWithdrawalsElement: doc.getElementById("wallet-reserved-withdrawals"),
             completedOrdersElement: doc.getElementById("wallet-completed-orders"),
+            nextActionElement: doc.getElementById("wallet-next-action"),
+            nextActionDetailElement: doc.getElementById("wallet-next-action-detail"),
             payoutHistorySummaryElement: doc.getElementById("payout-history-summary"),
             payoutHistoryListElement: doc.getElementById("payout-history-list"),
             inputs,
@@ -627,11 +686,14 @@
             ? summary
             : calculateWalletSummary([], [], options);
         const safeElements = elements && typeof elements === "object" ? elements : {};
+        const nextAction = getNextWalletAction(safeSummary, options.payouts, options);
 
         setText(safeElements.availableBalanceElement, formatCurrency(safeSummary.availableBalance));
         setText(safeElements.totalEarnedElement, formatCurrency(safeSummary.totalEarned));
         setText(safeElements.reservedWithdrawalsElement, formatCurrency(safeSummary.reservedWithdrawals));
         setText(safeElements.completedOrdersElement, String(safeSummary.completedOrders || 0));
+        setText(safeElements.nextActionElement, nextAction.label);
+        setText(safeElements.nextActionDetailElement, nextAction.detail);
     }
 
     function getPayoutStatusLabel(status, payoutModel) {
@@ -730,7 +792,10 @@
     }
 
     function renderWallet(summary, payouts, elements, options = {}) {
-        renderWalletSummary(summary, elements, options);
+        renderWalletSummary(summary, elements, {
+            ...options,
+            payouts
+        });
         renderPayoutHistory(payouts, elements, options);
     }
 
@@ -1138,6 +1203,8 @@
         getTimestampDate,
         formatDateTime,
         sortPayoutsNewestFirst,
+        sortPayoutsOldestFirst,
+        getNextWalletAction,
         setText,
         setStatusMessage,
         setFieldError,
