@@ -8,11 +8,16 @@ describe("functions/index.js", () => {
         expect(typeof functionsIndex.initializePayment).toBe("function");
         expect(typeof functionsIndex.verifyPayment).toBe("function");
         expect(typeof functionsIndex.refundPayment).toBe("function");
+        expect(typeof functionsIndex.executeSupportRefund).toBe("function");
         expect(typeof functionsIndex.convertCheckoutToOrder).toBe("function");
         expect(typeof functionsIndex.createInitializePaymentHandler).toBe("function");
         expect(typeof functionsIndex.createVerifyPaymentHandler).toBe("function");
         expect(typeof functionsIndex.createRefundPaymentHandler).toBe("function");
+        expect(typeof functionsIndex.createExecuteSupportRefundHandler).toBe("function");
         expect(typeof functionsIndex.createConvertCheckoutToOrderHandler).toBe("function");
+        expect(typeof functionsIndex.executeApprovedSupportRefund).toBe("function");
+        expect(typeof functionsIndex.isCallableAdmin).toBe("function");
+        expect(typeof functionsIndex.createAdminFirestoreFns).toBe("function");
         expect(typeof functionsIndex.buildOrderFromCheckoutSession).toBe("function");
         expect(typeof functionsIndex.calculateCheckoutItemPricing).toBe("function");
         expect(typeof functionsIndex.calculateCheckoutVendorSubtotal).toBe("function");
@@ -374,6 +379,360 @@ describe("functions/index.js", () => {
             refundStatus: "refunded",
             refundReference: "refund-ref"
         });
+    });
+
+    test("authorizes callable admins from custom claims, explicit authorizer, or user records", async () => {
+        await expect(functionsIndex.isCallableAdmin({
+            uid: "admin-1",
+            token: {
+                isAdmin: true
+            }
+        })).resolves.toBe(true);
+
+        const adminAuthorizer = jest.fn(() => true);
+        await expect(functionsIndex.isCallableAdmin({
+            uid: "admin-2",
+            token: {}
+        }, {
+            adminAuthorizer
+        })).resolves.toBe(true);
+        expect(adminAuthorizer).toHaveBeenCalledWith(
+            {
+                uid: "admin-2",
+                token: {}
+            },
+            expect.objectContaining({ adminAuthorizer })
+        );
+
+        await expect(functionsIndex.isCallableAdmin({
+            uid: "admin-3",
+            token: {}
+        }, {
+            userReader: jest.fn(async () => ({
+                isAdmin: true,
+                accountStatus: "active"
+            }))
+        })).resolves.toBe(true);
+
+        await expect(functionsIndex.isCallableAdmin({
+            uid: "customer-1",
+            token: {}
+        }, {
+            userReader: jest.fn(async () => ({
+                isAdmin: false,
+                accountStatus: "active"
+            }))
+        })).resolves.toBe(false);
+    });
+
+    test("creates execute support refund handler with admin gate and injected executor", async () => {
+        const executeApprovedSupportRefund = jest.fn(async () => ({
+            success: true,
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            refund: {
+                refundReference: "refund-ref-1"
+            }
+        }));
+        const handler = functionsIndex.createExecuteSupportRefundHandler({
+            adminAuthorizer: jest.fn(() => true),
+            executeApprovedSupportRefund
+        });
+
+        await expect(
+            handler({
+                data: {
+                    ticketId: "ticket-1",
+                    orderId: "order-1",
+                    options: {
+                        timestampValue: "server-time"
+                    }
+                },
+                auth: {
+                    uid: "admin-1",
+                    token: {
+                        email: "admin@example.com"
+                    }
+                }
+            })
+        ).resolves.toEqual({
+            success: true,
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            refund: {
+                refundReference: "refund-ref-1"
+            }
+        });
+
+        expect(executeApprovedSupportRefund).toHaveBeenCalledWith(
+            expect.objectContaining({
+                ticketId: "ticket-1",
+                orderId: "order-1",
+                actorUid: "admin-1",
+                actorName: "admin@example.com",
+                timestampValue: "server-time"
+            }),
+            expect.objectContaining({
+                executeApprovedSupportRefund
+            })
+        );
+    });
+
+    test("execute support refund handler rejects signed-out and non-admin callers", async () => {
+        const signedOutHandler = functionsIndex.createExecuteSupportRefundHandler();
+
+        await expect(signedOutHandler({
+            data: {
+                ticketId: "ticket-1"
+            }
+        })).rejects.toMatchObject({
+            name: "HttpsError",
+            code: "unauthenticated"
+        });
+
+        const nonAdminHandler = functionsIndex.createExecuteSupportRefundHandler({
+            adminAuthorizer: jest.fn(() => false)
+        });
+
+        await expect(nonAdminHandler({
+            data: {
+                ticketId: "ticket-1"
+            },
+            auth: {
+                uid: "customer-1",
+                token: {}
+            }
+        })).rejects.toMatchObject({
+            name: "HttpsError",
+            code: "permission-denied"
+        });
+    });
+
+    test("executes an approved support refund server-side and patches order plus ticket", async () => {
+        const approvedRefundCase = {
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            status: "approved",
+            statusLabel: "Approved",
+            type: "partial",
+            amount: 55,
+            amountInMinorUnits: 5500,
+            currency: "ZAR",
+            reason: "Food quality issue",
+            customerDecision: "approved",
+            vendorDecision: "approved",
+            impact: {
+                vendorDeduction: 50,
+                platformDeduction: 5
+            }
+        };
+        const ticket = {
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            refundCase: approvedRefundCase
+        };
+        const order = {
+            orderId: "order-1",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            paymentStatus: "paid",
+            paymentReference: "paystack-ref-1",
+            paymentAmount: 110,
+            paymentAmountInMinorUnits: 11000,
+            paymentCurrency: "ZAR"
+        };
+        const processingTicket = {
+            ...ticket,
+            refundCase: {
+                ...approvedRefundCase,
+                status: "processing"
+            }
+        };
+        const completedTicket = {
+            ...ticket,
+            refundCase: {
+                ...approvedRefundCase,
+                status: "refunded",
+                refundReference: "refund-ref-1"
+            }
+        };
+        const ticketService = {
+            markRefundProcessing: jest.fn(async () => ({
+                success: true,
+                ticket: processingTicket,
+                refundCase: processingTicket.refundCase
+            })),
+            markRefundCompleted: jest.fn(async () => ({
+                success: true,
+                ticket: completedTicket,
+                refundCase: completedTicket.refundCase
+            })),
+            markRefundFailed: jest.fn()
+        };
+        const refundPayment = jest.fn(async () => ({
+            success: true,
+            provider: "paystack",
+            refund: {
+                refundId: "refund-1",
+                refundReference: "refund-ref-1",
+                paymentReference: "paystack-ref-1",
+                amount: 55,
+                amountInMinorUnits: 5500
+            },
+            patch: {
+                refundStatus: "refunded",
+                refundReference: "refund-ref-1",
+                refundAmount: 55,
+                refundAmountInMinorUnits: 5500
+            }
+        }));
+        const orderPaymentPatchWriter = jest.fn(async (orderId, patch) => ({
+            success: true,
+            orderId,
+            patch
+        }));
+
+        await expect(functionsIndex.executeApprovedSupportRefund({
+            ticketId: "ticket-1",
+            actorUid: "admin-1",
+            actorName: "Admin",
+            timestampValue: "server-time"
+        }, {
+            supportTicketReader: jest.fn(async () => ticket),
+            orderReader: jest.fn(async () => order),
+            ticketService,
+            refundPayment,
+            orderPaymentPatchWriter
+        })).resolves.toEqual(expect.objectContaining({
+            success: true,
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            refund: expect.objectContaining({
+                refundReference: "refund-ref-1"
+            }),
+            orderPatchResult: expect.objectContaining({
+                success: true,
+                orderId: "order-1"
+            })
+        }));
+
+        expect(ticketService.markRefundProcessing).toHaveBeenCalledWith(expect.objectContaining({
+            ticket,
+            order,
+            actorUid: "admin-1",
+            actorRole: "admin",
+            now: "server-time"
+        }));
+        expect(refundPayment).toHaveBeenCalledWith(
+            order,
+            expect.objectContaining({
+                paymentReference: "paystack-ref-1",
+                refundAmount: 55,
+                refundAmountInMinorUnits: 5500,
+                reason: "Food quality issue",
+                actorUid: "admin-1"
+            })
+        );
+        expect(orderPaymentPatchWriter).toHaveBeenCalledWith("order-1", expect.objectContaining({
+            refundStatus: "refunded",
+            refundReference: "refund-ref-1",
+            supportRefundTicketId: "ticket-1",
+            supportRefundCaseStatus: "refunded",
+            supportRefundVendorDeduction: 50,
+            supportRefundPlatformDeduction: 5
+        }));
+        expect(ticketService.markRefundCompleted).toHaveBeenCalledWith(expect.objectContaining({
+            ticket: processingTicket,
+            order,
+            execution: expect.objectContaining({
+                status: "refunded",
+                refundReference: "refund-ref-1"
+            })
+        }));
+        expect(ticketService.markRefundFailed).not.toHaveBeenCalled();
+    });
+
+    test("marks the support refund failed when the provider rejects it", async () => {
+        const ticket = {
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            refundCase: {
+                status: "approved",
+                amount: 55,
+                amountInMinorUnits: 5500,
+                reason: "Food quality issue",
+                customerDecision: "approved",
+                vendorDecision: "approved"
+            }
+        };
+        const order = {
+            orderId: "order-1",
+            paymentStatus: "paid",
+            paymentReference: "paystack-ref-1",
+            paymentAmount: 110
+        };
+        const processingTicket = {
+            ...ticket,
+            refundCase: {
+                ...ticket.refundCase,
+                status: "processing"
+            }
+        };
+        const ticketService = {
+            markRefundProcessing: jest.fn(async () => ({
+                success: true,
+                ticket: processingTicket,
+                refundCase: processingTicket.refundCase
+            })),
+            markRefundCompleted: jest.fn(),
+            markRefundFailed: jest.fn(async () => ({
+                success: true,
+                ticket: {
+                    ...processingTicket,
+                    refundCase: {
+                        ...processingTicket.refundCase,
+                        status: "failed"
+                    }
+                }
+            }))
+        };
+
+        await expect(functionsIndex.executeApprovedSupportRefund({
+            ticketId: "ticket-1",
+            actorUid: "admin-1"
+        }, {
+            supportTicketReader: jest.fn(async () => ticket),
+            orderReader: jest.fn(async () => order),
+            ticketService,
+            refundPayment: jest.fn(async () => ({
+                success: false,
+                error: {
+                    message: "Paystack timeout"
+                }
+            }))
+        })).resolves.toEqual(expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({
+                code: "support-refunds/provider-failed",
+                message: "Paystack timeout"
+            })
+        }));
+
+        expect(ticketService.markRefundFailed).toHaveBeenCalledWith(expect.objectContaining({
+            ticket: processingTicket,
+            refundFailureReason: "Paystack timeout",
+            execution: expect.objectContaining({
+                status: "failed",
+                refundFailureReason: "Paystack timeout"
+            })
+        }));
+        expect(ticketService.markRefundCompleted).not.toHaveBeenCalled();
     });
 
     test("builds a paid order from a checkout session and a conversion patch", () => {
@@ -1035,6 +1394,10 @@ describe("functions/index.js", () => {
             success: true,
             marker: "refunded"
         }));
+        const executeApprovedSupportRefund = jest.fn(async () => ({
+            success: true,
+            marker: "support-refunded"
+        }));
         const convertCheckoutToOrder = jest.fn(async () => ({
             success: true,
             marker: "converted"
@@ -1048,11 +1411,13 @@ describe("functions/index.js", () => {
                 initializePayment,
                 verifyPayment,
                 refundPayment,
+                executeApprovedSupportRefund,
+                adminAuthorizer: jest.fn(() => true),
                 convertCheckoutToOrder
             }
         });
 
-        expect(onCall).toHaveBeenCalledTimes(4);
+        expect(onCall).toHaveBeenCalledTimes(5);
         expect(paymentFunctions.initializePayment.options).toEqual({
             region: "europe-west1",
             cors: false,
@@ -1064,6 +1429,11 @@ describe("functions/index.js", () => {
             invoker: "public"
         });
         expect(paymentFunctions.refundPayment.options).toEqual({
+            region: "europe-west1",
+            cors: false,
+            invoker: "public"
+        });
+        expect(paymentFunctions.executeSupportRefund.options).toEqual({
             region: "europe-west1",
             cors: false,
             invoker: "public"
@@ -1107,6 +1477,20 @@ describe("functions/index.js", () => {
         ).resolves.toEqual({
             success: true,
             marker: "refunded"
+        });
+        await expect(
+            paymentFunctions.executeSupportRefund.handler({
+                data: {
+                    ticketId: "ticket-1"
+                },
+                auth: {
+                    uid: "admin-1",
+                    token: {}
+                }
+            })
+        ).resolves.toEqual({
+            success: true,
+            marker: "support-refunded"
         });
         await expect(
             paymentFunctions.convertCheckoutToOrder.handler({
