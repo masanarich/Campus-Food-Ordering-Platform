@@ -16,7 +16,7 @@
         "firebase-debug.*.log"
       ],
       "predeploy": [
-        "node \"$RESOURCE_DIR/scripts/sync-shared.js\""
+        "node \"$RESOURCE_DIR/scripts/sync-shared-support.js\""
       ]
     }
   ],
