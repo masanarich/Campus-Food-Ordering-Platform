@@ -5,6 +5,7 @@
     const DEFAULT_PAGE_SIZE = 10;
     const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
     const SORT_OPTIONS = [
+        { value: "open", label: "Open now first" },
         { value: "name", label: "Name (A-Z)" },
         { value: "name-desc", label: "Name (Z-A)" },
         { value: "rating", label: "Highest rated" },
@@ -127,10 +128,21 @@
         return numB - numA;
     }
 
+    function isVendorOpen(vendor) {
+        return vendor && vendor.acceptingOrders !== false;
+    }
+
     function sortVendors(vendors, sortBy = "name") {
         const safeVendors = Array.isArray(vendors) ? vendors.slice() : [];
 
         switch (sortBy) {
+            case "open":
+                return safeVendors.sort(function compareOpen(a, b) {
+                    const aOpen = isVendorOpen(a) ? 0 : 1;
+                    const bOpen = isVendorOpen(b) ? 0 : 1;
+                    if (aOpen !== bOpen) return aOpen - bOpen;
+                    return getNameKey(a) < getNameKey(b) ? -1 : 1;
+                });
             case "name-desc":
                 return safeVendors.sort(function compareDesc(a, b) {
                     const aName = getNameKey(a);
@@ -259,6 +271,9 @@
             vendor && vendor.displayName,
             vendor && vendor.foodType,
             vendor && vendor.location,
+            vendor && vendor.stallLocation,
+            vendor && vendor.campus,
+            vendor && vendor.institution,
             vendor && vendor.university,
             vendor && vendor.description
         ].map(normalizeLowerText).join(" ");
@@ -270,6 +285,8 @@
         const safeVendors = Array.isArray(vendors) ? vendors : [];
         const needle = normalizeLowerText(filters.searchQuery);
         const foodFilter = normalizeLowerText(filters.foodTypeFilter);
+        const institutionFilter = normalizeLowerText(filters.institutionFilter);
+        const campusFilter = normalizeLowerText(filters.campusFilter);
         const acceptingOnly = filters.acceptingOnly === true;
 
         return safeVendors.filter(function keep(vendor) {
@@ -287,22 +304,32 @@
                 }
             }
 
+            if (institutionFilter && institutionFilter !== "all") {
+                if (normalizeLowerText(vendor.institution) !== institutionFilter) {
+                    return false;
+                }
+            }
+
+            if (campusFilter && campusFilter !== "all") {
+                if (normalizeLowerText(vendor.campus) !== campusFilter) {
+                    return false;
+                }
+            }
+
             return vendorMatchesSearch(vendor, needle);
         });
     }
 
-    function getFoodTypeOptions(vendors) {
+    function collectUniqueValues(vendors, getter) {
         const safeVendors = Array.isArray(vendors) ? vendors : [];
         const seen = new Map();
 
         safeVendors.forEach(function collectOne(vendor) {
-            const raw = normalizeText(vendor && vendor.foodType);
+            const raw = normalizeText(getter(vendor));
             const key = raw.toLowerCase();
-
             if (!key) {
                 return;
             }
-
             if (!seen.has(key)) {
                 seen.set(key, raw);
             }
@@ -311,6 +338,27 @@
         return Array.from(seen.values()).sort(function compareLabels(a, b) {
             return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
         });
+    }
+
+    function getFoodTypeOptions(vendors) {
+        return collectUniqueValues(vendors, function (v) { return v && v.foodType; });
+    }
+
+    function getInstitutionOptions(vendors) {
+        return collectUniqueValues(vendors, function (v) { return v && v.institution; });
+    }
+
+    function getCampusOptions(vendors, institutionName) {
+        const safeVendors = Array.isArray(vendors) ? vendors : [];
+        const institutionNeedle = normalizeLowerText(institutionName);
+
+        const filtered = !institutionNeedle || institutionNeedle === "all"
+            ? safeVendors
+            : safeVendors.filter(function matchInst(v) {
+                return normalizeLowerText(v && v.institution) === institutionNeedle;
+            });
+
+        return collectUniqueValues(filtered, function (v) { return v && v.campus; });
     }
 
     function clampPageNumber(page, totalPages) {
@@ -757,33 +805,45 @@
         container.removeAttribute("data-loading");
     }
 
-    function renderFoodTypeOptions(selectElement, foodTypes, selectedValue) {
+    function renderTextOptions(selectElement, options, selectedValue, allLabel) {
         if (!selectElement) {
             return;
         }
 
-        const safeTypes = Array.isArray(foodTypes) ? foodTypes : [];
+        const safeOptions = Array.isArray(options) ? options : [];
         const selected = normalizeLowerText(selectedValue) || "all";
 
         selectElement.innerHTML = "";
 
         const allOption = globalScope.document.createElement("option");
         allOption.value = "all";
-        allOption.textContent = "All food types";
+        allOption.textContent = allLabel || "All";
         if (selected === "all") {
             allOption.selected = true;
         }
         selectElement.appendChild(allOption);
 
-        safeTypes.forEach(function appendOne(foodType) {
+        safeOptions.forEach(function appendOne(label) {
             const option = globalScope.document.createElement("option");
-            option.value = foodType.toLowerCase();
-            option.textContent = foodType;
+            option.value = label.toLowerCase();
+            option.textContent = label;
             if (option.value === selected) {
                 option.selected = true;
             }
             selectElement.appendChild(option);
         });
+    }
+
+    function renderFoodTypeOptions(selectElement, foodTypes, selectedValue) {
+        renderTextOptions(selectElement, foodTypes, selectedValue, "All food types");
+    }
+
+    function renderInstitutionFilterOptions(selectElement, institutions, selectedValue) {
+        renderTextOptions(selectElement, institutions, selectedValue, "All schools");
+    }
+
+    function renderCampusFilterOptions(selectElement, campuses, selectedValue) {
+        renderTextOptions(selectElement, campuses, selectedValue, "All campuses");
     }
 
     function renderSortOptions(selectElement, selectedValue) {
@@ -994,14 +1054,42 @@
             itemsPerPage: DEFAULT_PAGE_SIZE,
             searchQuery: "",
             foodTypeFilter: "all",
-            sortBy: "name",
+            institutionFilter: "all",
+            campusFilter: "all",
+            sortBy: typeof callbacks.defaultSort === "string" ? callbacks.defaultSort : "open",
             acceptingOnly: false
         };
+
+        function refreshDerivedDropdowns() {
+            renderFoodTypeOptions(
+                elements.foodTypeFilter,
+                getFoodTypeOptions(state.allVendors),
+                state.foodTypeFilter
+            );
+            renderInstitutionFilterOptions(
+                elements.institutionFilter,
+                getInstitutionOptions(state.allVendors),
+                state.institutionFilter
+            );
+
+            // Campus list cascades from the selected institution; when "all"
+            // schools are selected we show every campus across every shop.
+            renderCampusFilterOptions(
+                elements.campusFilter,
+                getCampusOptions(state.allVendors, state.institutionFilter),
+                state.campusFilter
+            );
+
+            renderSortOptions(elements.sortControl, state.sortBy);
+            renderPageSizeOptions(elements.pageSizeControl, state.itemsPerPage);
+        }
 
         function applyAndRender() {
             const filtered = filterVendors(state.allVendors, {
                 searchQuery: state.searchQuery,
                 foodTypeFilter: state.foodTypeFilter,
+                institutionFilter: state.institutionFilter,
+                campusFilter: state.campusFilter,
                 acceptingOnly: state.acceptingOnly
             });
 
@@ -1018,7 +1106,7 @@
                     elements.container,
                     state.allVendors.length === 0
                         ? "No approved vendors are available right now."
-                        : "No vendors match your filters. Try adjusting the search or food type."
+                        : "No vendors match your filters. Try changing the search, school, or food type."
                 );
             } else {
                 renderVendors(pageInfo.items, elements.container);
@@ -1045,9 +1133,7 @@
 
         function setVendors(vendors) {
             state.allVendors = Array.isArray(vendors) ? vendors : [];
-            renderFoodTypeOptions(elements.foodTypeFilter, getFoodTypeOptions(state.allVendors), state.foodTypeFilter);
-            renderSortOptions(elements.sortControl, state.sortBy);
-            renderPageSizeOptions(elements.pageSizeControl, state.itemsPerPage);
+            refreshDerivedDropdowns();
             state.currentPage = 1;
             return applyAndRender();
         }
@@ -1060,6 +1146,25 @@
 
         function setFoodTypeFilter(value) {
             state.foodTypeFilter = normalizeLowerText(value) || "all";
+            state.currentPage = 1;
+            applyAndRender();
+        }
+
+        function setInstitutionFilter(value) {
+            state.institutionFilter = normalizeLowerText(value) || "all";
+            // Switching school invalidates the campus selection.
+            state.campusFilter = "all";
+            renderCampusFilterOptions(
+                elements.campusFilter,
+                getCampusOptions(state.allVendors, state.institutionFilter),
+                state.campusFilter
+            );
+            state.currentPage = 1;
+            applyAndRender();
+        }
+
+        function setCampusFilter(value) {
+            state.campusFilter = normalizeLowerText(value) || "all";
             state.currentPage = 1;
             applyAndRender();
         }
@@ -1087,15 +1192,34 @@
             applyAndRender();
         }
 
+        function refreshOpenState(nowDate) {
+            // Re-evaluate each vendor's open/closed state with the current
+            // clock — used by the periodic timer and on user-triggered refresh.
+            const safeNow = nowDate instanceof Date ? nowDate : new Date();
+            state.allVendors = state.allVendors.map(function refreshOne(vendor) {
+                if (!vendor) return vendor;
+                const openState = computeVendorOpenState(vendor, safeNow);
+                return Object.assign({}, vendor, {
+                    openState,
+                    acceptingOrders: openState.isOpen === true
+                });
+            });
+            applyAndRender();
+        }
+
         return {
             state,
             setVendors,
             setSearchQuery,
             setFoodTypeFilter,
+            setInstitutionFilter,
+            setCampusFilter,
             setSortBy,
             setPageSize,
             setAcceptingOnly,
             goToPage,
+            refreshOpenState,
+            refreshDerivedDropdowns,
             applyAndRender
         };
     }
@@ -1110,6 +1234,18 @@
         if (elements.foodTypeFilter) {
             elements.foodTypeFilter.addEventListener("change", function onFoodType(event) {
                 controller.setFoodTypeFilter(event.target.value || "all");
+            });
+        }
+
+        if (elements.institutionFilter) {
+            elements.institutionFilter.addEventListener("change", function onInstitution(event) {
+                controller.setInstitutionFilter(event.target.value || "all");
+            });
+        }
+
+        if (elements.campusFilter) {
+            elements.campusFilter.addEventListener("change", function onCampus(event) {
+                controller.setCampusFilter(event.target.value || "all");
             });
         }
 
@@ -1143,8 +1279,14 @@
                 if (elements.foodTypeFilter) {
                     elements.foodTypeFilter.value = "all";
                 }
+                if (elements.institutionFilter) {
+                    elements.institutionFilter.value = "all";
+                }
+                if (elements.campusFilter) {
+                    elements.campusFilter.value = "all";
+                }
                 if (elements.sortControl) {
-                    elements.sortControl.value = "name";
+                    elements.sortControl.value = controller.state.sortBy || "open";
                 }
                 if (elements.acceptingOnlyToggle) {
                     elements.acceptingOnlyToggle.checked = false;
@@ -1152,12 +1294,34 @@
 
                 controller.state.searchQuery = "";
                 controller.state.foodTypeFilter = "all";
-                controller.state.sortBy = "name";
+                controller.state.institutionFilter = "all";
+                controller.state.campusFilter = "all";
+                controller.state.sortBy = "open";
                 controller.state.acceptingOnly = false;
                 controller.state.currentPage = 1;
+                controller.refreshDerivedDropdowns();
                 controller.applyAndRender();
             });
         }
+    }
+
+    function startOpenStateTicker(controller, options = {}) {
+        const intervalMs = Number.isFinite(options.intervalMs) ? options.intervalMs : 60 * 1000;
+        const root = options.scope || globalScope;
+
+        if (!root || typeof root.setInterval !== "function") {
+            return function noopStop() { return undefined; };
+        }
+
+        const timerId = root.setInterval(function tick() {
+            controller.refreshOpenState();
+        }, intervalMs);
+
+        return function stop() {
+            if (typeof root.clearInterval === "function") {
+                root.clearInterval(timerId);
+            }
+        };
     }
 
     async function init(options = {}) {
@@ -1176,6 +1340,8 @@
         const backButtonHostSelector = options.backButtonHostSelector || "#browse-vendors-back-button-host";
         const searchSelector = options.searchSelector || "#vendor-search";
         const foodTypeSelector = options.foodTypeSelector || "#vendor-food-type-filter";
+        const institutionSelector = options.institutionSelector || "#vendor-institution-filter";
+        const campusSelector = options.campusSelector || "#vendor-campus-filter";
         const sortSelector = options.sortSelector || "#vendor-sort";
         const pageSizeSelector = options.pageSizeSelector || "#vendor-page-size";
         const acceptingOnlySelector = options.acceptingOnlySelector || "#vendor-accepting-only";
@@ -1202,6 +1368,8 @@
             backButtonHost,
             searchInput: globalScope.document.querySelector(searchSelector),
             foodTypeFilter: globalScope.document.querySelector(foodTypeSelector),
+            institutionFilter: globalScope.document.querySelector(institutionSelector),
+            campusFilter: globalScope.document.querySelector(campusSelector),
             sortControl: globalScope.document.querySelector(sortSelector),
             pageSizeControl: globalScope.document.querySelector(pageSizeSelector),
             acceptingOnlyToggle: globalScope.document.querySelector(acceptingOnlySelector),
@@ -1297,6 +1465,15 @@
         controller.setVendors(result.vendors);
         attachControlListeners(controller, elements);
 
+        // Auto-refresh the open/closed state every minute so customers
+        // see vendors flip to "Closed" the moment the clock crosses their
+        // closing time, without having to reload the page.
+        const stopTicker = options.disableAutoRefresh === true
+            ? function noop() { return undefined; }
+            : startOpenStateTicker(controller, {
+                intervalMs: Number.isFinite(options.refreshIntervalMs) ? options.refreshIntervalMs : 60 * 1000
+            });
+
         if (result.count === 0) {
             setStatusMessage(statusElement, "No approved vendors are available right now.", "info");
         } else if (result.count === 1) {
@@ -1310,6 +1487,7 @@
             refreshButton,
             backButtonHost,
             onRefresh: function onRefreshClick() {
+                stopTicker();
                 return init(options);
             }
         });
@@ -1318,7 +1496,8 @@
             success: true,
             vendorCount: result.count,
             vendors: result.vendors,
-            controller
+            controller,
+            stopTicker
         };
         })();
 
@@ -1342,10 +1521,14 @@
         resolveFirestoreFns,
         resolveShopSchedule,
         computeVendorOpenState,
+        isVendorOpen,
         getFallbackRoutes,
         sortVendors,
         filterVendors,
         getFoodTypeOptions,
+        getInstitutionOptions,
+        getCampusOptions,
+        collectUniqueValues,
         vendorMatchesSearch,
         clampPageNumber,
         clampPageSize,
@@ -1359,7 +1542,10 @@
         createVendorCard,
         renderEmptyState,
         renderVendors,
+        renderTextOptions,
         renderFoodTypeOptions,
+        renderInstitutionFilterOptions,
+        renderCampusFilterOptions,
         renderSortOptions,
         renderPageSizeOptions,
         renderResultsMeta,
@@ -1371,6 +1557,7 @@
         setupEventListeners,
         createBrowseVendorsController,
         attachControlListeners,
+        startOpenStateTicker,
         init
     };
 

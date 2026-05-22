@@ -32,7 +32,8 @@
 
             <p>
                 Discover approved campus vendors, see what they sell, where to find them on campus,
-                and open a menu to start ordering.
+                and open a menu to start ordering. Live open/closed status is based on each vendor's
+                opening hours.
             </p>
 
             <p id="browse-vendors-status" aria-live="polite" aria-atomic="true"></p>
@@ -50,8 +51,8 @@
             <header class="vendors-filter-head">
                 <h3 id="vendor-filters-heading">Find a vendor</h3>
                 <p>
-                    Search by name, food type, or location. Filter by food category and choose how
-                    to sort the list.
+                    Search by name, food type, school, or location. Use the filters to narrow down
+                    the list — pick a school first to see only campuses on that school.
                 </p>
             </header>
 
@@ -59,7 +60,21 @@
                 <label class="vendor-filter-field vendor-filter-field-wide" for="vendor-search">
                     <strong>Search vendors</strong>
                     <input id="vendor-search" name="vendorSearch" type="search"
-                        placeholder="Search by shop name, food type, location, university...">
+                        placeholder="Search by shop name, food type, school, location...">
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-institution-filter">
+                    <strong>School</strong>
+                    <select id="vendor-institution-filter" name="institutionFilter">
+                        <option value="all">All schools</option>
+                    </select>
+                </label>
+
+                <label class="vendor-filter-field" for="vendor-campus-filter">
+                    <strong>Campus</strong>
+                    <select id="vendor-campus-filter" name="campusFilter">
+                        <option value="all">All campuses</option>
+                    </select>
                 </label>
 
                 <label class="vendor-filter-field" for="vendor-food-type-filter">
@@ -72,6 +87,7 @@
                 <label class="vendor-filter-field" for="vendor-sort">
                     <strong>Sort by</strong>
                     <select id="vendor-sort" name="vendorSort">
+                        <option value="open" selected>Open now first</option>
                         <option value="name">Name (A-Z)</option>
                         <option value="name-desc">Name (Z-A)</option>
                         <option value="rating">Highest rated</option>
@@ -92,7 +108,7 @@
 
                 <label class="vendor-filter-field vendor-filter-toggle" for="vendor-accepting-only">
                     <input id="vendor-accepting-only" name="acceptingOnly" type="checkbox">
-                    <strong>Show only vendors accepting orders</strong>
+                    <strong>Show only vendors that are open right now</strong>
                 </label>
 
                 <menu class="action-menu vendor-filter-actions" aria-label="Filter actions">
@@ -109,6 +125,7 @@
                 <h3 id="available-vendors-heading">Available Vendors</h3>
                 <p>
                     Tap <strong>View Menu</strong> on any vendor to see what they have today.
+                    Closed shops are visible for browsing but can't accept orders right now.
                 </p>
             </header>
 
@@ -139,6 +156,8 @@
         <p>Campus Food Ordering Platform &copy; 2026</p>
     </footer>
 
+    <script src="../../shared/shop-schedule/shop-schedule.js"></script>
+    <script src="../../shared/institutions/south-african-institutions.js"></script>
     <script src="./browse-vendors.js"></script>
     <script type="module">
         import { db, auth } from "../../authentication/config.js";

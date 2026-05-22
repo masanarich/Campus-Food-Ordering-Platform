@@ -90,6 +90,33 @@ function createCartItems() {
     ];
 }
 
+function createTaggedCartItems() {
+    return [
+        {
+            id: "burger",
+            vendorUid: "vendor-1",
+            vendorName: "Campus Bites",
+            name: "Burger",
+            category: "Meals",
+            price: 50,
+            quantity: 2,
+            dietaryTags: " Halal, high protein, halal ",
+            allergenTags: [" Gluten ", "dairy", "gluten"]
+        },
+        {
+            id: "juice",
+            vendorUid: "vendor-2",
+            vendorName: "Fresh Juice",
+            name: "Orange Juice",
+            category: "Drinks",
+            price: 25,
+            quantity: 1,
+            dietary: [" Vegan ", "gluten free", "vegan"],
+            allergens: "nuts, sesame, nuts"
+        }
+    ];
+}
+
 function createCustomer() {
     return {
         uid: "customer-1",
@@ -138,6 +165,21 @@ describe("shared/orders/order-service.js", () => {
         expect(orderService.resolveOrderQueries(orderQueries)).toBe(orderQueries);
         expect(orderService.normalizeText("  Hello  ")).toBe("Hello");
         expect(orderService.normalizeLowerText("  HeLLo  ")).toBe("hello");
+        expect(orderService.normalizeTagList(" Halal, gluten free, halal ")).toEqual([
+            "halal",
+            "gluten free"
+        ]);
+        expect(orderService.normalizeFallbackOrderItems([
+            { id: "meal", dietaryTags: "Halal, halal", allergenTags: [" Nuts ", "nuts"] }
+        ])).toEqual([
+            {
+                id: "meal",
+                dietaryTags: "Halal, halal",
+                allergenTags: [" Nuts ", "nuts"],
+                dietary: ["halal"],
+                allergens: ["nuts"]
+            }
+        ]);
         expect(typeof orderService.getOrderPaymentState).toBe("function");
         expect(typeof orderService.orderStatusRequiresPaidPayment).toBe("function");
         expect(typeof orderService.buildOrderPaymentGuard).toBe("function");
@@ -440,7 +482,7 @@ describe("shared/orders/order-service.js", () => {
 
     test("prepares split vendor orders and flags empty carts", () => {
         const preparedResult = orderService.prepareCreateOrders({
-            cartItems: createCartItems(),
+            cartItems: createTaggedCartItems(),
             customer: createCustomer(),
             orderStatus,
             paymentStatus,
@@ -464,6 +506,18 @@ describe("shared/orders/order-service.js", () => {
         expect(preparedResult.orders[0].paymentCurrency).toBe("ZAR");
         expect(preparedResult.orders[0].createdAt).toBe("t-1");
         expect(preparedResult.orders[0].customerName).toBe("Tshepo");
+        expect(preparedResult.orders[0].items[0]).toEqual(
+            expect.objectContaining({
+                dietary: ["halal", "high protein"],
+                allergens: ["gluten", "dairy"]
+            })
+        );
+        expect(preparedResult.orders[1].items[0]).toEqual(
+            expect.objectContaining({
+                dietary: ["vegan", "gluten free"],
+                allergens: ["nuts", "sesame"]
+            })
+        );
         expect(preparedResult.validationResults.every(result => result.isValid)).toBe(true);
 
         const emptyCartResult = orderService.prepareCreateOrders({
@@ -503,7 +557,7 @@ describe("shared/orders/order-service.js", () => {
         const firestoreFns = createFirestoreFns();
         const db = { name: "db" };
         const preparedResult = orderService.prepareCreateOrders({
-            cartItems: createCartItems(),
+            cartItems: createTaggedCartItems(),
             customer: createCustomer(),
             orderStatus,
             orderModel,
@@ -527,6 +581,18 @@ describe("shared/orders/order-service.js", () => {
         expect(firestoreFns.batch.set).toHaveBeenCalledTimes(2);
         expect(firestoreFns.batch.commit).toHaveBeenCalledTimes(1);
         expect(persistedResult.orders[0].orderId).toBe("order-1");
+        expect(persistedResult.orders[0].items[0]).toEqual(
+            expect.objectContaining({
+                dietary: ["halal", "high protein"],
+                allergens: ["gluten", "dairy"]
+            })
+        );
+        expect(firestoreFns.batch.set.mock.calls[0][1].items[0]).toEqual(
+            expect.objectContaining({
+                dietary: ["halal", "high protein"],
+                allergens: ["gluten", "dairy"]
+            })
+        );
         expect(persistedResult.docRefs[0]).toEqual({
             kind: "doc",
             db,
@@ -580,7 +646,7 @@ describe("shared/orders/order-service.js", () => {
             orderStatus,
             orderModel,
             orderValidation,
-            cartItems: createCartItems(),
+            cartItems: createTaggedCartItems(),
             customer: createCustomer(),
             timestampValue: "t-1",
             orderIdFactory: index => `created-${index + 1}`
@@ -589,6 +655,12 @@ describe("shared/orders/order-service.js", () => {
         expect(successResult.success).toBe(true);
         expect(successResult.orders).toHaveLength(2);
         expect(successResult.orders[1].orderId).toBe("created-2");
+        expect(successResult.orders[0].items[0]).toEqual(
+            expect.objectContaining({
+                dietary: ["halal", "high protein"],
+                allergens: ["gluten", "dairy"]
+            })
+        );
 
         const failureResult = await orderService.createOrders({
             db,
@@ -1644,6 +1716,13 @@ describe("shared/orders/order-service.js", () => {
                 {
                     orderId: "fallback-order",
                     status: "READY",
+                    items: [
+                        {
+                            id: "fallback-meal",
+                            dietaryTags: "Halal, halal",
+                            allergenTags: "Nuts, dairy, nuts"
+                        }
+                    ],
                     notes: " note "
                 },
                 {
@@ -1655,6 +1734,15 @@ describe("shared/orders/order-service.js", () => {
             )
         ).toEqual({
             orderId: "fallback-order",
+            items: [
+                {
+                    id: "fallback-meal",
+                    dietaryTags: "Halal, halal",
+                    allergenTags: "Nuts, dairy, nuts",
+                    dietary: ["halal"],
+                    allergens: ["nuts", "dairy"]
+                }
+            ],
             status: "completed",
             paymentStatus: "unpaid",
             paymentProvider: "",
