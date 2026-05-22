@@ -187,6 +187,86 @@
         return null;
     }
 
+    function resolveRefundCaseModel(explicitRefundCaseModel) {
+        if (
+            explicitRefundCaseModel &&
+            typeof explicitRefundCaseModel.createRefundCaseFromProposal === "function" &&
+            typeof explicitRefundCaseModel.applyRefundDecision === "function" &&
+            typeof explicitRefundCaseModel.applyRefundExecution === "function"
+        ) {
+            return explicitRefundCaseModel;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.refundCaseModel &&
+            typeof globalScope.refundCaseModel.createRefundCaseFromProposal === "function" &&
+            typeof globalScope.refundCaseModel.applyRefundDecision === "function" &&
+            typeof globalScope.refundCaseModel.applyRefundExecution === "function"
+        ) {
+            return globalScope.refundCaseModel;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredRefundCaseModel = require("./refund-case-model.js");
+
+                if (
+                    requiredRefundCaseModel &&
+                    typeof requiredRefundCaseModel.createRefundCaseFromProposal === "function" &&
+                    typeof requiredRefundCaseModel.applyRefundDecision === "function" &&
+                    typeof requiredRefundCaseModel.applyRefundExecution === "function"
+                ) {
+                    return requiredRefundCaseModel;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveRefundCaseValidation(explicitRefundCaseValidation) {
+        if (
+            explicitRefundCaseValidation &&
+            typeof explicitRefundCaseValidation.validateRefundProposalInput === "function" &&
+            typeof explicitRefundCaseValidation.validateRefundDecisionInput === "function" &&
+            typeof explicitRefundCaseValidation.validateRefundExecutionInput === "function"
+        ) {
+            return explicitRefundCaseValidation;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.refundCaseValidation &&
+            typeof globalScope.refundCaseValidation.validateRefundProposalInput === "function" &&
+            typeof globalScope.refundCaseValidation.validateRefundDecisionInput === "function" &&
+            typeof globalScope.refundCaseValidation.validateRefundExecutionInput === "function"
+        ) {
+            return globalScope.refundCaseValidation;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredRefundCaseValidation = require("./refund-case-validation.js");
+
+                if (
+                    requiredRefundCaseValidation &&
+                    typeof requiredRefundCaseValidation.validateRefundProposalInput === "function" &&
+                    typeof requiredRefundCaseValidation.validateRefundDecisionInput === "function" &&
+                    typeof requiredRefundCaseValidation.validateRefundExecutionInput === "function"
+                ) {
+                    return requiredRefundCaseValidation;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     function normalizeText(value) {
         return typeof value === "string" ? value.trim() : "";
     }
@@ -432,7 +512,11 @@
                 updatedAt:
                     safeOptions.updatedAt !== undefined
                         ? safeOptions.updatedAt
-                        : safeRecord.updatedAt
+                        : safeRecord.updatedAt,
+                refundCase:
+                    safeOptions.refundCase !== undefined
+                        ? safeOptions.refundCase
+                        : safeRecord.refundCase
             };
         }
 
@@ -462,11 +546,18 @@
                 updatedAt:
                     safeOptions.updatedAt !== undefined
                         ? safeOptions.updatedAt
-                        : safeRecord.updatedAt
+                        : safeRecord.updatedAt,
+                refundCase:
+                    safeOptions.refundCase !== undefined
+                        ? safeOptions.refundCase
+                        : safeRecord.refundCase
             },
             {
                 ticketStatus,
                 ticketCategories,
+                refundCaseModel: safeOptions.refundCaseModel,
+                order: safeOptions.order,
+                payment: safeOptions.payment,
                 createdAt:
                     safeOptions.createdAt !== undefined
                         ? safeOptions.createdAt
@@ -483,7 +574,12 @@
         if (ticketModel && typeof ticketModel.createTicketPatch === "function") {
             const modelPatch = ticketModel.createTicketPatch(safeSource, {
                 ticketStatus: safeOptions.ticketStatus,
-                ticketCategories: safeOptions.ticketCategories
+                ticketCategories: safeOptions.ticketCategories,
+                refundCaseModel: safeOptions.refundCaseModel,
+                ticketId: safeOptions.ticketId || safeSource.ticketId,
+                orderId: safeOptions.orderId || safeSource.orderId,
+                customerUid: safeOptions.customerUid || safeSource.customerUid,
+                vendorUid: safeOptions.vendorUid || safeSource.vendorUid
             });
 
             if (Array.isArray(safeSource.timeline)) {
@@ -497,7 +593,7 @@
 
         ["status", "priority", "category", "replyCount", "lastReplyAt",
             "resolvedAt", "resolvedByUid", "resolvedByName", "resolutionNote",
-            "updatedAt"].forEach(function copyIfSet(key) {
+            "refundCase", "updatedAt"].forEach(function copyIfSet(key) {
                 if (safeSource[key] !== undefined) {
                     patch[key] = safeSource[key];
                 }
@@ -617,6 +713,7 @@
                     vendor: safeOptions.vendor,
                     ticketStatus,
                     ticketCategories,
+                    refundCaseModel: safeOptions.refundCaseModel,
                     createdAt
                 }
             )
@@ -629,7 +726,12 @@
                     createdAt,
                     updatedAt: createdAt
                 },
-                { ticketStatus, ticketCategories, createdAt }
+                {
+                    ticketStatus,
+                    ticketCategories,
+                    refundCaseModel: safeOptions.refundCaseModel,
+                    createdAt
+                }
             );
 
         const validationResult = ticketValidation
@@ -695,6 +797,7 @@
             ticketStatus: safeOptions.ticketStatus,
             ticketCategories: safeOptions.ticketCategories,
             ticketModel: safeOptions.ticketModel,
+            refundCaseModel: safeOptions.refundCaseModel,
             ticketId
         });
 
@@ -850,7 +953,8 @@
 
         const currentTicket = ticketModel.normalizeTicketRecord(ticketRecord, {
             ticketStatus,
-            ticketCategories
+            ticketCategories,
+            refundCaseModel: safeOptions.refundCaseModel
         });
         const nextStatus = ticketStatus.normalizeTicketStatus(safeOptions.nextStatus);
         const actorRole = ticketStatus.normalizeTicketActorRole(safeOptions.actorRole);
@@ -953,6 +1057,7 @@
                 ticketStatus,
                 ticketCategories,
                 ticketModel,
+                refundCaseModel: safeOptions.refundCaseModel,
                 ticketId: currentTicket.ticketId,
                 status: nextStatus,
                 timeline: nextTimeline,
@@ -1011,7 +1116,8 @@
         const patch = buildTicketPatch(ticket, {
             ticketStatus: safeOptions.ticketStatus,
             ticketCategories: safeOptions.ticketCategories,
-            ticketModel: safeOptions.ticketModel
+            ticketModel: safeOptions.ticketModel,
+            refundCaseModel: safeOptions.refundCaseModel
         });
 
         if (typeof firestoreFns.updateDoc === "function") {
@@ -1086,6 +1192,646 @@
                 )
             });
         }
+    }
+
+    function resolveRefundOrderSource(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        return safeOptions.order || safeOptions.payment || safeOptions.orderPayment || {};
+    }
+
+    function createRefundUpdateFailure(code, message, currentTicket, details = {}) {
+        const safeDetails = details && typeof details === "object" ? details : {};
+
+        return createServiceResult(false, {
+            ticket: currentTicket || null,
+            refundCase: currentTicket && currentTicket.refundCase ? currentTicket.refundCase : null,
+            error: createServiceError(code, message, safeDetails)
+        });
+    }
+
+    function getRefundEventType(refundCase, fallbackEventType) {
+        const safeCase = refundCase && typeof refundCase === "object" ? refundCase : {};
+        const timeline = Array.isArray(safeCase.timeline) ? safeCase.timeline : [];
+        const lastEntry = timeline.length > 0 ? timeline[timeline.length - 1] : null;
+
+        return normalizeLowerText(lastEntry && lastEntry.eventType) ||
+            normalizeLowerText(fallbackEventType) ||
+            "refund_proposed";
+    }
+
+    function getRefundTimelineNote(refundCase, fallbackNote) {
+        const safeCase = refundCase && typeof refundCase === "object" ? refundCase : {};
+        const timeline = Array.isArray(safeCase.timeline) ? safeCase.timeline : [];
+        const lastEntry = timeline.length > 0 ? timeline[timeline.length - 1] : null;
+
+        return normalizeText(lastEntry && lastEntry.note) ||
+            normalizeText(fallbackNote) ||
+            normalizeText(safeCase.reason);
+    }
+
+    function buildTicketRefundUpdatePayload(currentTicket, refundCase, timelineEntry, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const nextTimeline = (Array.isArray(currentTicket.timeline)
+            ? currentTicket.timeline
+            : []).concat(timelineEntry);
+
+        return buildTicketWritePayload(
+            {
+                ...currentTicket,
+                refundCase,
+                timeline: nextTimeline,
+                updatedAt: timelineEntry.at
+            },
+            {
+                ticketStatus: safeOptions.ticketStatus,
+                ticketCategories: safeOptions.ticketCategories,
+                ticketModel: safeOptions.ticketModel,
+                refundCaseModel: safeOptions.refundCaseModel,
+                ticketId: currentTicket.ticketId,
+                refundCase,
+                timeline: nextTimeline,
+                updatedAt: timelineEntry.at,
+                order: safeOptions.order,
+                payment: safeOptions.payment
+            }
+        );
+    }
+
+    function buildRefundProposalUpdate(ticketRecord, proposalValues = {}, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeProposal = proposalValues && typeof proposalValues === "object" ? proposalValues : {};
+        const ticketStatus = resolveTicketStatus(safeOptions.ticketStatus);
+        const ticketCategories = resolveTicketCategories(safeOptions.ticketCategories);
+        const ticketModel = resolveTicketModel(safeOptions.ticketModel);
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
+        const refundCaseValidation = resolveRefundCaseValidation(safeOptions.refundCaseValidation);
+
+        if (!ticketModel || !refundCaseModel || !refundCaseValidation) {
+            return createRefundUpdateFailure(
+                "tickets/refund-dependencies-missing",
+                "Refund helpers are required before a refund can be proposed."
+            );
+        }
+
+        const currentTicket = ticketModel.normalizeTicketRecord(ticketRecord, {
+            ticketStatus,
+            ticketCategories,
+            refundCaseModel
+        });
+
+        if (!normalizeText(currentTicket.ticketId)) {
+            return createRefundUpdateFailure(
+                "tickets/missing-ticket-id",
+                "The ticket does not have an ID to attach the refund proposal to.",
+                currentTicket
+            );
+        }
+
+        const updatedAt = resolveTimestampValue(safeOptions);
+        const order = resolveRefundOrderSource(safeOptions);
+        const proposalInput = {
+            ...safeProposal,
+            ticketId: currentTicket.ticketId,
+            orderId: currentTicket.orderId,
+            customerUid: currentTicket.customerUid,
+            vendorUid: currentTicket.vendorUid,
+            proposedAt: safeProposal.proposedAt || updatedAt
+        };
+        const validation = refundCaseValidation.validateRefundProposalInput(proposalInput, {
+            ...safeOptions,
+            refundCaseModel,
+            order,
+            actorUid: safeOptions.actorUid,
+            actorRole: safeOptions.actorRole || "admin",
+            actorName: safeOptions.actorName,
+            now: updatedAt
+        });
+
+        if (!validation.isValid) {
+            return createRefundUpdateFailure(
+                "tickets/refund-proposal-invalid",
+                "Refund proposal details are invalid.",
+                currentTicket,
+                {
+                    validation,
+                    errors: validation.errors
+                }
+            );
+        }
+
+        const refundCase = refundCaseModel.createRefundCaseFromProposal(proposalInput, {
+            ...safeOptions,
+            order,
+            ticketId: currentTicket.ticketId,
+            orderId: currentTicket.orderId,
+            customerUid: currentTicket.customerUid,
+            vendorUid: currentTicket.vendorUid,
+            actorRole: safeOptions.actorRole || "admin",
+            actorUid: safeOptions.actorUid,
+            actorName: safeOptions.actorName,
+            now: updatedAt,
+            createdAt: currentTicket.refundCase && currentTicket.refundCase.createdAt
+        });
+        const timelineEntry = ticketModel.createTicketTimelineEntry(
+            getRefundEventType(refundCase, "refund_proposed"),
+            {
+                status: currentTicket.status,
+                actorRole: safeOptions.actorRole || "admin",
+                actorUid: safeOptions.actorUid,
+                actorName: safeOptions.actorName,
+                note: getRefundTimelineNote(refundCase, refundCase.reason),
+                at: updatedAt
+            },
+            ticketStatus
+        );
+        const updatedTicket = buildTicketRefundUpdatePayload(currentTicket, refundCase, timelineEntry, {
+            ...safeOptions,
+            ticketStatus,
+            ticketCategories,
+            ticketModel,
+            refundCaseModel,
+            order
+        });
+
+        return createServiceResult(true, {
+            ticket: updatedTicket,
+            previousTicket: currentTicket,
+            refundCase,
+            validation,
+            timelineEntry,
+            needsWrite: true,
+            refundStatusChanged: !currentTicket.refundCase ||
+                currentTicket.refundCase.status !== refundCase.status
+        });
+    }
+
+    function buildRefundDecisionUpdate(ticketRecord, decisionValues = {}, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeDecision = decisionValues && typeof decisionValues === "object" ? decisionValues : {};
+        const ticketStatus = resolveTicketStatus(safeOptions.ticketStatus);
+        const ticketCategories = resolveTicketCategories(safeOptions.ticketCategories);
+        const ticketModel = resolveTicketModel(safeOptions.ticketModel);
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
+        const refundCaseValidation = resolveRefundCaseValidation(safeOptions.refundCaseValidation);
+
+        if (!ticketModel || !refundCaseModel || !refundCaseValidation) {
+            return createRefundUpdateFailure(
+                "tickets/refund-dependencies-missing",
+                "Refund helpers are required before a refund decision can be recorded."
+            );
+        }
+
+        const currentTicket = ticketModel.normalizeTicketRecord(ticketRecord, {
+            ticketStatus,
+            ticketCategories,
+            refundCaseModel
+        });
+
+        if (!currentTicket.refundCase) {
+            return createRefundUpdateFailure(
+                "tickets/refund-case-missing",
+                "A refund must be proposed before parties can decide.",
+                currentTicket
+            );
+        }
+
+        const updatedAt = resolveTimestampValue(safeOptions);
+        const decisionInput = {
+            ...safeDecision,
+            actorUid: safeDecision.actorUid || safeOptions.actorUid,
+            actorRole: safeDecision.actorRole || safeOptions.actorRole,
+            actorName: safeDecision.actorName || safeOptions.actorName,
+            decidedAt: safeDecision.decidedAt || updatedAt
+        };
+        const validation = refundCaseValidation.validateRefundDecisionInput(
+            currentTicket.refundCase,
+            decisionInput,
+            {
+                ...safeOptions,
+                refundCaseModel,
+                now: updatedAt
+            }
+        );
+
+        if (!validation.isValid) {
+            return createRefundUpdateFailure(
+                "tickets/refund-decision-invalid",
+                "Refund decision details are invalid.",
+                currentTicket,
+                {
+                    validation,
+                    errors: validation.errors
+                }
+            );
+        }
+
+        const refundCase = refundCaseModel.applyRefundDecision(
+            currentTicket.refundCase,
+            decisionInput,
+            {
+                ...safeOptions,
+                now: updatedAt
+            }
+        );
+        const timelineEntry = ticketModel.createTicketTimelineEntry(
+            getRefundEventType(refundCase, "refund_decision_approved"),
+            {
+                status: currentTicket.status,
+                actorRole: decisionInput.actorRole,
+                actorUid: decisionInput.actorUid,
+                actorName: decisionInput.actorName,
+                note: getRefundTimelineNote(refundCase, decisionInput.note),
+                at: updatedAt
+            },
+            ticketStatus
+        );
+        const updatedTicket = buildTicketRefundUpdatePayload(currentTicket, refundCase, timelineEntry, {
+            ...safeOptions,
+            ticketStatus,
+            ticketCategories,
+            ticketModel,
+            refundCaseModel
+        });
+
+        return createServiceResult(true, {
+            ticket: updatedTicket,
+            previousTicket: currentTicket,
+            refundCase,
+            validation,
+            timelineEntry,
+            needsWrite: true,
+            refundStatusChanged: currentTicket.refundCase.status !== refundCase.status
+        });
+    }
+
+    function validateRefundExecutionForService(currentTicket, executionInput, order, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
+        const refundCaseValidation = resolveRefundCaseValidation(safeOptions.refundCaseValidation);
+        const currentRefundCase = currentTicket && currentTicket.refundCase;
+        const nextStatus = refundCaseModel.normalizeRefundCaseStatus(
+            executionInput.status ||
+            (executionInput.success === true ? "refunded" : "") ||
+            (normalizeText(executionInput.refundFailureReason || executionInput.failureReason) ? "failed" : "processing")
+        );
+
+        if (nextStatus === refundCaseModel.REFUND_CASE_STATUSES.PROCESSING) {
+            return refundCaseValidation.validateRefundExecutionInput(
+                currentRefundCase,
+                order,
+                {
+                    ...safeOptions,
+                    refundCaseModel,
+                    actorUid: executionInput.executedByUid || executionInput.actorUid || safeOptions.actorUid,
+                    actorRole: executionInput.actorRole || safeOptions.actorRole || "admin",
+                    actorName: executionInput.executedByName || executionInput.actorName || safeOptions.actorName
+                }
+            );
+        }
+
+        const actorValidation = refundCaseValidation.validateRefundActor({
+            actorUid: executionInput.executedByUid || executionInput.actorUid || safeOptions.actorUid,
+            actorRole: executionInput.actorRole || safeOptions.actorRole || "admin",
+            actorName: executionInput.executedByName || executionInput.actorName || safeOptions.actorName
+        }, {
+            ...safeOptions,
+            refundCaseModel
+        });
+        const errors = {};
+        const currentStatus = refundCaseModel.normalizeRefundCaseStatus(currentRefundCase && currentRefundCase.status);
+
+        Object.keys(actorValidation.errors || {}).forEach(function copyActorError(key) {
+            errors[key] = actorValidation.errors[key];
+        });
+
+        if (actorValidation.value.actorRole !== refundCaseModel.DECISION_ACTOR_ROLES.ADMIN) {
+            errors.actorRole = "Only an admin can update refund execution state.";
+        }
+
+        if (!refundCaseModel.isRefundCaseApproved(currentRefundCase)) {
+            errors.approval = "Both customer and vendor must approve before a refund can be executed.";
+        }
+
+        if (
+            currentStatus === refundCaseModel.REFUND_CASE_STATUSES.REFUNDED ||
+            currentStatus === refundCaseModel.REFUND_CASE_STATUSES.DECLINED ||
+            currentStatus === refundCaseModel.REFUND_CASE_STATUSES.CANCELLED
+        ) {
+            errors.status = "A terminal refund case cannot be updated.";
+        }
+
+        if (
+            nextStatus === refundCaseModel.REFUND_CASE_STATUSES.REFUNDED &&
+            currentStatus !== refundCaseModel.REFUND_CASE_STATUSES.PROCESSING &&
+            currentStatus !== refundCaseModel.REFUND_CASE_STATUSES.APPROVED &&
+            currentStatus !== refundCaseModel.REFUND_CASE_STATUSES.FAILED
+        ) {
+            errors.status = "A refund must be approved or processing before it can be marked refunded.";
+        }
+
+        if (
+            nextStatus === refundCaseModel.REFUND_CASE_STATUSES.FAILED &&
+            currentStatus !== refundCaseModel.REFUND_CASE_STATUSES.PROCESSING &&
+            currentStatus !== refundCaseModel.REFUND_CASE_STATUSES.APPROVED
+        ) {
+            errors.status = "A refund must be approved or processing before it can be marked failed.";
+        }
+
+        return createServiceResult(Object.keys(errors).length === 0, {
+            errors,
+            value: {
+                refundCase: currentRefundCase,
+                order,
+                actor: actorValidation.value
+            }
+        });
+    }
+
+    function buildRefundExecutionUpdate(ticketRecord, executionValues = {}, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const safeExecution = executionValues && typeof executionValues === "object" ? executionValues : {};
+        const ticketStatus = resolveTicketStatus(safeOptions.ticketStatus);
+        const ticketCategories = resolveTicketCategories(safeOptions.ticketCategories);
+        const ticketModel = resolveTicketModel(safeOptions.ticketModel);
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
+        const refundCaseValidation = resolveRefundCaseValidation(safeOptions.refundCaseValidation);
+
+        if (!ticketModel || !refundCaseModel || !refundCaseValidation) {
+            return createRefundUpdateFailure(
+                "tickets/refund-dependencies-missing",
+                "Refund helpers are required before refund execution can be updated."
+            );
+        }
+
+        const currentTicket = ticketModel.normalizeTicketRecord(ticketRecord, {
+            ticketStatus,
+            ticketCategories,
+            refundCaseModel
+        });
+
+        if (!currentTicket.refundCase) {
+            return createRefundUpdateFailure(
+                "tickets/refund-case-missing",
+                "A refund must be proposed before execution can be updated.",
+                currentTicket
+            );
+        }
+
+        const updatedAt = resolveTimestampValue(safeOptions);
+        const order = resolveRefundOrderSource(safeOptions);
+        const executionInput = {
+            ...safeExecution,
+            actorRole: safeExecution.actorRole || safeOptions.actorRole || "admin",
+            actorUid: safeExecution.actorUid || safeExecution.executedByUid || safeOptions.actorUid,
+            actorName: safeExecution.actorName || safeExecution.executedByName || safeOptions.actorName,
+            executedByUid: safeExecution.executedByUid || safeExecution.actorUid || safeOptions.actorUid,
+            executedByName: safeExecution.executedByName || safeExecution.actorName || safeOptions.actorName,
+            executedAt: safeExecution.executedAt || updatedAt
+        };
+        const validation = validateRefundExecutionForService(
+            currentTicket,
+            executionInput,
+            order,
+            {
+                ...safeOptions,
+                refundCaseModel,
+                refundCaseValidation
+            }
+        );
+
+        if (!validation.success && validation.isValid !== true) {
+            return createRefundUpdateFailure(
+                "tickets/refund-execution-invalid",
+                "Refund execution details are invalid.",
+                currentTicket,
+                {
+                    validation,
+                    errors: validation.errors
+                }
+            );
+        }
+
+        const refundCase = refundCaseModel.applyRefundExecution(
+            currentTicket.refundCase,
+            executionInput,
+            {
+                ...safeOptions,
+                actorRole: executionInput.actorRole,
+                actorUid: executionInput.actorUid,
+                actorName: executionInput.actorName,
+                now: updatedAt
+            }
+        );
+        const timelineEntry = ticketModel.createTicketTimelineEntry(
+            getRefundEventType(refundCase, "refund_processing"),
+            {
+                status: currentTicket.status,
+                actorRole: executionInput.actorRole,
+                actorUid: executionInput.actorUid,
+                actorName: executionInput.actorName,
+                note: getRefundTimelineNote(refundCase, executionInput.note),
+                at: updatedAt
+            },
+            ticketStatus
+        );
+        const updatedTicket = buildTicketRefundUpdatePayload(currentTicket, refundCase, timelineEntry, {
+            ...safeOptions,
+            ticketStatus,
+            ticketCategories,
+            ticketModel,
+            refundCaseModel,
+            order
+        });
+
+        return createServiceResult(true, {
+            ticket: updatedTicket,
+            previousTicket: currentTicket,
+            refundCase,
+            validation,
+            timelineEntry,
+            needsWrite: true,
+            refundStatusChanged: currentTicket.refundCase.status !== refundCase.status
+        });
+    }
+
+    async function persistRefundTicketUpdate(updatePlan, options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const plan = updatePlan && typeof updatePlan === "object" ? updatePlan : {};
+
+        if (!plan.success || plan.needsWrite === false) {
+            return plan;
+        }
+
+        const persistedResult = await persistTicketUpdate({
+            ...safeOptions,
+            ticket: plan.ticket
+        });
+
+        if (!persistedResult.success) {
+            return persistedResult;
+        }
+
+        return createServiceResult(true, {
+            ticket: persistedResult.ticket,
+            previousTicket: plan.previousTicket,
+            refundCase: plan.refundCase,
+            validation: plan.validation,
+            timelineEntry: plan.timelineEntry,
+            refundStatusChanged: plan.refundStatusChanged,
+            docRef: persistedResult.docRef,
+            patch: persistedResult.patch || null
+        });
+    }
+
+    async function proposeRefundForTicket(options = {}) {
+        try {
+            const safeOptions = options && typeof options === "object" ? options : {};
+            const sourceTicket = safeOptions.ticket || await getTicketById(safeOptions);
+
+            if (!sourceTicket) {
+                return createServiceResult(false, {
+                    ticket: null,
+                    refundCase: null,
+                    error: createServiceError(
+                        "tickets/not-found",
+                        "The requested ticket could not be found."
+                    )
+                });
+            }
+
+            const updatePlan = buildRefundProposalUpdate(
+                sourceTicket,
+                safeOptions.refundCase || safeOptions.proposal || {},
+                safeOptions
+            );
+
+            return persistRefundTicketUpdate(updatePlan, safeOptions);
+        } catch (error) {
+            return createServiceResult(false, {
+                ticket: null,
+                refundCase: null,
+                error: createServiceError(
+                    "tickets/refund-proposal-failed",
+                    error && error.message ? error.message : "Failed to propose the refund.",
+                    { cause: error || null }
+                )
+            });
+        }
+    }
+
+    async function recordRefundDecision(options = {}) {
+        try {
+            const safeOptions = options && typeof options === "object" ? options : {};
+            const sourceTicket = safeOptions.ticket || await getTicketById(safeOptions);
+
+            if (!sourceTicket) {
+                return createServiceResult(false, {
+                    ticket: null,
+                    refundCase: null,
+                    error: createServiceError(
+                        "tickets/not-found",
+                        "The requested ticket could not be found."
+                    )
+                });
+            }
+
+            const updatePlan = buildRefundDecisionUpdate(
+                sourceTicket,
+                safeOptions.decision || {},
+                safeOptions
+            );
+
+            return persistRefundTicketUpdate(updatePlan, safeOptions);
+        } catch (error) {
+            return createServiceResult(false, {
+                ticket: null,
+                refundCase: null,
+                error: createServiceError(
+                    "tickets/refund-decision-failed",
+                    error && error.message ? error.message : "Failed to record the refund decision.",
+                    { cause: error || null }
+                )
+            });
+        }
+    }
+
+    async function updateRefundExecution(options = {}) {
+        try {
+            const safeOptions = options && typeof options === "object" ? options : {};
+            const sourceTicket = safeOptions.ticket || await getTicketById(safeOptions);
+
+            if (!sourceTicket) {
+                return createServiceResult(false, {
+                    ticket: null,
+                    refundCase: null,
+                    error: createServiceError(
+                        "tickets/not-found",
+                        "The requested ticket could not be found."
+                    )
+                });
+            }
+
+            const updatePlan = buildRefundExecutionUpdate(
+                sourceTicket,
+                safeOptions.execution || {},
+                safeOptions
+            );
+
+            return persistRefundTicketUpdate(updatePlan, safeOptions);
+        } catch (error) {
+            return createServiceResult(false, {
+                ticket: null,
+                refundCase: null,
+                error: createServiceError(
+                    "tickets/refund-execution-failed",
+                    error && error.message ? error.message : "Failed to update refund execution.",
+                    { cause: error || null }
+                )
+            });
+        }
+    }
+
+    function markRefundProcessing(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        return updateRefundExecution({
+            ...safeOptions,
+            execution: {
+                ...(safeOptions.execution || {}),
+                status: "processing"
+            }
+        });
+    }
+
+    function markRefundCompleted(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        return updateRefundExecution({
+            ...safeOptions,
+            execution: {
+                ...(safeOptions.execution || {}),
+                success: true,
+                status: "refunded"
+            }
+        });
+    }
+
+    function markRefundFailed(options = {}) {
+        const safeOptions = options && typeof options === "object" ? options : {};
+
+        return updateRefundExecution({
+            ...safeOptions,
+            execution: {
+                ...(safeOptions.execution || {}),
+                status: "failed",
+                refundFailureReason:
+                    normalizeText(safeOptions.refundFailureReason) ||
+                    normalizeText(safeOptions.failureReason) ||
+                    normalizeText(safeOptions.execution && safeOptions.execution.refundFailureReason) ||
+                    "Refund execution failed."
+            }
+        });
     }
 
     function buildAddReplyUpdate(ticketRecord, replyValues, options = {}) {
@@ -1184,6 +1930,7 @@
                 ticketStatus,
                 ticketCategories,
                 ticketModel,
+                refundCaseModel: safeOptions.refundCaseModel,
                 ticketId: currentTicket.ticketId,
                 status: nextStatus,
                 timeline: nextTimeline,
@@ -1392,6 +2139,8 @@
         resolveTicketModel,
         resolveTicketQueries,
         resolveTicketValidation,
+        resolveRefundCaseModel,
+        resolveRefundCaseValidation,
         normalizeText,
         normalizeLowerText,
         createServiceError,
@@ -1418,6 +2167,22 @@
         buildTicketStatusUpdate,
         persistTicketUpdate,
         updateTicketStatus,
+        resolveRefundOrderSource,
+        createRefundUpdateFailure,
+        getRefundEventType,
+        getRefundTimelineNote,
+        buildTicketRefundUpdatePayload,
+        buildRefundProposalUpdate,
+        buildRefundDecisionUpdate,
+        validateRefundExecutionForService,
+        buildRefundExecutionUpdate,
+        persistRefundTicketUpdate,
+        proposeRefundForTicket,
+        recordRefundDecision,
+        updateRefundExecution,
+        markRefundProcessing,
+        markRefundCompleted,
+        markRefundFailed,
         buildAddReplyUpdate,
         persistTicketReply,
         addReply,

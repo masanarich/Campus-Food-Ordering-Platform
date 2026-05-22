@@ -53,7 +53,14 @@
         "resolved",
         "reopened",
         "closed",
-        "escalated"
+        "escalated",
+        "refund_proposed",
+        "refund_decision_approved",
+        "refund_decision_declined",
+        "refund_processing",
+        "refund_completed",
+        "refund_failed",
+        "refund_cancelled"
     ];
 
     const SUBJECT_MAX_LENGTH = 120;
@@ -124,6 +131,43 @@
                     typeof requiredTicketCategories.getDefaultTicketCategory === "function"
                 ) {
                     return requiredTicketCategories;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveRefundCaseModel(explicitRefundCaseModel) {
+        if (
+            explicitRefundCaseModel &&
+            typeof explicitRefundCaseModel.createRefundCaseRecord === "function" &&
+            typeof explicitRefundCaseModel.createRefundCasePatch === "function"
+        ) {
+            return explicitRefundCaseModel;
+        }
+
+        if (
+            typeof globalScope !== "undefined" &&
+            globalScope.refundCaseModel &&
+            typeof globalScope.refundCaseModel.createRefundCaseRecord === "function" &&
+            typeof globalScope.refundCaseModel.createRefundCasePatch === "function"
+        ) {
+            return globalScope.refundCaseModel;
+        }
+
+        if (typeof require === "function") {
+            try {
+                const requiredRefundCaseModel = require("./refund-case-model.js");
+
+                if (
+                    requiredRefundCaseModel &&
+                    typeof requiredRefundCaseModel.createRefundCaseRecord === "function" &&
+                    typeof requiredRefundCaseModel.createRefundCasePatch === "function"
+                ) {
+                    return requiredRefundCaseModel;
                 }
             } catch (error) {
                 return null;
@@ -441,11 +485,44 @@
         };
     }
 
+    function createRefundCaseSnapshot(refundCaseValues = {}, options = {}) {
+        const safeValues = refundCaseValues && typeof refundCaseValues === "object" ? refundCaseValues : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
+
+        if (refundCaseModel) {
+            return refundCaseModel.createRefundCaseRecord(safeValues, {
+                ...safeOptions,
+                ticketId: safeOptions.ticketId || safeValues.ticketId,
+                orderId: safeOptions.orderId || safeValues.orderId,
+                customerUid: safeOptions.customerUid || safeValues.customerUid,
+                vendorUid: safeOptions.vendorUid || safeValues.vendorUid
+            });
+        }
+
+        return {
+            ...safeValues,
+            refundCaseId: normalizeText(safeValues.refundCaseId || safeValues.id),
+            ticketId: normalizeText(safeOptions.ticketId || safeValues.ticketId),
+            orderId: normalizeText(safeOptions.orderId || safeValues.orderId),
+            customerUid: normalizeText(safeOptions.customerUid || safeValues.customerUid),
+            vendorUid: normalizeText(safeOptions.vendorUid || safeValues.vendorUid),
+            status: normalizeLowerText(safeValues.status) || "not_requested",
+            type: normalizeLowerText(safeValues.type || safeValues.refundType) || "partial",
+            reason: normalizeText(safeValues.reason || safeValues.refundReason),
+            customerDecision: normalizeLowerText(safeValues.customerDecision) || "pending",
+            vendorDecision: normalizeLowerText(safeValues.vendorDecision) || "pending",
+            createdAt: normalizeTimestampValue(safeValues.createdAt, null),
+            updatedAt: normalizeTimestampValue(safeValues.updatedAt, null)
+        };
+    }
+
     function createTicketRecord(ticketValues = {}, options = {}) {
         const safeValues = ticketValues && typeof ticketValues === "object" ? ticketValues : {};
         const safeOptions = options && typeof options === "object" ? options : {};
         const ticketStatus = resolveTicketStatus(safeOptions.ticketStatus);
         const ticketCategories = resolveTicketCategories(safeOptions.ticketCategories);
+        const refundCaseModel = resolveRefundCaseModel(safeOptions.refundCaseModel);
 
         const reporter = createReporterSnapshot(
             safeValues.reporter || safeValues
@@ -477,6 +554,18 @@
         );
         const updatedAt = normalizeTimestampValue(safeValues.updatedAt, createdAt);
         const lastReplyAt = normalizeTimestampValue(safeValues.lastReplyAt, null);
+        const ticketId = normalizeText(safeValues.ticketId || safeValues.id);
+        const orderId = normalizeText(safeValues.orderId);
+        const refundCase = safeValues.refundCase && typeof safeValues.refundCase === "object"
+            ? createRefundCaseSnapshot(safeValues.refundCase, {
+                ...safeOptions,
+                refundCaseModel,
+                ticketId,
+                orderId,
+                customerUid: customer.customerUid,
+                vendorUid: vendor.vendorUid
+            })
+            : null;
 
         const providedTimeline = Array.isArray(safeValues.timeline) ? safeValues.timeline : [];
         const timeline = providedTimeline.length > 0
@@ -513,7 +602,7 @@
             ];
 
         return {
-            ticketId: normalizeText(safeValues.ticketId || safeValues.id),
+            ticketId,
             reporterUid: reporter.reporterUid,
             reporterRole: reporter.reporterRole,
             reporterName: reporter.reporterName,
@@ -522,7 +611,7 @@
             customerName: customer.customerName,
             vendorUid: vendor.vendorUid,
             vendorName: vendor.vendorName,
-            orderId: normalizeText(safeValues.orderId),
+            orderId,
             category,
             categoryLabel: getTicketCategoryLabel(category, ticketCategories),
             subject: clampText(safeValues.subject || safeValues.title, SUBJECT_MAX_LENGTH),
@@ -539,6 +628,7 @@
             resolvedByUid: normalizeText(safeValues.resolvedByUid),
             resolvedByName: normalizeText(safeValues.resolvedByName),
             resolutionNote: clampText(safeValues.resolutionNote, BODY_MAX_LENGTH),
+            refundCase,
             timeline,
             createdAt,
             updatedAt
@@ -560,6 +650,7 @@
                 customer: safeOptions.customer || safeValues.customer,
                 vendor: safeOptions.vendor || safeValues.vendor,
                 orderId: safeValues.orderId,
+                refundCase: safeValues.refundCase,
                 category: safeValues.category,
                 subject: safeValues.subject || safeValues.title,
                 description: safeValues.description || safeValues.body || safeValues.message,
@@ -572,6 +663,7 @@
             {
                 ticketStatus: safeOptions.ticketStatus,
                 ticketCategories: safeOptions.ticketCategories,
+                refundCaseModel: safeOptions.refundCaseModel,
                 createdAt: safeOptions.createdAt
             }
         );
@@ -635,6 +727,16 @@
             patch.updatedAt = normalizeTimestampValue(safeValues.updatedAt, null);
         }
 
+        if (safeValues.refundCase !== undefined) {
+            patch.refundCase = createRefundCaseSnapshot(safeValues.refundCase, {
+                refundCaseModel: safeOptions.refundCaseModel,
+                ticketId: safeOptions.ticketId || safeValues.ticketId,
+                orderId: safeOptions.orderId || safeValues.orderId,
+                customerUid: safeOptions.customerUid || safeValues.customerUid,
+                vendorUid: safeOptions.vendorUid || safeValues.vendorUid
+            });
+        }
+
         return patch;
     }
 
@@ -657,6 +759,7 @@
         BODY_MAX_LENGTH,
         resolveTicketStatus,
         resolveTicketCategories,
+        resolveRefundCaseModel,
         normalizeText,
         normalizeLowerText,
         clampText,
@@ -677,6 +780,7 @@
         createVendorSnapshot,
         createTicketTimelineEntry,
         createReplyRecord,
+        createRefundCaseSnapshot,
         createTicketRecord,
         normalizeTicketRecord,
         createTicketFromForm,

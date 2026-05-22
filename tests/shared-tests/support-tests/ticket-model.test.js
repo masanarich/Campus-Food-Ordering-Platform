@@ -1,4 +1,5 @@
 const ticketModel = require("../../../public/shared/support/ticket-model.js");
+const refundCaseModel = require("../../../public/shared/support/refund-case-model.js");
 
 function createFakeTicketStatus() {
     return {
@@ -41,6 +42,7 @@ describe("shared/support/ticket-model.js", () => {
         if (typeof global !== "undefined") {
             delete global.ticketStatus;
             delete global.ticketCategories;
+            delete global.refundCaseModel;
         }
     });
 
@@ -81,7 +83,14 @@ describe("shared/support/ticket-model.js", () => {
             "resolved",
             "reopened",
             "closed",
-            "escalated"
+            "escalated",
+            "refund_proposed",
+            "refund_decision_approved",
+            "refund_decision_declined",
+            "refund_processing",
+            "refund_completed",
+            "refund_failed",
+            "refund_cancelled"
         ]);
         expect(ticketModel.SUBJECT_MAX_LENGTH).toBeGreaterThan(0);
         expect(ticketModel.BODY_MAX_LENGTH).toBeGreaterThan(0);
@@ -125,6 +134,22 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.resolveTicketCategories({
             normalizeTicketCategory: () => "general"
         })).toBe(realTicketCategories);
+    });
+
+    test("resolveRefundCaseModel accepts explicit modules, global modules, and require fallbacks", () => {
+        const fakeRefundCaseModel = {
+            createRefundCaseRecord: jest.fn(),
+            createRefundCasePatch: jest.fn()
+        };
+
+        expect(ticketModel.resolveRefundCaseModel(fakeRefundCaseModel)).toBe(fakeRefundCaseModel);
+
+        global.refundCaseModel = fakeRefundCaseModel;
+        expect(ticketModel.resolveRefundCaseModel()).toBe(fakeRefundCaseModel);
+
+        delete global.refundCaseModel;
+        expect(ticketModel.resolveRefundCaseModel()).toBe(refundCaseModel);
+        expect(ticketModel.resolveRefundCaseModel({ createRefundCaseRecord: jest.fn() })).toBe(refundCaseModel);
     });
 
     test("normalizes primitive values safely", () => {
@@ -204,6 +229,7 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticketModel.normalizeTicketPriority(undefined, "high")).toBe("high");
 
         expect(ticketModel.normalizeTimelineEventType("CREATED")).toBe("created");
+        expect(ticketModel.normalizeTimelineEventType("REFUND_COMPLETED")).toBe("refund_completed");
         expect(ticketModel.normalizeTimelineEventType("garbage")).toBe("status_changed");
         expect(ticketModel.normalizeTimelineEventType("garbage", "replied")).toBe("replied");
     });
@@ -325,6 +351,70 @@ describe("shared/support/ticket-model.js", () => {
         expect(empty.body).toBe("");
     });
 
+    test("createRefundCaseSnapshot delegates to the refund-case model and falls back safely", () => {
+        const refundCase = ticketModel.createRefundCaseSnapshot({
+            type: "full",
+            reason: "Food was unsafe",
+            customerDecision: "approved",
+            vendorDecision: "approved"
+        }, {
+            ticketId: "ticket-1",
+            order: {
+                orderId: "order-1",
+                checkoutId: "checkout-1",
+                customerUid: "customer-1",
+                vendorUid: "vendor-1",
+                paymentAmount: 110,
+                paymentAmountInMinorUnits: 11000,
+                paymentReference: "paystack-ref-1"
+            }
+        });
+
+        expect(refundCase).toEqual(expect.objectContaining({
+            ticketId: "ticket-1",
+            orderId: "order-1",
+            checkoutId: "checkout-1",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            status: "approved",
+            type: "full",
+            amount: 110,
+            amountInMinorUnits: 11000,
+            reason: "Food was unsafe",
+            customerDecision: "approved",
+            vendorDecision: "approved"
+        }));
+
+        const requiredFallback = ticketModel.createRefundCaseSnapshot({
+            id: "refund-1",
+            status: "PROPOSED",
+            refundType: "PARTIAL",
+            amount: 12,
+            refundReason: " Missing chips ",
+            customerDecision: "APPROVED"
+        }, {
+            ticketId: "ticket-2",
+            orderId: "order-2",
+            customerUid: "customer-2",
+            vendorUid: "vendor-2"
+        });
+
+        expect(requiredFallback).toEqual(expect.objectContaining({
+            refundCaseId: "refund-1",
+            ticketId: "ticket-2",
+            orderId: "order-2",
+            customerUid: "customer-2",
+            vendorUid: "vendor-2",
+            status: "customer_approved",
+            type: "partial",
+            amount: 12,
+            amountInMinorUnits: 1200,
+            reason: "Missing chips",
+            customerDecision: "approved",
+            vendorDecision: "pending"
+        }));
+    });
+
     test("createTicketRecord builds the full ticket shape with a seeded created timeline entry", () => {
         const ticket = ticketModel.createTicketRecord({
             ticketId: "ticket-1",
@@ -340,7 +430,23 @@ describe("shared/support/ticket-model.js", () => {
             subject: " Where is my refund? ",
             description: " I paid twice. ",
             priority: "high",
+            refundCase: {
+                type: "partial",
+                amount: 25,
+                reason: "Duplicate charge",
+                customerDecision: "approved"
+            },
             createdAt: "2026-05-16T10:00:00Z"
+        }, {
+            order: {
+                orderId: "order-9",
+                checkoutId: "checkout-9",
+                customerUid: "customer-1",
+                vendorUid: "vendor-1",
+                paymentAmount: 100,
+                paymentAmountInMinorUnits: 10000,
+                paymentReference: "paystack-ref-9"
+            }
         });
 
         expect(ticket.ticketId).toBe("ticket-1");
@@ -364,6 +470,19 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticket.resolvedAt).toBeNull();
         expect(ticket.resolvedByUid).toBe("");
         expect(ticket.resolutionNote).toBe("");
+        expect(ticket.refundCase).toEqual(expect.objectContaining({
+            ticketId: "ticket-1",
+            orderId: "order-9",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            status: "customer_approved",
+            type: "partial",
+            amount: 25,
+            amountInMinorUnits: 2500,
+            reason: "Duplicate charge",
+            customerDecision: "approved",
+            vendorDecision: "pending"
+        }));
         expect(ticket.createdAt).toBe("2026-05-16T10:00:00Z");
         expect(ticket.updatedAt).toBe("2026-05-16T10:00:00Z");
         expect(ticket.timeline).toHaveLength(1);
@@ -395,7 +514,7 @@ describe("shared/support/ticket-model.js", () => {
                     at: "2026-05-16T09:00:00Z"
                 },
                 {
-                    eventType: "status_changed",
+                    eventType: "refund_proposed",
                     status: "in_progress",
                     actorRole: "admin",
                     actorUid: "admin-1",
@@ -410,9 +529,10 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticket.vendorUid).toBe("vendor-2");
         expect(ticket.customerUid).toBe("");
         expect(ticket.timeline).toHaveLength(2);
-        expect(ticket.timeline[1].eventType).toBe("status_changed");
+        expect(ticket.timeline[1].eventType).toBe("refund_proposed");
         expect(ticket.timeline[1].status).toBe("in_progress");
         expect(ticket.timeline[1].label).toBe("In Progress");
+        expect(ticket.refundCase).toBeNull();
     });
 
     test("normalizeTicketRecord is an alias for createTicketRecord", () => {
@@ -433,10 +553,16 @@ describe("shared/support/ticket-model.js", () => {
                 subject: "Order never arrived",
                 description: "Driver did not show",
                 category: "order_issue",
-                orderId: "order-5"
+                orderId: "order-5",
+                refundCase: {
+                    type: "partial",
+                    amount: 20,
+                    reason: "Missing drink"
+                }
             },
             {
                 reporter: { uid: "customer-9", displayName: "Sipho", role: "customer" },
+                vendor: { uid: "vendor-5", shopName: "Campus Bites" },
                 createdAt: "2026-05-16T12:00:00Z"
             }
         );
@@ -446,6 +572,13 @@ describe("shared/support/ticket-model.js", () => {
         expect(ticket.subject).toBe("Order never arrived");
         expect(ticket.category).toBe("order_issue");
         expect(ticket.orderId).toBe("order-5");
+        expect(ticket.refundCase).toEqual(expect.objectContaining({
+            orderId: "order-5",
+            customerUid: "customer-9",
+            vendorUid: "vendor-5",
+            amount: 20,
+            reason: "Missing drink"
+        }));
         expect(ticket.createdAt).toBe("2026-05-16T12:00:00Z");
         expect(ticket.timeline[0].eventType).toBe("created");
         expect(ticket.timeline[0].at).toBe("2026-05-16T12:00:00Z");
@@ -463,10 +596,22 @@ describe("shared/support/ticket-model.js", () => {
             resolvedByUid: "admin-1",
             resolvedByName: "Admin",
             resolutionNote: " Refunded via Paystack ",
+            refundCase: {
+                type: "partial",
+                amount: 30,
+                reason: "Missing item",
+                customerDecision: "approved",
+                vendorDecision: "approved"
+            },
             updatedAt: "2026-05-16T14:00:00Z"
+        }, {
+            ticketId: "ticket-1",
+            orderId: "order-7",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1"
         });
 
-        expect(patch).toEqual({
+        expect(patch).toEqual(expect.objectContaining({
             status: "resolved",
             statusLabel: "Resolved",
             priority: "high",
@@ -476,8 +621,18 @@ describe("shared/support/ticket-model.js", () => {
             resolvedByUid: "admin-1",
             resolvedByName: "Admin",
             resolutionNote: "Refunded via Paystack",
+            refundCase: expect.objectContaining({
+                ticketId: "ticket-1",
+                orderId: "order-7",
+                customerUid: "customer-1",
+                vendorUid: "vendor-1",
+                status: "approved",
+                amount: 30,
+                amountInMinorUnits: 3000,
+                reason: "Missing item"
+            }),
             updatedAt: "2026-05-16T14:00:00Z"
-        });
+        }));
 
         const categoryPatch = ticketModel.createTicketPatch({
             category: "ORDER",

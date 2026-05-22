@@ -571,25 +571,36 @@
     clip: rect(0, 0, 0, 0);
 }
 
-.rating-star-input:checked ~ .rating-star-symbol,
-.rating-star-button:has(.rating-star-input:checked) ~ .rating-star-button .rating-star-symbol {
-    color: var(--order-accent, #c86c18);
+/* The JS renders stars 5 → 1 in DOM order. row-reverse flips them so the
+   visual layout reads 1 (left) → 5 (right) like every other star UI. With
+   that flip, `:checked ~ .rating-star-button` matches DOM-later siblings —
+   which are visually-earlier stars — so the chosen star and every star
+   below it light up. Same trick gives us hover preview for free. */
+.rating-stars {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
 }
 
-.rating-star-button:has(.rating-star-input:checked) {
-    color: var(--order-accent, #c86c18);
-}
-
-/* Light up the chosen star and every star before it */
-.rating-stars:has(.rating-star-input:checked) .rating-star-button {
+/* Default faded colour for unselected stars */
+.rating-star-button {
     color: rgba(127, 90, 67, 0.4);
 }
 
-.rating-stars:has(.rating-star-input[value="5"]:checked) .rating-star-button:nth-child(-n+5),
-.rating-stars:has(.rating-star-input[value="4"]:checked) .rating-star-button:nth-child(-n+4),
-.rating-stars:has(.rating-star-input[value="3"]:checked) .rating-star-button:nth-child(-n+3),
-.rating-stars:has(.rating-star-input[value="2"]:checked) .rating-star-button:nth-child(-n+2),
-.rating-stars:has(.rating-star-input[value="1"]:checked) .rating-star-button:nth-child(-n+1) {
+/* When any star in the row is checked, the chosen one and every star
+   with a lower value (DOM-after, visually-before) light up. */
+.rating-star-button:has(.rating-star-input:checked),
+.rating-star-button:has(.rating-star-input:checked) ~ .rating-star-button {
+    color: var(--order-accent, #c86c18);
+}
+
+/* Hover preview: same pattern, transient. Hovering star N temporarily
+   shows what clicking it would do, then the user commits with the click. */
+.rating-stars:hover .rating-star-button {
+    color: rgba(127, 90, 67, 0.4);
+}
+
+.rating-stars .rating-star-button:hover,
+.rating-stars .rating-star-button:hover ~ .rating-star-button {
     color: var(--order-accent, #c86c18);
 }
 

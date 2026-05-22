@@ -912,6 +912,24 @@ describe("customer/order-tracking/index.js - rating helpers", () => {
         expect(checked.value).toBe("3");
     });
 
+    test("renderStarPicker emits stars in 5→1 DOM order (paired with row-reverse layout)", () => {
+        // Regression guard: the highlight logic relies on stars being in
+        // descending DOM order so `:checked ~ sibling` lights up lower-value
+        // stars. If a future refactor flips the loop back to 1→5, the UI
+        // would visually invert (selecting 1 star would light up all 5).
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        customerOrderTrackingPage.renderStarPicker(host, null, "vendorRating");
+
+        const values = Array.from(host.querySelectorAll("input[type='radio']"))
+            .map(function readValue(input) { return input.value; });
+        expect(values).toEqual(["5", "4", "3", "2", "1"]);
+
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"))
+            .map(function readAttr(label) { return label.getAttribute("data-rating-value"); });
+        expect(labels).toEqual(["5", "4", "3", "2", "1"]);
+    });
+
     test("fillRatingModal renders the order items in the per-item rating list", () => {
         const dialog = customerOrderTrackingPage.fillRatingModal({
             orderId: "abc-12345678",

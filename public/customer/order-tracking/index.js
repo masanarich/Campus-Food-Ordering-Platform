@@ -1278,9 +1278,14 @@
         }
         container.innerHTML = "";
         const max = 5;
-        for (let i = 1; i <= max; i += 1) {
+        // Render highest → lowest in DOM order. CSS flips it visually with
+        // `flex-direction: row-reverse`, which lets us highlight the chosen
+        // star plus every star "below" it using the classic `:checked ~ *`
+        // sibling selector — and gives us free hover preview.
+        for (let i = max; i >= 1; i -= 1) {
             const label = globalScope.document.createElement("label");
             label.className = "rating-star-button";
+            label.setAttribute("data-rating-value", String(i));
             const input = globalScope.document.createElement("input");
             input.type = "radio";
             input.name = namePrefix;
