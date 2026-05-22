@@ -1,6 +1,9 @@
 {
   "scripts": {
+    "sync:functions-shared": "node functions/scripts/sync-shared.js",
+    "pretest": "npm run sync:functions-shared",
     "test": "jest",
+    "pretest:coverage": "npm run sync:functions-shared",
     "test:coverage": "jest --coverage"
   },
   "dependencies": {

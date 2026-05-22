@@ -21,9 +21,28 @@
         PAYMENT_STATUSES.PAID
     ]);
 
+    const ACTIVE_PAYMENT_STATUSES = Object.freeze([
+        PAYMENT_STATUSES.PENDING
+    ]);
+
+    const CUSTOMER_ACTION_PAYMENT_STATUSES = Object.freeze([
+        PAYMENT_STATUSES.UNPAID,
+        PAYMENT_STATUSES.FAILED
+    ]);
+
     const RETRYABLE_PAYMENT_STATUSES = Object.freeze([
         PAYMENT_STATUSES.UNPAID,
         PAYMENT_STATUSES.FAILED
+    ]);
+
+    const ORDER_BLOCKING_PAYMENT_STATUSES = Object.freeze([
+        PAYMENT_STATUSES.UNPAID,
+        PAYMENT_STATUSES.PENDING,
+        PAYMENT_STATUSES.FAILED
+    ]);
+
+    const REFUNDABLE_PAYMENT_STATUSES = Object.freeze([
+        PAYMENT_STATUSES.PAID
     ]);
 
     const PAYMENT_STATUS_METADATA = Object.freeze({
@@ -142,8 +161,24 @@
         return TERMINAL_PAYMENT_STATUSES.slice();
     }
 
+    function getActivePaymentStatusList() {
+        return ACTIVE_PAYMENT_STATUSES.slice();
+    }
+
+    function getCustomerActionPaymentStatusList() {
+        return CUSTOMER_ACTION_PAYMENT_STATUSES.slice();
+    }
+
     function getRetryablePaymentStatusList() {
         return RETRYABLE_PAYMENT_STATUSES.slice();
+    }
+
+    function getOrderBlockingPaymentStatusList() {
+        return ORDER_BLOCKING_PAYMENT_STATUSES.slice();
+    }
+
+    function getRefundablePaymentStatusList() {
+        return REFUNDABLE_PAYMENT_STATUSES.slice();
     }
 
     function isKnownPaymentStatus(status) {
@@ -158,6 +193,10 @@
         return normalizePaymentStatus(status) === PAYMENT_STATUSES.PAID;
     }
 
+    function isPaymentUnpaid(status) {
+        return normalizePaymentStatus(status) === PAYMENT_STATUSES.UNPAID;
+    }
+
     function isPaymentPending(status) {
         return normalizePaymentStatus(status) === PAYMENT_STATUSES.PENDING;
     }
@@ -166,8 +205,24 @@
         return normalizePaymentStatus(status) === PAYMENT_STATUSES.FAILED;
     }
 
+    function isPaymentActive(status) {
+        return ACTIVE_PAYMENT_STATUSES.indexOf(normalizePaymentStatus(status)) >= 0;
+    }
+
+    function isPaymentAwaitingCustomerAction(status) {
+        return CUSTOMER_ACTION_PAYMENT_STATUSES.indexOf(normalizePaymentStatus(status)) >= 0;
+    }
+
     function isPaymentRetryable(status) {
         return RETRYABLE_PAYMENT_STATUSES.indexOf(normalizePaymentStatus(status)) >= 0;
+    }
+
+    function isPaymentBlockingOrder(status) {
+        return ORDER_BLOCKING_PAYMENT_STATUSES.indexOf(normalizePaymentStatus(status)) >= 0;
+    }
+
+    function isPaymentRefundable(status) {
+        return REFUNDABLE_PAYMENT_STATUSES.indexOf(normalizePaymentStatus(status)) >= 0;
     }
 
     function getPaymentStatusMetadata(status) {
@@ -288,6 +343,11 @@
     const paymentStatus = {
         MODULE_NAME,
         PAYMENT_STATUSES,
+        ACTIVE_PAYMENT_STATUSES,
+        CUSTOMER_ACTION_PAYMENT_STATUSES,
+        RETRYABLE_PAYMENT_STATUSES,
+        ORDER_BLOCKING_PAYMENT_STATUSES,
+        REFUNDABLE_PAYMENT_STATUSES,
         normalizeText,
         normalizeLowerText,
         normalizeStatusKey,
@@ -295,13 +355,22 @@
         getDefaultPaymentStatus,
         getPaymentStatusList,
         getTerminalPaymentStatusList,
+        getActivePaymentStatusList,
+        getCustomerActionPaymentStatusList,
         getRetryablePaymentStatusList,
+        getOrderBlockingPaymentStatusList,
+        getRefundablePaymentStatusList,
         isKnownPaymentStatus,
         isTerminalPaymentStatus,
         isPaymentPaid,
+        isPaymentUnpaid,
         isPaymentPending,
         isPaymentFailed,
+        isPaymentActive,
+        isPaymentAwaitingCustomerAction,
         isPaymentRetryable,
+        isPaymentBlockingOrder,
+        isPaymentRefundable,
         getPaymentStatusMetadata,
         getPaymentStatusLabel,
         getPaymentStatusShortLabel,
