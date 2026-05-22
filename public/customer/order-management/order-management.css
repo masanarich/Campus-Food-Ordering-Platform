@@ -780,11 +780,63 @@ body.customer-portal [hidden] {
     color: var(--order-success-text);
 }
 
+.customer-portal .campus-recommendation-notice {
+    margin-top: 1rem;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(33, 106, 73, 0.18);
+    border-radius: var(--order-radius-lg);
+    background: rgba(227, 243, 230, 0.78);
+    color: var(--order-success-text);
+    font-weight: 800;
+}
+
+.customer-portal .campus-recommendation-notice[data-state="info"] {
+    border-color: rgba(91, 70, 153, 0.18);
+    background: rgba(239, 231, 255, 0.82);
+    color: #5b4699;
+}
+
 .customer-portal .recommendation-reasons {
     display: grid;
     gap: 0.35rem;
     padding-left: 1.1rem;
     color: var(--order-text-soft);
+}
+
+.customer-portal .campus-recommendation-focus {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1.1rem;
+    border: 1px solid rgba(33, 106, 73, 0.2);
+    border-radius: var(--order-radius-xl);
+    background: linear-gradient(135deg, rgba(227, 243, 230, 0.95), rgba(255, 251, 246, 0.9));
+    box-shadow: var(--order-shadow-sm);
+}
+
+.customer-portal .campus-recommendation-focus-note {
+    margin: 0;
+    color: var(--order-text-soft);
+    font-weight: 700;
+}
+
+.customer-portal .campus-recommended-menu-item-card {
+    border-color: rgba(33, 106, 73, 0.35);
+    background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(227, 243, 230, 0.9));
+    box-shadow: 0 16px 34px rgba(33, 106, 73, 0.14);
+}
+
+.customer-portal .campus-recommendation-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    margin: 0;
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--order-radius-pill);
+    background: rgba(33, 106, 73, 0.12);
+    color: var(--order-success-text);
+    font-size: 0.86rem;
+    font-weight: 900;
 }
 
 .customer-portal .menu-category {

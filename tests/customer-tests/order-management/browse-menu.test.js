@@ -83,6 +83,7 @@ function createDOMElements() {
         <section id="menu-container"></section>
         <nav id="menu-pagination"></nav>
         <p id="browse-menu-status"></p>
+        <p id="campus-recommendation-notice" hidden></p>
         <output id="cart-badge">0</output>
         <h2 id="vendor-name-heading">Menu</h2>
     `;
@@ -94,6 +95,7 @@ function createDOMElements() {
         container: document.getElementById("menu-container"),
         paginationContainer: document.getElementById("menu-pagination"),
         statusElement: document.getElementById("browse-menu-status"),
+        campusRecommendationNotice: document.getElementById("campus-recommendation-notice"),
         cartBadge: document.getElementById("cart-badge"),
         vendorNameHeading: document.getElementById("vendor-name-heading")
     };
@@ -117,6 +119,8 @@ describe("customer/order-management/browse-menu.js - Module Structure", () => {
         expect(customerBrowseMenu.createMenuItemCard).toBeDefined();
         expect(customerBrowseMenu.renderRecommendations).toBeDefined();
         expect(customerBrowseMenu.loadMenuRecommendations).toBeDefined();
+        expect(customerBrowseMenu.applyRecommendedItemFocus).toBeDefined();
+        expect(customerBrowseMenu.renderCampusRecommendationNotice).toBeDefined();
         expect(customerBrowseMenu.getVisiblePageNumbers).toBeDefined();
         expect(customerBrowseMenu.calculateMenuItemPricing).toBeDefined();
         expect(customerBrowseMenu.getCart).toBeDefined();
@@ -534,10 +538,70 @@ describe("customer/order-management/browse-menu.js - createMenuItemCard", () => 
 
 describe("customer/order-management/browse-menu.js - renderMenuItems", () => {
     let container;
+    let campusRecommendationNotice;
 
     beforeEach(() => {
         const elements = createDOMElements();
         container = elements.container;
+        campusRecommendationNotice = elements.campusRecommendationNotice;
+    });
+
+    test("marks, pins, and explains campus-wide recommended items", () => {
+        const items = [
+            createMockMenuItem({ menuItemId: "regular", name: "Regular Burger", category: "Meals" }),
+            createMockMenuItem({ menuItemId: "campus-pick", name: "Campus Curry", category: "Meals" })
+        ];
+        const focusResult = customerBrowseMenu.applyRecommendedItemFocus(items, "campus-pick");
+
+        expect(focusResult.found).toBe(true);
+        expect(focusResult.menuItems[0].menuItemId).toBe("campus-pick");
+        expect(focusResult.menuItems[0].isCampusRecommended).toBe(true);
+        expect(customerBrowseMenu.menuItemMatchesRecommendedId(items[1], "campus-pick")).toBe(true);
+
+        customerBrowseMenu.renderCampusRecommendationNotice(
+            campusRecommendationNotice,
+            focusResult,
+            "Campus Bites"
+        );
+        customerBrowseMenu.renderMenuItems(focusResult.menuItems, container);
+
+        expect(campusRecommendationNotice.hidden).toBe(false);
+        expect(campusRecommendationNotice.textContent).toContain("Campus Curry");
+        expect(campusRecommendationNotice.getAttribute("data-state")).toBe("success");
+        expect(container.querySelector(".campus-recommendation-focus")).not.toBeNull();
+        expect(container.querySelectorAll(".campus-recommended-menu-item-card")).toHaveLength(1);
+        expect(container.querySelector(".campus-recommendation-badge").textContent)
+            .toBe("Campus-wide recommendation");
+        expect(container.querySelectorAll(".menu-category .menu-item-card")).toHaveLength(1);
+    });
+
+    test("campus recommendation notice reports unavailable handoff items", () => {
+        customerBrowseMenu.renderCampusRecommendationNotice(
+            campusRecommendationNotice,
+            {
+                recommendedItemId: "missing-meal",
+                found: false,
+                focusedItems: []
+            },
+            "Campus Bites"
+        );
+
+        expect(campusRecommendationNotice.hidden).toBe(false);
+        expect(campusRecommendationNotice.textContent).toContain("not available");
+        expect(campusRecommendationNotice.getAttribute("data-state")).toBe("info");
+
+        customerBrowseMenu.renderCampusRecommendationNotice(
+            campusRecommendationNotice,
+            {
+                recommendedItemId: "",
+                found: false,
+                focusedItems: []
+            },
+            "Campus Bites"
+        );
+
+        expect(campusRecommendationNotice.hidden).toBe(true);
+        expect(campusRecommendationNotice.textContent).toBe("");
     });
 
     test("renders multiple menu items grouped by category", () => {
@@ -805,6 +869,34 @@ describe("customer/order-management/browse-menu.js - init", () => {
         expect(recommendationContainer.querySelectorAll(".recommended-menu-item-card").length)
             .toBeGreaterThan(0);
         expect(recommendationContainer.querySelector(".add-to-cart-button")).not.toBeNull();
+    });
+
+    test("pins a campus-wide recommended item from the dashboard handoff", async () => {
+        const mockMenuItems = [
+            createMockMenuItem({ menuItemId: "regular-meal", name: "Regular Meal" }),
+            createMockMenuItem({ menuItemId: "campus-pick", name: "Campus Curry" })
+        ];
+        const mockDb = { kind: "db" };
+        const firestoreFns = createFirestoreFns({ mockMenuItems });
+
+        const result = await customerBrowseMenu.init({
+            db: mockDb,
+            firestoreFns,
+            search: "?vendorUid=vendor-1&vendorName=Campus%20Bites&recommendedItemId=campus-pick"
+        });
+
+        const notice = document.getElementById("campus-recommendation-notice");
+        const container = document.getElementById("menu-container");
+
+        expect(result.success).toBe(true);
+        expect(result.recommendedItemId).toBe("campus-pick");
+        expect(result.recommendedItemFound).toBe(true);
+        expect(result.focusedRecommendationItems[0].name).toBe("Campus Curry");
+        expect(result.menuItems[0].menuItemId).toBe("campus-pick");
+        expect(notice.hidden).toBe(false);
+        expect(notice.textContent).toContain("Campus Curry");
+        expect(container.querySelector(".campus-recommendation-focus")).not.toBeNull();
+        expect(container.querySelectorAll(".campus-recommended-menu-item-card")).toHaveLength(1);
     });
 
     test("returns error when no vendor UID provided", async () => {

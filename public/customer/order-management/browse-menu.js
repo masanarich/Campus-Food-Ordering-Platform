@@ -282,6 +282,95 @@
         return globalScope.location?.search || "";
     }
 
+    function normalizeItemLookupKey(value) {
+        return normalizeLowerText(value).replace(/[^a-z0-9]+/g, "");
+    }
+
+    function getMenuItemLookupKeys(item) {
+        const safeItem = item && typeof item === "object" ? item : {};
+
+        return [
+            safeItem.menuItemId,
+            safeItem.id,
+            safeItem.itemId,
+            safeItem.productId,
+            safeItem.name
+        ]
+            .map(normalizeItemLookupKey)
+            .filter(Boolean)
+            .filter(function uniqueKey(key, index, list) {
+                return list.indexOf(key) === index;
+            });
+    }
+
+    function menuItemMatchesRecommendedId(item, recommendedItemId) {
+        const recommendedKey = normalizeItemLookupKey(recommendedItemId);
+
+        if (!recommendedKey) {
+            return false;
+        }
+
+        return getMenuItemLookupKeys(item).indexOf(recommendedKey) >= 0;
+    }
+
+    function applyRecommendedItemFocus(menuItems, recommendedItemId) {
+        const safeItems = Array.isArray(menuItems) ? menuItems : [];
+        const focusedItems = [];
+        const normalItems = [];
+
+        safeItems.forEach(function mapMenuItem(item) {
+            const safeItem = item && typeof item === "object" ? item : {};
+            const isCampusRecommended = menuItemMatchesRecommendedId(safeItem, recommendedItemId);
+            const nextItem = {
+                ...safeItem,
+                isCampusRecommended,
+                recommendationSource: isCampusRecommended ? "campus" : safeItem.recommendationSource || ""
+            };
+
+            if (isCampusRecommended) {
+                focusedItems.push(nextItem);
+            } else {
+                normalItems.push(nextItem);
+            }
+        });
+
+        return {
+            recommendedItemId: normalizeText(recommendedItemId),
+            found: focusedItems.length > 0,
+            focusedItems,
+            menuItems: focusedItems.concat(normalItems)
+        };
+    }
+
+    function renderCampusRecommendationNotice(element, focusResult, vendorName) {
+        if (!element) {
+            return;
+        }
+
+        const safeResult = focusResult && typeof focusResult === "object" ? focusResult : {};
+
+        if (!normalizeText(safeResult.recommendedItemId)) {
+            element.hidden = true;
+            element.textContent = "";
+            element.removeAttribute("data-state");
+            return;
+        }
+
+        element.hidden = false;
+        element.setAttribute("data-state", safeResult.found ? "success" : "info");
+
+        if (safeResult.found) {
+            const itemName = normalizeText(safeResult.focusedItems && safeResult.focusedItems[0] && safeResult.focusedItems[0].name) ||
+                "your recommended meal";
+            const safeVendorName = normalizeText(vendorName) ? ` from ${decodeText(vendorName)}` : "";
+
+            element.textContent = `You opened this menu from a campus-wide recommendation. ${itemName}${safeVendorName} is pinned below.`;
+            return;
+        }
+
+        element.textContent = "You opened this vendor from a campus-wide recommendation, but that item is not available on this menu right now.";
+    }
+
     function normalizeMenuItemData(data, fallbackItemId, vendorUid, vendorName) {
         const safeData = data && typeof data === "object" ? data : {};
         const itemId = normalizeText(fallbackItemId) || normalizeText(safeData.menuItemId || safeData.id);
@@ -658,6 +747,10 @@
         const pricing = calculateMenuItemPricing(safeItem);
         const article = globalScope.document.createElement("article");
         article.className = safeItem.available ? "menu-item-card" : "menu-item-card unavailable";
+        if (safeItem.isCampusRecommended === true) {
+            article.classList.add("campus-recommended-menu-item-card");
+            article.setAttribute("aria-label", "Campus-wide recommended menu item");
+        }
         article.setAttribute("data-menu-item-id", safeItem.menuItemId || safeItem.id);
         article.setAttribute("data-vendor-price", pricing.vendorPrice.toFixed(2));
         article.setAttribute("data-platform-fee", pricing.platformFee.toFixed(2));
@@ -698,6 +791,14 @@
         category.appendChild(categoryValue);
 
         section.appendChild(heading);
+
+        if (safeItem.isCampusRecommended === true) {
+            const campusBadge = globalScope.document.createElement("p");
+            campusBadge.className = "campus-recommendation-badge";
+            campusBadge.textContent = "Campus-wide recommendation";
+            section.appendChild(campusBadge);
+        }
+
         section.appendChild(category);
 
         if (normalizeText(safeItem.description)) {
@@ -817,7 +918,41 @@
 
         // Group by category
         const categorized = {};
-        menuItems.forEach((item) => {
+        const focusedItems = menuItems.filter(function isFocused(item) {
+            return item && item.isCampusRecommended === true;
+        });
+        const regularItems = menuItems.filter(function isRegular(item) {
+            return !item || item.isCampusRecommended !== true;
+        });
+
+        if (focusedItems.length > 0) {
+            const focusSection = globalScope.document.createElement("section");
+            focusSection.className = "campus-recommendation-focus";
+            focusSection.setAttribute("aria-labelledby", "campus-recommendation-focus-heading");
+
+            const focusHeading = globalScope.document.createElement("h3");
+            focusHeading.id = "campus-recommendation-focus-heading";
+            focusHeading.className = "category-heading";
+            focusHeading.textContent = "Your Campus Recommendation";
+
+            const focusIntro = globalScope.document.createElement("p");
+            focusIntro.className = "campus-recommendation-focus-note";
+            focusIntro.textContent = "This item matched your dashboard recommendation. You can add it here or browse the rest of this vendor's menu below.";
+
+            const focusGrid = globalScope.document.createElement("section");
+            focusGrid.className = "menu-items-grid";
+
+            focusedItems.forEach(function appendFocusedItem(item) {
+                focusGrid.appendChild(createMenuItemCard(item));
+            });
+
+            focusSection.appendChild(focusHeading);
+            focusSection.appendChild(focusIntro);
+            focusSection.appendChild(focusGrid);
+            container.appendChild(focusSection);
+        }
+
+        regularItems.forEach((item) => {
             const cat = item.category || "Other";
             if (!categorized[cat]) {
                 categorized[cat] = [];
@@ -1372,12 +1507,14 @@
         const paginationSelector = options.paginationSelector || "#menu-pagination";
         const recommendationContainerSelector = options.recommendationContainerSelector || "#recommendation-container";
         const recommendationStatusSelector = options.recommendationStatusSelector || "#recommendation-status";
+        const campusRecommendationNoticeSelector = options.campusRecommendationNoticeSelector || "#campus-recommendation-notice";
         const pageSize = clampPageSize(options.pageSize);
 
         // Get vendor info from URL
         const urlParams = new URLSearchParams(getLocationSearch(options));
         const vendorUid = normalizeText(options.vendorUid || urlParams.get("vendorUid"));
         const vendorName = options.vendorName || urlParams.get("vendorName");
+        const recommendedItemId = normalizeText(options.recommendedItemId || urlParams.get("recommendedItemId"));
 
         if (!vendorUid) {
             console.error(`${MODULE_NAME}: No vendor UID provided`);
@@ -1391,6 +1528,7 @@
         const paginationContainer = globalScope.document.querySelector(paginationSelector);
         const recommendationContainer = globalScope.document.querySelector(recommendationContainerSelector);
         const recommendationStatusElement = globalScope.document.querySelector(recommendationStatusSelector);
+        const campusRecommendationNotice = globalScope.document.querySelector(campusRecommendationNoticeSelector);
 
         if (!container) {
             console.error(`${MODULE_NAME}: Container not found: ${containerSelector}`);
@@ -1419,6 +1557,11 @@
         if (statusElement) {
             setStatusMessage(statusElement, "Loading menu...", "loading");
         }
+        renderCampusRecommendationNotice(
+            campusRecommendationNotice,
+            { recommendedItemId, found: false, focusedItems: [] },
+            vendorName
+        );
 
         // Fetch menu
         const result = await fetchVendorMenu({
@@ -1448,10 +1591,13 @@
             return { success: false, error: errorMessage };
         }
 
+        const focusResult = applyRecommendedItemFocus(result.menuItems, recommendedItemId);
+        renderCampusRecommendationNotice(campusRecommendationNotice, focusResult, vendorName);
+
         // Render the first page; pagination controls update state and re-render.
         const pageState = {
-            allItems: result.menuItems,
-            page: clampPageNumber(options.initialPage, getTotalPages(result.menuItems.length, pageSize)),
+            allItems: focusResult.menuItems,
+            page: clampPageNumber(options.initialPage, getTotalPages(focusResult.menuItems.length, pageSize)),
             pageSize
         };
 
@@ -1461,7 +1607,7 @@
         if (recommendationContainer) {
             try {
                 recommendationResult = await loadMenuRecommendations({
-                    menuItems: result.menuItems,
+                    menuItems: focusResult.menuItems,
                     db: options.db,
                     auth: options.auth,
                     currentUser: options.currentUser,
@@ -1526,10 +1672,13 @@
         return {
             success: true,
             menuItemCount: result.count,
-            menuItems: result.menuItems,
+            menuItems: focusResult.menuItems,
+            recommendedItemId,
+            recommendedItemFound: focusResult.found,
+            focusedRecommendationItems: focusResult.focusedItems,
             page: pageState.page,
             pageSize: pageState.pageSize,
-            totalPages: getTotalPages(result.menuItems.length, pageSize),
+            totalPages: getTotalPages(focusResult.menuItems.length, pageSize),
             recommendations: recommendationResult && Array.isArray(recommendationResult.recommendations)
                 ? recommendationResult.recommendations
                 : [],
@@ -1561,6 +1710,11 @@
         normalizeTagList,
         parseStoredTagList,
         getLocationSearch,
+        normalizeItemLookupKey,
+        getMenuItemLookupKeys,
+        menuItemMatchesRecommendedId,
+        applyRecommendedItemFocus,
+        renderCampusRecommendationNotice,
         renderMenuItems,
         createRecommendationCard,
         renderRecommendations,
