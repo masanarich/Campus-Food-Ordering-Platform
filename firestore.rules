@@ -113,6 +113,7 @@ service cloud.firestore {
         "refundReason",
         "refundRequestedAt",
         "refundProcessedAt",
+        "refundedAt",
         "refundFailureReason"
       ]);
     }
@@ -198,6 +199,41 @@ service cloud.firestore {
       ]);
     }
 
+    // When a vendor rejects a previously-paid order, the customer must be
+    // refunded automatically. The vendor's reject write therefore needs to
+    // flip paymentStatus + refundStatus to "refunded" and stamp the refund
+    // timestamps/amounts in a single atomic update. This helper permits
+    // exactly that narrow transition and nothing else:
+    //   - The order MUST currently be paid (resource.data.paymentStatus == "paid").
+    //   - The order MUST be transitioning to "rejected".
+    //   - The vendor MAY set: paymentStatus, refundStatus, refundAmount,
+    //     refundAmountInMinorUnits, refundReason, refundedAt — and the existing
+    //     allowed keys (status, timeline, updatedAt).
+    //   - Immutable monetary fields (paymentReference, paymentAmount,
+    //     paymentAmountInMinorUnits, paymentCurrency) MUST stay unchanged.
+    function vendorIsRejectingPaidOrderToRefunded() {
+      return resource.data.paymentStatus == "paid" &&
+        request.resource.data.status == "rejected" &&
+        request.resource.data.paymentStatus == "refunded" &&
+        request.resource.data.refundStatus == "refunded" &&
+        request.resource.data.paymentReference == resource.data.paymentReference &&
+        request.resource.data.paymentAmount == resource.data.paymentAmount &&
+        request.resource.data.paymentAmountInMinorUnits == resource.data.paymentAmountInMinorUnits &&
+        request.resource.data.paymentCurrency == resource.data.paymentCurrency &&
+        // Only the refund-related payment fields may be touched on top of the
+        // standard order-update fields.
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          "paymentId",
+          "paymentProvider",
+          "paymentAccessCode",
+          "paymentAuthorizationUrl",
+          "paymentPaidAt",
+          "paymentFailedAt",
+          "paymentVerifiedAt",
+          "paymentFailureReason"
+        ]);
+    }
+
     function isValidOrderCreate() {
       return signedIn() &&
         request.resource.data.customerUid == request.auth.uid &&
@@ -245,7 +281,10 @@ service cloud.firestore {
           (
             isOrderVendor() &&
             vendorOnlyTouchesOwnConfirmation() &&
-            vendorDoesNotTouchPaymentFields()
+            (
+              vendorDoesNotTouchPaymentFields() ||
+              vendorIsRejectingPaidOrderToRefunded()
+            )
           )
         );
     }
@@ -863,7 +902,12 @@ service cloud.firestore {
     match /checkoutSessions/{checkoutId} {
       allow create: if isValidCheckoutCreate() || isAdmin();
 
-      allow get, list: if isCheckoutCustomer() || isAdmin();
+      // Same simplification as /orders + /payoutRequests: inline owner check
+      // on one allow line, admin on a separate allow line. Helps the list
+      // analyzer prove `where("customerUid", "==", auth.uid)` is safe.
+      allow get, list: if signedIn() &&
+        resource.data.customerUid == request.auth.uid;
+      allow get, list: if isAdmin();
 
       allow update: if isValidCheckoutCustomerUpdate() || isAdmin();
 
@@ -873,8 +917,17 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow create: if isValidOrderCreate();
 
-      allow get: if isOrderParticipant();
-      allow list: if isOrderParticipant();
+      // Participant read: inlined so Firestore's list-query analyzer can
+      // statically prove `where("customerUid", "==", auth.uid)` or
+      // `where("vendorUid", "==", auth.uid)` queries are always safe.
+      // (See the matching note on /payoutRequests above.)
+      allow get, list: if signedIn() && (
+        resource.data.customerUid == request.auth.uid ||
+        resource.data.vendorUid == request.auth.uid
+      );
+
+      // Admin read on a separate allow line: Firestore OR-s these together.
+      allow get, list: if isAdmin();
 
       allow update: if isValidOrderUpdate();
 
@@ -888,8 +941,19 @@ service cloud.firestore {
     match /payoutRequests/{payoutId} {
       allow create: if isValidPayoutCreate() || isAdmin();
 
-      allow get: if isPayoutOwner() || isAdmin();
-      allow list: if isPayoutOwner() || isAdmin();
+      // Owner read: inlined (no helper, no external get()) so Firestore's
+      // list-query analyzer can statically verify that
+      // `where("vendorUid", "==", auth.uid)` makes every matched doc satisfy
+      // the rule. The previous OR-with-isAdmin form forced per-doc evaluation
+      // that occasionally tripped up the engine and denied legitimate vendor
+      // wallet reads with "Missing or insufficient permissions."
+      allow get, list: if signedIn() &&
+        resource.data.vendorUid == request.auth.uid;
+
+      // Admin read: separate allow line. Firestore OR-s multiple allow rules
+      // for the same operation, so admins still see everything via the
+      // /admin pages without polluting the owner-self path.
+      allow get, list: if isAdmin();
 
       allow update: if isValidPayoutUpdate();
 
@@ -1101,11 +1165,16 @@ service cloud.firestore {
 
       allow create: if canCreateNotification();
 
-      allow read: if isNotificationRecipientData(resource.data) || isAdmin();
+      // Recipient read: inlined so the analyzer can prove
+      // `where("recipientUid", "==", auth.uid)` queries are always safe.
+      allow read: if signedIn() && request.auth.uid == resource.data.recipientUid;
+      allow read: if isAdmin();
 
       allow update: if canUpdateNotification();
 
-      allow delete: if isNotificationRecipientData(resource.data) || isAdmin();
+      // Recipient delete: same inlining.
+      allow delete: if signedIn() && request.auth.uid == resource.data.recipientUid;
+      allow delete: if isAdmin();
     }
 
     // -----------------------------------------------------------------

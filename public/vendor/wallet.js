@@ -1115,9 +1115,12 @@
                 };
             } catch (error) {
                 console.error(`${MODULE_NAME}: Failed to submit withdrawal request.`, error);
+                // Use summarizeWalletError so vendors see a friendly message
+                // rather than the raw Firestore text (e.g. "Missing or
+                // insufficient permissions.") when the rules deny the write.
                 setStatusMessage(
                     elements.statusElement,
-                    error && error.message ? error.message : "Withdrawal request could not be submitted.",
+                    summarizeWalletError(error),
                     "error"
                 );
 

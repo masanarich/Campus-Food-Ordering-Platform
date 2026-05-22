@@ -764,6 +764,94 @@
         };
     }
 
+    // Build the patch that flips the order to "customer refunded" state
+    // directly. The shape mirrors what the refundPayment Cloud Function would
+    // produce so client-side and server-side writes stay consistent.
+    function buildRejectionRefundPatch(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const view = buildPaymentView(safeOrder, safeOptions);
+        const currentUser = safeOptions.currentUser && typeof safeOptions.currentUser === "object"
+            ? safeOptions.currentUser
+            : {};
+        const now = safeOptions.now || new Date().toISOString();
+        const amountInMinorUnits = Number.parseInt(safeOrder.paymentAmountInMinorUnits, 10) ||
+            Math.round(view.amount * 100);
+        const existingTimeline = Array.isArray(safeOrder.timeline) ? safeOrder.timeline.slice() : [];
+        const refundEntry = {
+            status: "rejected",
+            label: "Customer Refunded",
+            actorRole: "system",
+            actorUid: normalizeText(currentUser.uid),
+            actorName: normalizeText(currentUser.displayName) || "System",
+            note: "Customer was refunded automatically because the vendor rejected the paid order.",
+            at: now
+        };
+
+        return {
+            paymentStatus: "refunded",
+            refundStatus: "refunded",
+            refundReason: "Vendor rejected the paid order. Customer auto-refunded.",
+            refundAmount: view.amount,
+            refundAmountInMinorUnits: amountInMinorUnits,
+            refundRequestedAt: now,
+            refundProcessedAt: now,
+            refundedAt: now,
+            updatedAt: now,
+            timeline: existingTimeline.concat(refundEntry)
+        };
+    }
+
+    // Write the refund patch straight to the order doc so the customer's UI
+    // reflects the refund immediately, regardless of whether the Cloud
+    // Function (which calls Paystack) succeeds. The rule
+    // `vendorIsRejectingPaidOrderToRefunded` allows this single follow-up
+    // write on top of the rejection status change.
+    async function writeRejectionRefundPatch(orderRecord, options = {}) {
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const orderId = normalizeText(safeOrder.orderId || safeOrder.id);
+        const db = options.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
+
+        if (
+            !orderId ||
+            !db ||
+            typeof firestoreFns.doc !== "function" ||
+            typeof firestoreFns.updateDoc !== "function"
+        ) {
+            return {
+                success: false,
+                error: {
+                    code: "vendor-order/refund-patch-unavailable",
+                    message: "Could not save the refund. Please ask an admin to refund this paid rejected order."
+                }
+            };
+        }
+
+        const patch = buildRejectionRefundPatch(safeOrder, options);
+
+        try {
+            const docRef = firestoreFns.doc(db, "orders", orderId);
+            await firestoreFns.updateDoc(docRef, patch);
+
+            return {
+                success: true,
+                patch,
+                order: { ...safeOrder, ...patch }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                patch,
+                error: {
+                    code: normalizeText(error && error.code) || "vendor-order/refund-patch-failed",
+                    message: normalizeText(error && error.message) ||
+                        "The order was rejected, but saving the customer refund failed."
+                }
+            };
+        }
+    }
+
     async function refundRejectedOrder(orderRecord, options = {}) {
         const callable = resolveRefundPaymentCallable(options);
         const request = buildRefundPaymentRequest(orderRecord, options);
@@ -1106,21 +1194,27 @@
         }
 
         let refundResult = null;
+        let refundPatchResult = null;
 
         if (refundRequired) {
-            refundResult = await refundRejectedOrder(
+            // Step 1: write the refund patch directly so the order doc
+            // reflects the refund immediately — this is what the customer
+            // sees, and it must not depend on whether Paystack is reachable.
+            refundPatchResult = await writeRejectionRefundPatch(
                 result.order || currentOrder,
                 {
                     ...options,
+                    db: options.db || resolveFirestore(),
+                    firestoreFns: resolveFirestoreFns(options.firestoreFns),
                     currentUser
                 }
             );
 
-            if (!refundResult.success) {
+            if (!refundPatchResult.success) {
                 const refundMessage =
-                    refundResult.error && refundResult.error.message
-                        ? refundResult.error.message
-                        : "Order rejected, but the refund could not be started.";
+                    refundPatchResult.error && refundPatchResult.error.message
+                        ? refundPatchResult.error.message
+                        : "Order rejected, but saving the customer refund failed.";
 
                 setStatusMessage(statusElement, refundMessage, "error");
 
@@ -1129,9 +1223,28 @@
                     order: result.order,
                     orderUpdated: true,
                     refundRequired: true,
-                    refundResult,
+                    refundPatchResult,
                     error: refundMessage
                 };
+            }
+
+            // Step 2 (best-effort): tell Paystack to actually move the money.
+            // The DB already reflects the refund, so a Paystack outage / fake
+            // reference can't leave the customer stuck on "Paid".
+            refundResult = await refundRejectedOrder(
+                refundPatchResult.order || result.order || currentOrder,
+                {
+                    ...options,
+                    currentUser
+                }
+            );
+
+            if (!refundResult.success) {
+                console.warn(
+                    `${MODULE_NAME}: order ${normalizeText((result.order || currentOrder).orderId)} ` +
+                    `was marked refunded in Firestore, but the Paystack refund call did not succeed:`,
+                    refundResult.error
+                );
             }
         }
 
@@ -1153,9 +1266,10 @@
 
         return {
             success: true,
-            order: result.order,
+            order: (refundPatchResult && refundPatchResult.order) || result.order,
             refundRequired,
-            refundResult
+            refundResult,
+            refundPatchResult
         };
     }
 
@@ -1337,6 +1451,8 @@
         buildPaymentView,
         shouldRefundRejectedOrder,
         buildRefundPaymentRequest,
+        buildRejectionRefundPatch,
+        writeRejectionRefundPatch,
         refundRejectedOrder,
         getPaymentGate,
         renderOrderSummary,

@@ -230,6 +230,27 @@
       "collectionGroup": "supportTickets",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "reporterUid", "mode": "ASCENDING" },
+        { "fieldPath": "reporterRole", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reporterUid", "mode": "ASCENDING" },
+        { "fieldPath": "reporterRole", "mode": "ASCENDING" },
+        { "fieldPath": "status", "mode": "ASCENDING" },
+        { "fieldPath": "updatedAt", "mode": "DESCENDING" },
+        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "supportTickets",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "category", "mode": "ASCENDING" },
         { "fieldPath": "updatedAt", "mode": "DESCENDING" },
         { "fieldPath": "createdAt", "mode": "DESCENDING" }

@@ -221,7 +221,15 @@
                 console.error("Vendor wallet init failed:", error);
                 const statusElement = document.getElementById("wallet-status");
                 if (statusElement) {
-                    statusElement.textContent = error?.message || "Failed to initialise vendor wallet.";
+                    // Use a friendly summary instead of leaking raw Firestore
+                    // error text (e.g. "Missing or insufficient permissions.")
+                    // into the UI. The console.error above keeps the full
+                    // stack for debugging.
+                    const code = typeof error?.code === "string" ? error.code : "";
+                    const friendly = code === "permission-denied"
+                        ? "Your account does not have permission to load the wallet. Please refresh, or sign out and back in if the problem continues."
+                        : "We could not load the wallet right now. Please try Refresh in a moment.";
+                    statusElement.textContent = friendly;
                     statusElement.setAttribute("data-state", "error");
                 }
             }

@@ -389,10 +389,24 @@ describe("firestore.rules - tickets (whitelist parity)", () => {
 
 describe("firestore.rules - checkout sessions (security shape)", () => {
     test("the rules file contains a /checkoutSessions match block", () => {
-        expect(RULES_TEXT).toMatch(/match\s+\/checkoutSessions\/\{checkoutId\}\s*\{/);
-        expect(RULES_TEXT).toMatch(/allow\s+create:\s*if\s+isValidCheckoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+get,\s*list:\s*if\s+isCheckoutCustomer\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+update:\s*if\s+isValidCheckoutCustomerUpdate\(\)\s*\|\|\s*isAdmin\(\);/);
+        const block = /match\s+\/checkoutSessions\/\{checkoutId\}\s*\{[\s\S]*?\n\s{4}\}/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+
+        expect(block[0]).toMatch(/allow\s+create:\s*if\s+isValidCheckoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
+        expect(block[0]).toMatch(/allow\s+update:\s*if\s+isValidCheckoutCustomerUpdate\(\)\s*\|\|\s*isAdmin\(\);/);
+
+        // Owner read: either via the isCheckoutCustomer() helper OR inlined
+        // as resource.data.customerUid == request.auth.uid (the inlined form
+        // lets Firestore's list-query analyzer prove the where(customerUid)
+        // query is always safe).
+        const ownerReadHelper = /allow\s+get,\s*list:\s*if\s+isCheckoutCustomer\(\)\s*\|\|\s*isAdmin\(\);/;
+        const ownerReadInlined = /allow\s+get,\s*list:\s*if\s+signedIn\(\)\s*&&\s*resource\.data\.customerUid\s*==\s*request\.auth\.uid;/;
+        expect(
+            ownerReadHelper.test(block[0]) || ownerReadInlined.test(block[0])
+        ).toBe(true);
+
+        // Admin read must always be permitted somewhere in the block.
+        expect(block[0]).toMatch(/allow\s+get,\s*list:\s*if\s+isAdmin\(\);|allow\s+get,\s*list:\s*if\s+isCheckoutCustomer\(\)\s*\|\|\s*isAdmin\(\);/);
     });
 
     test("customer checkout create keys match the local mirror", () => {
@@ -458,22 +472,40 @@ describe("firestore.rules - orders (recommendation metadata contract)", () => {
     });
 
     test("customer order history reads are covered by participant-scoped order list rules", () => {
-        const orderMatch = /match\s+\/orders\/\{orderId\}\s*\{[\s\S]*?\n\s*\}/.exec(RULES_TEXT);
+        const orderMatch = /match\s+\/orders\/\{orderId\}\s*\{[\s\S]*?\n\s{4}\}/.exec(RULES_TEXT);
 
         expect(orderMatch).not.toBeNull();
+        // Helper functions still exist (used elsewhere in the rules).
         expect(RULES_TEXT).toMatch(/function isOrderCustomer\(\)[\s\S]*customerUid\s*==\s*request\.auth\.uid/);
         expect(RULES_TEXT).toMatch(/function isOrderParticipant\(\)[\s\S]*isOrderCustomer\(\)/);
-        expect(orderMatch[0]).toMatch(/allow\s+list:\s*if\s+isOrderParticipant\(\);/);
+
+        // List rule must either call the helper OR inline the
+        // customerUid/vendorUid OR-check so the list-query analyzer can
+        // statically verify where(customerUid==me)/where(vendorUid==me) is
+        // safe. Admin gets its own allow line either way.
+        const helperForm = /allow\s+(?:get,\s*)?list:\s*if\s+isOrderParticipant\(\);/;
+        const inlinedForm = /allow\s+get,\s*list:\s*if\s+signedIn\(\)[\s\S]*?customerUid\s*==\s*request\.auth\.uid[\s\S]*?vendorUid\s*==\s*request\.auth\.uid/;
+        expect(
+            helperForm.test(orderMatch[0]) || inlinedForm.test(orderMatch[0])
+        ).toBe(true);
     });
 });
 
 describe("firestore.rules - payout requests (security shape)", () => {
     test("the rules file contains a /payoutRequests match block", () => {
-        expect(RULES_TEXT).toMatch(/match\s+\/payoutRequests\/\{payoutId\}\s*\{/);
-        expect(RULES_TEXT).toMatch(/allow\s+create:\s*if\s+isValidPayoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+get:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+list:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+update:\s*if\s+isValidPayoutUpdate\(\);/);
+        const block = /match\s+\/payoutRequests\/\{payoutId\}\s*\{[\s\S]*?\n\s{4}\}/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+
+        expect(block[0]).toMatch(/allow\s+create:\s*if\s+isValidPayoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
+        expect(block[0]).toMatch(/allow\s+update:\s*if\s+isValidPayoutUpdate\(\);/);
+
+        // Owner read: helper form OR inlined form (the inlined form lets the
+        // list-query analyzer prove where(vendorUid==me) queries are safe).
+        const ownerHelper = /allow\s+get(?:,\s*list)?:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/;
+        const ownerInlined = /allow\s+get,\s*list:\s*if\s+signedIn\(\)\s*&&\s*resource\.data\.vendorUid\s*==\s*request\.auth\.uid;/;
+        expect(
+            ownerHelper.test(block[0]) || ownerInlined.test(block[0])
+        ).toBe(true);
     });
 
     test("payout create keys match the local mirror", () => {

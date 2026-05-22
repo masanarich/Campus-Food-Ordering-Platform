@@ -1202,6 +1202,101 @@ describe("customer/order-management/payment-callback.js - data flow", () => {
         );
     });
 
+    test("writeOrderCreatedNotifications writes vendor + customer notifications anchored to the new order", async () => {
+        // The notification writes are anchored to the order doc that just
+        // got created, so the rule `isOrderParticipantById(orderId)` passes
+        // and the vendor only ever gets notified if there's a real order
+        // on their side. This is the fix for the "got the email but the
+        // order doesn't show up" race.
+        const addDoc = jest.fn()
+            .mockResolvedValueOnce({ id: "notif-vendor" })
+            .mockResolvedValueOnce({ id: "notif-customer" });
+        const firestoreFns = {
+            collection: jest.fn((db, name) => ({ db, name })),
+            addDoc,
+            serverTimestamp: jest.fn(() => "server-ts")
+        };
+
+        const result = await paymentCallback.writeOrderCreatedNotifications(
+            { checkoutId: "checkout-1", vendorUid: "vendor-1", vendorName: "Campus Bites", customerUid: "customer-1", customerName: "Ama" },
+            { orderId: "order-1", vendorUid: "vendor-1", vendorName: "Campus Bites", customerUid: "customer-1", customerName: "Ama" },
+            { db: { kind: "db" }, firestoreFns }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.vendorNotificationId).toBe("notif-vendor");
+        expect(result.customerNotificationId).toBe("notif-customer");
+        expect(addDoc).toHaveBeenCalledTimes(2);
+        const [, vendorPayload] = addDoc.mock.calls[0];
+        const [, customerPayload] = addDoc.mock.calls[1];
+        expect(vendorPayload).toEqual(expect.objectContaining({
+            recipientUid: "vendor-1",
+            recipientRole: "vendor",
+            type: "order_placed",
+            title: "New Order Received",
+            orderId: "order-1",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            read: false
+        }));
+        expect(vendorPayload.message).toContain("Ama");
+        expect(customerPayload).toEqual(expect.objectContaining({
+            recipientUid: "customer-1",
+            recipientRole: "customer",
+            type: "order_placed",
+            title: "Order Placed",
+            orderId: "order-1",
+            read: false
+        }));
+        expect(customerPayload.message).toContain("Campus Bites");
+    });
+
+    test("writeOrderCreatedNotifications skips with a clear error when context is incomplete", async () => {
+        const addDoc = jest.fn();
+        const firestoreFns = {
+            collection: jest.fn(() => ({})),
+            addDoc,
+            serverTimestamp: jest.fn(() => "server-ts")
+        };
+
+        const noOrderId = await paymentCallback.writeOrderCreatedNotifications(
+            {}, { vendorUid: "v", customerUid: "c" },
+            { db: { kind: "db" }, firestoreFns }
+        );
+        expect(noOrderId.success).toBe(false);
+        expect(noOrderId.skipped).toBe(true);
+        expect(noOrderId.error.code).toBe("payment-callback/notifications-missing-context");
+        expect(addDoc).not.toHaveBeenCalled();
+    });
+
+    test("writeOrderCreatedNotifications still returns success when only one side fails", async () => {
+        // If only the vendor write fails (e.g. transient rules denial), the
+        // customer is still notified and the function reports the partial
+        // failure rather than rolling back. The order doc itself is the
+        // authoritative source of truth either way.
+        const vendorError = Object.assign(new Error("permission-denied"), { code: "permission-denied" });
+        const addDoc = jest.fn()
+            .mockRejectedValueOnce(vendorError)
+            .mockResolvedValueOnce({ id: "notif-customer" });
+        const firestoreFns = {
+            collection: jest.fn(() => ({})),
+            addDoc,
+            serverTimestamp: jest.fn(() => "server-ts")
+        };
+
+        const result = await paymentCallback.writeOrderCreatedNotifications(
+            { checkoutId: "c-1" },
+            { orderId: "order-1", vendorUid: "vendor-1", customerUid: "customer-1" },
+            { db: { kind: "db" }, firestoreFns }
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.customerNotificationId).toBe("notif-customer");
+        expect(result.errors).toEqual([
+            expect.objectContaining({ role: "vendor", code: "permission-denied" })
+        ]);
+    });
+
     test("processPaymentCallback converts paid checkout through the server callable when available", async () => {
         const checkout = createCheckoutRecord();
         const paidCheckout = createCheckoutRecord({

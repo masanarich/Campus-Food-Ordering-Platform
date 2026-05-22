@@ -1117,13 +1117,18 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
                 }
             }
         }));
+        // Capture the direct refund patch that gets written to the order doc.
+        const updateDoc = jest.fn(async () => undefined);
+        const doc = jest.fn(function makeDocRef(...path) {
+            return { __kind: "doc", path };
+        });
 
         const result = await vendorOrderDetailPage.handleOrderAction({
             type: "status_change",
             nextStatus: "rejected"
         }, {
             db: { kind: "db" },
-            firestoreFns: {},
+            firestoreFns: { doc, updateDoc },
             orderService: { getOrderById: jest.fn(), updateOrderStatus },
             currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
             currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
@@ -1136,20 +1141,51 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
 
         expect(result.success).toBe(true);
         expect(result.refundRequired).toBe(true);
+        expect(result.refundPatchResult.success).toBe(true);
+
+        // The order doc was patched directly so the customer's UI flips to
+        // "Refunded" immediately, regardless of whether Paystack is reachable.
+        expect(doc).toHaveBeenCalledWith({ kind: "db" }, "orders", "order-1");
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+        const writtenPatch = updateDoc.mock.calls[0][1];
+        expect(writtenPatch).toEqual(expect.objectContaining({
+            paymentStatus: "refunded",
+            refundStatus: "refunded",
+            refundReason: expect.stringMatching(/vendor rejected/i),
+            refundAmount: expect.any(Number),
+            refundAmountInMinorUnits: expect.any(Number),
+            refundedAt: expect.any(String),
+            refundProcessedAt: expect.any(String),
+            refundRequestedAt: expect.any(String),
+            updatedAt: expect.any(String),
+            timeline: expect.arrayContaining([
+                expect.objectContaining({
+                    label: "Customer Refunded",
+                    status: "rejected"
+                })
+            ])
+        }));
+
+        // The Paystack call still runs as a best-effort side step. It picks
+        // up the already-patched order, so the reason reflects the auto-
+        // refund prose and the payment snapshot is in its refunded state.
         expect(result.refundResult.success).toBe(true);
         expect(refundPaymentCallable).toHaveBeenCalledWith(expect.objectContaining({
             reference: "paystack-ref",
-            reason: "Vendor rejected the paid order.",
+            reason: expect.stringMatching(/vendor rejected/i),
             payment: expect.objectContaining({
                 orderId: "order-1",
-                status: "paid",
                 timeline: expect.any(Array)
             })
         }));
         expect(dom.statusElement.textContent).toContain("customer refunded");
     });
 
-    test("handleOrderAction reports refund failure after rejecting a paid order", async () => {
+    test("handleOrderAction succeeds even when the Paystack refund call fails, because the order doc was already patched", async () => {
+        // Regression: previously the Paystack failure would mark the whole
+        // operation as failed and the customer was stuck on "Paid" + "Refund
+        // Not Requested". Now the Firestore patch is the source of truth and
+        // a Paystack outage only triggers a console warning.
         const paymentStatus = createPaymentStatusStub();
         const paymentFormatters = createPaymentFormattersStub();
         const refundStatus = createRefundStatusStub();
@@ -1160,18 +1196,62 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
         const refundPaymentCallable = jest.fn(async () => ({
             data: {
                 success: false,
-                error: {
-                    message: "Refund service failed."
-                }
+                error: { message: "Paystack unavailable." }
             }
         }));
+        const updateDoc = jest.fn(async () => undefined);
+        const doc = jest.fn(function makeDocRef(...path) {
+            return { __kind: "doc", path };
+        });
 
         const result = await vendorOrderDetailPage.handleOrderAction({
             type: "status_change",
             nextStatus: "rejected"
         }, {
             db: { kind: "db" },
-            firestoreFns: {},
+            firestoreFns: { doc, updateDoc },
+            orderService: { getOrderById: jest.fn(), updateOrderStatus },
+            currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
+            currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
+            paymentStatus,
+            paymentFormatters,
+            refundStatus,
+            refundPaymentCallable,
+            statusSelector: "#vendor-order-detail-status"
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.refundRequired).toBe(true);
+        expect(result.refundPatchResult.success).toBe(true);
+        expect(result.refundResult.success).toBe(false);
+        expect(updateDoc).toHaveBeenCalledTimes(1);
+        expect(dom.statusElement.textContent).toContain("customer refunded");
+    });
+
+    test("handleOrderAction reports refund failure when the Firestore patch write itself fails", async () => {
+        // The direct refund patch is now the authoritative write. If it
+        // throws (e.g. rules block, network down), the operation must surface
+        // an error so the vendor knows the customer is still on "Paid".
+        const paymentStatus = createPaymentStatusStub();
+        const paymentFormatters = createPaymentFormattersStub();
+        const refundStatus = createRefundStatusStub();
+        const updateOrderStatus = jest.fn(async () => ({
+            success: true,
+            order: createOrder({ status: "rejected", paymentStatus: "paid" })
+        }));
+        const refundPaymentCallable = jest.fn();
+        const writeError = Object.assign(new Error("permission-denied"), { code: "permission-denied" });
+        const updateDoc = jest.fn(async () => { throw writeError; });
+        const doc = jest.fn(function makeDocRef(...path) {
+            return { __kind: "doc", path };
+        });
+
+        const result = await vendorOrderDetailPage.handleOrderAction({
+            type: "status_change",
+            nextStatus: "rejected"
+        }, {
+            db: { kind: "db" },
+            firestoreFns: { doc, updateDoc },
             orderService: { getOrderById: jest.fn(), updateOrderStatus },
             currentOrder: createOrder({ paymentStatus: "paid", status: "pending" }),
             currentUser: { uid: "vendor-1", displayName: "Campus Bites" },
@@ -1185,10 +1265,12 @@ describe("vendor/order-management/order-detail.js - data loading and init", () =
         expect(result.success).toBe(false);
         expect(result.orderUpdated).toBe(true);
         expect(result.refundRequired).toBe(true);
-        expect(result.error).toBe("Refund service failed.");
+        expect(result.error).toMatch(/permission-denied/);
         expect(updateOrderStatus).toHaveBeenCalled();
-        expect(refundPaymentCallable).toHaveBeenCalled();
-        expect(dom.statusElement.textContent).toContain("Refund service failed.");
+        // Paystack must NOT be called once the local patch failed — there is
+        // no point starting a real refund if we can't even mark it in our DB.
+        expect(refundPaymentCallable).not.toHaveBeenCalled();
+        expect(dom.statusElement.textContent).toMatch(/permission-denied/);
     });
 
     test("handleOrderAction covers unavailable service, failure states, confirm collection, and refresh after success", async () => {
