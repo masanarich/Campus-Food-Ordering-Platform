@@ -715,26 +715,137 @@ describe("vendor/index.js finance loading helpers", () => {
             }
         ];
 
+        // platform-pricing path: includes the gross/net/refund breakdown that
+        // calculateVendorBalance now surfaces alongside the legacy fields.
         expect(calculateVendorHomeFinanceSummary(orders, payouts, {
             vendorUid: "vendor-1",
             platformPricing
         })).toEqual({
             vendorUid: "vendor-1",
             completedOrders: 1,
+            grossVendorEarnings: 100,
+            refundDeductions: 0,
+            netVendorEarnings: 100,
             totalEarned: 100,
             reservedWithdrawals: 35,
             availableBalance: 65
         });
 
+        // Passing `null` doesn't actually disable platform pricing — the
+        // resolver falls back to globalThis.platformPricing, and then to a
+        // direct require() of the shared module. Since the test file already
+        // imported it at the top, the cached module wins and we get the same
+        // 8-field shape. See the dedicated "manual fallback" test below for
+        // the truly-no-platform-pricing path.
         expect(calculateVendorHomeFinanceSummary(orders, payouts, {
             vendorUid: "vendor-1",
             platformPricing: null
         })).toEqual({
             vendorUid: "vendor-1",
             completedOrders: 1,
+            grossVendorEarnings: 100,
+            refundDeductions: 0,
+            netVendorEarnings: 100,
             totalEarned: 100,
             reservedWithdrawals: 35,
             availableBalance: 65
+        });
+    });
+
+    test("calculateVendorHomeFinanceSummary falls back to manual computation when no platform pricing is resolvable", () => {
+        // Disable every resolver path: the explicit argument, the global,
+        // and the require'd module's calculateVendorBalance. This forces the
+        // function down the manual filter/reduce branch that computes the
+        // 5-field legacy shape directly from orders + payouts.
+        const cachedModule = require.cache[require.resolve("../../public/shared/finance/platform-pricing.js")];
+        const savedCalculate = cachedModule.exports.calculateVendorBalance;
+        const previousGlobal = globalThis.platformPricing;
+
+        cachedModule.exports.calculateVendorBalance = undefined;
+        delete globalThis.platformPricing;
+
+        try {
+            const orders = [
+                {
+                    vendorUid: "vendor-1",
+                    status: "completed",
+                    paymentStatus: "paid",
+                    vendorEarnings: 90
+                },
+                // Different vendor — must be excluded.
+                {
+                    vendorUid: "vendor-2",
+                    status: "completed",
+                    paymentStatus: "paid",
+                    vendorEarnings: 1000
+                },
+                // Wrong status — must be excluded.
+                {
+                    vendorUid: "vendor-1",
+                    status: "ready",
+                    paymentStatus: "paid",
+                    vendorEarnings: 70
+                },
+                // Order missing vendorEarnings but with vendorSubtotal — fallback chain.
+                {
+                    vendorUid: "vendor-1",
+                    status: "completed",
+                    paymentStatus: "paid",
+                    vendorSubtotal: 30
+                }
+            ];
+            const payouts = [
+                { vendorUid: "vendor-1", amount: 15, status: "pending" },
+                // Different vendor — must be excluded.
+                { vendorUid: "vendor-2", amount: 200, status: "pending" },
+                // Not a reserving status — must be excluded.
+                { vendorUid: "vendor-1", amount: 5, status: "rejected" }
+            ];
+
+            expect(calculateVendorHomeFinanceSummary(orders, payouts, {
+                vendorUid: "vendor-1",
+                platformPricing: null
+            })).toEqual({
+                vendorUid: "vendor-1",
+                completedOrders: 2,
+                totalEarned: 120,
+                reservedWithdrawals: 15,
+                availableBalance: 105
+            });
+        } finally {
+            cachedModule.exports.calculateVendorBalance = savedCalculate;
+            if (previousGlobal !== undefined) {
+                globalThis.platformPricing = previousGlobal;
+            }
+        }
+    });
+
+    test("calculateVendorHomeFinanceSummary subtracts vendor refund deductions through platform pricing", () => {
+        // A completed paid order with a vendor refund deduction should reduce
+        // net earnings (and therefore the available balance) by the deduction.
+        const orders = [
+            {
+                orderId: "order-refund",
+                vendorUid: "vendor-1",
+                status: "completed",
+                paymentStatus: "paid",
+                vendorEarnings: 100,
+                vendorRefundDeduction: 25
+            }
+        ];
+
+        expect(calculateVendorHomeFinanceSummary(orders, [], {
+            vendorUid: "vendor-1",
+            platformPricing
+        })).toEqual({
+            vendorUid: "vendor-1",
+            completedOrders: 1,
+            grossVendorEarnings: 100,
+            refundDeductions: 25,
+            netVendorEarnings: 75,
+            totalEarned: 75,
+            reservedWithdrawals: 0,
+            availableBalance: 75
         });
     });
 
@@ -761,6 +872,9 @@ describe("vendor/index.js finance loading helpers", () => {
             summary: {
                 vendorUid: "vendor-1",
                 completedOrders: 1,
+                grossVendorEarnings: 80,
+                refundDeductions: 0,
+                netVendorEarnings: 80,
                 totalEarned: 80,
                 reservedWithdrawals: 0,
                 availableBalance: 80
@@ -796,6 +910,9 @@ describe("vendor/index.js finance loading helpers", () => {
             summary: {
                 vendorUid: "vendor-1",
                 completedOrders: 1,
+                grossVendorEarnings: 120,
+                refundDeductions: 0,
+                netVendorEarnings: 120,
                 totalEarned: 120,
                 reservedWithdrawals: 20,
                 availableBalance: 100
@@ -830,6 +947,9 @@ describe("vendor/index.js finance loading helpers", () => {
             summary: {
                 vendorUid: "vendor-1",
                 completedOrders: 1,
+                grossVendorEarnings: 200,
+                refundDeductions: 0,
+                netVendorEarnings: 200,
                 totalEarned: 200,
                 reservedWithdrawals: 50,
                 availableBalance: 150
