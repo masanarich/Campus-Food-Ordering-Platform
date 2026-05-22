@@ -738,16 +738,13 @@
             ? summary
             : calculateWalletSummary([], [], options);
         const payoutList = Array.isArray(payouts) ? payouts : [];
-
         const approvedPayout = sortPayoutsOldestFirst(payoutList).find(function findApproved(payout) {
             return normalizeLowerText(payout && payout.status) === "approved";
         });
-
         const pendingPayout = sortPayoutsOldestFirst(payoutList).find(function findPending(payout) {
             const status = normalizeLowerText(payout && payout.status) || "pending";
             return status === "pending";
         });
-
         const activePayout = approvedPayout || pendingPayout;
 
         if (activePayout) {

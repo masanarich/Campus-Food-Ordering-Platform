@@ -367,40 +367,24 @@
         const caseImpact = refundCase.impact && typeof refundCase.impact === "object"
             ? refundCase.impact
             : {};
-        const impact = {
+
+        return {
             ...caseImpact,
             ...directImpact
         };
-
-        if (hasValue(impact.vendorDeductionInMinorUnits) && !hasValue(impact.vendorDeduction)) {
-            impact.vendorDeduction = amountFromMinorUnits(impact.vendorDeductionInMinorUnits);
-        }
-
-        if (hasValue(impact.platformDeductionInMinorUnits) && !hasValue(impact.platformDeduction)) {
-            impact.platformDeduction = amountFromMinorUnits(impact.platformDeductionInMinorUnits);
-        }
-
-        return impact;
     }
 
     function getOrderVendorRefundDeduction(order) {
         const safeOrder = order && typeof order === "object" ? order : {};
         const impact = getOrderRefundImpact(safeOrder);
-        const deduction = resolveCurrencyAmount(
+        const deduction = normalizeCurrencyAmount(
             safeOrder.supportRefundVendorDeduction !== undefined
                 ? safeOrder.supportRefundVendorDeduction
                 : safeOrder.refundVendorDeduction !== undefined
                     ? safeOrder.refundVendorDeduction
                     : safeOrder.vendorRefundDeduction !== undefined
                         ? safeOrder.vendorRefundDeduction
-                        : impact.vendorDeduction,
-            safeOrder.supportRefundVendorDeductionInMinorUnits !== undefined
-                ? safeOrder.supportRefundVendorDeductionInMinorUnits
-                : safeOrder.refundVendorDeductionInMinorUnits !== undefined
-                    ? safeOrder.refundVendorDeductionInMinorUnits
-                    : safeOrder.vendorRefundDeductionInMinorUnits !== undefined
-                        ? safeOrder.vendorRefundDeductionInMinorUnits
-                        : impact.vendorDeductionInMinorUnits
+                        : impact.vendorDeduction
         );
 
         return Math.min(getOrderVendorEarnings(safeOrder), deduction);
@@ -409,21 +393,14 @@
     function getOrderPlatformRefundDeduction(order) {
         const safeOrder = order && typeof order === "object" ? order : {};
         const impact = getOrderRefundImpact(safeOrder);
-        const deduction = resolveCurrencyAmount(
+        const deduction = normalizeCurrencyAmount(
             safeOrder.supportRefundPlatformDeduction !== undefined
                 ? safeOrder.supportRefundPlatformDeduction
                 : safeOrder.refundPlatformDeduction !== undefined
                     ? safeOrder.refundPlatformDeduction
                     : safeOrder.platformRefundDeduction !== undefined
                         ? safeOrder.platformRefundDeduction
-                        : impact.platformDeduction,
-            safeOrder.supportRefundPlatformDeductionInMinorUnits !== undefined
-                ? safeOrder.supportRefundPlatformDeductionInMinorUnits
-                : safeOrder.refundPlatformDeductionInMinorUnits !== undefined
-                    ? safeOrder.refundPlatformDeductionInMinorUnits
-                    : safeOrder.platformRefundDeductionInMinorUnits !== undefined
-                        ? safeOrder.platformRefundDeductionInMinorUnits
-                        : impact.platformDeductionInMinorUnits
+                        : impact.platformDeduction
         );
 
         return Math.min(getOrderPlatformEarnings(safeOrder), deduction);

@@ -241,6 +241,9 @@ service cloud.firestore {
         request.resource.data.vendorUid is string &&
         request.resource.data.vendorUid != "" &&
         request.resource.data.status == "pending" &&
+        // Recommendation metadata such as dietary/allergens is stored inside
+        // each item. The rule validates the item collection shape here, while
+        // the app model validates and normalises the item fields themselves.
         request.resource.data.items is list &&
         request.resource.data.items.size() > 0 &&
         request.resource.data.get("vendorSubtotal", 0) >= 0 &&
@@ -625,6 +628,9 @@ service cloud.firestore {
         request.resource.data.status == "open" &&
         request.resource.data.get("replyCount", 0) == 0 &&
         request.resource.data.get("resolvedAt", null) == null &&
+        // Refund cases are created by admins after a support ticket is opened.
+        // Reporters can ask for a refund via category/order context, but they
+        // cannot seed proposed, approved, processing, or completed refund state.
         request.resource.data.get("refundCase", null) == null &&
         (
           !("orderId" in request.resource.data) ||
@@ -1041,9 +1047,14 @@ service cloud.firestore {
 
     // -----------------------------------------------------------------
     // /vendorReviews
+    //
+    // Customers leave one review per completed order via a composite ID
+    // (`{orderId}_{customerUid}`). Anyone signed in can read reviews so that
+    // averages can be shown on browse-vendors / browse-menu / shop pages.
     // -----------------------------------------------------------------
 
     function isReviewedOrderCustomer(orderId) {
+      // Tightly couple a review to an actual order the customer placed.
       return signedIn() &&
         exists(/databases/$(database)/documents/orders/$(orderId)) &&
         get(/databases/$(database)/documents/orders/$(orderId)).data.customerUid == request.auth.uid &&
@@ -1093,7 +1104,7 @@ service cloud.firestore {
         isValidReviewSubmission() &&
         reviewImmutableFieldsPreserved();
 
-      allow delete: if isAdminOrOwner() ||
+      allow delete: if isAdmin() ||
         (signedIn() && resource.data.customerUid == request.auth.uid);
     }
 
