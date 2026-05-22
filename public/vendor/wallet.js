@@ -4,8 +4,16 @@
     const MODULE_NAME = "vendor/wallet";
     const ORDERS_COLLECTION = "orders";
     const USERS_COLLECTION = "users";
+    const PAYOUTS_COLLECTION = "payouts";
+    const PAYOUT_COLLECTION_ALIASES = Object.freeze([
+        "payouts",
+        "payoutRequests",
+        "withdrawalRequests"
+    ]);
     const DEFAULT_CURRENCY = "ZAR";
     const DEFAULT_AUTH_TIMEOUT_MS = 5000;
+    const MONEY_ROUNDING_TOLERANCE = 0.05;
+
     const STATUS_MESSAGES = Object.freeze({
         loading: "Loading wallet...",
         ready: "Wallet loaded. Completed paid orders are included in the available balance.",
@@ -23,30 +31,26 @@
         return normalizeText(value).toLowerCase();
     }
 
-    /**
-     * Turn a raw error (Firebase or otherwise) into a short, user-friendly
-     * status message. Firebase's "missing index" errors include a long URL
-     * that we don't want to display to vendors.
-     */
-    function summarizeWalletError(error) {
-        if (!error) return STATUS_MESSAGES.failed;
-        const code = typeof error.code === "string" ? error.code : "";
-        const message = typeof error.message === "string" ? error.message : "";
-        const looksLikeIndexError =
-            code === "failed-precondition" ||
-            (/\bindex\b/i.test(message) && /\b(building|require[ds]?|create[ds]?|composite)\b/i.test(message));
-        if (looksLikeIndexError) {
-            return "Wallet data is still preparing (Firestore indexes are building). Please try Refresh again in a minute or two.";
+    function parseCurrencyNumber(value) {
+        if (typeof value === "number") {
+            return value;
         }
-        if (code === "permission-denied") {
-            return "You don't have permission to view this wallet.";
+
+        if (typeof value !== "string") {
+            return Number.parseFloat(value);
         }
-        return STATUS_MESSAGES.failed;
+
+        const normalized = value
+            .trim()
+            .replace(/\s+/g, "")
+            .replace(/,/g, ".");
+
+        return Number.parseFloat(normalized);
     }
 
     function normalizeCurrencyAmount(value, fallbackValue) {
-        const parsed = Number.parseFloat(value);
-        const fallbackParsed = Number.parseFloat(fallbackValue);
+        const parsed = parseCurrencyNumber(value);
+        const fallbackParsed = parseCurrencyNumber(fallbackValue);
 
         if (Number.isFinite(parsed)) {
             return Math.max(0, Math.round((parsed + Number.EPSILON) * 100) / 100);
@@ -57,6 +61,48 @@
         }
 
         return 0;
+    }
+
+    function hasValue(value) {
+        return value !== undefined && value !== null && String(value).trim() !== "";
+    }
+
+    function normalizeAmountInMinorUnits(value, fallbackValue) {
+        const parsed = Number.parseInt(value, 10);
+        const fallbackParsed = Number.parseInt(fallbackValue, 10);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return Math.round(parsed);
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return Math.round(fallbackParsed);
+        }
+
+        return 0;
+    }
+
+    function amountFromMinorUnits(value, fallbackValue) {
+        return normalizeCurrencyAmount(normalizeAmountInMinorUnits(value, fallbackValue) / 100);
+    }
+
+    function resolveCurrencyAmount(amountValue, minorUnitValue, fallbackValue) {
+        if (hasValue(minorUnitValue)) {
+            return amountFromMinorUnits(minorUnitValue);
+        }
+
+        return normalizeCurrencyAmount(amountValue, fallbackValue);
+    }
+
+    function resolveNearEqualCurrencyAmount(preferredValue, fallbackValue, tolerance = MONEY_ROUNDING_TOLERANCE) {
+        const preferred = normalizeCurrencyAmount(preferredValue);
+        const fallback = normalizeCurrencyAmount(fallbackValue);
+
+        if (preferred > 0 && fallback > 0 && Math.abs(preferred - fallback) <= tolerance) {
+            return Math.max(preferred, fallback);
+        }
+
+        return preferred > 0 ? preferred : fallback;
     }
 
     function formatCurrency(amount, currency) {
@@ -71,6 +117,53 @@
         } catch (error) {
             return `R${normalizeCurrencyAmount(amount).toFixed(2)}`;
         }
+    }
+
+    function summarizeWalletError(error) {
+        if (!error) {
+            return STATUS_MESSAGES.failed;
+        }
+
+        const code = typeof error.code === "string" ? error.code : "";
+        const message = typeof error.message === "string" ? error.message : "";
+        const step = normalizeText(error.walletStep);
+
+        const looksLikeIndexError =
+            code === "failed-precondition" ||
+            (/\bindex\b/i.test(message) && /\b(building|require[ds]?|create[ds]?|composite)\b/i.test(message));
+
+        if (looksLikeIndexError) {
+            return "Wallet data is still preparing. Please try Refresh again in a minute or two.";
+        }
+
+        if (code === "permission-denied" || /missing or insufficient permissions/i.test(message)) {
+            if (step) {
+                return `Firebase rules denied the wallet ${step} read. Check ${step} ownership for this signed-in user.`;
+            }
+
+            return "You don't have permission to view or update this wallet.";
+        }
+
+        return STATUS_MESSAGES.failed;
+    }
+
+    function isPermissionError(error) {
+        const code = typeof (error && error.code) === "string" ? error.code : "";
+        const message = typeof (error && error.message) === "string" ? error.message : "";
+
+        return code === "permission-denied" || /missing or insufficient permissions/i.test(message);
+    }
+
+    function createWalletStepError(step, error) {
+        const detail = error && typeof error === "object" ? error : {};
+        const message = detail.message || `Wallet ${step} step failed.`;
+        const wrapped = new Error(`${step}: ${message}`);
+
+        wrapped.code = detail.code || "wallet/step-failed";
+        wrapped.walletStep = step;
+        wrapped.cause = error || null;
+
+        return wrapped;
     }
 
     function resolveGlobal(name) {
@@ -110,6 +203,10 @@
     }
 
     function resolvePlatformPricing(explicitPlatformPricing) {
+        if (explicitPlatformPricing === null) {
+            return null;
+        }
+
         if (explicitPlatformPricing && typeof explicitPlatformPricing.calculateVendorBalance === "function") {
             return explicitPlatformPricing;
         }
@@ -132,6 +229,10 @@
     }
 
     function resolvePayoutModel(explicitPayoutModel) {
+        if (explicitPayoutModel === null) {
+            return null;
+        }
+
         if (explicitPayoutModel && typeof explicitPayoutModel.validatePayoutRequestInput === "function") {
             return explicitPayoutModel;
         }
@@ -154,6 +255,10 @@
     }
 
     function resolvePayoutQueries(explicitPayoutQueries) {
+        if (explicitPayoutQueries === null) {
+            return null;
+        }
+
         if (explicitPayoutQueries && typeof explicitPayoutQueries.fetchVendorPayouts === "function") {
             return explicitPayoutQueries;
         }
@@ -176,6 +281,10 @@
     }
 
     function resolvePayoutService(explicitPayoutService) {
+        if (explicitPayoutService === null) {
+            return null;
+        }
+
         if (explicitPayoutService && typeof explicitPayoutService.createPayoutRequest === "function") {
             return explicitPayoutService;
         }
@@ -205,15 +314,18 @@
         return new Promise(function waitForAuth(resolve) {
             let settled = false;
             let unsubscribe = null;
+
             const timer = setTimeout(function onTimeout() {
                 if (settled) {
                     return;
                 }
 
                 settled = true;
+
                 if (typeof unsubscribe === "function") {
                     unsubscribe();
                 }
+
                 resolve(auth.currentUser || null);
             }, timeoutMs);
 
@@ -224,9 +336,11 @@
 
                 settled = true;
                 clearTimeout(timer);
+
                 if (typeof unsubscribe === "function") {
                     unsubscribe();
                 }
+
                 resolve(user || null);
             });
         });
@@ -246,7 +360,7 @@
             email: normalizeLowerText(safeProfile.email || safeProfile.vendorEmail),
             vendorStatus: normalizeLowerText(safeProfile.vendorStatus),
             accountStatus: normalizeLowerText(safeProfile.accountStatus) || "active",
-            isAdmin: safeProfile.isAdmin === true || safeProfile.admin === true
+            isAdmin: safeProfile.isAdmin === true || safeProfile.admin === true || safeProfile.isOwner === true
         };
     }
 
@@ -283,10 +397,10 @@
 
                 if (profile) {
                     return normalizeVendorProfile({
-                        uid,
                         displayName: currentUser.displayName,
                         email: currentUser.email,
-                        ...profile
+                        ...profile,
+                        uid
                     });
                 }
             } catch (error) {
@@ -303,10 +417,10 @@
                 const data = exists && typeof snapshot.data === "function" ? snapshot.data() || {} : {};
 
                 return normalizeVendorProfile({
-                    uid,
                     displayName: currentUser.displayName,
                     email: currentUser.email,
-                    ...data
+                    ...data,
+                    uid
                 });
             } catch (error) {
                 console.error(`${MODULE_NAME}: Failed to load vendor profile from Firestore.`, error);
@@ -403,6 +517,8 @@
         const safeOptions = options && typeof options === "object" ? options : {};
         const vendorUid = normalizeText(safeOptions.vendorUid);
         const payoutQueries = resolvePayoutQueries(safeOptions.payoutQueries);
+        const db = resolveFirestore(safeOptions.db);
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
 
         if (!vendorUid) {
             return [];
@@ -413,15 +529,116 @@
             return Array.isArray(payouts) ? payouts : [];
         }
 
-        if (payoutQueries && typeof payoutQueries.fetchVendorPayouts === "function") {
-            return payoutQueries.fetchVendorPayouts({
+        if (
+            safeOptions.useSharedPayoutQueries === true &&
+            payoutQueries &&
+            typeof payoutQueries.fetchVendorPayouts === "function"
+        ) {
+            const payouts = await payoutQueries.fetchVendorPayouts({
                 ...safeOptions,
                 vendorUid,
                 payoutModel: resolvePayoutModel(safeOptions.payoutModel)
             });
+
+            return Array.isArray(payouts) ? payouts : [];
         }
 
-        return [];
+        if (
+            !db ||
+            typeof firestoreFns.collection !== "function" ||
+            typeof firestoreFns.getDocs !== "function"
+        ) {
+            return [];
+        }
+
+        const payoutsById = new Map();
+        const permissionErrors = [];
+        const collections = Array.isArray(safeOptions.payoutCollections) && safeOptions.payoutCollections.length > 0
+            ? safeOptions.payoutCollections
+            : PAYOUT_COLLECTION_ALIASES;
+
+        for (const collectionName of collections) {
+            const collectionRef = firestoreFns.collection(db, collectionName);
+            const payoutsQuery = typeof firestoreFns.query === "function" && typeof firestoreFns.where === "function"
+                ? firestoreFns.query(collectionRef, firestoreFns.where("vendorUid", "==", vendorUid))
+                : collectionRef;
+
+            try {
+                const snapshot = await firestoreFns.getDocs(payoutsQuery);
+                getSnapshotDocuments(snapshot).forEach(function addPayout(docSnapshot) {
+                    const payout = mapDocument(docSnapshot, "payoutId");
+                    const key = normalizeText(payout.payoutId) || `${collectionName}:${payoutsById.size}`;
+                    payoutsById.set(key, {
+                        ...payout,
+                        payoutCollection: collectionName
+                    });
+                });
+            } catch (error) {
+                if (!isPermissionError(error)) {
+                    throw error;
+                }
+
+                permissionErrors.push({ collectionName, error });
+                console.warn(`${MODULE_NAME}: Payout read denied for ${collectionName}.`, error);
+            }
+        }
+
+        if (permissionErrors.length === collections.length) {
+            throw createWalletStepError("payouts", permissionErrors[0].error);
+        }
+
+        return sortPayoutsNewestFirst(Array.from(payoutsById.values()));
+    }
+
+    function calculateFallbackVendorBalance(orders, payouts, vendorUid) {
+        const completedOrders = (Array.isArray(orders) ? orders : []).filter(function matchCompleted(order) {
+            const status = normalizeLowerText(order && (order.status || order.orderStatus));
+            const paymentStatus = normalizeLowerText(order && (order.paymentStatus || order.paymentState));
+            const orderVendorUid = normalizeText(order && order.vendorUid);
+
+            return status === "completed" &&
+                (!paymentStatus || paymentStatus === "paid") &&
+                (!vendorUid || orderVendorUid === vendorUid);
+        });
+
+        const totalEarned = completedOrders.reduce(function sumOrders(total, order) {
+            const safeOrder = order && typeof order === "object" ? order : {};
+            const amountValue = safeOrder.vendorEarnings !== undefined
+                ? safeOrder.vendorEarnings
+                : safeOrder.vendorSubtotal !== undefined
+                    ? safeOrder.vendorSubtotal
+                    : safeOrder.total;
+            const minorUnitValue = safeOrder.vendorEarningsInMinorUnits !== undefined
+                ? safeOrder.vendorEarningsInMinorUnits
+                : safeOrder.vendorSubtotalInMinorUnits;
+            const subtotalValue = safeOrder.vendorSubtotal !== undefined
+                ? safeOrder.vendorSubtotal
+                : null;
+            const subtotalMinorUnitValue = safeOrder.vendorSubtotalInMinorUnits;
+
+            return total + resolveNearEqualCurrencyAmount(
+                resolveCurrencyAmount(amountValue, minorUnitValue),
+                resolveCurrencyAmount(subtotalValue, subtotalMinorUnitValue)
+            );
+        }, 0);
+
+        const reservedWithdrawals = (Array.isArray(payouts) ? payouts : []).reduce(function sumPayouts(total, payout) {
+            const status = normalizeLowerText(payout && payout.status) || "pending";
+            const payoutVendorUid = normalizeText(payout && payout.vendorUid);
+            const reservesBalance = ["pending", "approved", "paid"].indexOf(status) >= 0;
+
+            return reservesBalance && (!vendorUid || payoutVendorUid === vendorUid)
+                ? total + resolveCurrencyAmount(payout && payout.amount, payout && payout.amountInMinorUnits)
+                : total;
+        }, 0);
+
+        return {
+            vendorUid,
+            completedOrders: completedOrders.length,
+            totalEarned: normalizeCurrencyAmount(totalEarned),
+            reservedWithdrawals: normalizeCurrencyAmount(reservedWithdrawals),
+            availableBalance: normalizeCurrencyAmount(totalEarned - reservedWithdrawals)
+        };
     }
 
     function calculateWalletSummary(orders, payouts, options = {}) {
@@ -438,8 +655,9 @@
                 return normalizeLowerText(payout && payout.status) === "paid";
             })
             .reduce(function sumPaid(total, payout) {
-                return total + normalizeCurrencyAmount(payout && payout.amount);
+                return total + resolveCurrencyAmount(payout && payout.amount, payout && payout.amountInMinorUnits);
             }, 0);
+
         const pendingPayouts = safePayouts
             .filter(function matchActivePayout(payout) {
                 const status = normalizeLowerText(payout && payout.status) || "pending";
@@ -455,44 +673,6 @@
             paidWithdrawals: normalizeCurrencyAmount(paidWithdrawals),
             pendingPayouts,
             payoutCount: safePayouts.length
-        };
-    }
-
-    function calculateFallbackVendorBalance(orders, payouts, vendorUid) {
-        const completedOrders = orders.filter(function matchCompleted(order) {
-            const status = normalizeLowerText(order && (order.status || order.orderStatus));
-            const paymentStatus = normalizeLowerText(order && (order.paymentStatus || order.paymentState));
-            const orderVendorUid = normalizeText(order && order.vendorUid);
-
-            return status === "completed" &&
-                (!paymentStatus || paymentStatus === "paid") &&
-                (!vendorUid || orderVendorUid === vendorUid);
-        });
-        const totalEarned = completedOrders.reduce(function sumOrders(total, order) {
-            return total + normalizeCurrencyAmount(
-                order.vendorEarnings !== undefined
-                    ? order.vendorEarnings
-                    : order.vendorSubtotal !== undefined
-                        ? order.vendorSubtotal
-                        : order.total
-            );
-        }, 0);
-        const reservedWithdrawals = payouts.reduce(function sumPayouts(total, payout) {
-            const status = normalizeLowerText(payout && payout.status) || "pending";
-            const payoutVendorUid = normalizeText(payout && payout.vendorUid);
-            const reservesBalance = ["pending", "approved", "paid"].indexOf(status) >= 0;
-
-            return reservesBalance && (!vendorUid || payoutVendorUid === vendorUid)
-                ? total + normalizeCurrencyAmount(payout && payout.amount)
-                : total;
-        }, 0);
-
-        return {
-            vendorUid,
-            completedOrders: completedOrders.length,
-            totalEarned: normalizeCurrencyAmount(totalEarned),
-            reservedWithdrawals: normalizeCurrencyAmount(reservedWithdrawals),
-            availableBalance: normalizeCurrencyAmount(totalEarned - reservedWithdrawals)
         };
     }
 
@@ -634,6 +814,7 @@
 
     function clearWithdrawalErrors(elements) {
         const safeElements = elements && typeof elements === "object" ? elements : getPageElements();
+
         Object.keys(safeElements.errorElements || {}).forEach(function clearOneError(field) {
             setFieldError(safeElements.inputs[field], safeElements.errorElements[field], "");
         });
@@ -799,6 +980,18 @@
         renderPayoutHistory(payouts, elements, options);
     }
 
+    function buildWithdrawalSuccessMessage(payout, summary, options = {}) {
+        const requestedAmount = payout && typeof payout === "object"
+            ? resolveCurrencyAmount(payout.amount, payout.amountInMinorUnits)
+            : 0;
+        const remainingBalance = summary && typeof summary === "object"
+            ? summary.availableBalance
+            : 0;
+
+        return `Withdrawal request submitted for ${formatCurrency(requestedAmount, options.currency)}. ` +
+            `That amount is now reserved, so ${formatCurrency(remainingBalance, options.currency)} remains available.`;
+    }
+
     function collectWithdrawalFormValues(elements) {
         const safeElements = elements && typeof elements === "object" ? elements : getPageElements();
         const inputs = safeElements.inputs || {};
@@ -867,6 +1060,129 @@
             isValid: Object.keys(errors).length === 0,
             errors,
             value: payload
+        };
+    }
+
+    function getNowValue(options = {}) {
+        if (options.now) {
+            return options.now;
+        }
+
+        if (typeof options.nowProvider === "function") {
+            return options.nowProvider();
+        }
+
+        return new Date().toISOString();
+    }
+
+    function createDeterministicPayoutId(options = {}) {
+        const seed = normalizeText(options.timestampSeed);
+
+        if (seed) {
+            return `payout-${seed.replace(/[^a-z0-9]+/gi, "").toLowerCase() || "request"}`;
+        }
+
+        const randomPart = Math.random().toString(36).slice(2, 10);
+        return `payout-${Date.now()}-${randomPart}`;
+    }
+
+    function maskFakeAccountNumber(accountNumber) {
+        const digits = normalizeText(accountNumber).replace(/\D+/g, "");
+        const last4 = digits.slice(-4);
+
+        return {
+            last4,
+            masked: last4 ? `****${last4}` : ""
+        };
+    }
+
+    function buildPayoutRequestPayload(options = {}) {
+        const payout = options.payout && typeof options.payout === "object" ? options.payout : {};
+        const amount = normalizeCurrencyAmount(payout.amount);
+        const now = getNowValue(options);
+        const payoutId = normalizeText(options.payoutId || payout.payoutId) || createDeterministicPayoutId(options);
+        const account = maskFakeAccountNumber(payout.fakeAccountNumber || payout.fakeAccountNumberMasked || payout.fakeAccountNumberLast4);
+
+        return {
+            payoutId,
+            vendorUid: normalizeText(payout.vendorUid),
+            vendorName: normalizeText(payout.vendorName) || "Vendor User",
+            vendorEmail: normalizeLowerText(payout.vendorEmail),
+            amount,
+            amountInMinorUnits: Math.round(amount * 100),
+            currency: normalizeText(payout.currency) || DEFAULT_CURRENCY,
+            status: "pending",
+            statusLabel: "Pending",
+            fakeBankName: normalizeText(payout.fakeBankName),
+            fakeAccountHolder: normalizeText(payout.fakeAccountHolder),
+            fakeAccountNumberLast4: account.last4,
+            fakeAccountNumberMasked: account.masked,
+            fakeBranchCode: normalizeText(payout.fakeBranchCode),
+            fakeAccountType: normalizeText(payout.fakeAccountType) || "cheque",
+            requestedAt: now,
+            approvedAt: null,
+            paidAt: null,
+            rejectedAt: null,
+            cancelledAt: null,
+            processedAt: null,
+            processedByUid: "",
+            processedByName: "",
+            rejectionReason: "",
+            notes: normalizeText(payout.notes),
+            testMode: true,
+            testEmailQueued: false,
+            emailNotificationId: "",
+            timeline: [
+                {
+                    status: "pending",
+                    label: "Withdrawal requested",
+                    message: "Vendor submitted a simulated withdrawal request.",
+                    createdAt: now
+                }
+            ],
+            createdAt: now,
+            updatedAt: now
+        };
+    }
+
+    async function createFallbackPayoutRequest(options = {}) {
+        const db = resolveFirestore(options.db);
+        const firestoreFns = resolveFirestoreFns(options.firestoreFns);
+
+        if (
+            !db ||
+            typeof firestoreFns.collection !== "function" ||
+            typeof firestoreFns.doc !== "function" ||
+            typeof firestoreFns.setDoc !== "function"
+        ) {
+            return {
+                success: false,
+                error: {
+                    code: "wallet/firestore-unavailable",
+                    message: "Firestore is not available for withdrawal requests."
+                }
+            };
+        }
+
+        const collectionRef = firestoreFns.collection(db, PAYOUTS_COLLECTION);
+        const docRef = firestoreFns.doc(collectionRef);
+        const payoutId = normalizeText(docRef && docRef.id) || createDeterministicPayoutId(options);
+        const payload = buildPayoutRequestPayload({
+            ...options,
+            payoutId
+        });
+
+        await firestoreFns.setDoc(docRef, payload);
+
+        return {
+            success: true,
+            payout: payload,
+            emailNotification: {
+                channel: "test_email",
+                notificationId: "",
+                recipientUid: payload.vendorUid,
+                queued: false
+            }
         };
     }
 
@@ -941,7 +1257,10 @@
 
                     return {
                         success: false,
-                        error: { code: "wallet/signed-out", message: STATUS_MESSAGES.signedOut }
+                        error: {
+                            code: "wallet/signed-out",
+                            message: STATUS_MESSAGES.signedOut
+                        }
                     };
                 }
 
@@ -964,23 +1283,38 @@
                     return {
                         success: false,
                         vendorProfile,
-                        error: { code: "wallet/access-denied", message: STATUS_MESSAGES.denied }
+                        error: {
+                            code: "wallet/access-denied",
+                            message: STATUS_MESSAGES.denied
+                        }
                     };
                 }
 
-                const vendorUid = normalizeText(vendorProfile.uid || currentUser.uid);
-                const orders = await fetchVendorOrders({
-                    ...options,
-                    db,
-                    firestoreFns,
-                    vendorUid
-                });
-                const payouts = await fetchVendorPayouts({
-                    ...options,
-                    db,
-                    firestoreFns,
-                    vendorUid
-                });
+                const vendorUid = normalizeText(currentUser.uid || vendorProfile.uid);
+                let orders = [];
+                let payouts = [];
+
+                try {
+                    orders = await fetchVendorOrders({
+                        ...options,
+                        db,
+                        firestoreFns,
+                        vendorUid
+                    });
+                } catch (error) {
+                    throw createWalletStepError("orders", error);
+                }
+
+                try {
+                    payouts = await fetchVendorPayouts({
+                        ...options,
+                        db,
+                        firestoreFns,
+                        vendorUid
+                    });
+                } catch (error) {
+                    throw createWalletStepError("payouts", error);
+                }
                 const summary = calculateWalletSummary(orders, payouts, {
                     ...options,
                     vendorUid
@@ -1005,11 +1339,7 @@
                 };
             } catch (error) {
                 console.error(`${MODULE_NAME}: Failed to load wallet.`, error);
-                setStatusMessage(
-                    elements.statusElement,
-                    summarizeWalletError(error),
-                    "error"
-                );
+                setStatusMessage(elements.statusElement, summarizeWalletError(error), "error");
 
                 return {
                     success: false,
@@ -1032,11 +1362,16 @@
             const payoutModel = resolvePayoutModel(options.payoutModel);
             const payoutService = resolvePayoutService(options.payoutService);
             const vendorProfile = normalizeVendorProfile(state.vendorProfile);
+            const vendorUid = normalizeText(
+                state.currentUser && state.currentUser.uid
+                    ? state.currentUser.uid
+                    : vendorProfile.uid
+            );
             const values = collectWithdrawalFormValues(elements);
             const validation = validateWithdrawal(values, {
                 payoutModel,
                 availableBalance: state.summary.availableBalance,
-                vendorUid: vendorProfile.uid,
+                vendorUid,
                 vendorName: vendorProfile.displayName,
                 vendorEmail: vendorProfile.email
             });
@@ -1052,40 +1387,43 @@
                 };
             }
 
-            if (!payoutService || typeof payoutService.createPayoutRequest !== "function") {
-                setStatusMessage(elements.statusElement, "Payout service is not available.", "error");
-
-                return {
-                    success: false,
-                    error: { code: "wallet/payout-service-missing", message: "Payout service is not available." }
-                };
-            }
-
             setRequestButtonBusy(elements, true);
             setStatusMessage(elements.statusElement, "Submitting withdrawal request...", "loading");
 
             try {
                 const db = resolveFirestore(options.db);
                 const firestoreFns = resolveFirestoreFns(options.firestoreFns);
-                const result = await payoutService.createPayoutRequest({
-                    ...options,
-                    db,
-                    firestoreFns,
-                    payoutModel,
-                    payout: {
-                        ...values,
-                        amount: normalizeCurrencyAmount(values.amount),
-                        vendorUid: vendorProfile.uid,
-                        vendorName: vendorProfile.displayName,
-                        vendorEmail: vendorProfile.email
-                    },
-                    availableBalance: state.summary.availableBalance
-                });
+                const payoutPayload = {
+                    ...values,
+                    amount: normalizeCurrencyAmount(values.amount),
+                    vendorUid,
+                    vendorName: vendorProfile.displayName,
+                    vendorEmail: vendorProfile.email
+                };
+
+                const result = payoutService && typeof payoutService.createPayoutRequest === "function"
+                    ? await payoutService.createPayoutRequest({
+                        ...options,
+                        db,
+                        firestoreFns,
+                        payoutModel,
+                        payout: payoutPayload,
+                        availableBalance: state.summary.availableBalance
+                    })
+                    : await createFallbackPayoutRequest({
+                        ...options,
+                        db,
+                        firestoreFns,
+                        payoutModel,
+                        payout: payoutPayload,
+                        availableBalance: state.summary.availableBalance
+                    });
 
                 if (!result || result.success !== true) {
                     const message = result && result.error && result.error.message
                         ? result.error.message
                         : "Withdrawal request could not be submitted.";
+
                     setStatusMessage(elements.statusElement, message, "error");
 
                     return {
@@ -1095,17 +1433,22 @@
                 }
 
                 const createdPayout = result.payout;
+
                 state.payouts = createdPayout
                     ? [createdPayout].concat(state.payouts)
                     : state.payouts.slice();
                 state.summary = calculateWalletSummary(state.orders, state.payouts, {
                     ...options,
-                    vendorUid: vendorProfile.uid
+                    vendorUid
                 });
 
                 renderWallet(state.summary, state.payouts, elements, options);
                 resetWithdrawalForm(elements);
-                setStatusMessage(elements.statusElement, STATUS_MESSAGES.saved, "success");
+                setStatusMessage(
+                    elements.statusElement,
+                    buildWithdrawalSuccessMessage(createdPayout, state.summary, options),
+                    "success"
+                );
 
                 return {
                     success: true,
@@ -1115,11 +1458,7 @@
                 };
             } catch (error) {
                 console.error(`${MODULE_NAME}: Failed to submit withdrawal request.`, error);
-                setStatusMessage(
-                    elements.statusElement,
-                    error && error.message ? error.message : "Withdrawal request could not be submitted.",
-                    "error"
-                );
+                setStatusMessage(elements.statusElement, summarizeWalletError(error), "error");
 
                 return {
                     success: false,
@@ -1175,12 +1514,18 @@
         MODULE_NAME,
         ORDERS_COLLECTION,
         USERS_COLLECTION,
+        PAYOUTS_COLLECTION,
         DEFAULT_CURRENCY,
         STATUS_MESSAGES,
         normalizeText,
         normalizeLowerText,
         normalizeCurrencyAmount,
+        normalizeAmountInMinorUnits,
+        amountFromMinorUnits,
+        resolveCurrencyAmount,
+        resolveNearEqualCurrencyAmount,
         formatCurrency,
+        summarizeWalletError,
         resolveAuth,
         resolveFirestore,
         resolveAuthFns,
@@ -1214,8 +1559,11 @@
         getPayoutStatusLabel,
         renderPayoutHistory,
         renderWallet,
+        buildWithdrawalSuccessMessage,
         collectWithdrawalFormValues,
         validateWithdrawal,
+        buildPayoutRequestPayload,
+        createFallbackPayoutRequest,
         renderWithdrawalErrors,
         resetWithdrawalForm,
         createVendorWalletPage,

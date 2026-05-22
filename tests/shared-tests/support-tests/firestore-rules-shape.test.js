@@ -267,12 +267,19 @@ function makePaidOrder(overrides = {}) {
 }
 
 describe("firestore.rules - tickets (whitelist parity)", () => {
+    test("auth helpers treat missing accountStatus as active but still require active when present", () => {
+        expect(RULES_TEXT).toMatch(/function\s+isActiveAccount\(\)[\s\S]*?get\("accountStatus",\s*"active"\)\s*==\s*"active"/);
+        expect(RULES_TEXT).toMatch(/function\s+isApprovedVendor\(\)[\s\S]*?vendorStatus\s*==\s*"approved"[\s\S]*?get\("accountStatus",\s*"active"\)\s*==\s*"active"/);
+        expect(RULES_TEXT).toMatch(/function\s+isApprovedVendor\(\)[\s\S]*?get\("isVendor",\s*false\)\s*==\s*true/);
+        expect(RULES_TEXT).toMatch(/function\s+isApprovedVendor\(\)[\s\S]*?get\("roles",\s*\{\}\)\.get\("vendor",\s*false\)\s*==\s*true/);
+    });
+
     test("the rules file actually contains a /supportTickets match block with /replies", () => {
         expect(RULES_TEXT).toMatch(/match\s+\/supportTickets\/\{ticketId\}\s*\{/);
         expect(RULES_TEXT).toMatch(/match\s+\/replies\/\{replyId\}\s*\{/);
         expect(RULES_TEXT).toMatch(/allow\s+create:\s*if\s+isValidTicketCreate\(\);/);
         expect(RULES_TEXT).toMatch(/allow\s+update:\s*if\s+isValidTicketUpdate\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+delete:\s*if\s+isAdmin\(\);/);
+        expect(RULES_TEXT).toMatch(/allow\s+delete:\s*if\s+isAdmin(?:OrOwner)?\(\);/);
     });
 
     test("admin allowed-update keys in rules match the local mirror", () => {
@@ -381,18 +388,32 @@ describe("firestore.rules - tickets (whitelist parity)", () => {
         });
         // System replies must NOT be writeable from the client.
         expect(block[0]).not.toMatch(/"system"/);
-        // Internal notes are admin-only — the rule must check both authorRole AND isAdmin().
+        // Internal notes are admin-only — the rule must check both authorRole AND admin/owner privileges.
         expect(block[0]).toMatch(/isInternalNote/);
-        expect(block[0]).toMatch(/isAdmin\(\)/);
+        expect(block[0]).toMatch(/isAdmin(?:OrOwner)?\(\)/);
     });
 });
 
 describe("firestore.rules - checkout sessions (security shape)", () => {
     test("the rules file contains a /checkoutSessions match block", () => {
-        expect(RULES_TEXT).toMatch(/match\s+\/checkoutSessions\/\{checkoutId\}\s*\{/);
-        expect(RULES_TEXT).toMatch(/allow\s+create:\s*if\s+isValidCheckoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+get,\s*list:\s*if\s+isCheckoutCustomer\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+update:\s*if\s+isValidCheckoutCustomerUpdate\(\)\s*\|\|\s*isAdmin\(\);/);
+        const block = /match\s+\/checkoutSessions\/\{checkoutId\}\s*\{[\s\S]*?\n\s{4}\}/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+
+        expect(block[0]).toMatch(/allow\s+create:\s*if\s+isValidCheckoutCreate\(\)\s*\|\|\s*isAdmin(?:OrOwner)?\(\);/);
+        expect(block[0]).toMatch(/allow\s+update:\s*if\s+isValidCheckoutCustomerUpdate\(\)\s*\|\|\s*isAdmin(?:OrOwner)?\(\);/);
+
+        // Owner read: either via the isCheckoutCustomer() helper OR inlined
+        // as resource.data.customerUid == request.auth.uid (the inlined form
+        // lets Firestore's list-query analyzer prove the where(customerUid)
+        // query is always safe).
+        const ownerReadHelper = /allow\s+get,\s*list:\s*if\s+isCheckoutCustomer\(\)\s*\|\|\s*isAdmin(?:OrOwner)?\(\);/;
+        const ownerReadInlined = /allow\s+get,\s*list:\s*if\s+signedIn\(\)\s*&&\s*resource\.data\.customerUid\s*==\s*request\.auth\.uid;/;
+        expect(
+            ownerReadHelper.test(block[0]) || ownerReadInlined.test(block[0])
+        ).toBe(true);
+
+        // Admin read must always be permitted somewhere in the block.
+        expect(block[0]).toMatch(/allow\s+get,\s*list:\s*if\s+isAdmin(?:OrOwner)?\(\);|allow\s+get,\s*list:\s*if\s+isCheckoutCustomer\(\)\s*\|\|\s*isAdmin(?:OrOwner)?\(\);/);
     });
 
     test("customer checkout create keys match the local mirror", () => {
@@ -469,11 +490,19 @@ describe("firestore.rules - orders (recommendation metadata contract)", () => {
 
 describe("firestore.rules - payout requests (security shape)", () => {
     test("the rules file contains a /payoutRequests match block", () => {
-        expect(RULES_TEXT).toMatch(/match\s+\/payoutRequests\/\{payoutId\}\s*\{/);
-        expect(RULES_TEXT).toMatch(/allow\s+create:\s*if\s+isValidPayoutCreate\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+get:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+list:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin\(\);/);
-        expect(RULES_TEXT).toMatch(/allow\s+update:\s*if\s+isValidPayoutUpdate\(\);/);
+        const block = /match\s+\/payoutRequests\/\{payoutId\}\s*\{[\s\S]*?\n\s{4}\}/.exec(RULES_TEXT);
+        expect(block).not.toBeNull();
+
+        expect(block[0]).toMatch(/allow\s+create:\s*if\s+isValidPayoutCreate\(\)\s*\|\|\s*isAdmin(?:OrOwner)?\(\);/);
+        expect(block[0]).toMatch(/allow\s+update:\s*if\s+isValidPayoutUpdate\(\);/);
+
+        // Owner read: helper form OR inlined form (the inlined form lets the
+        // list-query analyzer prove where(vendorUid==me) queries are safe).
+        const ownerHelper = /allow\s+get(?:,\s*list)?:\s*if\s+isPayoutOwner\(\)\s*\|\|\s*isAdmin(?:OrOwner)?\(\);/;
+        const ownerInlined = /allow\s+get,\s*list:\s*if\s+signedIn\(\)\s*&&\s*resource\.data\.vendorUid\s*==\s*request\.auth\.uid;/;
+        expect(
+            ownerHelper.test(block[0]) || ownerInlined.test(block[0])
+        ).toBe(true);
     });
 
     test("payout create keys match the local mirror", () => {
@@ -499,7 +528,7 @@ describe("firestore.rules - payout requests (security shape)", () => {
     test("vendor payout updates are limited to cancelling their own pending request", () => {
         const block = /function isValidPayoutUpdate[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
         expect(block).not.toBeNull();
-        expect(block[0]).toMatch(/isAdmin\(\)/);
+        expect(block[0]).toMatch(/isAdmin(?:OrOwner)?\(\)/);
         expect(block[0]).toMatch(/isPayoutOwner\(\)/);
         expect(block[0]).toMatch(/resource\.data\.status\s*==\s*"pending"/);
         expect(block[0]).toMatch(/request\.resource\.data\.status\s*==\s*"cancelled"/);

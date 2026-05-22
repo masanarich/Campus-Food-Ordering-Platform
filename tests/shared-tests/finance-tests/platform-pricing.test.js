@@ -10,9 +10,12 @@ describe("shared/finance/platform-pricing.js", () => {
         expect(platformPricing.normalizeText(null)).toBe("");
         expect(platformPricing.normalizeLowerText(" PAID ")).toBe("paid");
         expect(platformPricing.normalizeCurrencyAmount("12.349")).toBe(12.35);
+        expect(platformPricing.normalizeCurrencyAmount("8999,98")).toBe(8999.98);
         expect(platformPricing.normalizeCurrencyAmount("-5")).toBe(0);
         expect(platformPricing.normalizeCurrencyAmount("bad", 7.239)).toBe(7.24);
         expect(platformPricing.normalizeCurrencyAmount("bad")).toBe(0);
+        expect(platformPricing.amountFromMinorUnits(399998)).toBe(3999.98);
+        expect(platformPricing.resolveCurrencyAmount(4000.02, 400000)).toBe(4000);
         expect(platformPricing.normalizePositiveInteger("3")).toBe(3);
         expect(platformPricing.normalizePositiveInteger("bad", 2)).toBe(2);
         expect(platformPricing.normalizePositiveInteger("bad")).toBe(1);

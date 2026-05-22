@@ -88,8 +88,8 @@
             <form id="withdrawal-form" class="wallet-form" novalidate>
                 <p>
                     <label for="withdrawal-amount">Amount</label>
-                    <input id="withdrawal-amount" name="amount" type="number" min="1" step="0.01" placeholder="100.00"
-                        required>
+                    <input id="withdrawal-amount" name="amount" type="text" inputmode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?"
+                        placeholder="100.00" required>
                     <small id="withdrawal-amount-error" class="form-error" role="alert" hidden></small>
                 </p>
 
@@ -157,12 +157,12 @@
         <p>Campus Food Ordering Platform © 2026</p>
     </footer>
 
-    <script src="../shared/finance/platform-pricing.js"></script>
-    <script src="../shared/finance/payout-model.js"></script>
-    <script src="../shared/finance/payout-queries.js"></script>
-    <script src="../shared/finance/payout-service.js"></script>
+    <script src="../shared/finance/platform-pricing.js?v=20260522-wallet-simple-payouts"></script>
+    <script src="../shared/finance/payout-model.js?v=20260522-wallet-simple-payouts"></script>
+    <script src="../shared/finance/payout-queries.js?v=20260522-wallet-simple-payouts"></script>
+    <script src="../shared/finance/payout-service.js?v=20260522-wallet-simple-payouts"></script>
     <script src="../authentication/auth-utils.js"></script>
-    <script src="./wallet.js"></script>
+    <script src="./wallet.js?v=20260522-wallet-simple-payouts"></script>
 
     <script type="module">
         import { auth, db } from "../authentication/config.js";
@@ -221,7 +221,15 @@
                 console.error("Vendor wallet init failed:", error);
                 const statusElement = document.getElementById("wallet-status");
                 if (statusElement) {
-                    statusElement.textContent = error?.message || "Failed to initialise vendor wallet.";
+                    // Use a friendly summary instead of leaking raw Firestore
+                    // error text (e.g. "Missing or insufficient permissions.")
+                    // into the UI. The console.error above keeps the full
+                    // stack for debugging.
+                    const code = typeof error?.code === "string" ? error.code : "";
+                    const friendly = code === "permission-denied"
+                        ? "Your account does not have permission to load the wallet. Please refresh, or sign out and back in if the problem continues."
+                        : "We could not load the wallet right now. Please try Refresh in a moment.";
+                    statusElement.textContent = friendly;
                     statusElement.setAttribute("data-state", "error");
                 }
             }

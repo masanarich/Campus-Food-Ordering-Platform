@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Campus Food Ordering Platform – Design Documents</title>
+<style>
+  :root {
+    --blue: #1A56A0; --blue2: #2E75B6; --teal: #0D7C6E; --amber: #B45309;
+    --purple: #6D28D9; --coral: #C2410C; --green: #166534;
+    --slate: #475569; --light: #F0F6FF; --border: #CBD5E1;
+    --text: #1E293B; --sub: #64748B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #F8FAFC; color: var(--text); }
+  header { background: var(--blue); color: white; padding: 36px 48px; }
+  header h1 { font-size: 28px; font-weight: 700; }
+  header p { font-size: 14px; opacity: .8; margin-top: 6px; }
+  nav { background: white; border-bottom: 1px solid var(--border); padding: 0 48px;
+    display: flex; gap: 4px; overflow-x: auto; }
+  nav a { display: block; padding: 14px 18px; font-size: 13px; font-weight: 600;
+    color: var(--slate); text-decoration: none; border-bottom: 3px solid transparent;
+    white-space: nowrap; }
+  nav a:hover, nav a.active { color: var(--blue); border-bottom-color: var(--blue); }
+  section { display: none; padding: 40px 48px; max-width: 1100px; margin: 0 auto; }
+  section.active { display: block; }
+  h2 { font-size: 22px; color: var(--blue); margin-bottom: 8px; }
+  .desc { font-size: 13px; color: var(--sub); margin-bottom: 28px; line-height: 1.6; }
+
+  /* ── ARCHITECTURE DIAGRAM ── */
+  .arch { width: 100%; }
+  .tier-label { font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--sub); }
+  .box { rx: 8; ry: 8; }
+  .box-title { font-size: 13px; font-weight: 700; }
+  .box-sub { font-size: 11px; }
+  .arrow { marker-end: url(#arr); fill: none; stroke: var(--slate); stroke-width: 1.5; }
+  .arrow-dash { stroke-dasharray: 5 3; }
+
+  /* ── CLASS DIAGRAM ── */
+  .act-svg { width: 100%; }
+  .act-label { font-size: 11px; font-weight: 600; }
+  .act-note { font-size: 10px; }
+
+  /* ── SEQUENCE DIAGRAMS ── */
+  .seq-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .seq-tab { padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid var(--border); background: white; cursor: pointer; color: var(--slate); }
+  .seq-tab.active { background: var(--blue); color: white; border-color: var(--blue); }
+  .seq-panel { display: none; }
+  .seq-panel.active { display: block; }
+  .seq-svg { width: 100%; }
+  .seq-actor { font-size: 12px; font-weight: 700; }
+  .seq-msg { font-size: 11px; }
+  .seq-note { font-size: 10px; fill: #854D0E; }
+  .seq-box { fill: #FEF9C3; stroke: #CA8A04; stroke-width: 1; rx: 4; }
+
+  /* legend */
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;
+    padding: 14px 18px; background: white; border: 1px solid var(--border); border-radius: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sub); }
+  .legend-line { width: 28px; height: 2px; }
+  .legend-dash { background: repeating-linear-gradient(90deg,var(--slate) 0,var(--slate) 4px,transparent 4px,transparent 8px); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Campus Food Ordering Platform</h1>
+  <p>Design Documents — Architecture Diagram · Class Diagram · Sequence Diagrams</p>
+</header>
+
+<nav>
+  <a href="#" class="active" onclick="showSection('arch',this)">Architecture Diagram</a>
+  <a href="#" onclick="showSection('class',this)">Class Diagram</a>
+  <a href="#" onclick="showSection('seq',this)">Sequence Diagrams</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════
+     1. ARCHITECTURE DIAGRAM
+══════════════════════════════════════════════ -->
+<section id="arch" class="active">
+  <h2>System Architecture Diagram</h2>
+  <p class="desc">Three-tier architecture showing the client layer (HTML/CSS/JS served via Firebase Hosting), the Firebase backend layer (Auth, Firestore, Storage, Cloud Functions), and third-party integrations (Paystack, Email). Open Food Facts is referenced as a dietary/allergen standardisation framework — not a live API integration. Arrows represent data/request flow; dashed arrows represent webhooks/callbacks.</p>
+
+  <svg viewBox="0 0 780 640" xmlns="http://www.w3.org/2000/svg" class="arch">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#475569" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+      <marker id="arr-b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#1A56A0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+
+    <!-- Tier bands -->
+    <rect x="0" y="10" width="780" height="110" rx="0" fill="#EFF6FF" opacity=".5"/>
+    <rect x="0" y="130" width="780" height="200" rx="0" fill="#F0FDF4" opacity=".5"/>
+    <rect x="0" y="340" width="780" height="120" rx="0" fill="#FFF7ED" opacity=".5"/>
+    <rect x="0" y="470" width="780" height="150" rx="0" fill="#FDF4FF" opacity=".5"/>
+
+    <!-- Tier labels -->
+    <text x="14" y="72" class="tier-label" transform="rotate(-90 14 72)">CLIENT</text>
+    <text x="14" y="240" class="tier-label" transform="rotate(-90 14 240)">FIREBASE</text>
+    <text x="14" y="410" class="tier-label" transform="rotate(-90 14 410)">FUNCTIONS</text>
+    <text x="14" y="560" class="tier-label" transform="rotate(-90 14 560)">3RD PARTY</text>
+
+    <!-- Divider lines -->
+    <line x1="30" y1="130" x2="780" y2="130" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 4"/>
+    <line x1="30" y1="340" x2="780" y2="340" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 4"/>
+    <line x1="30" y1="470" x2="780" y2="470" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 4"/>
+
+    <!-- CLIENT: Student -->
+    <rect x="60" y="28" width="160" height="60" rx="8" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="140" y="50" text-anchor="middle" class="box-title" fill="#1A56A0">👨‍🎓 Student</text>
+    <text x="140" y="66" text-anchor="middle" class="box-sub" fill="#64748B">HTML / CSS / JS</text>
+    <text x="140" y="80" text-anchor="middle" class="box-sub" fill="#64748B">Browse · Order · Track</text>
+
+    <!-- CLIENT: Vendor -->
+    <rect x="300" y="28" width="160" height="60" rx="8" fill="white" stroke="#0D7C6E" stroke-width="1.5"/>
+    <text x="380" y="50" text-anchor="middle" class="box-title" fill="#0D7C6E">🏪 Vendor</text>
+    <text x="380" y="66" text-anchor="middle" class="box-sub" fill="#64748B">HTML / CSS / JS</text>
+    <text x="380" y="80" text-anchor="middle" class="box-sub" fill="#64748B">Menu · Orders · Status</text>
+
+    <!-- CLIENT: Admin -->
+    <rect x="540" y="28" width="160" height="60" rx="8" fill="white" stroke="#6D28D9" stroke-width="1.5"/>
+    <text x="620" y="50" text-anchor="middle" class="box-title" fill="#6D28D9">🛡️ Admin</text>
+    <text x="620" y="66" text-anchor="middle" class="box-sub" fill="#64748B">HTML / CSS / JS</text>
+    <text x="620" y="80" text-anchor="middle" class="box-sub" fill="#64748B">Approve · Analytics</text>
+
+    <!-- Firebase Hosting -->
+    <rect x="260" y="148" width="240" height="54" rx="8" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="380" y="170" text-anchor="middle" class="box-title" fill="#B45309">🔥 Firebase Hosting</text>
+    <text x="380" y="188" text-anchor="middle" class="box-sub" fill="#64748B">Static files · CDN · HTTPS</text>
+
+    <!-- Arrows: clients → Firebase Hosting -->
+    <line x1="160" y1="88" x2="320" y2="148" class="arrow" marker-end="url(#arr)"/>
+    <line x1="380" y1="88" x2="380" y2="148" class="arrow" marker-end="url(#arr)"/>
+    <line x1="600" y1="88" x2="440" y2="148" class="arrow" marker-end="url(#arr)"/>
+
+    <!-- Firebase Auth -->
+    <rect x="50" y="228" width="170" height="54" rx="8" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="135" y="250" text-anchor="middle" class="box-title" fill="#B45309">🔑 Firebase Auth</text>
+    <text x="135" y="268" text-anchor="middle" class="box-sub" fill="#64748B">Student / Vendor / Admin</text>
+
+    <!-- Firestore -->
+    <rect x="290" y="228" width="170" height="54" rx="8" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="375" y="250" text-anchor="middle" class="box-title" fill="#1A56A0">🗄️ Firestore</text>
+    <text x="375" y="268" text-anchor="middle" class="box-sub" fill="#64748B">Orders · Menus · Users</text>
+
+    <!-- Firebase Storage -->
+    <rect x="530" y="228" width="200" height="54" rx="8" fill="white" stroke="#0D7C6E" stroke-width="1.5"/>
+    <text x="630" y="250" text-anchor="middle" class="box-title" fill="#0D7C6E">📦 Firebase Storage</text>
+    <text x="630" y="268" text-anchor="middle" class="box-sub" fill="#64748B">Menu item photos</text>
+
+    <!-- Arrows: Hosting → Firebase services -->
+    <line x1="310" y1="202" x2="180" y2="228" class="arrow" marker-end="url(#arr)"/>
+    <line x1="380" y1="202" x2="378" y2="228" class="arrow" marker-end="url(#arr)"/>
+    <line x1="450" y1="202" x2="580" y2="228" class="arrow" marker-end="url(#arr)"/>
+
+    <!-- Cloud Functions -->
+    <rect x="240" y="358" width="290" height="62" rx="8" fill="white" stroke="#C2410C" stroke-width="1.5"/>
+    <text x="385" y="380" text-anchor="middle" class="box-title" fill="#C2410C">⚙️ Cloud Functions</text>
+    <text x="385" y="397" text-anchor="middle" class="box-sub" fill="#64748B">Order logic · Paystack webhook · Email triggers</text>
+    <text x="385" y="411" text-anchor="middle" class="box-sub" fill="#64748B">Cancellation · Refund · Analytics export</text>
+
+    <!-- Arrows: Firestore ↔ Cloud Functions -->
+    <line x1="360" y1="282" x2="350" y2="358" class="arrow" marker-end="url(#arr)"/>
+    <line x1="395" y1="358" x2="405" y2="282" class="arrow" marker-end="url(#arr)"/>
+    <!-- Auth → Cloud Functions -->
+    <line x1="180" y1="282" x2="280" y2="358" class="arrow" marker-end="url(#arr)"/>
+
+    <!-- 3RD PARTY: Paystack -->
+    <rect x="60" y="492" width="175" height="60" rx="8" fill="white" stroke="#166534" stroke-width="1.5"/>
+    <text x="148" y="516" text-anchor="middle" class="box-title" fill="#166534">💳 Paystack</text>
+    <text x="148" y="533" text-anchor="middle" class="box-sub" fill="#64748B">Payment processing</text>
+    <text x="148" y="547" text-anchor="middle" class="box-sub" fill="#64748B">Charge · Refund API</text>
+
+    <!-- 3RD PARTY: Email -->
+    <rect x="295" y="492" width="175" height="60" rx="8" fill="white" stroke="#6D28D9" stroke-width="1.5"/>
+    <text x="383" y="516" text-anchor="middle" class="box-title" fill="#6D28D9">📧 Email Service</text>
+    <text x="383" y="533" text-anchor="middle" class="box-sub" fill="#64748B">Order-ready alerts</text>
+    <text x="383" y="547" text-anchor="middle" class="box-sub" fill="#64748B">Cancellation/refund notices</text>
+
+    <!-- 3RD PARTY: Open Food Facts -->
+    <rect x="530" y="492" width="200" height="60" rx="8" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="630" y="514" text-anchor="middle" class="box-title" fill="#B45309">🥗 Open Food Facts</text>
+    <text x="630" y="530" text-anchor="middle" class="box-sub" fill="#64748B">Allergen &amp; dietary</text>
+    <text x="630" y="546" text-anchor="middle" class="box-sub" fill="#64748B">standardisation ref</text>
+    <text x="630" y="546" text-anchor="middle" class="box-sub" fill="#64748B">Halal · Vegan · Nut-free</text>
+
+    <!-- Arrows: Cloud Functions → 3rd party -->
+    <line x1="300" y1="420" x2="185" y2="492" class="arrow" marker-end="url(#arr)"/>
+    <line x1="385" y1="420" x2="383" y2="492" class="arrow" marker-end="url(#arr)"/>
+    <line x1="470" y1="420" x2="580" y2="492" class="arrow" marker-end="url(#arr)"/>
+
+    <!-- Paystack webhook back to Cloud Functions (dashed) -->
+    <path d="M 60 540 Q 30 540 30 390 Q 30 358 240 375" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="5 3" marker-end="url(#arr)"/>
+    <text x="8" y="460" class="box-sub" fill="#64748B" transform="rotate(-90 8 460)">webhook</text>
+  </svg>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-line" style="background:var(--slate)"></div> Data / request flow</div>
+    <div class="legend-item"><div class="legend-line legend-dash"></div> Webhook / callback</div>
+    <div class="legend-item"><span style="color:var(--blue);font-weight:700">Blue</span>&nbsp;= Firebase core</div>
+    <div class="legend-item"><span style="color:var(--green);font-weight:700">Green</span>&nbsp;= Payments</div>
+    <div class="legend-item"><span style="color:var(--purple);font-weight:700">Purple</span>&nbsp;= Admin / Email</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     2. CLASS DIAGRAM
+══════════════════════════════════════════════ -->
+<section id="class">
+  <h2>Activity Diagram</h2>
+  <p class="desc">Shows the end-to-end flow of actions and decisions across the three core user journeys: placing an order, cancelling an order, and vendor order management. Decision diamonds show branching logic; swim lanes separate responsibilities by actor.</p>
+
+  <svg viewBox="0 0 960 1080" xmlns="http://www.w3.org/2000/svg" class="act-svg">
+    <defs>
+      <marker id="a-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#475569" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="a-arr-b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#1A56A0" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="a-arr-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#166534" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="a-arr-r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#C2410C" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+    </defs>
+
+    <!-- ══ SWIM LANE HEADERS ══ -->
+    <rect x="0" y="0" width="960" height="40" fill="#1E293B"/>
+    <rect x="0" y="0" width="240" height="1080" fill="#EFF6FF" opacity="0.4"/>
+    <rect x="240" y="0" width="240" height="1080" fill="#F0FDF4" opacity="0.4"/>
+    <rect x="480" y="0" width="240" height="1080" fill="#FFF7ED" opacity="0.4"/>
+    <rect x="720" y="0" width="240" height="1080" fill="#F5F3FF" opacity="0.4"/>
+
+    <!-- Lane borders -->
+    <line x1="240" y1="0" x2="240" y2="1080" stroke="#CBD5E1" stroke-width="1.5"/>
+    <line x1="480" y1="0" x2="480" y2="1080" stroke="#CBD5E1" stroke-width="1.5"/>
+    <line x1="720" y1="0" x2="720" y2="1080" stroke="#CBD5E1" stroke-width="1.5"/>
+
+    <!-- Lane labels -->
+    <text x="120" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="white" font-family="Arial">👨‍🎓 Student</text>
+    <text x="360" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="white" font-family="Arial">⚙️ System / Firestore</text>
+    <text x="600" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="white" font-family="Arial">💳 Paystack</text>
+    <text x="840" y="26" text-anchor="middle" font-size="13" font-weight="700" fill="white" font-family="Arial">🏪 Vendor</text>
+
+    <!-- ══ FLOW A: PLACE ORDER ══ -->
+    <!-- Section label -->
+    <rect x="10" y="52" width="940" height="22" rx="4" fill="#1A56A0" opacity="0.12"/>
+    <text x="480" y="67" text-anchor="middle" font-size="11" font-weight="700" fill="#1A56A0" font-family="Arial">FLOW A — Student Places an Order</text>
+
+    <!-- Start node -->
+    <circle cx="120" cy="104" r="14" fill="#1E293B"/>
+    <line x1="120" y1="118" x2="120" y2="138" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Browse menu -->
+    <rect x="40" y="138" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="160" text-anchor="middle" font-size="11" font-family="Arial" fill="#1E293B">Browse menu items</text>
+    <line x1="120" y1="174" x2="120" y2="194" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Add to cart -->
+    <rect x="40" y="194" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="216" text-anchor="middle" font-size="11" font-family="Arial" fill="#1E293B">Add items to cart</text>
+    <line x1="120" y1="230" x2="120" y2="250" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Proceed to checkout -->
+    <rect x="40" y="250" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="272" text-anchor="middle" font-size="11" font-family="Arial" fill="#1E293B">Proceed to checkout</text>
+    <line x1="200" y1="268" x2="520" y2="268" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Paystack: initiate payment -->
+    <rect x="520" y="250" width="160" height="36" rx="18" fill="white" stroke="#166534" stroke-width="1.5"/>
+    <text x="600" y="268" text-anchor="middle" font-size="11" font-family="Arial" fill="#166534">Initiate payment</text>
+    <line x1="600" y1="286" x2="600" y2="306" stroke="#166534" stroke-width="1.5" marker-end="url(#a-arr-g)"/>
+
+    <!-- Student pays on Paystack -->
+    <rect x="520" y="306" width="160" height="36" rx="18" fill="white" stroke="#166534" stroke-width="1.5"/>
+    <text x="600" y="320" text-anchor="middle" font-size="11" font-family="Arial" fill="#166534">Student completes</text>
+    <text x="600" y="334" text-anchor="middle" font-size="11" font-family="Arial" fill="#166534">payment</text>
+    <line x1="600" y1="342" x2="600" y2="362" stroke="#166534" stroke-width="1.5" marker-end="url(#a-arr-g)"/>
+
+    <!-- Decision: Payment successful? -->
+    <polygon points="600,362 660,394 600,426 540,394" fill="white" stroke="#166534" stroke-width="1.5"/>
+    <text x="600" y="389" text-anchor="middle" font-size="10" font-family="Arial" fill="#166534">Payment</text>
+    <text x="600" y="402" text-anchor="middle" font-size="10" font-family="Arial" fill="#166534">successful?</text>
+
+    <!-- No branch -->
+    <line x1="540" y1="394" x2="200" y2="394" stroke="#C2410C" stroke-width="1.5" marker-end="url(#a-arr-r)"/>
+    <text x="370" y="388" text-anchor="middle" font-size="10" font-family="Arial" fill="#C2410C">No — show error</text>
+
+    <!-- Yes branch -->
+    <line x1="600" y1="426" x2="600" y2="446" stroke="#166534" stroke-width="1.5" marker-end="url(#a-arr-g)"/>
+    <text x="614" y="440" font-size="10" font-family="Arial" fill="#166534">Yes</text>
+
+    <!-- System: verify webhook -->
+    <rect x="280" y="446" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="464" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Verify Paystack</text>
+    <text x="360" y="478" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">webhook</text>
+    <line x1="600" y1="446" x2="440" y2="464" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <line x1="360" y1="482" x2="360" y2="502" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- System: create order -->
+    <rect x="280" y="502" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="520" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Create order in</text>
+    <text x="360" y="534" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Firestore</text>
+    <line x1="360" y1="538" x2="360" y2="558" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- System: send confirmation email -->
+    <rect x="280" y="558" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="576" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Send confirmation</text>
+    <text x="360" y="590" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">email to student</text>
+
+    <!-- Student: real-time update -->
+    <line x1="280" y1="576" x2="200" y2="576" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <rect x="40" y="558" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="576" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">View "Order</text>
+    <text x="120" y="590" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">Received" status</text>
+
+    <!-- Vendor notified -->
+    <line x1="440" y1="520" x2="760" y2="520" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <rect x="760" y="502" width="160" height="36" rx="18" fill="white" stroke="#6D28D9" stroke-width="1.5"/>
+    <text x="840" y="520" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">Order appears in</text>
+    <text x="840" y="534" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">vendor dashboard</text>
+
+    <!-- ══ FLOW B: CANCEL ORDER ══ -->
+    <rect x="10" y="618" width="940" height="22" rx="4" fill="#C2410C" opacity="0.12"/>
+    <text x="480" y="633" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C" font-family="Arial">FLOW B — Student Cancels an Order</text>
+
+    <!-- Student clicks cancel -->
+    <rect x="40" y="650" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="668" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">Click "Cancel</text>
+    <text x="120" y="682" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">Order"</text>
+    <line x1="200" y1="668" x2="280" y2="668" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Decision: order status = ORDER_RECEIVED? -->
+    <polygon points="360,644 440,668 360,692 280,668" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="663" text-anchor="middle" font-size="10" font-family="Arial" fill="#B45309">Status =</text>
+    <text x="360" y="676" text-anchor="middle" font-size="10" font-family="Arial" fill="#B45309">ORDER_REC?</text>
+
+    <!-- No: cannot cancel -->
+    <line x1="360" y1="692" x2="360" y2="712" stroke="#C2410C" stroke-width="1.5" marker-end="url(#a-arr-r)"/>
+    <text x="374" y="706" font-size="10" font-family="Arial" fill="#C2410C">No</text>
+    <rect x="280" y="712" width="160" height="36" rx="18" fill="#FEE2E2" stroke="#C2410C" stroke-width="1.5"/>
+    <text x="360" y="730" text-anchor="middle" font-size="11" font-family="Arial" fill="#C2410C">Show "Cannot</text>
+    <text x="360" y="744" text-anchor="middle" font-size="11" font-family="Arial" fill="#C2410C">cancel" message</text>
+
+    <!-- Yes: proceed -->
+    <line x1="440" y1="668" x2="520" y2="668" stroke="#166534" stroke-width="1.5" marker-end="url(#a-arr-g)"/>
+    <text x="480" y="662" font-size="10" font-family="Arial" fill="#166534">Yes</text>
+
+    <!-- Paystack: initiate refund -->
+    <rect x="520" y="650" width="160" height="36" rx="18" fill="white" stroke="#166534" stroke-width="1.5"/>
+    <text x="600" y="668" text-anchor="middle" font-size="11" font-family="Arial" fill="#166534">Initiate refund via</text>
+    <text x="600" y="682" text-anchor="middle" font-size="11" font-family="Arial" fill="#166534">Paystack API</text>
+    <line x1="600" y1="686" x2="600" y2="706" stroke="#166534" stroke-width="1.5" marker-end="url(#a-arr-g)"/>
+
+    <!-- System: update order to CANCELLED -->
+    <rect x="280" y="762" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="780" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Update order:</text>
+    <text x="360" y="794" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">CANCELLED</text>
+    <line x1="600" y1="706" x2="440" y2="780" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- System: send emails -->
+    <rect x="280" y="814" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="832" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Email student +</text>
+    <text x="360" y="846" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">vendor re: cancel</text>
+    <line x1="360" y1="798" x2="360" y2="814" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Student sees cancelled -->
+    <line x1="280" y1="832" x2="200" y2="832" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <rect x="40" y="814" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="832" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">Status updates to</text>
+    <text x="120" y="846" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">"Cancelled"</text>
+
+    <!-- Vendor sees cancelled -->
+    <line x1="440" y1="832" x2="760" y2="832" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <rect x="760" y="814" width="160" height="36" rx="18" fill="white" stroke="#6D28D9" stroke-width="1.5"/>
+    <text x="840" y="832" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">Order removed</text>
+    <text x="840" y="846" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">from queue</text>
+
+    <!-- ══ FLOW C: VENDOR FULFILS ORDER ══ -->
+    <rect x="10" y="872" width="940" height="22" rx="4" fill="#0D7C6E" opacity="0.12"/>
+    <text x="480" y="887" text-anchor="middle" font-size="11" font-weight="700" fill="#0D7C6E" font-family="Arial">FLOW C — Vendor Fulfils an Order</text>
+
+    <!-- Vendor: accept order -->
+    <rect x="760" y="904" width="160" height="36" rx="18" fill="white" stroke="#6D28D9" stroke-width="1.5"/>
+    <text x="840" y="922" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">Set status:</text>
+    <text x="840" y="936" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">PREPARING</text>
+    <line x1="760" y1="922" x2="440" y2="922" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- System: real-time push -->
+    <rect x="280" y="904" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="922" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Real-time push to</text>
+    <text x="360" y="936" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">student UI</text>
+    <line x1="280" y1="922" x2="200" y2="960" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- Vendor: ready for pickup -->
+    <rect x="760" y="958" width="160" height="36" rx="18" fill="white" stroke="#6D28D9" stroke-width="1.5"/>
+    <text x="840" y="976" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">Set status: READY</text>
+    <text x="840" y="990" text-anchor="middle" font-size="11" font-family="Arial" fill="#6D28D9">FOR PICKUP</text>
+    <line x1="760" y1="976" x2="440" y2="976" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+
+    <!-- System: send email notification -->
+    <rect x="280" y="958" width="160" height="36" rx="18" fill="white" stroke="#B45309" stroke-width="1.5"/>
+    <text x="360" y="976" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">Send "Ready for</text>
+    <text x="360" y="990" text-anchor="middle" font-size="11" font-family="Arial" fill="#B45309">pickup" email</text>
+
+    <!-- Student: collect -->
+    <rect x="40" y="958" width="160" height="36" rx="18" fill="white" stroke="#1A56A0" stroke-width="1.5"/>
+    <text x="120" y="976" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">Collect order</text>
+    <text x="120" y="990" text-anchor="middle" font-size="11" font-family="Arial" fill="#1A56A0">🔔 Email received</text>
+
+    <!-- End node -->
+    <line x1="360" y1="994" x2="360" y2="1044" stroke="#475569" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <circle cx="360" cy="1056" r="14" fill="none" stroke="#1E293B" stroke-width="2"/>
+    <circle cx="360" cy="1056" r="9" fill="#1E293B"/>
+  </svg>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     3. SEQUENCE DIAGRAMS
+══════════════════════════════════════════════ -->
+<section id="seq">
+  <h2>Sequence Diagrams</h2>
+  <p class="desc">Step-by-step interaction flows for the four core scenarios.</p>
+
+  <div class="seq-tabs">
+    <button class="seq-tab active" onclick="showSeq('place')">Place Order & Pay</button>
+    <button class="seq-tab" onclick="showSeq('cancel')">Cancel Order & Refund</button>
+    <button class="seq-tab" onclick="showSeq('vendor')">Vendor Order Management</button>
+    <button class="seq-tab" onclick="showSeq('admin')">Admin Vendor Approval</button>
+  </div>
+
+  <!-- SEQ 1: Place Order -->
+  <div class="seq-panel active" id="seq-place">
+  <svg viewBox="0 0 780 520" xmlns="http://www.w3.org/2000/svg" class="seq-svg">
+    <defs>
+      <marker id="s-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#1A56A0" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="s-ret" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#475569" stroke-width="1" stroke-linecap="round"/>
+      </marker>
+    </defs>
+
+    <!-- Actors -->
+    <rect x="40" y="10" width="90" height="30" rx="5" fill="#1A56A0"/>
+    <text x="85" y="30" text-anchor="middle" class="seq-actor" fill="white">Student</text>
+    <rect x="180" y="10" width="90" height="30" rx="5" fill="#B45309"/>
+    <text x="225" y="30" text-anchor="middle" class="seq-actor" fill="white">Browser</text>
+    <rect x="320" y="10" width="90" height="30" rx="5" fill="#166534"/>
+    <text x="365" y="30" text-anchor="middle" class="seq-actor" fill="white">Firestore</text>
+    <rect x="460" y="10" width="90" height="30" rx="5" fill="#C2410C"/>
+    <text x="505" y="30" text-anchor="middle" class="seq-actor" fill="white">Paystack</text>
+    <rect x="600" y="10" width="120" height="30" rx="5" fill="#6D28D9"/>
+    <text x="660" y="30" text-anchor="middle" class="seq-actor" fill="white">Cloud Functions</text>
+
+    <!-- Lifelines -->
+    <line x1="85" y1="40" x2="85" y2="510" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="225" y1="40" x2="225" y2="510" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="365" y1="40" x2="365" y2="510" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="505" y1="40" x2="505" y2="510" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="660" y1="40" x2="660" y2="510" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+
+    <!-- Step 1 -->
+    <line x1="85" y1="70" x2="218" y2="70" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="145" y="65" text-anchor="middle" class="seq-msg" fill="#1A56A0">Browse menu</text>
+
+    <!-- Step 2 -->
+    <line x1="225" y1="95" x2="358" y2="95" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="290" y="90" text-anchor="middle" class="seq-msg" fill="#1A56A0">getMenuItems(vendorId)</text>
+    <line x1="365" y1="115" x2="232" y2="115" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#s-ret)"/>
+    <text x="298" y="110" text-anchor="middle" class="seq-msg" fill="#475569">items[]</text>
+
+    <!-- Step 3 -->
+    <line x1="85" y1="140" x2="218" y2="140" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="145" y="135" text-anchor="middle" class="seq-msg" fill="#1A56A0">Add items to cart, checkout</text>
+
+    <!-- Step 4 -->
+    <line x1="225" y1="165" x2="498" y2="165" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="362" y="160" text-anchor="middle" class="seq-msg" fill="#1A56A0">initiatePayment(amount, email)</text>
+    <line x1="505" y1="185" x2="232" y2="185" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#s-ret)"/>
+    <text x="370" y="180" text-anchor="middle" class="seq-msg" fill="#475569">authorization_url</text>
+
+    <!-- Step 5 -->
+    <line x1="85" y1="210" x2="218" y2="210" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="145" y="205" text-anchor="middle" class="seq-msg" fill="#1A56A0">Complete payment on Paystack</text>
+
+    <!-- Step 6: Webhook -->
+    <rect x="555" y="228" width="160" height="18" rx="3" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1"/>
+    <text x="635" y="241" text-anchor="middle" class="seq-note">Paystack webhook fired</text>
+    <line x1="505" y1="255" x2="653" y2="255" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="578" y="250" text-anchor="middle" class="seq-msg" fill="#1A56A0">verifyPayment(ref)</text>
+
+    <!-- Step 7 -->
+    <line x1="660" y1="275" x2="372" y2="275" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#s-arr)"/>
+    <text x="514" y="270" text-anchor="middle" class="seq-msg" fill="#1A56A0">createOrder(status: ORDER_RECEIVED)</text>
+
+    <!-- Step 8 -->
+    <line x1="365" y1="295" x2="667" y2="295" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#s-ret)"/>
+    <text x="514" y="290" text-anchor="middle" class="seq-msg" fill="#475569">orderId</text>
+
+    <!-- Step 9: real-time update -->
+    <line x1="365" y1="320" x2="232" y2="320" stroke="#166534" stroke-width="1.5" marker-end="url(#s-ret)"/>
+    <text x="298" y="315" text-anchor="middle" class="seq-msg" fill="#166534">real-time listener update → UI shows "Order Received"</text>
+
+    <!-- Step 10: email -->
+    <line x1="660" y1="345" x2="92" y2="345" stroke="#6D28D9" stroke-width="1.5" marker-end="url(#s-ret)"/>
+    <text x="370" y="340" text-anchor="middle" class="seq-msg" fill="#6D28D9">sendConfirmationEmail(student)</text>
+
+    <text x="390" y="380" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#166534">✓ Order placed, payment confirmed, student notified</text>
+  </svg>
+  </div>
+
+  <!-- SEQ 2: Cancel Order -->
+  <div class="seq-panel" id="seq-cancel">
+  <svg viewBox="0 0 780 500" xmlns="http://www.w3.org/2000/svg" class="seq-svg">
+    <defs>
+      <marker id="ca-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#1A56A0" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="ca-ret" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#475569" stroke-width="1" stroke-linecap="round"/>
+      </marker>
+    </defs>
+
+    <rect x="40" y="10" width="90" height="30" rx="5" fill="#1A56A0"/>
+    <text x="85" y="30" text-anchor="middle" class="seq-actor" fill="white">Student</text>
+    <rect x="180" y="10" width="90" height="30" rx="5" fill="#B45309"/>
+    <text x="225" y="30" text-anchor="middle" class="seq-actor" fill="white">Browser</text>
+    <rect x="320" y="10" width="90" height="30" rx="5" fill="#166534"/>
+    <text x="365" y="30" text-anchor="middle" class="seq-actor" fill="white">Firestore</text>
+    <rect x="460" y="10" width="90" height="30" rx="5" fill="#C2410C"/>
+    <text x="505" y="30" text-anchor="middle" class="seq-actor" fill="white">Cloud Fn</text>
+    <rect x="600" y="10" width="110" height="30" rx="5" fill="#166534"/>
+    <text x="655" y="30" text-anchor="middle" class="seq-actor" fill="white">Paystack</text>
+
+    <line x1="85" y1="40" x2="85" y2="490" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="225" y1="40" x2="225" y2="490" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="365" y1="40" x2="365" y2="490" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="505" y1="40" x2="505" y2="490" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="655" y1="40" x2="655" y2="490" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+
+    <!-- Guard check -->
+    <rect x="270" y="58" width="220" height="20" rx="3" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1"/>
+    <text x="380" y="72" text-anchor="middle" class="seq-note">Guard: status == ORDER_RECEIVED only</text>
+
+    <line x1="85" y1="90" x2="218" y2="90" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="145" y="85" text-anchor="middle" class="seq-msg" fill="#1A56A0">Click "Cancel Order"</text>
+
+    <line x1="225" y1="112" x2="358" y2="112" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="290" y="107" text-anchor="middle" class="seq-msg" fill="#1A56A0">checkOrderStatus(orderId)</text>
+    <line x1="365" y1="132" x2="232" y2="132" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#ca-ret)"/>
+    <text x="298" y="127" text-anchor="middle" class="seq-msg" fill="#475569">ORDER_RECEIVED ✓</text>
+
+    <line x1="225" y1="155" x2="498" y2="155" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="362" y="150" text-anchor="middle" class="seq-msg" fill="#1A56A0">cancelOrder(orderId)</text>
+
+    <line x1="505" y1="178" x2="648" y2="178" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="578" y="173" text-anchor="middle" class="seq-msg" fill="#1A56A0">initiateRefund(paymentRef)</text>
+    <line x1="655" y1="198" x2="512" y2="198" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#ca-ret)"/>
+    <text x="580" y="193" text-anchor="middle" class="seq-msg" fill="#475569">refund_pending</text>
+
+    <line x1="505" y1="220" x2="372" y2="220" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="436" y="215" text-anchor="middle" class="seq-msg" fill="#1A56A0">updateOrder(status: CANCELLED, cancelledAt)</text>
+
+    <line x1="505" y1="245" x2="372" y2="245" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="436" y="240" text-anchor="middle" class="seq-msg" fill="#1A56A0">updatePayment(status: REFUND_PENDING)</text>
+
+    <!-- Emails -->
+    <line x1="505" y1="270" x2="92" y2="270" stroke="#6D28D9" stroke-width="1.5" marker-end="url(#ca-ret)"/>
+    <text x="298" y="265" text-anchor="middle" class="seq-msg" fill="#6D28D9">sendEmail(student, "Cancellation confirmed + refund info")</text>
+
+    <line x1="505" y1="295" x2="232" y2="295" stroke="#6D28D9" stroke-width="1.5" marker-end="url(#ca-ret)"/>
+    <text x="368" y="290" text-anchor="middle" class="seq-msg" fill="#6D28D9">sendEmail(vendor, "Order cancelled")</text>
+
+    <!-- Real-time -->
+    <line x1="365" y1="320" x2="232" y2="320" stroke="#166534" stroke-width="1.5" marker-end="url(#ca-ret)"/>
+    <text x="295" y="315" text-anchor="middle" class="seq-msg" fill="#166534">real-time listener → UI shows "Cancelled"</text>
+
+    <!-- Paystack refund confirmation later -->
+    <rect x="580" y="340" width="170" height="18" rx="3" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1"/>
+    <text x="665" y="353" text-anchor="middle" class="seq-note">Paystack fires refund webhook</text>
+    <line x1="655" y1="368" x2="512" y2="368" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="580" y="363" text-anchor="middle" class="seq-msg" fill="#1A56A0">refund.success event</text>
+    <line x1="505" y1="388" x2="372" y2="388" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#ca-arr)"/>
+    <text x="436" y="383" text-anchor="middle" class="seq-msg" fill="#1A56A0">updatePayment(status: REFUNDED)</text>
+
+    <text x="390" y="430" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#166534">✓ Order cancelled, refund initiated, both parties notified</text>
+  </svg>
+  </div>
+
+  <!-- SEQ 3: Vendor Order Management -->
+  <div class="seq-panel" id="seq-vendor">
+  <svg viewBox="0 0 700 440" xmlns="http://www.w3.org/2000/svg" class="seq-svg">
+    <defs>
+      <marker id="v-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#1A56A0" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="v-ret" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#475569" stroke-width="1" stroke-linecap="round"/>
+      </marker>
+    </defs>
+
+    <rect x="30" y="10" width="100" height="30" rx="5" fill="#0D7C6E"/>
+    <text x="80" y="30" text-anchor="middle" class="seq-actor" fill="white">Vendor</text>
+    <rect x="185" y="10" width="100" height="30" rx="5" fill="#B45309"/>
+    <text x="235" y="30" text-anchor="middle" class="seq-actor" fill="white">Browser</text>
+    <rect x="340" y="10" width="100" height="30" rx="5" fill="#166534"/>
+    <text x="390" y="30" text-anchor="middle" class="seq-actor" fill="white">Firestore</text>
+    <rect x="495" y="10" width="130" height="30" rx="5" fill="#6D28D9"/>
+    <text x="560" y="30" text-anchor="middle" class="seq-actor" fill="white">Cloud Functions</text>
+
+    <line x1="80" y1="40" x2="80" y2="430" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="235" y1="40" x2="235" y2="430" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="390" y1="40" x2="390" y2="430" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="560" y1="40" x2="560" y2="430" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+
+    <line x1="235" y1="65" x2="383" y2="65" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="308" y="60" text-anchor="middle" class="seq-msg" fill="#1A56A0">listen: orders where vendorId == myId</text>
+
+    <rect x="300" y="80" width="220" height="18" rx="3" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1"/>
+    <text x="410" y="93" text-anchor="middle" class="seq-note">New order arrives (real-time push)</text>
+
+    <line x1="390" y1="108" x2="242" y2="108" stroke="#166534" stroke-width="1.5" marker-end="url(#v-ret)"/>
+    <text x="314" y="103" text-anchor="middle" class="seq-msg" fill="#166534">order appears in dashboard</text>
+
+    <line x1="80" y1="130" x2="228" y2="130" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="150" y="125" text-anchor="middle" class="seq-msg" fill="#1A56A0">Click "Start Preparing"</text>
+
+    <line x1="235" y1="152" x2="383" y2="152" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="308" y="147" text-anchor="middle" class="seq-msg" fill="#1A56A0">updateOrder(status: PREPARING)</text>
+
+    <line x1="390" y1="172" x2="242" y2="172" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#v-ret)"/>
+    <text x="314" y="167" text-anchor="middle" class="seq-msg" fill="#475569">Student UI updates in real-time</text>
+
+    <line x1="80" y1="200" x2="228" y2="200" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="150" y="195" text-anchor="middle" class="seq-msg" fill="#1A56A0">Click "Ready for Pickup"</text>
+
+    <line x1="235" y1="222" x2="383" y2="222" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="308" y="217" text-anchor="middle" class="seq-msg" fill="#1A56A0">updateOrder(status: READY_FOR_PICKUP)</text>
+
+    <line x1="390" y1="242" x2="553" y2="242" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="470" y="237" text-anchor="middle" class="seq-msg" fill="#1A56A0">Firestore trigger fires</text>
+
+    <line x1="560" y1="265" x2="92" y2="265" stroke="#6D28D9" stroke-width="1.5" marker-end="url(#v-ret)"/>
+    <text x="324" y="260" text-anchor="middle" class="seq-msg" fill="#6D28D9">sendEmail(student, "Your order is ready for pickup!")</text>
+
+    <line x1="390" y1="290" x2="242" y2="290" stroke="#166534" stroke-width="1.5" marker-end="url(#v-ret)"/>
+    <text x="314" y="285" text-anchor="middle" class="seq-msg" fill="#166634">Student UI: "Ready for Pickup" 🔔</text>
+
+    <line x1="80" y1="320" x2="228" y2="320" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="150" y="315" text-anchor="middle" class="seq-msg" fill="#1A56A0">Student collects → "Mark Collected"</text>
+
+    <line x1="235" y1="342" x2="383" y2="342" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#v-arr)"/>
+    <text x="308" y="337" text-anchor="middle" class="seq-msg" fill="#1A56A0">updateOrder(status: COLLECTED)</text>
+
+    <text x="350" y="390" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#166534">✓ Order fulfilled — real-time tracking complete</text>
+  </svg>
+  </div>
+
+  <!-- SEQ 4: Admin Vendor Approval -->
+  <div class="seq-panel" id="seq-admin">
+  <svg viewBox="0 0 660 380" xmlns="http://www.w3.org/2000/svg" class="seq-svg">
+    <defs>
+      <marker id="a-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#1A56A0" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+      <marker id="a-ret" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 2L8 5L2 8" fill="none" stroke="#475569" stroke-width="1" stroke-linecap="round"/>
+      </marker>
+    </defs>
+
+    <rect x="30" y="10" width="90" height="30" rx="5" fill="#6D28D9"/>
+    <text x="75" y="30" text-anchor="middle" class="seq-actor" fill="white">Admin</text>
+    <rect x="180" y="10" width="90" height="30" rx="5" fill="#B45309"/>
+    <text x="225" y="30" text-anchor="middle" class="seq-actor" fill="white">Browser</text>
+    <rect x="330" y="10" width="90" height="30" rx="5" fill="#166534"/>
+    <text x="375" y="30" text-anchor="middle" class="seq-actor" fill="white">Firestore</text>
+    <rect x="480" y="10" width="130" height="30" rx="5" fill="#6D28D9"/>
+    <text x="545" y="30" text-anchor="middle" class="seq-actor" fill="white">Cloud Functions</text>
+
+    <line x1="75" y1="40" x2="75" y2="370" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="225" y1="40" x2="225" y2="370" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="375" y1="40" x2="375" y2="370" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+    <line x1="545" y1="40" x2="545" y2="370" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4 3"/>
+
+    <line x1="225" y1="68" x2="368" y2="68" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="295" y="63" text-anchor="middle" class="seq-msg" fill="#1A56A0">getVendors(status: pending)</text>
+    <line x1="375" y1="88" x2="232" y2="88" stroke="#475569" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#a-ret)"/>
+    <text x="300" y="83" text-anchor="middle" class="seq-msg" fill="#475569">vendorList[]</text>
+
+    <line x1="75" y1="112" x2="218" y2="112" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="145" y="107" text-anchor="middle" class="seq-msg" fill="#1A56A0">Review vendor → Approve</text>
+
+    <line x1="225" y1="135" x2="368" y2="135" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="295" y="130" text-anchor="middle" class="seq-msg" fill="#1A56A0">updateVendor(status: active, approvedBy)</text>
+
+    <line x1="375" y1="158" x2="538" y2="158" stroke="#1A56A0" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="455" y="153" text-anchor="middle" class="seq-msg" fill="#1A56A0">Firestore trigger</text>
+
+    <line x1="545" y1="178" x2="232" y2="178" stroke="#6D28D9" stroke-width="1.5" marker-end="url(#a-ret)"/>
+    <text x="388" y="173" text-anchor="middle" class="seq-msg" fill="#6D28D9">sendEmail(vendor, "Account approved — you can now list items")</text>
+
+    <!-- Suspend flow -->
+    <rect x="140" y="205" width="200" height="18" rx="3" fill="#FEF9C3" stroke="#CA8A04" stroke-width="1"/>
+    <text x="240" y="218" text-anchor="middle" class="seq-note">Alt: Admin suspends vendor</text>
+
+    <line x1="75" y1="232" x2="218" y2="232" stroke="#C2410C" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="145" y="227" text-anchor="middle" class="seq-msg" fill="#C2410C">Click "Suspend Vendor"</text>
+
+    <line x1="225" y1="252" x2="368" y2="252" stroke="#C2410C" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="295" y="247" text-anchor="middle" class="seq-msg" fill="#C2410C">updateVendor(status: suspended)</text>
+
+    <line x1="375" y1="272" x2="538" y2="272" stroke="#C2410C" stroke-width="1.5" marker-end="url(#a-arr)"/>
+    <text x="455" y="267" text-anchor="middle" class="seq-msg" fill="#C2410C">Firestore trigger</text>
+
+    <line x1="545" y1="292" x2="232" y2="292" stroke="#6D28D9" stroke-width="1.5" marker-end="url(#a-ret)"/>
+    <text x="388" y="287" text-anchor="middle" class="seq-msg" fill="#6D28D9">sendEmail(vendor, "Account suspended")</text>
+
+    <text x="330" y="340" text-anchor="middle" style="font-size:12px;font-weight:700;fill:#166534">✓ Vendor status managed, email notifications sent</text>
+  </svg>
+  </div>
+</section>
+
+<script>
+function showSection(id, el) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+  return false;
+}
+function showSeq(id) {
+  document.querySelectorAll('.seq-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.seq-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('seq-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

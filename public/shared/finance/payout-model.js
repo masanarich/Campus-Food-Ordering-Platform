@@ -40,9 +40,26 @@
         return normalizeText(value).toUpperCase();
     }
 
+    function parseCurrencyNumber(value) {
+        if (typeof value === "number") {
+            return value;
+        }
+
+        if (typeof value !== "string") {
+            return Number.parseFloat(value);
+        }
+
+        const normalized = value
+            .trim()
+            .replace(/\s+/g, "")
+            .replace(/,/g, ".");
+
+        return Number.parseFloat(normalized);
+    }
+
     function normalizeCurrencyAmount(value, fallbackValue) {
-        const parsed = Number.parseFloat(value);
-        const fallbackParsed = Number.parseFloat(fallbackValue);
+        const parsed = parseCurrencyNumber(value);
+        const fallbackParsed = parseCurrencyNumber(fallbackValue);
 
         if (Number.isFinite(parsed)) {
             return Math.max(0, Math.round((parsed + Number.EPSILON) * 100) / 100);
@@ -53,6 +70,37 @@
         }
 
         return 0;
+    }
+
+    function hasValue(value) {
+        return value !== undefined && value !== null && String(value).trim() !== "";
+    }
+
+    function normalizeAmountInMinorUnits(value, fallbackValue) {
+        const parsed = Number.parseInt(value, 10);
+        const fallbackParsed = Number.parseInt(fallbackValue, 10);
+
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return Math.round(parsed);
+        }
+
+        if (Number.isFinite(fallbackParsed) && fallbackParsed >= 0) {
+            return Math.round(fallbackParsed);
+        }
+
+        return 0;
+    }
+
+    function amountFromMinorUnits(value, fallbackValue) {
+        return normalizeCurrencyAmount(normalizeAmountInMinorUnits(value, fallbackValue) / 100);
+    }
+
+    function resolveCurrencyAmount(amountValue, minorUnitValue, fallbackValue) {
+        if (hasValue(minorUnitValue)) {
+            return amountFromMinorUnits(minorUnitValue);
+        }
+
+        return normalizeCurrencyAmount(amountValue, fallbackValue);
     }
 
     function amountToMinorUnits(amount) {
@@ -220,7 +268,12 @@
             : createdAt;
         const status = normalizePayoutStatus(safeValues.status || safeOptions.status);
         const bankSnapshot = createFakeBankSnapshot(safeValues.bank || safeValues);
-        const amount = normalizeCurrencyAmount(safeValues.amount || safeValues.withdrawalAmount);
+        const amount = resolveCurrencyAmount(
+            safeValues.amount || safeValues.withdrawalAmount,
+            safeValues.amountInMinorUnits !== undefined
+                ? safeValues.amountInMinorUnits
+                : safeValues.amountMinor
+        );
         const providedTimeline = Array.isArray(safeValues.timeline) ? safeValues.timeline : [];
         const timeline = providedTimeline.length > 0
             ? providedTimeline.map(function normalizeEntry(entry) {
@@ -491,7 +544,11 @@
         normalizeText,
         normalizeLowerText,
         normalizeUpperText,
+        parseCurrencyNumber,
         normalizeCurrencyAmount,
+        normalizeAmountInMinorUnits,
+        amountFromMinorUnits,
+        resolveCurrencyAmount,
         amountToMinorUnits,
         normalizePayoutStatus,
         isActivePayoutStatus,

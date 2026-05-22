@@ -12,6 +12,7 @@ describe("shared/finance/payout-model.js", () => {
         expect(payoutModel.normalizeLowerText(" PAID ")).toBe("paid");
         expect(payoutModel.normalizeUpperText(" zar ")).toBe("ZAR");
         expect(payoutModel.normalizeCurrencyAmount("12.349")).toBe(12.35);
+        expect(payoutModel.normalizeCurrencyAmount("8999,98")).toBe(8999.98);
         expect(payoutModel.normalizeCurrencyAmount("-1")).toBe(0);
         expect(payoutModel.normalizeCurrencyAmount("bad", 8.239)).toBe(8.24);
         expect(payoutModel.amountToMinorUnits(123.45)).toBe(12345);

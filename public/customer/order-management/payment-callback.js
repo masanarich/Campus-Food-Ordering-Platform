@@ -1306,6 +1306,112 @@
         };
     }
 
+    // Write the "new order received" notification to the vendor (and an
+    // "order placed" mirror to the customer) AFTER the order doc has been
+    // created. Anchoring the notification to a real orderId is what eliminates
+    // the "vendor got the email but the order doesn't show on their side"
+    // race: if the order is missing, no notification ever fires.
+    //
+    // Best-effort by design — a failure here is logged but does NOT roll back
+    // the order. The customer's payment is already verified and the order
+    // doc already exists; missing in-app notifications can be reconstructed
+    // from the order doc itself.
+    async function writeOrderCreatedNotifications(checkoutRecord, orderRecord, options = {}) {
+        const safeCheckout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
+        const safeOrder = orderRecord && typeof orderRecord === "object" ? orderRecord : {};
+        const safeOptions = options && typeof options === "object" ? options : {};
+        const db = safeOptions.db || resolveFirestore();
+        const firestoreFns = resolveFirestoreFns(safeOptions.firestoreFns);
+
+        if (
+            !db ||
+            typeof firestoreFns.collection !== "function" ||
+            typeof firestoreFns.addDoc !== "function" ||
+            typeof firestoreFns.serverTimestamp !== "function"
+        ) {
+            return {
+                success: false,
+                skipped: true,
+                error: {
+                    code: "payment-callback/notifications-unavailable",
+                    message: "Firestore notification writes are not available."
+                }
+            };
+        }
+
+        const orderId = normalizeText(safeOrder.orderId || safeOrder.id);
+        const vendorUid = normalizeText(safeOrder.vendorUid || safeCheckout.vendorUid);
+        const vendorName = normalizeText(safeOrder.vendorName || safeCheckout.vendorName) || "your vendor";
+        const customerUid = normalizeText(safeOrder.customerUid || safeCheckout.customerUid);
+        const customerName = normalizeText(safeOrder.customerName || safeCheckout.customerName) || "A customer";
+
+        if (!orderId || !vendorUid || !customerUid) {
+            return {
+                success: false,
+                skipped: true,
+                error: {
+                    code: "payment-callback/notifications-missing-context",
+                    message: "Order, vendor, and customer IDs are required before writing notifications."
+                }
+            };
+        }
+
+        const baseFields = {
+            orderId,
+            vendorUid,
+            customerUid,
+            read: false,
+            createdAt: firestoreFns.serverTimestamp(),
+            updatedAt: firestoreFns.serverTimestamp()
+        };
+        const notificationsCollection = firestoreFns.collection(db, "notifications");
+        const results = { vendor: null, customer: null };
+        const errors = [];
+
+        try {
+            results.vendor = await firestoreFns.addDoc(notificationsCollection, {
+                ...baseFields,
+                recipientUid: vendorUid,
+                recipientRole: "vendor",
+                type: "order_placed",
+                title: "New Order Received",
+                message: `${customerName} just paid for a new order.`
+            });
+        } catch (vendorError) {
+            console.warn(`${MODULE_NAME}: vendor notification could not be created.`, vendorError);
+            errors.push({
+                role: "vendor",
+                code: vendorError?.code || "payment-callback/vendor-notification-failed",
+                message: vendorError?.message || "Failed to write vendor notification."
+            });
+        }
+
+        try {
+            results.customer = await firestoreFns.addDoc(notificationsCollection, {
+                ...baseFields,
+                recipientUid: customerUid,
+                recipientRole: "customer",
+                type: "order_placed",
+                title: "Order Placed",
+                message: `Your order with ${vendorName} has been placed.`
+            });
+        } catch (customerError) {
+            console.warn(`${MODULE_NAME}: customer notification could not be created.`, customerError);
+            errors.push({
+                role: "customer",
+                code: customerError?.code || "payment-callback/customer-notification-failed",
+                message: customerError?.message || "Failed to write customer notification."
+            });
+        }
+
+        return {
+            success: errors.length === 0,
+            vendorNotificationId: results.vendor ? normalizeText(results.vendor.id) : "",
+            customerNotificationId: results.customer ? normalizeText(results.customer.id) : "",
+            errors
+        };
+    }
+
     async function convertPaidCheckoutOnServer(checkoutRecord, options = {}) {
         const safeOptions = options && typeof options === "object" ? options : {};
         const checkout = checkoutRecord && typeof checkoutRecord === "object" ? checkoutRecord : {};
@@ -1610,6 +1716,19 @@
             const serverConversionResult = await convertPaidCheckoutOnServer(paidCheckout, safeOptions);
 
             if (serverConversionResult.success) {
+                const finalOrder = serverConversionResult.order || {
+                    orderId: serverConversionResult.orderId,
+                    checkoutId: normalizeText(paidCheckout.checkoutId),
+                    ...paidCheckout
+                };
+                // Notifications happen ONLY after the order doc actually
+                // exists — keeps "vendor got the notification but the order
+                // is missing" from happening.
+                const notificationsResult = await writeOrderCreatedNotifications(
+                    serverConversionResult.checkout || paidCheckout,
+                    finalOrder,
+                    safeOptions
+                );
                 const cartClearResult = removePurchasedCartItems(
                     serverConversionResult.checkout || paidCheckout,
                     safeOptions
@@ -1620,16 +1739,13 @@
                     outcome: "success",
                     reference,
                     checkout: serverConversionResult.checkout || paidCheckout,
-                    order: serverConversionResult.order || {
-                        orderId: serverConversionResult.orderId,
-                        checkoutId: normalizeText(paidCheckout.checkoutId),
-                        ...paidCheckout
-                    },
+                    order: finalOrder,
                     orderId: serverConversionResult.orderId,
                     verifyResult,
                     checkoutPatchResult: paidResult,
                     orderResult: serverConversionResult,
                     conversionResult: serverConversionResult,
+                    notificationsResult,
                     cartClearResult,
                     completedByServer: true
                 };
@@ -1669,6 +1785,15 @@
                 orderResult.orderId,
                 safeOptions
             );
+            // Order doc exists — safe to notify both sides now.
+            const notificationsResult = await writeOrderCreatedNotifications(
+                conversionResult.checkout || paidCheckout,
+                orderResult.order || {
+                    orderId: orderResult.orderId,
+                    ...paidCheckout
+                },
+                safeOptions
+            );
             const cartClearResult = removePurchasedCartItems(
                 conversionResult.checkout || paidCheckout,
                 safeOptions
@@ -1685,6 +1810,7 @@
                 checkoutPatchResult: paidResult,
                 orderResult,
                 conversionResult,
+                notificationsResult,
                 cartClearResult
             };
         }
@@ -1985,6 +2111,7 @@
         createOrderFromPaidCheckout,
         convertCheckoutAfterOrder,
         convertPaidCheckoutOnServer,
+        writeOrderCreatedNotifications,
         renderPaymentSummary,
         clearActions,
         appendActionLink,
