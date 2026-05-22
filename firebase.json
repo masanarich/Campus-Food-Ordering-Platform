@@ -14,6 +14,9 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log"
+      ],
+      "predeploy": [
+        "node \"$RESOURCE_DIR/scripts/sync-shared-support.js\""
       ]
     }
   ],

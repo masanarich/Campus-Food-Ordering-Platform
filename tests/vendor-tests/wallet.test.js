@@ -17,6 +17,8 @@ function createWalletDom() {
             <output id="wallet-total-earned"></output>
             <output id="wallet-reserved-withdrawals"></output>
             <output id="wallet-completed-orders"></output>
+            <output id="wallet-next-action"></output>
+            <small id="wallet-next-action-detail"></small>
 
             <form id="withdrawal-form">
                 <input id="withdrawal-amount" name="amount" type="number">
@@ -184,10 +186,41 @@ describe("vendor/wallet.js helpers", () => {
         expect(elements.totalEarnedElement.textContent).toContain("100");
         expect(elements.reservedWithdrawalsElement.textContent).toContain("30");
         expect(elements.completedOrdersElement.textContent).toBe("1");
+        expect(elements.nextActionElement.textContent).toBe("Next: admin review");
+        expect(elements.nextActionDetailElement.textContent).toContain("newer-pending");
         expect(elements.payoutHistorySummaryElement.textContent).toBe("2 requests total, 1 active.");
         expect(elements.payoutHistoryListElement.querySelectorAll(".payout-card")).toHaveLength(2);
         expect(elements.payoutHistoryListElement.querySelector(".payout-card-title").textContent).toBe("newer-pending");
         expect(elements.payoutHistoryListElement.textContent).toContain("****7890");
+    });
+
+    test("chooses the next wallet action from active payouts or available balance", () => {
+        const approvedAction = vendorWalletPage.getNextWalletAction(
+            { availableBalance: 120 },
+            [createPayout({ payoutId: "approved-oldest", status: "approved", amount: 45 })]
+        );
+
+        expect(approvedAction.label).toBe("Next: payout processing");
+        expect(approvedAction.detail).toContain("approved-oldest");
+        expect(approvedAction.detail).toContain("45");
+        expect(approvedAction.detail).toContain("waiting to be marked paid");
+
+        const withdrawalAction = vendorWalletPage.getNextWalletAction(
+            { availableBalance: 80 },
+            []
+        );
+
+        expect(withdrawalAction.label).toBe("Next: request withdrawal");
+        expect(withdrawalAction.detail).toContain("80");
+        expect(withdrawalAction.detail).toContain("available for a simulated payout request");
+
+        expect(vendorWalletPage.getNextWalletAction(
+            { availableBalance: 0 },
+            []
+        )).toEqual({
+            label: "Next: keep earning",
+            detail: "Completed paid orders will increase the available balance."
+        });
     });
 
     test("validates withdrawal values against fake bank rules and available balance", () => {

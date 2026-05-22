@@ -123,9 +123,64 @@
             status === "awaiting_user" || status === "resolved";
     }
 
+    function hasSupportReply(replies) {
+        return (Array.isArray(replies) ? replies : []).some(function matchSupportReply(reply) {
+            const safeReply = reply && typeof reply === "object" ? reply : {};
+            const role = normalizeLowerText(safeReply.authorRole);
+            return safeReply.isInternalNote !== true && (role === "admin" || role === "customer");
+        });
+    }
+
+    function getNextVendorTicketAction(ticket, replies = []) {
+        const safeTicket = ticket && typeof ticket === "object" ? ticket : {};
+        const status = normalizeLowerText(safeTicket.status) || "open";
+        const replyCount = Number(safeTicket.replyCount || (Array.isArray(replies) ? replies.length : 0));
+
+        if (status === "closed") {
+            return {
+                label: "Next: reopen if needed",
+                detail: "This vendor ticket is closed. Reopen it if the same issue comes back."
+            };
+        }
+
+        if (status === "resolved") {
+            return {
+                label: "Next: close when satisfied",
+                detail: "Support marked this resolved. Close the ticket if the issue is fixed, or reply with more detail."
+            };
+        }
+
+        if (status === "awaiting_user") {
+            return {
+                label: "Next: reply to support",
+                detail: "The support team is waiting for your response before they can continue."
+            };
+        }
+
+        if (status === "in_progress") {
+            return {
+                label: "Next: wait for support update",
+                detail: "Support is working on this vendor issue. Add a reply if you have new order or shop details."
+            };
+        }
+
+        if (!hasSupportReply(replies) && replyCount === 0) {
+            return {
+                label: "Next: wait for first response",
+                detail: "Your ticket is open. Support will reply here when they pick it up."
+            };
+        }
+
+        return {
+            label: "Next: add business details if needed",
+            detail: "Review the conversation and reply if support needs more shop, order, or payout context."
+        };
+    }
+
     function renderTicketSummary(elements, ticket, options = {}) {
         if (!elements || !ticket) return;
         const ticketFormatters = resolveTicketFormatters(options.ticketFormatters);
+        const nextAction = getNextVendorTicketAction(ticket, options.replies);
 
         const subject = ticketFormatters && typeof ticketFormatters.formatTicketHeadline === "function"
             ? ticketFormatters.formatTicketHeadline(ticket, options)
@@ -188,6 +243,8 @@
         setOutputText(elements.order, normalizeText(ticket.orderId), "Not linked to an order");
         setOutputText(elements.opened, openedText);
         setOutputText(elements.replies, repliesText);
+        setOutputText(elements.nextAction, nextAction.label);
+        setOutputText(elements.nextActionDetail, nextAction.detail);
 
         if (elements.description) {
             elements.description.textContent = normalizeText(ticket.description) || "—";
@@ -297,6 +354,8 @@
         const db = options.db || resolveFirestore();
         const firestoreFns = resolveFirestoreFns(options.firestoreFns);
         const ticketId = normalizeText(options.ticketId);
+        const expectedReporterRole = normalizeLowerText(options.expectedReporterRole);
+        const expectedReporterUid = normalizeText(options.expectedReporterUid);
 
         if (!ticketService) {
             return { success: false, error: { code: "no-ticket-service", message: "Support service is not available right now." } };
@@ -310,6 +369,17 @@
                 db, firestoreFns, ticketId, ticketQueries: options.ticketQueries
             });
             if (!ticket) {
+                return { success: false, error: { code: "not-found", message: "This ticket could not be found." } };
+            }
+
+            // The vendor detail page must only ever surface tickets the signed-in user
+            // raised from the vendor side. A user who is both a vendor and a customer
+            // can have tickets under the same UID with reporterRole === "customer";
+            // those belong to the customer portal and must not leak across.
+            if (
+                (expectedReporterRole && normalizeLowerText(ticket.reporterRole) !== expectedReporterRole) ||
+                (expectedReporterUid && normalizeText(ticket.reporterUid) !== expectedReporterUid)
+            ) {
                 return { success: false, error: { code: "not-found", message: "This ticket could not be found." } };
             }
 
@@ -340,7 +410,7 @@
     }
 
     function renderTicket(elements, ticket, replies, options = {}) {
-        renderTicketSummary(elements, ticket, options);
+        renderTicketSummary(elements, ticket, { ...options, replies });
         renderTimeline(elements.timelineContainer, ticket, options);
         renderReplies(elements.repliesContainer, elements.repliesEmpty, replies, options);
         applyTicketStatusToActions(elements, ticket, options);
@@ -566,6 +636,8 @@
             order: doc.querySelector(options.orderOutputSelector || "#ticket-summary-order"),
             opened: doc.querySelector(options.openedOutputSelector || "#ticket-summary-opened"),
             replies: doc.querySelector(options.repliesCountSelector || "#ticket-summary-replies"),
+            nextAction: doc.querySelector(options.nextActionSelector || "#ticket-summary-next-action"),
+            nextActionDetail: doc.querySelector(options.nextActionDetailSelector || "#ticket-summary-next-action-detail"),
             resolution: doc.querySelector(options.resolutionSelector || "#ticket-summary-resolution"),
             description: doc.querySelector(options.descriptionSelector || "#ticket-description-body"),
             progressSection: doc.querySelector(options.progressSectionSelector || "#ticket-progress-section"),
@@ -616,7 +688,14 @@
             let latestReplies = [];
 
             async function load() {
-                const result = await loadTicketAndReplies({ ...options, db, firestoreFns, ticketId });
+                const result = await loadTicketAndReplies({
+                    ...options,
+                    db,
+                    firestoreFns,
+                    ticketId,
+                    expectedReporterRole: "vendor",
+                    expectedReporterUid: currentUser.uid
+                });
                 if (!result.success) {
                     setStatusMessage(
                         elements.statusElement,
@@ -663,6 +742,7 @@
         getFallbackRoutes, getTicketIdFromQuery, waitForAuthReady,
         setStatusMessage, setOutputText, toggleHidden, setSubmitButtonState,
         isTicketClosed, canReporterReopen, canReporterClose,
+        hasSupportReply, getNextVendorTicketAction,
         renderTicketSummary, renderTimeline, renderReplies,
         applyTicketStatusToActions, loadTicketAndReplies, renderTicket,
         submitReply, changeTicketStatus,

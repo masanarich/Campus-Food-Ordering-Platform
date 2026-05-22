@@ -95,9 +95,65 @@
         else { button.disabled = false; button.removeAttribute("data-busy"); }
     }
 
+    function hasPublicAdminReply(replies) {
+        return (Array.isArray(replies) ? replies : []).some(function matchPublicAdminReply(reply) {
+            const safeReply = reply && typeof reply === "object" ? reply : {};
+            return normalizeLowerText(safeReply.authorRole) === "admin" && safeReply.isInternalNote !== true;
+        });
+    }
+
+    function getNextAdminTicketAction(ticket, replies = []) {
+        const safeTicket = ticket && typeof ticket === "object" ? ticket : {};
+        const status = normalizeLowerText(safeTicket.status) || "open";
+        const priority = normalizeLowerText(safeTicket.priority) || "normal";
+        const replyCount = Number(safeTicket.replyCount || (Array.isArray(replies) ? replies.length : 0));
+        const ticketId = normalizeText(safeTicket.ticketId) || "this ticket";
+
+        if (status === "closed") {
+            return {
+                label: "Next: archive",
+                detail: "This ticket is closed. Keep the conversation for audit history."
+            };
+        }
+
+        if (status === "resolved") {
+            return {
+                label: "Next: close ticket",
+                detail: "A resolution is recorded. Close the ticket when no follow-up is needed."
+            };
+        }
+
+        if (status === "awaiting_user") {
+            return {
+                label: "Next: wait for reporter",
+                detail: "The reporter needs to respond before the admin team can continue."
+            };
+        }
+
+        if (status === "in_progress") {
+            return {
+                label: priority === "high" ? "Next: urgent update" : "Next: continue investigation",
+                detail: `${ticketId} is being worked on. Post a reply or internal note when there is progress.`
+            };
+        }
+
+        if (!hasPublicAdminReply(replies) && replyCount === 0) {
+            return {
+                label: "Next: send first response",
+                detail: "No admin reply has been sent yet. Acknowledge the reporter and start triage."
+            };
+        }
+
+        return {
+            label: "Next: triage ticket",
+            detail: "Review the conversation, then reply or move the ticket to the right status."
+        };
+    }
+
     function renderTicketSummary(elements, ticket, options = {}) {
         if (!elements || !ticket) return;
         const ticketFormatters = resolveTicketFormatters(options.ticketFormatters);
+        const nextAction = getNextAdminTicketAction(ticket, options.replies);
 
         const subject = ticketFormatters && typeof ticketFormatters.formatTicketHeadline === "function"
             ? ticketFormatters.formatTicketHeadline(ticket, options)
@@ -141,6 +197,8 @@
         setOutputText(elements.order, normalizeText(ticket.orderId), "Not linked to an order");
         setOutputText(elements.opened, openedText);
         setOutputText(elements.replies, repliesText);
+        setOutputText(elements.nextAction, nextAction.label);
+        setOutputText(elements.nextActionDetail, nextAction.detail);
 
         if (elements.description) {
             elements.description.textContent = normalizeText(ticket.description) || "—";
@@ -295,7 +353,7 @@
     }
 
     function renderTicket(elements, ticket, replies, options = {}) {
-        renderTicketSummary(elements, ticket, options);
+        renderTicketSummary(elements, ticket, { ...options, replies });
         renderTimeline(elements.timelineContainer, ticket, options);
         renderReplies(elements.repliesContainer, elements.repliesEmpty, replies, options);
         refreshStatusOptions(elements.statusSelect, ticket);
@@ -504,6 +562,8 @@
             order: doc.querySelector(options.orderOutputSelector || "#admin-ticket-order"),
             opened: doc.querySelector(options.openedOutputSelector || "#admin-ticket-opened"),
             replies: doc.querySelector(options.repliesCountSelector || "#admin-ticket-replies-count"),
+            nextAction: doc.querySelector(options.nextActionSelector || "#admin-ticket-next-action"),
+            nextActionDetail: doc.querySelector(options.nextActionDetailSelector || "#admin-ticket-next-action-detail"),
             resolution: doc.querySelector(options.resolutionSelector || "#admin-ticket-resolution"),
             description: doc.querySelector(options.descriptionSelector || "#admin-ticket-description-body"),
             progressSection: doc.querySelector(options.progressSectionSelector || "#admin-ticket-progress-section"),
@@ -604,6 +664,7 @@
         isTicketServiceShape, resolveTicketService, resolveTicketFormatters, resolveTicketStatus,
         getTicketIdFromQuery, waitForAuthReady,
         setStatusMessage, setOutputText, toggleHidden, setSubmitButtonState,
+        hasPublicAdminReply, getNextAdminTicketAction,
         renderTicketSummary, renderTimeline, renderReplies, refreshStatusOptions,
         loadTicketAndReplies, renderTicket,
         submitReply, changeTicketStatus,

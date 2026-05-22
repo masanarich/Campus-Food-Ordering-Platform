@@ -91,6 +91,37 @@
     font-style: italic;
 }
 
+.vendor-shell.vendor-support .vendor-support-inbox-next-step {
+    margin: 0 0 1rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.16);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+}
+
+.vendor-shell.vendor-support .vendor-support-inbox-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.vendor-shell.vendor-support .vendor-support-inbox-next-step output {
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.vendor-shell.vendor-support .vendor-support-inbox-next-step p {
+    margin: 0.45rem 0 0;
+    color: var(--info-text);
+    font-weight: 600;
+}
+
 .vendor-shell.vendor-support .vendor-tickets-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -316,6 +347,37 @@
     content: "⚠ ";
 }
 
+.vendor-shell.vendor-support .new-ticket-next-step {
+    margin: 0.85rem 0 0;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.16);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+}
+
+.vendor-shell.vendor-support .new-ticket-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.vendor-shell.vendor-support .new-ticket-next-step output {
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.vendor-shell.vendor-support .new-ticket-next-step p {
+    margin: 0.45rem 0 0;
+    color: var(--info-text);
+    font-weight: 600;
+}
+
 .vendor-shell.vendor-support .new-ticket-form-actions {
     margin: 0.75rem 0 0;
     padding: 0;
@@ -353,6 +415,37 @@
     border-radius: var(--radius-md);
     background: var(--success-soft);
     color: var(--success-text);
+    font-weight: 600;
+}
+
+.vendor-shell.vendor-support .ticket-next-step {
+    margin: 1rem 0 0;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(91, 70, 153, 0.16);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--info-text);
+}
+
+.vendor-shell.vendor-support .ticket-next-step h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.vendor-shell.vendor-support .ticket-next-step output {
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.vendor-shell.vendor-support .ticket-next-step p {
+    margin: 0.45rem 0 0;
+    color: var(--info-text);
     font-weight: 600;
 }
 

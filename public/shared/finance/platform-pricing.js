@@ -273,6 +273,77 @@
         return calculateOrderSplit(safeOrder.items || [], options).platformEarnings;
     }
 
+    function getOrderRefundImpact(order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const directImpact = safeOrder.refundImpact && typeof safeOrder.refundImpact === "object"
+            ? safeOrder.refundImpact
+            : {};
+        const refundCase = safeOrder.refundCase && typeof safeOrder.refundCase === "object"
+            ? safeOrder.refundCase
+            : {};
+        const caseImpact = refundCase.impact && typeof refundCase.impact === "object"
+            ? refundCase.impact
+            : {};
+
+        return {
+            ...caseImpact,
+            ...directImpact
+        };
+    }
+
+    function getOrderVendorRefundDeduction(order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const impact = getOrderRefundImpact(safeOrder);
+        const deduction = normalizeCurrencyAmount(
+            safeOrder.supportRefundVendorDeduction !== undefined
+                ? safeOrder.supportRefundVendorDeduction
+                : safeOrder.refundVendorDeduction !== undefined
+                    ? safeOrder.refundVendorDeduction
+                    : safeOrder.vendorRefundDeduction !== undefined
+                        ? safeOrder.vendorRefundDeduction
+                        : impact.vendorDeduction
+        );
+
+        return Math.min(getOrderVendorEarnings(safeOrder), deduction);
+    }
+
+    function getOrderPlatformRefundDeduction(order) {
+        const safeOrder = order && typeof order === "object" ? order : {};
+        const impact = getOrderRefundImpact(safeOrder);
+        const deduction = normalizeCurrencyAmount(
+            safeOrder.supportRefundPlatformDeduction !== undefined
+                ? safeOrder.supportRefundPlatformDeduction
+                : safeOrder.refundPlatformDeduction !== undefined
+                    ? safeOrder.refundPlatformDeduction
+                    : safeOrder.platformRefundDeduction !== undefined
+                        ? safeOrder.platformRefundDeduction
+                        : impact.platformDeduction
+        );
+
+        return Math.min(getOrderPlatformEarnings(safeOrder), deduction);
+    }
+
+    function getOrderTotalRefundDeduction(order) {
+        return normalizeCurrencyAmount(
+            getOrderVendorRefundDeduction(order) +
+            getOrderPlatformRefundDeduction(order)
+        );
+    }
+
+    function getOrderNetVendorEarnings(order, options) {
+        return normalizeCurrencyAmount(
+            getOrderVendorEarnings(order, options) -
+            getOrderVendorRefundDeduction(order)
+        );
+    }
+
+    function getOrderNetPlatformEarnings(order, options) {
+        return normalizeCurrencyAmount(
+            getOrderPlatformEarnings(order, options) -
+            getOrderPlatformRefundDeduction(order)
+        );
+    }
+
     function payoutReservesBalance(payout) {
         const status = normalizeLowerText(payout && payout.status);
 
@@ -288,11 +359,17 @@
 
                 return isCompletedPaidOrder(order) && (!vendorUid || orderVendorUid === vendorUid);
             });
-        const vendorEarnings = normalizeCurrencyAmount(
+        const grossVendorEarnings = normalizeCurrencyAmount(
             completedOrders.reduce(function sumEarnings(total, order) {
                 return total + getOrderVendorEarnings(order, safeOptions);
             }, 0)
         );
+        const refundDeductions = normalizeCurrencyAmount(
+            completedOrders.reduce(function sumRefundDeductions(total, order) {
+                return total + getOrderVendorRefundDeduction(order);
+            }, 0)
+        );
+        const netVendorEarnings = normalizeCurrencyAmount(grossVendorEarnings - refundDeductions);
         const reservedWithdrawals = normalizeCurrencyAmount(
             (Array.isArray(payouts) ? payouts : [])
                 .filter(function matchPayout(payout) {
@@ -308,20 +385,29 @@
         return {
             vendorUid,
             completedOrders: completedOrders.length,
-            totalEarned: vendorEarnings,
+            grossVendorEarnings,
+            refundDeductions,
+            netVendorEarnings,
+            totalEarned: netVendorEarnings,
             reservedWithdrawals,
-            availableBalance: normalizeCurrencyAmount(vendorEarnings - reservedWithdrawals)
+            availableBalance: normalizeCurrencyAmount(netVendorEarnings - reservedWithdrawals)
         };
     }
 
     function calculatePlatformBalance(orders, options) {
         const safeOrders = Array.isArray(orders) ? orders : [];
         const completedOrders = safeOrders.filter(isCompletedPaidOrder);
-        const platformEarnings = normalizeCurrencyAmount(
+        const grossPlatformEarnings = normalizeCurrencyAmount(
             completedOrders.reduce(function sumPlatform(total, order) {
                 return total + getOrderPlatformEarnings(order, options);
             }, 0)
         );
+        const refundDeductions = normalizeCurrencyAmount(
+            completedOrders.reduce(function sumPlatformRefundDeductions(total, order) {
+                return total + getOrderPlatformRefundDeduction(order);
+            }, 0)
+        );
+        const netPlatformEarnings = normalizeCurrencyAmount(grossPlatformEarnings - refundDeductions);
         const customerRevenue = normalizeCurrencyAmount(
             completedOrders.reduce(function sumRevenue(total, order) {
                 return total + normalizeCurrencyAmount(
@@ -339,8 +425,11 @@
         return {
             completedOrders: completedOrders.length,
             customerRevenue,
-            platformEarnings,
-            platformBalance: platformEarnings
+            grossPlatformEarnings,
+            refundDeductions,
+            netPlatformEarnings,
+            platformEarnings: netPlatformEarnings,
+            platformBalance: netPlatformEarnings
         };
     }
 
@@ -370,6 +459,12 @@
         isCompletedPaidOrder,
         getOrderVendorEarnings,
         getOrderPlatformEarnings,
+        getOrderRefundImpact,
+        getOrderVendorRefundDeduction,
+        getOrderPlatformRefundDeduction,
+        getOrderTotalRefundDeduction,
+        getOrderNetVendorEarnings,
+        getOrderNetPlatformEarnings,
         payoutReservesBalance,
         calculateVendorBalance,
         calculatePlatformBalance

@@ -149,6 +149,47 @@
         }
     }
 
+    function getNewTicketNextStep(values, options = {}) {
+        const safeValues = values && typeof values === "object" ? values : {};
+        const category = normalizeLowerText(safeValues.category);
+        const subject = normalizeText(safeValues.subject);
+        const description = normalizeText(safeValues.description);
+        const orderId = normalizeText(safeValues.orderId);
+
+        if (!category) {
+            return {
+                label: "Next: pick a category",
+                detail: "Choose the support area so your vendor ticket reaches the right team."
+            };
+        }
+
+        if (categoryRequiresOrderId(category, options) && !orderId) {
+            return {
+                label: "Next: add the order ID",
+                detail: "Order, payment, and refund tickets need the related order so support can investigate faster."
+            };
+        }
+
+        if (!subject || subject.length < SUBJECT_MIN_LENGTH) {
+            return {
+                label: "Next: add a short subject",
+                detail: `Use at least ${SUBJECT_MIN_LENGTH} characters to summarize the vendor issue.`
+            };
+        }
+
+        if (!description || description.length < DESCRIPTION_MIN_LENGTH) {
+            return {
+                label: "Next: describe what happened",
+                detail: `Share at least ${DESCRIPTION_MIN_LENGTH} characters with shop, order, payout, or timing details.`
+            };
+        }
+
+        return {
+            label: "Next: submit ticket",
+            detail: "Everything required is filled in. Submit when you are ready."
+        };
+    }
+
     function setStatusMessage(element, message, state = "info") {
         if (!element) return;
         element.textContent = normalizeText(message);
@@ -182,6 +223,21 @@
         if (!button) return;
         if (busy) { button.disabled = true; button.setAttribute("data-busy", "true"); }
         else { button.disabled = false; button.removeAttribute("data-busy"); }
+    }
+
+    function renderNextStep(elements, values, options = {}) {
+        const safeElements = elements && typeof elements === "object" ? elements : {};
+        const nextStep = getNewTicketNextStep(values, options);
+
+        if (safeElements.nextStepLabel) {
+            safeElements.nextStepLabel.textContent = nextStep.label;
+        }
+
+        if (safeElements.nextStepDetail) {
+            safeElements.nextStepDetail.textContent = nextStep.detail;
+        }
+
+        return nextStep;
     }
 
     async function submitTicket(options = {}) {
@@ -234,6 +290,17 @@
             ? options.navigate
             : function defaultNavigate(href) { globalScope.location.href = href; };
 
+        function updateNextStep() {
+            return renderNextStep(elements, readFormValues(form), options);
+        }
+
+        if (elements.nextStepLabel && form.dataset.vendorNewTicketNextStepBound !== "true") {
+            form.dataset.vendorNewTicketNextStepBound = "true";
+            form.addEventListener("input", updateNextStep);
+            form.addEventListener("change", updateNextStep);
+            updateNextStep();
+        }
+
         async function handleSubmit(event) {
             if (event && typeof event.preventDefault === "function") event.preventDefault();
 
@@ -242,6 +309,7 @@
 
             const values = readFormValues(form);
             const validation = validateFormValues(values, options);
+            renderNextStep(elements, validation.value, options);
 
             if (!validation.isValid) {
                 showFieldErrors(elements.fieldErrors, validation.errors);
@@ -282,7 +350,10 @@
             }
 
             setStatusMessage(elements.statusElement, "Ticket opened. Redirecting...", "success");
-            if (form && typeof form.reset === "function") form.reset();
+            if (form && typeof form.reset === "function") {
+                form.reset();
+                updateNextStep();
+            }
             const ticketId = result.ticket && result.ticket.ticketId;
             navigate(ticketId ? buildTicketDetailUrl(ticketId) : getFallbackRoutes().list);
             return result;
@@ -299,6 +370,8 @@
             const form = globalScope.document.querySelector(options.formSelector || "#new-ticket-form");
             const statusElement = globalScope.document.querySelector(options.statusSelector || "#new-ticket-status");
             const submitButton = globalScope.document.querySelector(options.submitButtonSelector || "#new-ticket-submit");
+            const nextStepLabel = globalScope.document.querySelector(options.nextStepLabelSelector || "#new-ticket-next-step");
+            const nextStepDetail = globalScope.document.querySelector(options.nextStepDetailSelector || "#new-ticket-next-step-detail");
 
             if (!form) return { success: false, error: "New ticket form not found." };
 
@@ -309,9 +382,10 @@
                 orderId: globalScope.document.querySelector(options.orderIdErrorSelector || "#new-ticket-order-id-error")
             };
 
-            const elements = { form, statusElement, submitButton, fieldErrors };
+            const elements = { form, statusElement, submitButton, fieldErrors, nextStepLabel, nextStepDetail };
 
             prefillFormFromQuery(form, options);
+            renderNextStep(elements, readFormValues(form), options);
 
             const auth = options.auth || resolveAuth();
             const authFns = resolveAuthFns(options.authFns);
@@ -349,6 +423,7 @@
         readFormValues, categoryRequiresOrderId, validateFormValues,
         buildReporterSnapshot, getOrderIdFromQuery, prefillFormFromQuery,
         setStatusMessage, clearFieldErrors, showFieldErrors, setSubmitButtonState,
+        getNewTicketNextStep, renderNextStep,
         submitTicket, buildTicketDetailUrl, attachSubmitHandler,
         init, initializeVendorSupportNewPage
     };

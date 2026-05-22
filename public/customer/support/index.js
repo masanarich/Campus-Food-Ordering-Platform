@@ -309,6 +309,7 @@
                     db,
                     firestoreFns,
                     reporterUid,
+                    reporterRole: "customer",
                     ticketQueries: options.ticketQueries
                 });
 
@@ -574,6 +575,109 @@
         return `Showing ${filteredCount} of ${totalCount} ticket${totalCount === 1 ? "" : "s"}.`;
     }
 
+    function hasActiveInboxFilters(filters = {}) {
+        const search = normalizeText(filters.search);
+        const status = normalizeLowerText(filters.status) || "all";
+        const category = normalizeLowerText(filters.category) || "all";
+
+        return Boolean(search) || status !== "all" || category !== "all";
+    }
+
+    function getTicketSubjectForNextStep(ticket) {
+        const mappedTicket = mapTicketRecord(ticket);
+        return mappedTicket.subject || "this ticket";
+    }
+
+    function getCustomerSupportInboxNextStep(tickets, options = {}) {
+        const allTickets = Array.isArray(tickets) ? tickets : [];
+        const filteredTickets = Array.isArray(options.filteredTickets)
+            ? options.filteredTickets
+            : allTickets;
+        const hasActiveFilters = hasActiveInboxFilters(options.filters);
+
+        if (options.isSignedIn === false) {
+            return {
+                label: "Next: sign in",
+                detail: "Sign in to load your support inbox and check ticket updates."
+            };
+        }
+
+        if (allTickets.length === 0) {
+            return {
+                label: "Next: open your first ticket",
+                detail: "Start a ticket when you need help with an order, payment, refund, account, or safety issue."
+            };
+        }
+
+        if (filteredTickets.length === 0 && hasActiveFilters) {
+            return {
+                label: "Next: clear filters",
+                detail: "No tickets match the current view. Clear the filters to see your full support history."
+            };
+        }
+
+        const awaitingUserTicket = filteredTickets.find(function findAwaitingUser(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "awaiting_user";
+        });
+
+        if (awaitingUserTicket) {
+            return {
+                label: "Next: reply to support",
+                detail: `Support is waiting on your response for ${getTicketSubjectForNextStep(awaitingUserTicket)}.`
+            };
+        }
+
+        const activeTicket = filteredTickets.find(function findActive(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "open" || status === "in_progress";
+        });
+
+        if (activeTicket) {
+            return {
+                label: "Next: open an active ticket",
+                detail: `Review the latest activity for ${getTicketSubjectForNextStep(activeTicket)}.`
+            };
+        }
+
+        const allClosed = allTickets.every(function isClosed(ticket) {
+            const status = normalizeLowerText(ticket && (ticket.status || ticket.statusKey));
+            return status === "resolved" || status === "closed";
+        });
+
+        if (allClosed) {
+            return {
+                label: "Next: open a new ticket if needed",
+                detail: "Your visible tickets are resolved or closed. Create a new ticket if another issue comes up."
+            };
+        }
+
+        return {
+            label: "Next: review ticket activity",
+            detail: "Open a ticket to check replies, status changes, and the current support timeline."
+        };
+    }
+
+    function renderCustomerSupportInboxNextStep(elements, state = {}) {
+        if (!elements || !elements.nextStepLabel) {
+            return null;
+        }
+
+        const nextStep = getCustomerSupportInboxNextStep(state.tickets, {
+            filteredTickets: state.filteredTickets,
+            filters: state.filters,
+            isSignedIn: state.isSignedIn
+        });
+
+        elements.nextStepLabel.textContent = nextStep.label;
+
+        if (elements.nextStepDetail) {
+            elements.nextStepDetail.textContent = nextStep.detail;
+        }
+
+        return nextStep;
+    }
+
     function renderCurrentPage(elements, options = {}) {
         const container = elements && elements.container;
         if (!container) {
@@ -600,6 +704,12 @@
         }
 
         updatePaginationControls(elements.pagination, elements.paginationStatus, paginated);
+        renderCustomerSupportInboxNextStep(elements, {
+            tickets: pageState.allTickets,
+            filteredTickets: sorted,
+            filters: pageState.filters,
+            isSignedIn: options.isSignedIn
+        });
 
         return paginated;
     }
@@ -707,6 +817,12 @@
             const paginationStatusElement = globalScope.document.querySelector(
                 options.paginationStatusSelector || "#tickets-pagination-status"
             );
+            const nextStepLabelElement = globalScope.document.querySelector(
+                options.nextStepSelector || "#support-inbox-next-step"
+            );
+            const nextStepDetailElement = globalScope.document.querySelector(
+                options.nextStepDetailSelector || "#support-inbox-next-step-detail"
+            );
 
             if (!container) {
                 return {
@@ -720,7 +836,9 @@
                 summary: summaryElement,
                 form: formElement,
                 pagination: paginationElement,
-                paginationStatus: paginationStatusElement
+                paginationStatus: paginationStatusElement,
+                nextStepLabel: nextStepLabelElement,
+                nextStepDetail: nextStepDetailElement
             };
 
             const initialFilters = readFiltersFromForm(formElement);
@@ -742,6 +860,12 @@
             if (!currentUser || !normalizeText(currentUser.uid)) {
                 pageState.allTickets = [];
                 renderTickets([], container, options);
+                renderCustomerSupportInboxNextStep(elements, {
+                    tickets: [],
+                    filteredTickets: [],
+                    filters: pageState.filters,
+                    isSignedIn: false
+                });
                 if (summaryElement) {
                     summaryElement.textContent = "";
                 }
@@ -765,6 +889,12 @@
             if (!result.success) {
                 pageState.allTickets = [];
                 renderTickets([], container, options);
+                renderCustomerSupportInboxNextStep(elements, {
+                    tickets: [],
+                    filteredTickets: [],
+                    filters: pageState.filters,
+                    isSignedIn: true
+                });
                 if (summaryElement) {
                     summaryElement.textContent = "";
                 }
@@ -788,8 +918,13 @@
 
             pageState.allTickets = Array.isArray(result.tickets) ? result.tickets : [];
 
-            attachToolbarHandlers(elements, options);
-            renderCurrentPage(elements, options);
+            const renderOptions = {
+                ...options,
+                isSignedIn: true
+            };
+
+            attachToolbarHandlers(elements, renderOptions);
+            renderCurrentPage(elements, renderOptions);
 
             if (pageState.allTickets.length === 0) {
                 setStatusMessage(
@@ -852,6 +987,9 @@
         paginateTickets,
         updatePaginationControls,
         buildResultSummary,
+        hasActiveInboxFilters,
+        getCustomerSupportInboxNextStep,
+        renderCustomerSupportInboxNextStep,
         renderCurrentPage,
         readFiltersFromForm,
         attachToolbarHandlers,

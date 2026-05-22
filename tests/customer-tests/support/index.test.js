@@ -47,6 +47,10 @@ function createDOM() {
             <button type="reset">Clear</button>
         </form>
         <p id="my-tickets-summary"></p>
+        <section class="support-inbox-next-step">
+            <output id="support-inbox-next-step"></output>
+            <p id="support-inbox-next-step-detail"></p>
+        </section>
         <section id="my-tickets-container"></section>
         <nav id="my-tickets-pagination" hidden>
             <p id="tickets-pagination-status"></p>
@@ -61,6 +65,8 @@ function createDOM() {
         statusElement: document.getElementById("customer-support-status"),
         form: document.getElementById("tickets-filter-form"),
         summary: document.getElementById("my-tickets-summary"),
+        nextStepLabel: document.getElementById("support-inbox-next-step"),
+        nextStepDetail: document.getElementById("support-inbox-next-step-detail"),
         container: document.getElementById("my-tickets-container"),
         pagination: document.getElementById("my-tickets-pagination"),
         paginationStatus: document.getElementById("tickets-pagination-status")
@@ -155,6 +161,9 @@ describe("customer/support/index.js - module surface", () => {
             "filterTickets",
             "paginateTickets",
             "buildResultSummary",
+            "hasActiveInboxFilters",
+            "getCustomerSupportInboxNextStep",
+            "renderCustomerSupportInboxNextStep",
             "buildTicketDetailUrl",
             "setStatusMessage",
             "readFiltersFromForm",
@@ -234,6 +243,52 @@ describe("customer/support/index.js - helpers", () => {
         window.history.pushState({}, "", "/customer/support/index.html");
         const url = customerSupportListPage.buildTicketDetailUrl("ticket-abc");
         expect(url).toMatch(/ticket-detail\.html\?ticketId=ticket-abc$/);
+    });
+
+    test("hasActiveInboxFilters ignores sort-only changes", () => {
+        expect(customerSupportListPage.hasActiveInboxFilters({
+            search: "",
+            status: "all",
+            category: "all",
+            sort: "oldest"
+        })).toBe(false);
+
+        expect(customerSupportListPage.hasActiveInboxFilters({
+            search: "refund",
+            status: "all",
+            category: "all"
+        })).toBe(true);
+
+        expect(customerSupportListPage.hasActiveInboxFilters({
+            status: "open",
+            category: "all"
+        })).toBe(true);
+    });
+
+    test("getCustomerSupportInboxNextStep describes the next inbox action", () => {
+        expect(customerSupportListPage.getCustomerSupportInboxNextStep([], {
+            isSignedIn: false
+        }).label).toBe("Next: sign in");
+
+        expect(customerSupportListPage.getCustomerSupportInboxNextStep([]).label)
+            .toBe("Next: open your first ticket");
+
+        expect(customerSupportListPage.getCustomerSupportInboxNextStep(
+            [createTicket()],
+            {
+                filteredTickets: [],
+                filters: { search: "missing", status: "all", category: "all" }
+            }
+        ).label).toBe("Next: clear filters");
+
+        expect(customerSupportListPage.getCustomerSupportInboxNextStep([
+            createTicket({ status: "awaiting_user", subject: "Need more details" })
+        ]).label).toBe("Next: reply to support");
+
+        expect(customerSupportListPage.getCustomerSupportInboxNextStep([
+            createTicket({ status: "resolved" }),
+            createTicket({ ticketId: "ticket-2", status: "closed" })
+        ]).label).toBe("Next: open a new ticket if needed");
     });
 });
 
@@ -368,6 +423,21 @@ describe("customer/support/index.js - rendering and DOM wiring", () => {
         customerSupportListPage.setStatusMessage(null, "noop");
         // Should not throw.
     });
+
+    test("renderCustomerSupportInboxNextStep updates the inbox next-step block", () => {
+        const dom = createDOM();
+
+        const nextStep = customerSupportListPage.renderCustomerSupportInboxNextStep(dom, {
+            tickets: [createTicket({ status: "awaiting_user", subject: "Refund proof" })],
+            filteredTickets: [createTicket({ status: "awaiting_user", subject: "Refund proof" })],
+            filters: { status: "all", category: "all", search: "" },
+            isSignedIn: true
+        });
+
+        expect(nextStep.label).toBe("Next: reply to support");
+        expect(dom.nextStepLabel.textContent).toBe("Next: reply to support");
+        expect(dom.nextStepDetail.textContent).toMatch(/Refund proof/);
+    });
 });
 
 describe("customer/support/index.js - init flow", () => {
@@ -400,9 +470,16 @@ describe("customer/support/index.js - init flow", () => {
 
         expect(result.success).toBe(true);
         expect(ticketService.getReporterTickets).toHaveBeenCalledTimes(1);
+        // The customer inbox must scope by reporterRole so a user who is both a customer
+        // and a vendor (same UID) does not see their vendor-side tickets here.
+        expect(ticketService.getReporterTickets).toHaveBeenCalledWith(expect.objectContaining({
+            reporterUid: "customer-1",
+            reporterRole: "customer"
+        }));
         expect(dom.container.querySelectorAll(".support-ticket-card")).toHaveLength(2);
         expect(dom.statusElement.textContent).toMatch(/2 tickets/);
         expect(dom.summary.textContent).toMatch(/Showing all 2 tickets/);
+        expect(dom.nextStepLabel.textContent).toBe("Next: open an active ticket");
     });
 
     test("init shows a friendly empty-state when there are no tickets", async () => {
@@ -420,6 +497,7 @@ describe("customer/support/index.js - init flow", () => {
         expect(result.success).toBe(true);
         expect(dom.container.querySelector(".empty-state-message")).not.toBeNull();
         expect(dom.statusElement.textContent).toMatch(/have not opened any/i);
+        expect(dom.nextStepLabel.textContent).toBe("Next: open your first ticket");
     });
 
     test("init bails out when no user is signed in", async () => {
@@ -436,6 +514,7 @@ describe("customer/support/index.js - init flow", () => {
 
         expect(result.success).toBe(false);
         expect(dom.statusElement.textContent).toMatch(/sign in/i);
+        expect(dom.nextStepLabel.textContent).toBe("Next: sign in");
         expect(ticketService.getReporterTickets).not.toHaveBeenCalled();
     });
 
@@ -455,6 +534,7 @@ describe("customer/support/index.js - init flow", () => {
 
         expect(result.success).toBe(false);
         expect(dom.statusElement.textContent).toMatch(/boom|Failed/);
+        expect(dom.nextStepLabel.textContent).toBe("Next: open your first ticket");
     });
 
     test("init returns a structured error when the tickets container is missing", async () => {
@@ -508,6 +588,11 @@ describe("customer/support/index.js - init flow", () => {
         filteredCards.forEach((card) => {
             expect(card.getAttribute("data-status")).toBe("open");
         });
+        expect(dom.nextStepLabel.textContent).toBe("Next: open an active ticket");
+
+        dom.form.querySelector("#tickets-status-filter").value = "closed";
+        dom.form.dispatchEvent(new Event("change", { bubbles: true }));
+        expect(dom.nextStepLabel.textContent).toBe("Next: clear filters");
 
         // Reset filters.
         dom.form.dispatchEvent(new Event("reset", { bubbles: true }));

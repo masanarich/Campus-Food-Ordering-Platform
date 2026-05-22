@@ -17,6 +17,8 @@ function createDOM() {
             <output id="admin-ticket-order">—</output>
             <output id="admin-ticket-opened">—</output>
             <output id="admin-ticket-replies-count">—</output>
+            <output id="admin-ticket-next-action">Loading</output>
+            <p id="admin-ticket-next-action-detail">Checking ticket activity.</p>
             <p id="admin-ticket-resolution" hidden></p>
             <p id="admin-ticket-description-body">—</p>
         </section>
@@ -62,6 +64,8 @@ function createDOM() {
         order: document.getElementById("admin-ticket-order"),
         opened: document.getElementById("admin-ticket-opened"),
         replies: document.getElementById("admin-ticket-replies-count"),
+        nextAction: document.getElementById("admin-ticket-next-action"),
+        nextActionDetail: document.getElementById("admin-ticket-next-action-detail"),
         resolution: document.getElementById("admin-ticket-resolution"),
         description: document.getElementById("admin-ticket-description-body"),
         progressSection: document.getElementById("admin-ticket-progress-section"),
@@ -151,7 +155,8 @@ describe("admin/ticket-detail.js - module surface", () => {
         ["init", "initializeAdminTicketDetailPage", "loadTicketAndReplies", "renderTicket",
             "renderTicketSummary", "renderTimeline", "renderReplies", "refreshStatusOptions",
             "submitReply", "changeTicketStatus", "attachReplyHandler", "attachStatusHandler",
-            "collectElements", "getTicketIdFromQuery", "isTicketServiceShape"
+            "collectElements", "getTicketIdFromQuery", "isTicketServiceShape",
+            "hasPublicAdminReply", "getNextAdminTicketAction"
         ].forEach((name) => expect(typeof adminTicketDetailPage[name]).toBe("function"));
     });
 });
@@ -165,6 +170,8 @@ describe("admin/ticket-detail.js - rendering", () => {
         });
         expect(dom.subject.textContent).toBe("Order never arrived");
         expect(dom.reporter.textContent).toBe("Naledi (Customer)");
+        expect(dom.nextAction.textContent).toBe("Next: send first response");
+        expect(dom.nextActionDetail.textContent).toMatch(/No admin reply/i);
         expect(dom.resolution.hasAttribute("hidden")).toBe(true);
 
         adminTicketDetailPage.renderTicketSummary(elements, makeTicket({
@@ -172,6 +179,30 @@ describe("admin/ticket-detail.js - rendering", () => {
         }), { ticketFormatters: makeFormatters() });
         expect(dom.resolution.hasAttribute("hidden")).toBe(false);
         expect(dom.resolution.textContent).toMatch(/Resolved by Admin/);
+        expect(dom.nextAction.textContent).toBe("Next: close ticket");
+    });
+
+    test("getNextAdminTicketAction chooses the triage step from status and replies", () => {
+        expect(adminTicketDetailPage.getNextAdminTicketAction(makeTicket({ status: "awaiting_user" }))).toEqual({
+            label: "Next: wait for reporter",
+            detail: "The reporter needs to respond before the admin team can continue."
+        });
+
+        expect(adminTicketDetailPage.getNextAdminTicketAction(
+            makeTicket({ status: "in_progress", priority: "high" }),
+            [{ authorRole: "admin", body: "Working on this." }]
+        )).toEqual({
+            label: "Next: urgent update",
+            detail: "ticket-a-abc is being worked on. Post a reply or internal note when there is progress."
+        });
+
+        expect(adminTicketDetailPage.getNextAdminTicketAction(
+            makeTicket({ replyCount: 1 }),
+            [{ authorRole: "admin", body: "Thanks for reporting this." }]
+        )).toEqual({
+            label: "Next: triage ticket",
+            detail: "Review the conversation, then reply or move the ticket to the right status."
+        });
     });
 
     test("renderReplies includes internal notes (admin view)", () => {
@@ -340,6 +371,7 @@ describe("admin/ticket-detail.js - init and handlers", () => {
         expect(dom.summarySection.hasAttribute("hidden")).toBe(false);
         expect(dom.replyFormSection.hasAttribute("hidden")).toBe(false);
         expect(dom.statusFormSection.hasAttribute("hidden")).toBe(false);
+        expect(dom.nextAction.textContent).toBe("Next: triage ticket");
         expect(dom.repliesContainer.querySelectorAll(".ticket-reply-entry")).toHaveLength(1);
     });
 

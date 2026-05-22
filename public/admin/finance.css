@@ -34,7 +34,7 @@
 
 .finance-metrics {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
     gap: 1rem;
     margin-top: 1.2rem;
 }
@@ -58,6 +58,11 @@
     border-color: rgba(31, 106, 71, 0.18);
 }
 
+.finance-next-card {
+    background: rgba(245, 239, 255, 0.62);
+    border-color: rgba(91, 70, 153, 0.16);
+}
+
 .finance-metric-label {
     font-size: 0.82rem;
     font-weight: 800;
@@ -73,6 +78,10 @@
     font-weight: 900;
     color: var(--text);
     word-break: break-word;
+}
+
+.finance-metric-card .finance-next-action {
+    font-size: 1.28rem;
 }
 
 .finance-metric-note {
@@ -186,17 +195,7 @@
     font-weight: 700;
 }
 
-@media (max-width: 1050px) {
-    .finance-metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
 @media (max-width: 680px) {
-    .finance-metrics {
-        grid-template-columns: 1fr;
-    }
-
     .finance-section-header,
     .admin-payout-header {
         flex-direction: column;
