@@ -1272,17 +1272,54 @@
         return dialog;
     }
 
+    function applyStarFillStateToContainer(container, fillValue) {
+        // Walk every star label in the container and turn the .is-filled
+        // class on for the chosen star plus every lower-value star. We use
+        // an explicit JS-driven class because `:has(:checked) ~ *` was not
+        // applying consistently — driving the class avoids any CSS quirks.
+        if (!container) {
+            return;
+        }
+        const safeValue = Number.isFinite(Number(fillValue)) ? Number(fillValue) : 0;
+        Array.from(container.querySelectorAll(".rating-star-button")).forEach(function paint(label) {
+            const buttonValue = Number(label.getAttribute("data-rating-value")) || 0;
+            if (safeValue > 0 && buttonValue <= safeValue) {
+                label.classList.add("is-filled");
+            } else {
+                label.classList.remove("is-filled");
+            }
+        });
+    }
+
+    function clearStarPreviewState(container) {
+        if (!container) return;
+        Array.from(container.querySelectorAll(".rating-star-button.is-previewed"))
+            .forEach(function clear(label) { label.classList.remove("is-previewed"); });
+    }
+
+    function applyStarPreviewState(container, previewValue) {
+        if (!container) return;
+        clearStarPreviewState(container);
+        const safeValue = Number.isFinite(Number(previewValue)) ? Number(previewValue) : 0;
+        if (safeValue <= 0) return;
+        Array.from(container.querySelectorAll(".rating-star-button")).forEach(function paint(label) {
+            const buttonValue = Number(label.getAttribute("data-rating-value")) || 0;
+            if (buttonValue <= safeValue) {
+                label.classList.add("is-previewed");
+            }
+        });
+    }
+
     function renderStarPicker(container, currentValue, namePrefix) {
         if (!container) {
             return;
         }
         container.innerHTML = "";
         const max = 5;
-        // Render highest → lowest in DOM order. CSS flips it visually with
-        // `flex-direction: row-reverse`, which lets us highlight the chosen
-        // star plus every star "below" it using the classic `:checked ~ *`
-        // sibling selector — and gives us free hover preview.
-        for (let i = max; i >= 1; i -= 1) {
+        // Render in 1 → 5 order — straightforward and matches reading order.
+        // Highlight state is set via JS classes on `change` / hover events so
+        // it doesn't depend on `:has()` or sibling-combinator CSS tricks.
+        for (let i = 1; i <= max; i += 1) {
             const label = globalScope.document.createElement("label");
             label.className = "rating-star-button";
             label.setAttribute("data-rating-value", String(i));
@@ -1306,6 +1343,30 @@
             label.appendChild(srLabel);
             container.appendChild(label);
         }
+
+        // Paint the initial fill state if a value was supplied.
+        applyStarFillStateToContainer(container, currentValue);
+
+        // Update the fill whenever the user clicks a different star.
+        container.addEventListener("change", function onStarChange(event) {
+            const target = event.target;
+            if (!target || target.type !== "radio") return;
+            applyStarFillStateToContainer(container, Number(target.value));
+            clearStarPreviewState(container);
+        });
+
+        // Hover preview: mouseenter on a label paints 1..N in preview state.
+        container.addEventListener("mouseover", function onStarHover(event) {
+            const label = event.target && typeof event.target.closest === "function"
+                ? event.target.closest(".rating-star-button")
+                : null;
+            if (!label || !container.contains(label)) return;
+            applyStarPreviewState(container, Number(label.getAttribute("data-rating-value")));
+        });
+
+        container.addEventListener("mouseleave", function onStarLeave() {
+            clearStarPreviewState(container);
+        });
     }
 
     function fillRatingModal(order, existingReview) {

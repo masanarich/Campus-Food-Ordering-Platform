@@ -2,6 +2,8 @@ const ticketValidation = require("../../../public/shared/support/ticket-validati
 const ticketModel = require("../../../public/shared/support/ticket-model.js");
 const ticketStatus = require("../../../public/shared/support/ticket-status.js");
 const ticketCategories = require("../../../public/shared/support/ticket-categories.js");
+const refundCaseModel = require("../../../public/shared/support/refund-case-model.js");
+const refundCaseValidation = require("../../../public/shared/support/refund-case-validation.js");
 
 function makeValidTicketInput(overrides = {}) {
     return ticketModel.createTicketRecord({
@@ -23,12 +25,49 @@ function makeValidTicketInput(overrides = {}) {
     });
 }
 
+function makePaidOrder(overrides = {}) {
+    return {
+        orderId: "order-7",
+        checkoutId: "checkout-7",
+        customerUid: "customer-1",
+        vendorUid: "vendor-1",
+        status: "completed",
+        paymentStatus: "paid",
+        paymentReference: "paystack-ref-7",
+        paymentAmount: 120,
+        paymentAmountInMinorUnits: 12000,
+        paymentCurrency: "ZAR",
+        vendorEarnings: 108,
+        platformEarnings: 12,
+        ...overrides
+    };
+}
+
+function makeValidRefundCase(overrides = {}, orderOverrides = {}) {
+    return refundCaseModel.createRefundCaseRecord({
+        ticketId: "ticket-abc",
+        orderId: "order-7",
+        customerUid: "customer-1",
+        vendorUid: "vendor-1",
+        type: "partial",
+        amount: 60,
+        reason: "Food quality issue",
+        customerDecision: "pending",
+        vendorDecision: "pending",
+        ...overrides
+    }, {
+        order: makePaidOrder(orderOverrides)
+    });
+}
+
 describe("shared/support/ticket-validation.js", () => {
     afterEach(() => {
         if (typeof global !== "undefined") {
             delete global.ticketStatus;
             delete global.ticketCategories;
             delete global.ticketModel;
+            delete global.refundCaseModel;
+            delete global.refundCaseValidation;
         }
     });
 
@@ -47,6 +86,8 @@ describe("shared/support/ticket-validation.js", () => {
             "resolveTicketStatus",
             "resolveTicketCategories",
             "resolveTicketModel",
+            "resolveRefundCaseModel",
+            "resolveRefundCaseValidation",
             "createValidationResult",
             "setError",
             "mergeErrors",
@@ -95,6 +136,27 @@ describe("shared/support/ticket-validation.js", () => {
         expect(ticketValidation.resolveTicketModel()).toBe(fakeModel);
         delete global.ticketModel;
         expect(ticketValidation.resolveTicketModel()).toBe(ticketModel);
+
+        const fakeRefundCaseModel = {
+            createRefundCaseRecord: jest.fn()
+        };
+        expect(ticketValidation.resolveRefundCaseModel(fakeRefundCaseModel)).toBe(fakeRefundCaseModel);
+        global.refundCaseModel = fakeRefundCaseModel;
+        expect(ticketValidation.resolveRefundCaseModel()).toBe(fakeRefundCaseModel);
+        delete global.refundCaseModel;
+        expect(ticketValidation.resolveRefundCaseModel()).toBe(refundCaseModel);
+        expect(ticketValidation.resolveRefundCaseModel({ wrong: true })).toBe(refundCaseModel);
+
+        const fakeRefundCaseValidation = {
+            validateRefundCaseRecord: jest.fn()
+        };
+        expect(ticketValidation.resolveRefundCaseValidation(fakeRefundCaseValidation))
+            .toBe(fakeRefundCaseValidation);
+        global.refundCaseValidation = fakeRefundCaseValidation;
+        expect(ticketValidation.resolveRefundCaseValidation()).toBe(fakeRefundCaseValidation);
+        delete global.refundCaseValidation;
+        expect(ticketValidation.resolveRefundCaseValidation()).toBe(refundCaseValidation);
+        expect(ticketValidation.resolveRefundCaseValidation({ wrong: true })).toBe(refundCaseValidation);
     });
 
     test("primitive helpers behave defensively", () => {
@@ -226,16 +288,16 @@ describe("shared/support/ticket-validation.js", () => {
 
         const ok = ticketValidation.validateTicketTimeline([
             {
-                eventType: "created",
+                eventType: "refund_completed",
                 status: "open",
-                actorRole: "customer",
-                actorUid: "u-1",
-                actorName: "Naledi",
+                actorRole: "admin",
+                actorUid: "admin-1",
+                actorName: "Admin",
                 at: "2026-05-16T10:00:00Z"
             }
         ]);
         expect(ok.isValid).toBe(true);
-        expect(ok.value[0].eventType).toBe("created");
+        expect(ok.value[0].eventType).toBe("refund_completed");
     });
 
     test("validateTicketRecord accepts a complete, well-formed ticket", () => {
@@ -244,6 +306,72 @@ describe("shared/support/ticket-validation.js", () => {
         expect(result.isValid).toBe(true);
         expect(result.errors).toEqual({});
         expect(result.value.subject).toBe("Order never arrived");
+    });
+
+    test("validateTicketRecord accepts a ticket with a valid refund case and paid order context", () => {
+        const order = makePaidOrder();
+        const ticket = makeValidTicketInput({
+            category: "refund",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            refundCase: makeValidRefundCase()
+        });
+
+        const result = ticketValidation.validateTicketRecord(ticket, { order });
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors).toEqual({});
+        expect(result.value.refundCase).toEqual(expect.objectContaining({
+            orderId: "order-7",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            amount: 60,
+            reason: "Food quality issue"
+        }));
+    });
+
+    test("validateTicketRecord prefixes refund case validation errors", () => {
+        const ticket = makeValidTicketInput({
+            category: "refund",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1",
+            refundCase: {
+                type: "partial",
+                amount: 0,
+                reason: "",
+                customerNote: "x".repeat(1001)
+            }
+        });
+
+        const result = ticketValidation.validateTicketRecord(ticket, {
+            order: makePaidOrder()
+        });
+
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toEqual(expect.objectContaining({
+            "refundCase.amount": expect.any(String),
+            "refundCase.reason": expect.any(String),
+            "refundCase.customerNote": expect.any(String)
+        }));
+    });
+
+    test("validateTicketRecord keeps ordinary non-refund tickets independent from refund validation", () => {
+        const brokenRefundValidation = {
+            validateRefundCaseRecord: jest.fn(() => ({
+                isValid: false,
+                errors: { amount: "Should not be called." }
+            }))
+        };
+
+        const result = ticketValidation.validateTicketRecord(makeValidTicketInput({
+            category: "general",
+            orderId: ""
+        }), {
+            refundCaseValidation: brokenRefundValidation
+        });
+
+        expect(result.isValid).toBe(true);
+        expect(brokenRefundValidation.validateRefundCaseRecord).not.toHaveBeenCalled();
     });
 
     test("validateTicketRecord flags missing subject, description, category, and timestamps", () => {

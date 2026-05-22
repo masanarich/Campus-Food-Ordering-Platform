@@ -32,6 +32,7 @@ const ADMIN_ALLOWED_UPDATE_KEYS = [
     "resolvedByUid",
     "resolvedByName",
     "resolutionNote",
+    "refundCase",
     "timeline",
     "updatedAt",
     "categoryLabel"
@@ -42,6 +43,7 @@ const PARTICIPANT_ALLOWED_UPDATE_KEYS = [
     "statusLabel",
     "replyCount",
     "lastReplyAt",
+    "refundCase",
     "timeline",
     "updatedAt"
 ];
@@ -237,11 +239,31 @@ function makeValidTicket(overrides = {}) {
         description: "The driver did not show up.",
         category: "order_issue",
         orderId: "order-7",
+        customerUid: "customer-1",
+        vendorUid: "vendor-1",
         priority: "normal",
         createdAt: "2026-05-16T10:00:00.000Z",
         updatedAt: "2026-05-16T10:00:00.000Z",
         ...overrides
     });
+}
+
+function makePaidOrder(overrides = {}) {
+    return {
+        orderId: "order-7",
+        checkoutId: "checkout-7",
+        customerUid: "customer-1",
+        vendorUid: "vendor-1",
+        status: "completed",
+        paymentStatus: "paid",
+        paymentReference: "paystack-ref-7",
+        paymentAmount: 120,
+        paymentAmountInMinorUnits: 12000,
+        paymentCurrency: "ZAR",
+        vendorEarnings: 108,
+        platformEarnings: 12,
+        ...overrides
+    };
 }
 
 describe("firestore.rules - tickets (whitelist parity)", () => {
@@ -266,6 +288,14 @@ describe("firestore.rules - tickets (whitelist parity)", () => {
         expect(parsed).toEqual(PARTICIPANT_ALLOWED_UPDATE_KEYS);
     });
 
+    test("ticket create rule blocks client-seeded refund cases", () => {
+        const block = /function isValidTicketCreate[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+
+        expect(block).not.toBeNull();
+        expect(block[0]).toMatch(/refundCase/);
+        expect(block[0]).toMatch(/request\.resource\.data\.get\("refundCase",\s*null\)\s*==\s*null/);
+    });
+
     test("immutable-fields list in rules covers everything we expect", () => {
         // ticketImmutableFieldsPreserved doesn't use hasOnly so we just sanity-check
         // that each immutable field name appears in the rule body.
@@ -282,6 +312,65 @@ describe("firestore.rules - tickets (whitelist parity)", () => {
         });
         // Critically: "resolved" must NOT be in the participant status whitelist.
         expect(block[0]).not.toMatch(/"resolved"/);
+    });
+
+    test("participant refund-case rule allows only customer/vendor decision fields", () => {
+        const customerBlock = /function customerRefundCaseDecisionKeysAreAllowed[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+        const vendorBlock = /function vendorRefundCaseDecisionKeysAreAllowed[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+        const coreFieldsBlock = /function refundCaseCoreFieldsPreserved[\s\S]*?\}\s*\n/.exec(RULES_TEXT);
+        const participantBlock = /function participantRefundCaseUpdateIsAllowed[\s\S]*?function isValidTicketUpdate/.exec(RULES_TEXT);
+
+        expect(customerBlock).not.toBeNull();
+        expect(vendorBlock).not.toBeNull();
+        expect(coreFieldsBlock).not.toBeNull();
+        expect(participantBlock).not.toBeNull();
+
+        [
+            "status",
+            "statusLabel",
+            "customerDecision",
+            "customerDecidedAt",
+            "customerNote",
+            "timeline",
+            "updatedAt"
+        ].forEach(function expectCustomerDecisionKey(field) {
+            expect(customerBlock[0]).toMatch(new RegExp("\"" + field + "\""));
+        });
+
+        [
+            "status",
+            "statusLabel",
+            "vendorDecision",
+            "vendorDecidedAt",
+            "vendorNote",
+            "timeline",
+            "updatedAt"
+        ].forEach(function expectVendorDecisionKey(field) {
+            expect(vendorBlock[0]).toMatch(new RegExp("\"" + field + "\""));
+        });
+
+        [
+            "ticketId",
+            "orderId",
+            "customerUid",
+            "vendorUid",
+            "type",
+            "amount",
+            "amountInMinorUnits",
+            "reason",
+            "proposedByUid",
+            "proposedAt",
+            "createdAt"
+        ].forEach(function expectPreservedField(field) {
+            expect(coreFieldsBlock[0]).toMatch(new RegExp(field));
+        });
+
+        expect(participantBlock[0]).toMatch(/isTicketCustomerParty\(\)/);
+        expect(participantBlock[0]).toMatch(/isTicketVendorParty\(\)/);
+        expect(participantBlock[0]).toMatch(/"approved"/);
+        expect(participantBlock[0]).toMatch(/"declined"/);
+        expect(participantBlock[0]).not.toMatch(/refundId/);
+        expect(participantBlock[0]).not.toMatch(/refundReference/);
     });
 
     test("reply create rule whitelists customer, vendor, admin author roles", () => {
@@ -578,6 +667,143 @@ describe("firestore.rules - tickets (service ↔ rule contract)", () => {
         // And the rule would reject it server-side as a second line of defence.
         // (See isValidReplyCreate() in firestore.rules.)
     });
+
+    test("admin refund proposal patch only touches admin-whitelisted ticket keys", () => {
+        const before = makeValidTicket({ category: "refund" });
+        const plan = ticketService.buildRefundProposalUpdate(before, {
+            type: "partial",
+            amount: 60,
+            reason: "Food quality issue"
+        }, {
+            order: makePaidOrder(),
+            actorRole: "admin",
+            actorUid: "admin-1",
+            actorName: "Admin",
+            now: "2026-05-16T12:00:00.000Z"
+        });
+
+        expect(plan.success).toBe(true);
+        expect(plan.ticket.refundCase).toEqual(expect.objectContaining({
+            status: "proposed",
+            orderId: "order-7",
+            customerUid: "customer-1",
+            vendorUid: "vendor-1"
+        }));
+
+        const changedKeys = affectedKeys(before, plan.ticket);
+        expect(changedKeys).toEqual(expect.arrayContaining(["refundCase", "timeline", "updatedAt"]));
+        changedKeys.forEach(function check(key) {
+            expect(ADMIN_ALLOWED_UPDATE_KEYS).toContain(key);
+            expect(TICKET_IMMUTABLE_FIELDS).not.toContain(key);
+        });
+    });
+
+    test("customer and vendor refund decisions stay inside participant-whitelisted keys", () => {
+        const proposal = ticketService.buildRefundProposalUpdate(makeValidTicket({ category: "refund" }), {
+            type: "partial",
+            amount: 60,
+            reason: "Food quality issue"
+        }, {
+            order: makePaidOrder(),
+            actorRole: "admin",
+            actorUid: "admin-1",
+            actorName: "Admin",
+            now: "2026-05-16T12:00:00.000Z"
+        });
+        expect(proposal.success).toBe(true);
+
+        const customerDecision = ticketService.buildRefundDecisionUpdate(proposal.ticket, {
+            actorRole: "customer",
+            actorUid: "customer-1",
+            actorName: "Naledi",
+            decision: "approved",
+            note: "I agree with the refund."
+        }, {
+            now: "2026-05-16T12:05:00.000Z"
+        });
+        expect(customerDecision.success).toBe(true);
+
+        const customerChangedKeys = affectedKeys(proposal.ticket, customerDecision.ticket);
+        expect(customerChangedKeys).toEqual(expect.arrayContaining(["refundCase", "timeline", "updatedAt"]));
+        customerChangedKeys.forEach(function check(key) {
+            expect(PARTICIPANT_ALLOWED_UPDATE_KEYS).toContain(key);
+            expect(TICKET_IMMUTABLE_FIELDS).not.toContain(key);
+        });
+        expect(customerDecision.ticket.refundCase.customerDecision).toBe("approved");
+        expect(customerDecision.ticket.refundCase.vendorDecision).toBe("pending");
+
+        const vendorDecision = ticketService.buildRefundDecisionUpdate(customerDecision.ticket, {
+            actorRole: "vendor",
+            actorUid: "vendor-1",
+            actorName: "Vendor",
+            decision: "approved",
+            note: "Approved from the vendor side."
+        }, {
+            now: "2026-05-16T12:10:00.000Z"
+        });
+        expect(vendorDecision.success).toBe(true);
+
+        const vendorChangedKeys = affectedKeys(customerDecision.ticket, vendorDecision.ticket);
+        expect(vendorChangedKeys).toEqual(expect.arrayContaining(["refundCase", "timeline", "updatedAt"]));
+        vendorChangedKeys.forEach(function check(key) {
+            expect(PARTICIPANT_ALLOWED_UPDATE_KEYS).toContain(key);
+            expect(TICKET_IMMUTABLE_FIELDS).not.toContain(key);
+        });
+        expect(vendorDecision.ticket.refundCase.status).toBe("approved");
+        expect(vendorDecision.ticket.refundCase.customerDecision).toBe("approved");
+        expect(vendorDecision.ticket.refundCase.vendorDecision).toBe("approved");
+    });
+
+    test("admin refund execution patch stays inside admin-whitelisted ticket keys", () => {
+        const proposal = ticketService.buildRefundProposalUpdate(makeValidTicket({ category: "refund" }), {
+            type: "partial",
+            amount: 60,
+            reason: "Food quality issue"
+        }, {
+            order: makePaidOrder(),
+            actorRole: "admin",
+            actorUid: "admin-1",
+            actorName: "Admin",
+            now: "2026-05-16T12:00:00.000Z"
+        });
+        const customerDecision = ticketService.buildRefundDecisionUpdate(proposal.ticket, {
+            actorRole: "customer",
+            actorUid: "customer-1",
+            decision: "approved"
+        }, {
+            now: "2026-05-16T12:05:00.000Z"
+        });
+        const vendorDecision = ticketService.buildRefundDecisionUpdate(customerDecision.ticket, {
+            actorRole: "vendor",
+            actorUid: "vendor-1",
+            decision: "approved"
+        }, {
+            now: "2026-05-16T12:10:00.000Z"
+        });
+        expect(vendorDecision.success).toBe(true);
+
+        const execution = ticketService.buildRefundExecutionUpdate(vendorDecision.ticket, {
+            status: "processing",
+            actorRole: "admin",
+            actorUid: "admin-1",
+            actorName: "Admin",
+            refundProvider: "paystack",
+            refundReference: "refund-ref-7"
+        }, {
+            order: makePaidOrder(),
+            now: "2026-05-16T12:15:00.000Z"
+        });
+
+        expect(execution.success).toBe(true);
+        expect(execution.ticket.refundCase.status).toBe("processing");
+
+        const changedKeys = affectedKeys(vendorDecision.ticket, execution.ticket);
+        expect(changedKeys).toEqual(expect.arrayContaining(["refundCase", "timeline", "updatedAt"]));
+        changedKeys.forEach(function check(key) {
+            expect(ADMIN_ALLOWED_UPDATE_KEYS).toContain(key);
+            expect(TICKET_IMMUTABLE_FIELDS).not.toContain(key);
+        });
+    });
 });
 
 describe("firestore.indexes.json - tickets (queries ↔ index parity)", () => {
@@ -793,6 +1019,29 @@ describe("firestore.indexes.json - tickets (queries ↔ index parity)", () => {
                 { fieldPath: "createdAt", mode: "DESCENDING" }
             ])).toBeDefined();
         });
+    });
+
+    test("refund-case status indexes cover upcoming admin, customer, and vendor refund queues", () => {
+        expect(findTicketIndex([
+            { fieldPath: "category", mode: "ASCENDING" },
+            { fieldPath: "refundCase.status", mode: "ASCENDING" },
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "createdAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+
+        expect(findTicketIndex([
+            { fieldPath: "customerUid", mode: "ASCENDING" },
+            { fieldPath: "refundCase.status", mode: "ASCENDING" },
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "createdAt", mode: "DESCENDING" }
+        ])).toBeDefined();
+
+        expect(findTicketIndex([
+            { fieldPath: "vendorUid", mode: "ASCENDING" },
+            { fieldPath: "refundCase.status", mode: "ASCENDING" },
+            { fieldPath: "updatedAt", mode: "DESCENDING" },
+            { fieldPath: "createdAt", mode: "DESCENDING" }
+        ])).toBeDefined();
     });
 
     test("replies subcollection has an index for the internal-note filter + chronological order", () => {

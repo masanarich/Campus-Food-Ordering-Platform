@@ -912,22 +912,87 @@ describe("customer/order-tracking/index.js - rating helpers", () => {
         expect(checked.value).toBe("3");
     });
 
-    test("renderStarPicker emits stars in 5→1 DOM order (paired with row-reverse layout)", () => {
-        // Regression guard: the highlight logic relies on stars being in
-        // descending DOM order so `:checked ~ sibling` lights up lower-value
-        // stars. If a future refactor flips the loop back to 1→5, the UI
-        // would visually invert (selecting 1 star would light up all 5).
+    test("renderStarPicker renders stars 1→5 with the is-filled class on 1..N when a value is preset", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        customerOrderTrackingPage.renderStarPicker(host, 3, "vendorRating");
+
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"));
+        // Reading-order DOM: 1, 2, 3, 4, 5
+        expect(labels.map(function getValue(l) { return l.getAttribute("data-rating-value"); }))
+            .toEqual(["1", "2", "3", "4", "5"]);
+
+        // Stars 1..3 should be filled; 4 and 5 should not.
+        expect(labels[0].classList.contains("is-filled")).toBe(true);
+        expect(labels[1].classList.contains("is-filled")).toBe(true);
+        expect(labels[2].classList.contains("is-filled")).toBe(true);
+        expect(labels[3].classList.contains("is-filled")).toBe(false);
+        expect(labels[4].classList.contains("is-filled")).toBe(false);
+    });
+
+    test("clicking a star repaints the is-filled class to 1..N for that star only", () => {
         const host = document.createElement("section");
         document.body.appendChild(host);
         customerOrderTrackingPage.renderStarPicker(host, null, "vendorRating");
 
-        const values = Array.from(host.querySelectorAll("input[type='radio']"))
-            .map(function readValue(input) { return input.value; });
-        expect(values).toEqual(["5", "4", "3", "2", "1"]);
+        const star4Input = host.querySelector('input[value="4"]');
+        star4Input.checked = true;
+        star4Input.dispatchEvent(new Event("change", { bubbles: true }));
 
-        const labels = Array.from(host.querySelectorAll(".rating-star-button"))
-            .map(function readAttr(label) { return label.getAttribute("data-rating-value"); });
-        expect(labels).toEqual(["5", "4", "3", "2", "1"]);
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"));
+        // Filled state must match the chosen rating — never a higher star.
+        expect(labels[0].classList.contains("is-filled")).toBe(true);
+        expect(labels[1].classList.contains("is-filled")).toBe(true);
+        expect(labels[2].classList.contains("is-filled")).toBe(true);
+        expect(labels[3].classList.contains("is-filled")).toBe(true);
+        expect(labels[4].classList.contains("is-filled")).toBe(false);
+    });
+
+    test("clicking a 1-star resets the fill so only star 1 is filled", () => {
+        const host = document.createElement("section");
+        document.body.appendChild(host);
+        // Start from a high preset to make sure the fill goes DOWN.
+        customerOrderTrackingPage.renderStarPicker(host, 5, "vendorRating");
+
+        const star1Input = host.querySelector('input[value="1"]');
+        star1Input.checked = true;
+        star1Input.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const labels = Array.from(host.querySelectorAll(".rating-star-button"));
+        expect(labels[0].classList.contains("is-filled")).toBe(true);
+        expect(labels.slice(1).some(function any(l) { return l.classList.contains("is-filled"); }))
+            .toBe(false);
+    });
+
+    test("each picker carries its own selection (vendor + per-item don't interfere)", () => {
+        // Regression guard: the bug report was "can't select both How was
+        // the shop overall? and Rate the items you ordered". Each picker
+        // gets its own radio `name`, so the two selections are independent.
+        const vendorHost = document.createElement("section");
+        const itemHost = document.createElement("section");
+        document.body.appendChild(vendorHost);
+        document.body.appendChild(itemHost);
+
+        customerOrderTrackingPage.renderStarPicker(vendorHost, null, "vendorRating");
+        customerOrderTrackingPage.renderStarPicker(itemHost, null, "itemRating-0");
+
+        const vendor5 = vendorHost.querySelector('input[value="5"]');
+        vendor5.checked = true;
+        vendor5.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const item3 = itemHost.querySelector('input[value="3"]');
+        item3.checked = true;
+        item3.dispatchEvent(new Event("change", { bubbles: true }));
+
+        // Vendor pick is still 5 (the item pick didn't clobber it).
+        expect(vendorHost.querySelector("input:checked").value).toBe("5");
+        expect(itemHost.querySelector("input:checked").value).toBe("3");
+
+        // Each picker has the correct fill count.
+        const vendorFilled = vendorHost.querySelectorAll(".rating-star-button.is-filled").length;
+        const itemFilled = itemHost.querySelectorAll(".rating-star-button.is-filled").length;
+        expect(vendorFilled).toBe(5);
+        expect(itemFilled).toBe(3);
     });
 
     test("fillRatingModal renders the order items in the per-item rating list", () => {

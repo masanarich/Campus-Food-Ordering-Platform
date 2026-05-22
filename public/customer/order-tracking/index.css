@@ -525,10 +525,16 @@
     font-weight: 700;
 }
 
+/* Star rating picker
+   Default: faded grey star. Selected (.is-filled) / hovered (.is-previewed)
+   stars get the bright accent fill via JS-driven classes — see
+   applyStarFillStateToContainer in order-tracking/index.js. We avoid
+   `:has(:checked) ~ sibling` because some browsers don't apply it
+   consistently in dialogs, and we want a guaranteed strong contrast. */
 .rating-stars {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
+    gap: 0.3rem;
     margin: 0.45rem 0 0.6rem;
 }
 
@@ -537,19 +543,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.4rem;
-    height: 2.4rem;
+    width: 2.5rem;
+    height: 2.5rem;
     border-radius: 50%;
     cursor: pointer;
-    color: rgba(127, 90, 67, 0.4);
-    transition: transform 0.15s ease, color 0.15s ease, background 0.15s ease;
-}
-
-.rating-star-button:hover,
-.rating-star-button:focus-within {
-    background: rgba(200, 108, 24, 0.12);
-    color: var(--order-accent-dark);
-    transform: scale(1.05);
+    color: #d6cbc1;
+    transition: transform 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 
 .rating-star-input {
@@ -559,8 +558,9 @@
 }
 
 .rating-star-symbol {
-    font-size: 1.55rem;
+    font-size: 1.85rem;
     line-height: 1;
+    color: inherit;
 }
 
 .rating-star-sr {
@@ -571,37 +571,30 @@
     clip: rect(0, 0, 0, 0);
 }
 
-/* The JS renders stars 5 → 1 in DOM order. row-reverse flips them so the
-   visual layout reads 1 (left) → 5 (right) like every other star UI. With
-   that flip, `:checked ~ .rating-star-button` matches DOM-later siblings —
-   which are visually-earlier stars — so the chosen star and every star
-   below it light up. Same trick gives us hover preview for free. */
-.rating-stars {
-    flex-direction: row-reverse;
-    justify-content: flex-end;
+/* Selected stars: bright vivid orange, slightly scaled up. */
+.rating-star-button.is-filled {
+    color: #e9871a;
+    transform: scale(1.05);
 }
 
-/* Default faded colour for unselected stars */
-.rating-star-button {
-    color: rgba(127, 90, 67, 0.4);
+.rating-star-button.is-filled .rating-star-symbol {
+    text-shadow: 0 1px 2px rgba(233, 135, 26, 0.35);
 }
 
-/* When any star in the row is checked, the chosen one and every star
-   with a lower value (DOM-after, visually-before) light up. */
-.rating-star-button:has(.rating-star-input:checked),
-.rating-star-button:has(.rating-star-input:checked) ~ .rating-star-button {
-    color: var(--order-accent, #c86c18);
+/* Hover preview while the user is still deciding. */
+.rating-star-button.is-previewed {
+    color: #f5a623;
 }
 
-/* Hover preview: same pattern, transient. Hovering star N temporarily
-   shows what clicking it would do, then the user commits with the click. */
-.rating-stars:hover .rating-star-button {
-    color: rgba(127, 90, 67, 0.4);
+.rating-star-button:hover,
+.rating-star-button:focus-within {
+    background: rgba(233, 135, 26, 0.18);
+    transform: scale(1.1);
 }
 
-.rating-stars .rating-star-button:hover,
-.rating-stars .rating-star-button:hover ~ .rating-star-button {
-    color: var(--order-accent, #c86c18);
+.rating-star-button:focus-within {
+    outline: 2px solid rgba(233, 135, 26, 0.55);
+    outline-offset: 1px;
 }
 
 .rating-comment-label {
