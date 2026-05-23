@@ -1678,6 +1678,14 @@
             vendorNameElement.textContent = decodeText(vendorName);
         }
 
+        // Mirror the vendor name into the breadcrumb's current-page chip so
+        // the breadcrumb shows e.g. "Dashboard › Vendors › Delicious" rather
+        // than the generic "Menu" placeholder.
+        const breadcrumbCurrentElement = globalScope.document.querySelector("#breadcrumb-vendor-name");
+        if (breadcrumbCurrentElement && vendorName) {
+            breadcrumbCurrentElement.textContent = decodeText(vendorName);
+        }
+
         // Update cart badge
         updateCartBadge(cartBadge);
 
