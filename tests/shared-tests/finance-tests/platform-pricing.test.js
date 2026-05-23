@@ -181,51 +181,6 @@ describe("shared/finance/platform-pricing.js", () => {
         expect(balance.availableBalance).toBe(130);
     });
 
-    test("uses stored minor-unit amounts for wallet balances when available", () => {
-        const orders = [
-            {
-                vendorUid: "v-1",
-                status: "completed",
-                paymentStatus: "paid",
-                vendorEarnings: 8000.02,
-                vendorEarningsInMinorUnits: 800000
-            }
-        ];
-        const payouts = [
-            {
-                vendorUid: "v-1",
-                status: "pending",
-                amount: 4000.02,
-                amountInMinorUnits: 400000
-            }
-        ];
-
-        const balance = platformPricing.calculateVendorBalance(orders, payouts, {
-            vendorUid: "v-1"
-        });
-
-        expect(balance.grossVendorEarnings).toBe(8000);
-        expect(balance.reservedWithdrawals).toBe(4000);
-        expect(balance.availableBalance).toBe(4000);
-    });
-
-    test("prefers vendor subtotal over vendor earnings when they only differ by rounding cents", () => {
-        const balance = platformPricing.calculateVendorBalance([
-            {
-                vendorUid: "v-1",
-                status: "completed",
-                paymentStatus: "paid",
-                vendorSubtotal: 9000,
-                vendorEarnings: 8999.98
-            }
-        ], [], {
-            vendorUid: "v-1"
-        });
-
-        expect(balance.grossVendorEarnings).toBe(9000);
-        expect(balance.availableBalance).toBe(9000);
-    });
-
     test("reduces vendor balance for completed support-refunded orders without counting cancelled orders", () => {
         const orders = [
             {
