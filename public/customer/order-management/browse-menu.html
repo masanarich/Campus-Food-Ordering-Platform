@@ -28,7 +28,20 @@
     <main class="customer-main">
         <section class="page-hero shared-section" aria-labelledby="vendor-name-heading">
             <nav class="breadcrumb" aria-label="Breadcrumb navigation">
-                <p><a href="./browse-vendors.html">Vendors</a> / <strong aria-current="page">Menu</strong></p>
+                <ol class="breadcrumb-trail">
+                    <li class="breadcrumb-item">
+                        <a href="../index.html" class="breadcrumb-link">
+                            <i class="breadcrumb-icon" aria-hidden="true">⌂</i>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="./browse-vendors.html" class="breadcrumb-link">Vendors</a>
+                    </li>
+                    <li class="breadcrumb-item breadcrumb-item-current">
+                        <strong aria-current="page" id="breadcrumb-vendor-name">Menu</strong>
+                    </li>
+                </ol>
             </nav>
 
             <h2 id="vendor-name-heading">Menu</h2>
