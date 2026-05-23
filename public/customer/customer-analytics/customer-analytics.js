@@ -1052,7 +1052,59 @@
         computeMilestones,
         searchOrders,
         sortOrders,
-        paginate
+        paginate,
+        // DOM / wiring layer — exposed for unit tests. These rely on the
+        // module-level state below, so tests use the _test* setters to
+        // seed/reset cachedOrders, charts, listeners, etc.
+        escapeHtml,
+        setText,
+        destroyChart,
+        getFilteredOrders,
+        renderStats,
+        renderSpendingChart,
+        renderVendorsChart,
+        renderItemsChart,
+        renderHabitsChart,
+        renderCategoriesChart,
+        renderHistoryTable,
+        updatePaginationOutputs,
+        renderMilestones,
+        renderAll,
+        applyTimeWindowChip,
+        downloadBlob,
+        toCsv,
+        buildExportTables,
+        exportCSV,
+        exportExcel,
+        drawPdfTable,
+        exportPDF,
+        attachEventListeners,
+        startLifecycle,
+        waitForFirebaseDependencies,
+        initializePage,
+        _testSetCachedOrders: function (next) { cachedOrders = Array.isArray(next) ? next : []; },
+        _testSetCurrentWindowKey: function (next) { currentWindowKey = next; },
+        _testGetCurrentWindowKey: function () { return currentWindowKey; },
+        _testGetCharts: function () { return charts; },
+        _testGetHistoryState: function () { return historyState; },
+        _testSetHistoryState: function (next) { Object.assign(historyState, next); },
+        _testSetListenersAttached: function (next) { listenersAttached = next === true; },
+        _testGetListenersAttached: function () { return listenersAttached; },
+        _testReset: function () {
+            cachedOrders = [];
+            currentWindowKey = "all";
+            charts.spending = null;
+            charts.vendors = null;
+            charts.items = null;
+            charts.habits = null;
+            charts.categories = null;
+            historyState.search = "";
+            historyState.sort = "date";
+            historyState.dir = "desc";
+            historyState.page = 1;
+            historyState.size = 10;
+            listenersAttached = false;
+        }
     };
 
     if (typeof globalScope !== "undefined") {
