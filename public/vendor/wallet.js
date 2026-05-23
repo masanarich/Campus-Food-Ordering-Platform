@@ -1581,3 +1581,6 @@
         globalScope.vendorWalletPage = vendorWalletPage;
     }
 })(typeof window !== "undefined" ? window : globalThis);
+
+
+

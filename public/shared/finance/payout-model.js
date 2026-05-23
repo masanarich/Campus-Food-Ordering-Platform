@@ -246,11 +246,19 @@
         const seed = normalizeText(
             safeOptions.timestampSeed ||
             safeOptions.createdAt ||
-            safeValues.requestedAt ||
-            Date.now()
-        ).replace(/[^a-zA-Z0-9]+/g, "").toLowerCase() || "generated";
+            safeValues.requestedAt
+        ).replace(/[^a-zA-Z0-9]+/g, "").toLowerCase();
 
-        return `payout-${seed}`;
+        if (seed) {
+            return `payout-${seed}`;
+        }
+
+        // No usable string seed (e.g. a Firestore serverTimestamp() sentinel
+        // was passed in). Falling back to the literal "generated" would make
+        // every payout collide on the id "payout-generated", which Firestore
+        // then treats as an update of an existing doc and the rules deny.
+        const uniqueSeed = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        return `payout-${uniqueSeed}`;
     }
 
     function createPayoutRequestRecord(values = {}, options = {}) {
