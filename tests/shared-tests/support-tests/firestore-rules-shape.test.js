@@ -479,12 +479,27 @@ describe("firestore.rules - orders (recommendation metadata contract)", () => {
     });
 
     test("customer order history reads are covered by participant-scoped order list rules", () => {
-        const orderMatch = /match\s+\/orders\/\{orderId\}\s*\{[\s\S]*?\n\s*\}/.exec(RULES_TEXT);
+        const orderMatch = /match\s+\/orders\/\{orderId\}\s*\{[\s\S]*?\n\s{4}\}/.exec(RULES_TEXT);
 
         expect(orderMatch).not.toBeNull();
+        // Helper functions still exist (used elsewhere in the rules).
         expect(RULES_TEXT).toMatch(/function isOrderCustomer\(\)[\s\S]*customerUid\s*==\s*request\.auth\.uid/);
         expect(RULES_TEXT).toMatch(/function isOrderParticipant\(\)[\s\S]*isOrderCustomer\(\)/);
-        expect(orderMatch[0]).toMatch(/allow\s+list:\s*if\s+isOrderParticipant\(\);/);
+
+        // List rule must either call the helper, inline the participant OR, or
+        // split customer/vendor reads into separate allow lines so Firestore's
+        // list-query analyzer can verify where(customerUid==me) and
+        // where(vendorUid==me) queries independently. Admin gets its own allow
+        // line either way.
+        const helperForm = /allow\s+(?:get,\s*)?list:\s*if\s+isOrderParticipant\(\);/;
+        const inlinedForm = /allow\s+get,\s*list:\s*if\s+signedIn\(\)[\s\S]*?customerUid\s*==\s*request\.auth\.uid[\s\S]*?vendorUid\s*==\s*request\.auth\.uid/;
+        const splitCustomerRead = /allow\s+get,\s*list:\s*if\s+signedIn\(\)\s*&&\s*resource\.data\.customerUid\s*==\s*request\.auth\.uid;/;
+        const splitVendorRead = /allow\s+get,\s*list:\s*if\s+signedIn\(\)\s*&&\s*resource\.data\.vendorUid\s*==\s*request\.auth\.uid;/;
+        expect(
+            helperForm.test(orderMatch[0]) ||
+            inlinedForm.test(orderMatch[0]) ||
+            (splitCustomerRead.test(orderMatch[0]) && splitVendorRead.test(orderMatch[0]))
+        ).toBe(true);
     });
 });
 
